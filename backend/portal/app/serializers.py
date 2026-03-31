@@ -2,7 +2,25 @@ from django.contrib.auth.models import User
 from rest_framework import serializers
 
 from .auth_utils import get_profile_role, is_admin, is_superadmin
-from .models import AuditLog, Notification, PlatformSettings, Profile, UserPreferences
+from .licensing import (
+    can_assign_role,
+    get_access_state,
+    get_user_organization,
+    seat_limits_for_organization,
+    seat_usage_for_organization,
+)
+from .models import (
+    AuditLog,
+    LicenseEvent,
+    Notification,
+    Organization,
+    OrganizationMembership,
+    OrganizationSubscription,
+    PlatformSettings,
+    ProductPlan,
+    Profile,
+    UserPreferences,
+)
 
 
 class UserListSerializer(serializers.ModelSerializer):
@@ -12,6 +30,7 @@ class UserListSerializer(serializers.ModelSerializer):
     phone = serializers.CharField(source="profile.phone", read_only=True)
     email_verified = serializers.BooleanField(source="profile.email_verified", read_only=True)
     google_linked = serializers.SerializerMethodField()
+    organization_name = serializers.CharField(source="profile.organization.name", read_only=True)
 
     class Meta:
         model = User
@@ -30,6 +49,7 @@ class UserListSerializer(serializers.ModelSerializer):
             "phone",
             "email_verified",
             "google_linked",
+            "organization_name",
         )
         read_only_fields = (
             "id",
@@ -46,6 +66,7 @@ class UserListSerializer(serializers.ModelSerializer):
             "phone",
             "email_verified",
             "google_linked",
+            "organization_name",
         )
 
     def get_google_linked(self, obj):
@@ -88,7 +109,7 @@ class SelfProfileSerializer(serializers.Serializer):
 
 
 class UserCreateSerializer(serializers.ModelSerializer):
-    password = serializers.CharField(write_only=True, min_length=8)
+    password = serializers.CharField(write_only=True, min_length=8, required=False, allow_blank=True)
     role = serializers.ChoiceField(choices=Profile.ROLE_CHOICES, default=Profile.ROLE_CUSTOMER)
     phone = serializers.CharField(required=False, allow_blank=True, default="")
 
@@ -111,25 +132,46 @@ class UserCreateSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError("Authentication required.")
         actor = request.user
         role = attrs.get("role", Profile.ROLE_CUSTOMER)
+        actor_org = get_user_organization(actor)
         if is_superadmin(actor):
+            allowed, message = can_assign_role(actor_org, role)
+            if not allowed:
+                raise serializers.ValidationError({"role": message})
             return attrs
         if is_admin(actor):
             if role not in (Profile.ROLE_STAFF, Profile.ROLE_CUSTOMER):
                 raise serializers.ValidationError(
                     {"role": "Admins may only create staff or customer accounts."}
                 )
+            allowed, message = can_assign_role(actor_org, role)
+            if not allowed:
+                raise serializers.ValidationError({"role": message})
             return attrs
         raise serializers.ValidationError("You cannot create users.")
 
     def create(self, validated_data):
         role = validated_data.pop("role")
         phone = validated_data.pop("phone", "")
-        password = validated_data.pop("password")
-        user = User.objects.create_user(password=password, **validated_data)
+        password = (validated_data.pop("password", "") or "").strip()
+        user = User.objects.create_user(password=password or None, **validated_data)
+        if not password:
+            user.set_unusable_password()
+            user.save(update_fields=["password"])
+        actor_org = get_user_organization(self.context["request"].user)
         user.profile.role = role
+        user.profile.organization = actor_org
         user.profile.phone = phone
         user.profile.email_verified = True
         user.profile.save()
+        OrganizationMembership.objects.update_or_create(
+            user=user,
+            defaults={
+                "organization": actor_org,
+                "role": role,
+                "is_owner": role == Profile.ROLE_SUPERADMIN,
+                "is_active": user.is_active,
+            },
+        )
         return user
 
 
@@ -155,14 +197,23 @@ class UserUpdateSerializer(serializers.ModelSerializer):
         actor = request.user
         instance = self.instance
         new_role = attrs.get("role")
+        actor_org = get_user_organization(actor)
+        target_org = getattr(instance.profile, "organization", None)
+        if actor_org and target_org and actor_org.pk != target_org.pk:
+            raise serializers.ValidationError("You do not have permission to modify this account.")
         if new_role is not None:
             if is_superadmin(actor):
-                pass
+                allowed, message = can_assign_role(actor_org, new_role, exclude_user=instance)
+                if not allowed:
+                    raise serializers.ValidationError({"role": message})
             elif is_admin(actor):
                 if new_role not in (Profile.ROLE_STAFF, Profile.ROLE_CUSTOMER):
                     raise serializers.ValidationError(
                         {"role": "Admins may only assign staff or customer roles."}
                     )
+                allowed, message = can_assign_role(actor_org, new_role, exclude_user=instance)
+                if not allowed:
+                    raise serializers.ValidationError({"role": message})
             else:
                 raise serializers.ValidationError({"role": "You cannot change roles."})
         if instance and is_admin(actor) and not is_superadmin(actor):
@@ -190,7 +241,28 @@ class UserUpdateSerializer(serializers.ModelSerializer):
         if phone is not None:
             profile.phone = phone
         profile.save()
+        OrganizationMembership.objects.update_or_create(
+            user=instance,
+            defaults={
+                "organization": profile.organization,
+                "role": profile.role,
+                "is_owner": profile.role == Profile.ROLE_SUPERADMIN,
+                "is_active": instance.is_active,
+            },
+        )
         return instance
+
+
+class AdminPasswordResetSerializer(serializers.Serializer):
+    new_password = serializers.CharField(write_only=True, min_length=8)
+    new_password_confirm = serializers.CharField(write_only=True, min_length=8)
+
+    def validate(self, attrs):
+        if attrs["new_password"] != attrs["new_password_confirm"]:
+            raise serializers.ValidationError(
+                {"new_password_confirm": "Passwords do not match."}
+            )
+        return attrs
 
 
 class NotificationSerializer(serializers.ModelSerializer):
@@ -319,6 +391,28 @@ class PasswordResetConfirmSerializer(serializers.Serializer):
         return attrs
 
 
+class CompanySuperadminResetTokenSerializer(serializers.Serializer):
+    token = serializers.CharField()
+
+    def validate_token(self, value):
+        token = (value or "").strip()
+        if not token:
+            raise serializers.ValidationError("Reset token is required.")
+        return token
+
+
+class CompanySuperadminResetConfirmSerializer(CompanySuperadminResetTokenSerializer):
+    new_password = serializers.CharField(write_only=True, min_length=8)
+    new_password_confirm = serializers.CharField(write_only=True, min_length=8)
+
+    def validate(self, attrs):
+        if attrs["new_password"] != attrs["new_password_confirm"]:
+            raise serializers.ValidationError(
+                {"new_password_confirm": "Passwords do not match."}
+            )
+        return attrs
+
+
 class VerifyEmailCodeSerializer(serializers.Serializer):
     email = serializers.EmailField()
     code = serializers.CharField(max_length=32)
@@ -367,3 +461,97 @@ class AuditLogSerializer(serializers.ModelSerializer):
             "metadata",
             "created_at",
         )
+
+
+class ProductPlanSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ProductPlan
+        fields = (
+            "id",
+            "code",
+            "name",
+            "description",
+            "monthly_price",
+            "currency",
+            "max_superadmins",
+            "max_admins",
+            "max_staff",
+            "max_customers",
+            "feature_flags",
+            "is_active",
+        )
+        read_only_fields = ("id",)
+
+
+class OrganizationSubscriptionSerializer(serializers.ModelSerializer):
+    plan = ProductPlanSerializer(read_only=True)
+
+    class Meta:
+        model = OrganizationSubscription
+        fields = (
+            "id",
+            "status",
+            "starts_at",
+            "renews_at",
+            "grace_ends_at",
+            "cancelled_at",
+            "last_payment_status",
+            "manual_notes",
+            "plan",
+            "updated_at",
+        )
+        read_only_fields = ("id", "updated_at")
+
+
+class OrganizationSerializer(serializers.ModelSerializer):
+    subscription = serializers.SerializerMethodField()
+    seat_limits = serializers.SerializerMethodField()
+    seat_usage = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Organization
+        fields = (
+            "id",
+            "name",
+            "slug",
+            "status",
+            "billing_contact_name",
+            "billing_contact_email",
+            "reputation_tier",
+            "read_only_mode",
+            "created_by_company",
+            "subscription",
+            "seat_limits",
+            "seat_usage",
+        )
+        read_only_fields = ("id", "subscription", "seat_limits", "seat_usage")
+
+    def get_subscription(self, obj):
+        subscription = getattr(obj, "subscription", None)
+        if not subscription:
+            return None
+        return OrganizationSubscriptionSerializer(subscription).data
+
+    def get_seat_limits(self, obj):
+        return seat_limits_for_organization(obj)
+
+    def get_seat_usage(self, obj):
+        return seat_usage_for_organization(obj)
+
+
+class LicenseEventSerializer(serializers.ModelSerializer):
+    actor_username = serializers.CharField(source="actor.username", read_only=True, allow_null=True)
+
+    class Meta:
+        model = LicenseEvent
+        fields = (
+            "id",
+            "organization",
+            "actor_username",
+            "action",
+            "old_status",
+            "new_status",
+            "notes",
+            "created_at",
+        )
+        read_only_fields = fields

@@ -17,7 +17,6 @@ function rolesForManager(currentUser) {
 
 const emptyForm = {
   username: '',
-  password: '',
   email: '',
   first_name: '',
   last_name: '',
@@ -97,7 +96,6 @@ export default function UsersManagementPage() {
     try {
       const payload = {
         username: form.username.trim(),
-        password: form.password,
         email: form.email.trim(),
         first_name: form.first_name.trim(),
         last_name: form.last_name.trim(),
@@ -182,6 +180,28 @@ export default function UsersManagementPage() {
     }
   }
 
+  const handlePasswordReset = async (row) => {
+    const newPassword = window.prompt(`Enter a new password for "${row.username}" (minimum 8 characters).`)
+    if (newPassword === null) return
+    const trimmed = newPassword.trim()
+    if (trimmed.length < 8) {
+      setError('Password must be at least 8 characters long.')
+      return
+    }
+    const confirmPassword = window.prompt(`Confirm the new password for "${row.username}".`)
+    if (confirmPassword === null) return
+
+    setBusy(row.id, 'password', true)
+    setError('')
+    try {
+      await usersService.resetUserPassword(row.id, trimmed, confirmPassword)
+    } catch (err) {
+      setError(err.message || 'Could not reset password')
+    } finally {
+      setBusy(row.id, 'password', false)
+    }
+  }
+
   if (!canManageUsers(currentUser)) {
     return <Navigate to="/dashboard" replace />
   }
@@ -191,6 +211,9 @@ export default function UsersManagementPage() {
   const total = usersData?.count ?? users.length
   const hasNext = Boolean(usersData?.next)
   const hasPrev = Boolean(usersData?.previous)
+  const seatUsage = currentUser?.seat_usage || {}
+  const seatLimits = currentUser?.seat_limits || {}
+  const readOnly = Boolean(currentUser?.is_read_only || currentUser?.is_suspended)
 
   const handleFilterSubmit = (e) => {
     e.preventDefault()
@@ -206,6 +229,12 @@ export default function UsersManagementPage() {
           <p className="muted-text">
             Super admins manage every account including admins. Admins create and approve staff and
             customer accounts (activate or suspend access below).
+          </p>
+          <p className="muted-text">
+            Seats: superadmins {seatUsage.superadmin ?? 0}/{seatLimits.superadmin ?? 0}, admins{' '}
+            {seatUsage.admin ?? 0}/{seatLimits.admin ?? 0}, staff {seatUsage.staff ?? 0}/
+            {seatLimits.staff ?? 0}, customers {seatUsage.customer ?? 0}/
+            {seatLimits.customer ?? 0}
           </p>
         </div>
         <button
@@ -276,6 +305,9 @@ export default function UsersManagementPage() {
       <div className="users-grid">
         <form className="user-create-card" onSubmit={handleCreate}>
           <h2>Create user</h2>
+          {readOnly && (
+            <p className="muted-text">User changes are disabled while this organization is restricted.</p>
+          )}
           <div className="form-grid">
             <label>
               Username *
@@ -287,23 +319,13 @@ export default function UsersManagementPage() {
               />
             </label>
             <label>
-              Password * (min 8)
-              <input
-                type="password"
-                value={form.password}
-                onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))}
-                required
-                minLength={8}
-                autoComplete="new-password"
-              />
-            </label>
-            <label>
-              Email
+              Email *
               <input
                 type="email"
                 value={form.email}
                 onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
                 autoComplete="off"
+                required
               />
             </label>
             <label>
@@ -349,7 +371,11 @@ export default function UsersManagementPage() {
               Active account (approved)
             </label>
           </div>
-          <button type="submit" disabled={creating}>
+          <p className="muted-text" style={{ marginBottom: 12 }}>
+            New users receive an email to set their password. If Google sign-in is enabled, they can
+            also use the same email with Google.
+          </p>
+          <button type="submit" disabled={creating || readOnly}>
             {creating ? 'Creating…' : 'Create user'}
           </button>
         </form>
@@ -401,7 +427,7 @@ export default function UsersManagementPage() {
                         <td>
                           <select
                             value={row.role}
-                            disabled={busy.role}
+                            disabled={busy.role || readOnly}
                             onChange={(e) => handleRoleChange(row, e.target.value)}
                           >
                             {roleSelectOptions.map((r) => (
@@ -416,7 +442,7 @@ export default function UsersManagementPage() {
                             <input
                               type="checkbox"
                               checked={row.is_active}
-                              disabled={busy.active || isSelf}
+                              disabled={busy.active || isSelf || readOnly}
                               onChange={(e) => handleActiveToggle(row, e.target.checked)}
                               title={isSelf ? 'Cannot suspend your own session here' : ''}
                             />
@@ -428,8 +454,18 @@ export default function UsersManagementPage() {
                         <td>
                           <button
                             type="button"
+                            className="btn-secondary"
+                            disabled={busy.password || isSelf || readOnly}
+                            onClick={() => handlePasswordReset(row)}
+                            title={isSelf ? 'Use the forgot-password flow for your own account' : 'Reset password'}
+                            style={{ marginRight: 8 }}
+                          >
+                            {busy.password ? 'Resetting...' : 'Reset password'}
+                          </button>
+                          <button
+                            type="button"
                             className="btn-danger"
-                            disabled={busy.delete || isSelf}
+                            disabled={busy.delete || isSelf || readOnly}
                             onClick={() => handleDelete(row)}
                             title={isSelf ? 'Cannot delete yourself' : 'Remove user'}
                           >

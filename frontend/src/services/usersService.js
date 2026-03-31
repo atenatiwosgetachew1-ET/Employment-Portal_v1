@@ -58,3 +58,25 @@ export async function deleteUser(id) {
     throw new Error(data.detail || 'Failed to delete user')
   }
 }
+
+export async function resetUserPassword(id, newPassword, newPasswordConfirm) {
+  const response = await apiFetch(`/api/users/${id}/reset-password/`, {
+    method: 'POST',
+    body: JSON.stringify({
+      new_password: newPassword,
+      new_password_confirm: newPasswordConfirm
+    })
+  })
+  const data = await response.json().catch(() => ({}))
+  if (!response.ok) {
+    const msg =
+      typeof data === 'object' && data !== null
+        ? data.detail ||
+          Object.entries(data)
+            .map(([k, v]) => `${k}: ${Array.isArray(v) ? v.join(', ') : v}`)
+            .join(' ')
+        : 'Failed to reset password'
+    throw new Error(msg || 'Failed to reset password')
+  }
+  return data
+}

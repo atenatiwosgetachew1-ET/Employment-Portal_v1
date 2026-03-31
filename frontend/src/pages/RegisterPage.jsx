@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { GoogleLogin, GoogleOAuthProvider } from '@react-oauth/google'
 import { Link, useNavigate } from 'react-router-dom'
 import * as authService from '../services/authService'
@@ -15,7 +15,37 @@ export default function RegisterPage() {
   const [passwordConfirm, setPasswordConfirm] = useState('')
   const [error, setError] = useState('')
   const [googleError, setGoogleError] = useState('')
+  const [authOptions, setAuthOptions] = useState(null)
+  const [optionsError, setOptionsError] = useState('')
   const [loading, setLoading] = useState(false)
+
+  useEffect(() => {
+    let ignore = false
+
+    authService
+      .fetchPublicAuthOptions()
+      .then((options) => {
+        if (!ignore) {
+          setAuthOptions(options)
+        }
+      })
+      .catch((err) => {
+        if (!ignore) {
+          setOptionsError(err.message || 'Could not load sign-up options.')
+        }
+      })
+
+    return () => {
+      ignore = true
+    }
+  }, [])
+
+  const registrationEnabled = authOptions?.registration_enabled !== false
+  const googleEnabled = Boolean(
+    authOptions?.google_login_enabled &&
+      authOptions?.google_configured &&
+      googleClientId
+  )
 
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -49,7 +79,9 @@ export default function RegisterPage() {
 
   const formBlock = (
     <>
-      <form className="auth-form" onSubmit={handleSubmit}>
+      {optionsError ? <p className="error-message">{optionsError}</p> : null}
+      {registrationEnabled ? (
+        <form className="auth-form" onSubmit={handleSubmit}>
         <h1>Create account</h1>
 
         <div className="form-group">
@@ -110,13 +142,24 @@ export default function RegisterPage() {
         <p className="auth-links muted-text">
           <Link to="/login">Already have an account? Sign in</Link>
         </p>
-      </form>
+        </form>
+      ) : (
+        <section className="auth-form">
+          <h1>Create account</h1>
+          <p className="muted-text">New registrations are currently disabled.</p>
+          <p className="auth-links muted-text">
+            <Link to="/login">Go to sign in</Link>
+          </p>
+        </section>
+      )}
 
-      {googleClientId && (
+      {googleEnabled && (
         <>
           {googleError ? <p className="error-message oauth-error">{googleError}</p> : null}
           <div className="oauth-block">
-            <p className="muted-text oauth-divider">or sign up with</p>
+            <p className="muted-text oauth-divider">
+              {registrationEnabled ? 'or sign up with' : 'Continue with'}
+            </p>
             <div className="google-signin-wrap">
               <GoogleLogin
                 onSuccess={(res) => void handleGoogle(res.credential)}
@@ -135,7 +178,9 @@ export default function RegisterPage() {
 
   return (
     <main className="page centered-page">
-      {googleClientId ? (
+      {!authOptions && !optionsError ? (
+        <p className="muted-text">Loading...</p>
+      ) : googleEnabled ? (
         <GoogleOAuthProvider clientId={googleClientId}>{formBlock}</GoogleOAuthProvider>
       ) : (
         formBlock

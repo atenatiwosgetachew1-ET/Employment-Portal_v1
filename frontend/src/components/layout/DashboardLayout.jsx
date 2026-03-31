@@ -8,6 +8,8 @@ export default function DashboardLayout() {
 
   const permissions = user?.permissions || []
   const features = user?.feature_flags || {}
+  const organization = user?.organization
+  const subscription = user?.subscription
   const canManageUsers =
     features.users_management_enabled &&
     (permissions.includes('users.manage_all') || permissions.includes('users.manage_limited'))
@@ -33,7 +35,7 @@ export default function DashboardLayout() {
   return (
     <div className="dashboard-shell">
       <aside className="dashboard-sidebar" aria-label="Main navigation">
-        <div className="dashboard-brand">portal</div>
+        <div className="dashboard-brand">Employment Portal</div>
         <nav className="dashboard-nav">
           {navItems.map(({ to, label, end }) => (
             <NavLink
@@ -54,18 +56,27 @@ export default function DashboardLayout() {
         <header className="dashboard-header">
           <div className="dashboard-header-left">
             <NotificationBell />
-            <p className="dashboard-header-user">
-              Signed in as{' '}
-              <strong>
-                {[user?.first_name, user?.last_name].filter(Boolean).join(' ') ||
-                  user?.username ||
-                  'User'}
-              </strong>
-              {user?.username &&
-                [user?.first_name, user?.last_name].filter(Boolean).length > 0 && (
-                  <span className="dashboard-header-username"> ({user.username})</span>
-                )}
-            </p>
+            <div>
+              <p className="dashboard-header-user">
+                Signed in as{' '}
+                <strong>
+                  {[user?.first_name, user?.last_name].filter(Boolean).join(' ') ||
+                    user?.username ||
+                    'User'}
+                </strong>
+                {user?.username &&
+                  [user?.first_name, user?.last_name].filter(Boolean).length > 0 && (
+                    <span className="dashboard-header-username"> ({user.username})</span>
+                  )}
+              </p>
+              {organization && (
+                <p className="muted-text" style={{ marginTop: 4 }}>
+                  {organization.name}
+                  {subscription?.plan_name ? ` • ${subscription.plan_name}` : ''}
+                  {subscription?.status ? ` • ${subscription.status}` : ''}
+                </p>
+              )}
+            </div>
           </div>
           <button type="button" className="dashboard-logout" onClick={handleLogout}>
             Logout
@@ -73,6 +84,23 @@ export default function DashboardLayout() {
         </header>
 
         <div className="dashboard-content">
+          {user?.is_suspended && (
+            <div className="dashboard-panel" style={{ marginBottom: 16 }}>
+              <strong>Organization suspended.</strong>
+              <p className="muted-text" style={{ marginTop: 8 }}>
+                Your company needs to resolve licensing before this Employment Portal can be used.
+              </p>
+            </div>
+          )}
+          {!user?.is_suspended && user?.is_read_only && (
+            <div className="dashboard-panel" style={{ marginBottom: 16 }}>
+              <strong>Read-only mode.</strong>
+              <p className="muted-text" style={{ marginTop: 8 }}>
+                This Employment Portal is active for viewing only because the organization
+                subscription is cancelled or restricted.
+              </p>
+            </div>
+          )}
           <Outlet />
         </div>
       </div>

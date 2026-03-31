@@ -17,7 +17,9 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 
 from .audit_log import log_audit
-from .auth_utils import feature_enabled, user_payload
+from .auth_utils import feature_enabled, get_profile_role, user_payload
+from .company_bootstrap import bootstrap_superadmin_from_company, get_company_bootstrap_url
+from .licensing import get_user_organization, sync_profile_membership
 from .models import PlatformSettings, Profile
 from .email_service import send_password_reset_email, send_verification_email
 from .verification_code import generate_code, store_code_on_profile
@@ -103,6 +105,62 @@ def _clear_failed_login_attempts(profile):
         profile.save(update_fields=["failed_login_attempts", "login_locked_until"])
 
 
+def _sync_superadmin_from_company(user, password, payload):
+    user_data = (payload or {}).get("user") or {}
+    updated_fields = []
+    email = (user_data.get("email") or "").strip().lower()
+    first_name = (user_data.get("first_name") or "").strip()
+    last_name = (user_data.get("last_name") or "").strip()
+    is_active = bool((payload or {}).get("is_active", True))
+
+    if email and user.email != email:
+        user.email = email
+        updated_fields.append("email")
+    if first_name != (user.first_name or ""):
+        user.first_name = first_name
+        updated_fields.append("first_name")
+    if last_name != (user.last_name or ""):
+        user.last_name = last_name
+        updated_fields.append("last_name")
+    if user.is_active != is_active:
+        user.is_active = is_active
+        updated_fields.append("is_active")
+
+    # Keep the local password aligned so Django session auth continues to work
+    # after the company-side credential has been verified.
+    user.set_password(password)
+    updated_fields.append("password")
+    user.save(update_fields=updated_fields)
+
+    profile, _ = Profile.objects.get_or_create(
+        user=user,
+        defaults={"role": Profile.ROLE_SUPERADMIN},
+    )
+    profile.role = Profile.ROLE_SUPERADMIN
+    profile.email_verified = True
+    profile.save(update_fields=["role", "email_verified"])
+    sync_profile_membership(user)
+
+
+def _is_company_managed_superadmin(user):
+    if not user:
+        return False
+    profile, _ = Profile.objects.get_or_create(
+        user=user,
+        defaults={"role": Profile.ROLE_CUSTOMER},
+    )
+    if profile.role != Profile.ROLE_SUPERADMIN:
+        return False
+    organization = profile.organization
+    return bool(
+        organization
+        and (
+            organization.created_by_company
+            or organization.company_reference
+        )
+    )
+
+
 @csrf_protect
 @api_view(["POST"])
 @authentication_classes([])
@@ -133,11 +191,41 @@ def login(request):
 
     user = authenticate(username=username, password=password)
 
+    if not user and not existing_user:
+        bootstrap = bootstrap_superadmin_from_company(username, password)
+        if bootstrap.user:
+            user = bootstrap.user
+        elif bootstrap.error_message and bootstrap.error_status:
+            return Response(
+                {"success": False, "message": bootstrap.error_message},
+                status=bootstrap.error_status,
+            )
+    elif (
+        existing_user
+        and _is_company_managed_superadmin(existing_user)
+        and get_company_bootstrap_url()
+    ):
+        bootstrap = bootstrap_superadmin_from_company(username, password)
+        if bootstrap.user:
+            _sync_superadmin_from_company(existing_user, password, bootstrap.payload)
+            user = existing_user
+        elif bootstrap.error_message and bootstrap.error_status:
+            return Response(
+                {"success": False, "message": bootstrap.error_message},
+                status=bootstrap.error_status,
+            )
+        else:
+            return Response(
+                {"success": False, "message": "Invalid credentials"},
+                status=status.HTTP_401_UNAUTHORIZED,
+            )
+
     if user:
         profile, _ = Profile.objects.get_or_create(
             user=user,
             defaults={"role": Profile.ROLE_CUSTOMER},
         )
+        sync_profile_membership(user)
         if not profile.email_verified and not user.is_superuser:
             return Response(
                 {
@@ -153,12 +241,13 @@ def login(request):
             )
         _clear_failed_login_attempts(profile)
         django_login(request, user)
+        organization = get_user_organization(user)
         log_audit(
             user,
             "auth.login",
             resource_type="session",
             summary=f"User {user.username} signed in",
-            metadata={"username": user.username},
+            metadata={"username": user.username, "organization_id": organization.id if organization else None},
         )
         return Response(
             {
@@ -185,12 +274,13 @@ def login(request):
 @api_view(["POST"])
 @permission_classes([IsAuthenticated])
 def logout(request):
+    organization = get_user_organization(request.user)
     log_audit(
         request.user,
         "auth.logout",
         resource_type="session",
         summary=f"User {request.user.username} signed out",
-        metadata={"username": request.user.username},
+        metadata={"username": request.user.username, "organization_id": organization.id if organization else None},
     )
     django_logout(request)
     return Response({"success": True, "message": "Logged out"})

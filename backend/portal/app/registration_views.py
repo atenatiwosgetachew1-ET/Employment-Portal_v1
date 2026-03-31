@@ -1,3 +1,4 @@
+from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.contrib.auth.tokens import default_token_generator
 from django.middleware.csrf import get_token
@@ -15,9 +16,19 @@ from rest_framework.response import Response
 
 from .audit_log import log_audit
 from .auth_utils import feature_enabled
+from .company_bootstrap import (
+    consume_superadmin_reset_token_with_company,
+    get_company_reset_consume_url,
+    get_company_reset_validate_url,
+    sync_superadmin_account_from_company_payload,
+    validate_superadmin_reset_token_with_company,
+)
 from .email_service import send_password_reset_email, send_verification_email
+from .licensing import create_organization_for_user, get_user_organization
 from .models import Profile
 from .serializers import (
+    CompanySuperadminResetConfirmSerializer,
+    CompanySuperadminResetTokenSerializer,
     PasswordResetConfirmSerializer,
     PasswordResetRequestSerializer,
     PublicRegisterSerializer,
@@ -40,6 +51,19 @@ def csrf_token_view(request):
     return Response({"csrfToken": get_token(request)})
 
 
+@api_view(["GET"])
+@permission_classes([AllowAny])
+def public_auth_options_view(request):
+    return Response(
+        {
+            "registration_enabled": feature_enabled("registration_enabled"),
+            "email_password_login_enabled": feature_enabled("email_password_login_enabled"),
+            "google_login_enabled": feature_enabled("google_login_enabled"),
+            "google_configured": bool(getattr(settings, "GOOGLE_CLIENT_ID", "")),
+        }
+    )
+
+
 @csrf_protect
 @api_view(["POST"])
 @authentication_classes([])
@@ -57,6 +81,7 @@ def register(request):
     serializer = PublicRegisterSerializer(data=request.data)
     serializer.is_valid(raise_exception=True)
     user = serializer.save()
+    create_organization_for_user(user, role=Profile.ROLE_SUPERADMIN)
     plain = generate_code()
     try:
         store_code_on_profile(user.profile, plain)
@@ -73,7 +98,10 @@ def register(request):
         resource_type="user",
         resource_id=user.pk,
         summary=f"Registered {user.username} (pending email verification)",
-        metadata={"username": user.username},
+        metadata={
+            "username": user.username,
+            "organization_id": user.profile.organization_id,
+        },
     )
     return Response(
         {
@@ -132,7 +160,7 @@ def verify_email(request):
         resource_type="user",
         resource_id=user.pk,
         summary=f"Email verified for {user.username}",
-        metadata={"username": user.username},
+        metadata={"username": user.username, "organization_id": user.profile.organization_id},
     )
     return Response(
         {"success": True, "message": "Your account is verified. You can sign in now."}
@@ -190,7 +218,7 @@ def resend_verification(request):
         resource_type="user",
         resource_id=user.pk,
         summary=f"Verification code resent for {user.username}",
-        metadata={"username": user.username},
+        metadata={"username": user.username, "organization_id": user.profile.organization_id},
     )
     return Response(
         {
@@ -237,7 +265,7 @@ def password_reset_request(request):
         resource_type="user",
         resource_id=user.pk,
         summary=f"Password reset requested for {user.username}",
-        metadata={"username": user.username},
+        metadata={"username": user.username, "organization_id": user.profile.organization_id},
     )
     return Response(
         {
@@ -284,9 +312,91 @@ def password_reset_confirm(request):
         resource_type="user",
         resource_id=user.pk,
         summary=f"Password reset for {user.username}",
-        metadata={"username": user.username},
+        metadata={"username": user.username, "organization_id": user.profile.organization_id},
     )
     return Response({"success": True, "message": "Your password has been updated. You can sign in now."})
+
+
+@csrf_protect
+@api_view(["POST"])
+@authentication_classes([])
+@permission_classes([AllowAny])
+def company_superadmin_reset_token_validate(request):
+    if not get_company_reset_validate_url():
+        return Response(
+            {"success": False, "message": "Company superadmin reset is not configured."},
+            status=status.HTTP_503_SERVICE_UNAVAILABLE,
+        )
+
+    serializer = CompanySuperadminResetTokenSerializer(data=request.data)
+    serializer.is_valid(raise_exception=True)
+    token = serializer.validated_data["token"]
+    status_code, data = validate_superadmin_reset_token_with_company(token)
+    if status_code == 0:
+        return Response(
+            {"success": False, "message": "Company superadmin reset is not configured."},
+            status=status.HTTP_503_SERVICE_UNAVAILABLE,
+        )
+    if status_code >= 400:
+        return Response(
+            {"success": False, "message": data.get("message") or "Reset token is invalid."},
+            status=status_code,
+        )
+    return Response(
+        {
+            "success": True,
+            "organization": data.get("organization"),
+            "expires_at": data.get("expires_at"),
+        }
+    )
+
+
+@csrf_protect
+@api_view(["POST"])
+@authentication_classes([])
+@permission_classes([AllowAny])
+def company_superadmin_reset_token_consume(request):
+    if not get_company_reset_consume_url():
+        return Response(
+            {"success": False, "message": "Company superadmin reset is not configured."},
+            status=status.HTTP_503_SERVICE_UNAVAILABLE,
+        )
+
+    serializer = CompanySuperadminResetConfirmSerializer(data=request.data)
+    serializer.is_valid(raise_exception=True)
+    token = serializer.validated_data["token"]
+    new_password = serializer.validated_data["new_password"]
+    status_code, data = consume_superadmin_reset_token_with_company(token, new_password)
+    if status_code == 0:
+        return Response(
+            {"success": False, "message": "Company superadmin reset is not configured."},
+            status=status.HTTP_503_SERVICE_UNAVAILABLE,
+        )
+    if status_code >= 400:
+        return Response(
+            {"success": False, "message": data.get("message") or "Reset failed."},
+            status=status_code,
+        )
+
+    organization_payload = data.get("organization") or {}
+    try:
+        sync_superadmin_account_from_company_payload(
+            {"organization": organization_payload},
+            new_password,
+        )
+    except ValueError as exc:
+        return Response(
+            {"success": False, "message": str(exc)},
+            status=status.HTTP_502_BAD_GATEWAY,
+        )
+
+    return Response(
+        {
+            "success": True,
+            "message": "Your password has been updated. You can sign in now.",
+            "organization": organization_payload,
+        }
+    )
 
 
 register.csrf_exempt = False
@@ -294,3 +404,5 @@ verify_email.csrf_exempt = False
 resend_verification.csrf_exempt = False
 password_reset_request.csrf_exempt = False
 password_reset_confirm.csrf_exempt = False
+company_superadmin_reset_token_validate.csrf_exempt = False
+company_superadmin_reset_token_consume.csrf_exempt = False

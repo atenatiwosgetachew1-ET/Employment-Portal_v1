@@ -126,6 +126,47 @@ export async function confirmPasswordReset({ uid, token, newPassword, newPasswor
   return data
 }
 
+export async function fetchPublicAuthOptions() {
+  const response = await apiFetch('/api/auth/options/')
+  const data = await response.json().catch(() => ({}))
+  if (!response.ok) {
+    throw new Error(data.message || 'Could not load sign-in options')
+  }
+  return data
+}
+
+export async function validateCompanySuperadminResetToken({ token }) {
+  const response = await apiFetch('/api/password-reset/company-superadmin/validate/', {
+    method: 'POST',
+    body: JSON.stringify({ token })
+  })
+  const data = await response.json().catch(() => ({}))
+  if (!response.ok) {
+    throw new Error(data.message || 'Reset link is invalid or expired')
+  }
+  return data
+}
+
+export async function confirmCompanySuperadminReset({
+  token,
+  newPassword,
+  newPasswordConfirm
+}) {
+  const response = await apiFetch('/api/password-reset/company-superadmin/consume/', {
+    method: 'POST',
+    body: JSON.stringify({
+      token,
+      new_password: newPassword,
+      new_password_confirm: newPasswordConfirm
+    })
+  })
+  const data = await response.json().catch(() => ({}))
+  if (!response.ok) {
+    throw new Error(data.message || 'Reset failed')
+  }
+  return data
+}
+
 export async function fetchCurrentUser() {
   const response = await apiFetch('/api/me/')
   if (!response.ok) {

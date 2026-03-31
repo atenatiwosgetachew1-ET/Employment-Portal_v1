@@ -15,6 +15,7 @@ from rest_framework.response import Response
 
 from .audit_log import log_audit
 from .auth_utils import feature_enabled, user_payload
+from .licensing import create_organization_for_user, get_user_organization, sync_profile_membership
 from .models import Profile
 
 
@@ -143,6 +144,7 @@ def login_with_google(request):
                 updated.append("last_name")
             if updated:
                 user.save(update_fields=updated)
+            sync_profile_membership(existing)
         else:
             first, last = _names_from_google(idinfo)
             base_username = _username_from_email(email)
@@ -156,11 +158,11 @@ def login_with_google(request):
             )
             user.set_unusable_password()
             user.save()
+            create_organization_for_user(user, role=Profile.ROLE_SUPERADMIN)
             profile = user.profile
             profile.google_sub = sub
             profile.email_verified = True
-            profile.role = Profile.ROLE_CUSTOMER
-            profile.save(update_fields=["google_sub", "email_verified", "role"])
+            profile.save(update_fields=["google_sub", "email_verified"])
 
     if not user.is_active:
         return Response(
@@ -169,12 +171,13 @@ def login_with_google(request):
         )
 
     django_login(request, user)
+    organization = get_user_organization(user)
     log_audit(
         user,
         "auth.login_google",
         resource_type="session",
         summary=f"User {user.username} signed in with Google",
-        metadata={"username": user.username},
+        metadata={"username": user.username, "organization_id": organization.id if organization else None},
     )
     return Response(
         {

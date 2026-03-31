@@ -1,8 +1,10 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { GoogleLogin, GoogleOAuthProvider } from '@react-oauth/google'
 import { Navigate, useLocation, useNavigate } from 'react-router-dom'
 import LoginForm from '../components/auth/LoginForm'
 import { useAuth } from '../context/AuthContext'
+
+import { fetchPublicAuthOptions } from '../services/authService'
 
 const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID
 
@@ -11,8 +13,30 @@ export default function LoginPage() {
   const location = useLocation()
   const navigate = useNavigate()
   const [googleError, setGoogleError] = useState('')
+  const [authOptions, setAuthOptions] = useState(null)
+  const [optionsError, setOptionsError] = useState('')
 
-  if (bootstrapping) {
+  useEffect(() => {
+    let ignore = false
+
+    fetchPublicAuthOptions()
+      .then((options) => {
+        if (!ignore) {
+          setAuthOptions(options)
+        }
+      })
+      .catch((error) => {
+        if (!ignore) {
+          setOptionsError(error.message || 'Could not load sign-in options.')
+        }
+      })
+
+    return () => {
+      ignore = true
+    }
+  }, [])
+
+  if (bootstrapping || (!authOptions && !optionsError)) {
     return (
       <main className="page centered-page">
         <p className="muted-text">Loading…</p>
@@ -25,6 +49,12 @@ export default function LoginPage() {
   }
 
   const from = location.state?.from?.pathname || '/dashboard'
+  const emailPasswordEnabled = authOptions?.email_password_login_enabled !== false
+  const googleEnabled = Boolean(
+    authOptions?.google_login_enabled &&
+      authOptions?.google_configured &&
+      googleClientId
+  )
 
   const handleLogin = async ({ username, password }) => {
     const loggedInUser = await signIn({ username, password })
@@ -53,16 +83,26 @@ export default function LoginPage() {
 
   const formBlock = (
     <>
-      <LoginForm
-        onSubmit={handleLogin}
-        loading={authLoading}
-        flash={location.state?.flash}
-      />
-      {googleClientId && (
+      {optionsError ? <p className="error-message">{optionsError}</p> : null}
+      {emailPasswordEnabled ? (
+        <LoginForm
+          onSubmit={handleLogin}
+          loading={authLoading}
+          flash={location.state?.flash}
+        />
+      ) : (
+        <section className="auth-form">
+          <h1>Sign in</h1>
+          <p className="muted-text">Email and password sign-in is currently disabled.</p>
+        </section>
+      )}
+      {googleEnabled && (
         <>
           {googleError ? <p className="error-message oauth-error">{googleError}</p> : null}
           <div className="oauth-block">
-            <p className="muted-text oauth-divider">or continue with</p>
+            <p className="muted-text oauth-divider">
+              {emailPasswordEnabled ? 'or continue with' : 'Continue with'}
+            </p>
             <div className="google-signin-wrap">
               <GoogleLogin
                 onSuccess={(res) => void handleGoogle(res.credential)}
@@ -81,7 +121,7 @@ export default function LoginPage() {
 
   return (
     <main className="page centered-page">
-      {googleClientId ? (
+      {googleEnabled ? (
         <GoogleOAuthProvider clientId={googleClientId}>{formBlock}</GoogleOAuthProvider>
       ) : (
         formBlock

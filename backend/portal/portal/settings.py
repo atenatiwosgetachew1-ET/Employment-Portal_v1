@@ -12,7 +12,6 @@ https://docs.djangoproject.com/en/6.0/ref/settings/
 
 import logging
 import os
-import sys
 from pathlib import Path
 
 from django.core.exceptions import ImproperlyConfigured
@@ -102,37 +101,26 @@ WSGI_APPLICATION = 'portal.wsgi.application'
 
 _db_name = (os.getenv("DB_NAME") or "").strip()
 _db_user = (os.getenv("DB_USER") or "").strip()
-RUNNING_TESTS = "test" in sys.argv
+if not _db_name or not _db_user:
+    raise ImproperlyConfigured(
+        "PostgreSQL is required. Set DB_NAME and DB_USER in backend/portal/.env "
+        "(copy from .env.example). Optional: DB_PASSWORD, DB_HOST, DB_PORT, DB_SSLMODE."
+    )
 
-if RUNNING_TESTS and _env_bool("USE_SQLITE_FOR_TESTS", True):
-    DATABASES = {
-        "default": {
-            "ENGINE": "django.db.backends.sqlite3",
-            "NAME": BASE_DIR / "test.sqlite3",
-        }
+DATABASES = {
+    "default": {
+        "ENGINE": "django.db.backends.postgresql",
+        "NAME": _db_name,
+        "USER": _db_user,
+        "PASSWORD": os.getenv("DB_PASSWORD", ""),
+        "HOST": os.getenv("DB_HOST") or "localhost",
+        "PORT": os.getenv("DB_PORT") or "5432",
+        "OPTIONS": {},
     }
-else:
-    if not _db_name or not _db_user:
-        raise ImproperlyConfigured(
-            "PostgreSQL is required. Set DB_NAME and DB_USER in backend/portal/.env "
-            "(copy from .env.example). Optional: DB_PASSWORD, DB_HOST, DB_PORT. "
-            "Tests can use SQLite by default."
-        )
+}
 
-    DATABASES = {
-        "default": {
-            "ENGINE": "django.db.backends.postgresql",
-            "NAME": _db_name,
-            "USER": _db_user,
-            "PASSWORD": os.getenv("DB_PASSWORD", ""),
-            "HOST": os.getenv("DB_HOST") or "localhost",
-            "PORT": os.getenv("DB_PORT") or "5432",
-            "OPTIONS": {},
-        }
-    }
-
-    if sslmode := (os.getenv("DB_SSLMODE") or "").strip():
-        DATABASES["default"]["OPTIONS"]["sslmode"] = sslmode
+if sslmode := (os.getenv("DB_SSLMODE") or "").strip():
+    DATABASES["default"]["OPTIONS"]["sslmode"] = sslmode
 
 
 # Password validation

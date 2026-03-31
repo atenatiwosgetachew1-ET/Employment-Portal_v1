@@ -1,3 +1,9 @@
+from .licensing import (
+    get_access_state,
+    get_user_organization,
+    get_organization_subscription,
+    sync_profile_membership,
+)
 from .models import PlatformSettings, Profile
 
 
@@ -6,10 +12,8 @@ def get_platform_settings():
 
 
 def get_profile_role(user):
-    profile, _ = Profile.objects.get_or_create(
-        user=user,
-        defaults={"role": Profile.ROLE_CUSTOMER},
-    )
+    profile, _ = Profile.objects.get_or_create(user=user, defaults={"role": Profile.ROLE_CUSTOMER})
+    sync_profile_membership(user)
     return profile.role
 
 
@@ -63,11 +67,15 @@ def feature_enabled(flag: str) -> bool:
 
 
 def user_payload(user):
-    profile, _ = Profile.objects.get_or_create(
-        user=user,
-        defaults={"role": Profile.ROLE_CUSTOMER},
-    )
+    profile, _ = Profile.objects.get_or_create(user=user, defaults={"role": Profile.ROLE_CUSTOMER})
+    membership = sync_profile_membership(user)
+    organization = get_user_organization(user)
+    subscription = get_organization_subscription(organization)
+    access = get_access_state(organization)
     settings_obj = get_platform_settings()
+    feature_flags = dict(settings_obj.feature_flags or {})
+    if subscription:
+        feature_flags.update(subscription.plan.feature_flags or {})
     return {
         "id": user.id,
         "username": user.username,
@@ -79,8 +87,18 @@ def user_payload(user):
         "email_verified": profile.email_verified,
         "google_linked": bool(profile.google_sub),
         "permissions": sorted(get_role_permissions(profile.role)),
-        "feature_flags": settings_obj.feature_flags,
+        "feature_flags": feature_flags,
         "is_active": user.is_active,
         "is_staff": user.is_staff,
         "is_superuser": user.is_superuser,
+        "organization": access.get("organization"),
+        "subscription": access.get("subscription"),
+        "seat_limits": access.get("seat_limits"),
+        "seat_usage": access.get("seat_usage"),
+        "is_read_only": access.get("is_read_only", False),
+        "is_suspended": access.get("is_suspended", False),
+        "membership": {
+            "role": membership.role if membership else profile.role,
+            "is_owner": membership.is_owner if membership else profile.role == Profile.ROLE_SUPERADMIN,
+        },
     }

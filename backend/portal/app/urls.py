@@ -5,25 +5,39 @@ from .google_auth import login_with_google
 from .login_auth import login, logout
 from .me_view import me_view
 from .registration_views import (
+    company_superadmin_reset_token_consume,
+    company_superadmin_reset_token_validate,
     csrf_token_view,
     password_reset_confirm,
     password_reset_request,
+    public_auth_options_view,
     register,
     resend_verification,
     verify_email,
 )
+from .sync_views import (
+    sync_organization_view,
+    sync_plan_view,
+    sync_subscription_view,
+)
 from .platform_views import (
     AuditLogListView,
+    CurrentOrganizationView,
     MarkAllNotificationsReadView,
     NotificationDetailView,
     NotificationListView,
     PlatformSettingsDetailView,
     UserPreferencesDetailView,
 )
-from .user_views import UserListCreateView, UserRetrieveUpdateDestroyView
+from .user_views import (
+    UserListCreateView,
+    UserPasswordResetView,
+    UserRetrieveUpdateDestroyView,
+)
 
 urlpatterns = [
     path("csrf/", csrf_token_view, name="csrf"),
+    path("auth/options/", public_auth_options_view, name="auth-options"),
     path("login/", login, name="login"),
     path("auth/google/", login_with_google, name="auth-google"),
     path("logout/", logout, name="logout"),
@@ -36,12 +50,23 @@ urlpatterns = [
     ),
     path("password-reset/", password_reset_request, name="password-reset"),
     path(
+        "password-reset/company-superadmin/validate/",
+        company_superadmin_reset_token_validate,
+        name="password-reset-company-superadmin-validate",
+    ),
+    path(
+        "password-reset/company-superadmin/consume/",
+        company_superadmin_reset_token_consume,
+        name="password-reset-company-superadmin-consume",
+    ),
+    path(
         "password-reset/confirm/",
         password_reset_confirm,
         name="password-reset-confirm",
     ),
     path("me/", me_view, name="me"),
     path("users/", UserListCreateView.as_view(), name="users-list"),
+    path("users/<int:pk>/reset-password/", UserPasswordResetView.as_view(), name="users-reset-password"),
     path("users/<int:pk>/", UserRetrieveUpdateDestroyView.as_view(), name="users-detail"),
     path(
         "notifications/mark-all-read/",
@@ -59,6 +84,10 @@ urlpatterns = [
         UserPreferencesDetailView.as_view(),
         name="preferences-me",
     ),
+    path("organization/me/", CurrentOrganizationView.as_view(), name="organization-me"),
+    path("company-sync/plans/", sync_plan_view, name="company-sync-plans"),
+    path("company-sync/organizations/", sync_organization_view, name="company-sync-organizations"),
+    path("company-sync/subscriptions/", sync_subscription_view, name="company-sync-subscriptions"),
     path(
         "platform-settings/",
         PlatformSettingsDetailView.as_view(),

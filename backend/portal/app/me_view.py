@@ -5,6 +5,7 @@ from rest_framework.response import Response
 
 from .audit_log import log_audit
 from .auth_utils import user_payload
+from .licensing import get_access_restriction, get_user_organization
 from .serializers import SelfProfileSerializer
 
 
@@ -13,6 +14,10 @@ from .serializers import SelfProfileSerializer
 def me_view(request):
     if request.method == "GET":
         return Response(user_payload(request.user))
+
+    restriction = get_access_restriction(request.user, write=True)
+    if restriction:
+        return Response({"detail": restriction}, status=status.HTTP_403_FORBIDDEN)
 
     ser = SelfProfileSerializer(
         data=request.data,
@@ -26,12 +31,16 @@ def me_view(request):
             status=status.HTTP_400_BAD_REQUEST,
         )
     ser.update(request.user, ser.validated_data)
+    organization = get_user_organization(request.user)
     log_audit(
         request.user,
         "profile.update",
         resource_type="user",
         resource_id=request.user.pk,
         summary=f"Profile updated for {request.user.username}",
-        metadata={"username": request.user.username},
+        metadata={
+            "username": request.user.username,
+            "organization_id": organization.id if organization else None,
+        },
     )
     return Response(user_payload(request.user))

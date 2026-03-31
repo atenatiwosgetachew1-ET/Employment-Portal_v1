@@ -42,7 +42,10 @@ export default function ForgotPasswordPage() {
     <main className="page centered-page">
       <form className="auth-form" onSubmit={handleSubmit}>
         <h1>Reset password</h1>
-        <p className="muted-text">Enter your account email and we will send you a link.</p>
+        <p className="muted-text">
+          Enter your account email and we will send you a link. Company-managed superadmins should
+          use the reset link sent from the company control center.
+        </p>
 
         <div className="form-group">
           <label htmlFor="fp-email">Email</label>

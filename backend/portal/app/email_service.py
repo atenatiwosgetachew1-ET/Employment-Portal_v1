@@ -11,6 +11,13 @@ def _frontend_url():
     return getattr(settings, "FRONTEND_URL", "http://localhost:5173").rstrip("/")
 
 
+def build_password_reset_link(user):
+    uid = urlsafe_base64_encode(force_bytes(user.pk))
+    token = default_token_generator.make_token(user)
+    q = urlencode({"uid": uid, "token": token})
+    return f"{_frontend_url()}/reset-password?{q}"
+
+
 def send_verification_email(user, code: str):
     subject = "Your verification code"
     body = (
@@ -29,10 +36,7 @@ def send_verification_email(user, code: str):
 
 
 def send_password_reset_email(user):
-    uid = urlsafe_base64_encode(force_bytes(user.pk))
-    token = default_token_generator.make_token(user)
-    q = urlencode({"uid": uid, "token": token})
-    link = f"{_frontend_url()}/reset-password?{q}"
+    link = build_password_reset_link(user)
     subject = "Password reset"
     body = (
         f"Hi {user.username},\n\n"
@@ -40,6 +44,28 @@ def send_password_reset_email(user):
         f"{link}\n\n"
         "If you did not request this, you can ignore this email.\n"
     )
+    send_mail(
+        subject,
+        body,
+        settings.DEFAULT_FROM_EMAIL,
+        [user.email],
+        fail_silently=False,
+    )
+
+
+def send_account_setup_email(user, *, include_google_sign_in: bool = False):
+    link = build_password_reset_link(user)
+    subject = "Set up your account"
+    body = (
+        f"Hi {user.username},\n\n"
+        "Your account has been created. Open this link to choose your password and activate sign-in:\n\n"
+        f"{link}\n\n"
+    )
+    if include_google_sign_in:
+        body += (
+            "You can also use Sign in with Google if your Google account uses this same email address.\n\n"
+        )
+    body += "If you were not expecting this invitation, you can ignore this email.\n"
     send_mail(
         subject,
         body,

@@ -15,6 +15,8 @@ const TIMEZONES = [
 
 export default function SettingsPage() {
   const { user, refreshUser } = useAuth()
+  const organization = user?.organization
+  const subscription = user?.subscription
   const [prefs, setPrefs] = useState(null)
   const [profile, setProfile] = useState({
     username: '',
@@ -202,6 +204,40 @@ export default function SettingsPage() {
     <section className="dashboard-panel settings-page">
       <h1>Settings</h1>
       <p className="muted-text">Profile, appearance, locale, and notification defaults.</p>
+
+      {organization && (
+        <>
+          <h2 className="settings-section-title">Organization license</h2>
+          <p className="muted-text settings-section-hint">
+            Licensing is managed by your company account owner and your provider&apos;s company
+            console.
+          </p>
+          <div className="settings-form">
+            <label>
+              Organization
+              <input type="text" value={organization.name || ''} readOnly disabled className="settings-readonly" />
+            </label>
+            <label>
+              License status
+              <input type="text" value={subscription?.status || ''} readOnly disabled className="settings-readonly" />
+            </label>
+            <label>
+              Plan
+              <input type="text" value={subscription?.plan_name || ''} readOnly disabled className="settings-readonly" />
+            </label>
+            <label>
+              Seat usage
+              <input
+                type="text"
+                value={`Superadmins ${user?.seat_usage?.superadmin ?? 0}/${user?.seat_limits?.superadmin ?? 0}, Admins ${user?.seat_usage?.admin ?? 0}/${user?.seat_limits?.admin ?? 0}, Staff ${user?.seat_usage?.staff ?? 0}/${user?.seat_limits?.staff ?? 0}, Customers ${user?.seat_usage?.customer ?? 0}/${user?.seat_limits?.customer ?? 0}`}
+                readOnly
+                disabled
+                className="settings-readonly"
+              />
+            </label>
+          </div>
+        </>
+      )}
 
       <h2 className="settings-section-title">Profile</h2>
       <p className="muted-text settings-section-hint">
