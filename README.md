@@ -7,7 +7,7 @@ Production-minded foundation for an Employment Portal built with Django and Reac
 - Session-based authentication with CSRF protection
 - Email/password registration, verification, login, logout, and password reset
 - Google sign-in via Google Identity Services
-- Role-based access control (`superadmin`, `admin`, `staff`, `customer`)
+- Role-based access control (`superadmin`, `admin`, `staff`, `agent`)
 - User management, notifications, audit logging, and per-user preferences
 - Organization-aware licensing foundation for plans, subscriptions, seat limits, and read-only/suspended access states
 

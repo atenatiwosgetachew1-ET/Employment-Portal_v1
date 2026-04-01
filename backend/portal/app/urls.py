@@ -4,6 +4,13 @@ from django.urls import path
 from .google_auth import login_with_google
 from .login_auth import login, logout
 from .me_view import me_view
+from .employee_views import (
+    EmployeeDocumentDeleteView,
+    EmployeeDocumentUploadView,
+    EmployeeFormOptionsView,
+    EmployeeListCreateView,
+    EmployeeRetrieveUpdateDestroyView,
+)
 from .registration_views import (
     company_superadmin_reset_token_consume,
     company_superadmin_reset_token_validate,
@@ -30,6 +37,7 @@ from .platform_views import (
     UserPreferencesDetailView,
 )
 from .user_views import (
+    StaffSideOptionsView,
     UserListCreateView,
     UserPasswordResetView,
     UserRetrieveUpdateDestroyView,
@@ -65,7 +73,13 @@ urlpatterns = [
         name="password-reset-confirm",
     ),
     path("me/", me_view, name="me"),
+    path("employees/form-options/", EmployeeFormOptionsView.as_view(), name="employees-form-options"),
+    path("employees/", EmployeeListCreateView.as_view(), name="employees-list"),
+    path("employees/<int:pk>/", EmployeeRetrieveUpdateDestroyView.as_view(), name="employees-detail"),
+    path("employees/<int:employee_pk>/documents/", EmployeeDocumentUploadView.as_view(), name="employees-document-upload"),
+    path("employee-documents/<int:pk>/", EmployeeDocumentDeleteView.as_view(), name="employees-document-delete"),
     path("users/", UserListCreateView.as_view(), name="users-list"),
+    path("users/staff-side-options/", StaffSideOptionsView.as_view(), name="users-staff-side-options"),
     path("users/<int:pk>/reset-password/", UserPasswordResetView.as_view(), name="users-reset-password"),
     path("users/<int:pk>/", UserRetrieveUpdateDestroyView.as_view(), name="users-detail"),
     path(

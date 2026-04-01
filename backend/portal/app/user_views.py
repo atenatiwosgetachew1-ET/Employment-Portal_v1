@@ -1,5 +1,6 @@
 from django.contrib.auth.models import User
 from django.db.models import Q
+import logging
 from rest_framework import generics, status
 from rest_framework.permissions import BasePermission, IsAuthenticated
 from rest_framework.response import Response
@@ -23,6 +24,8 @@ from .serializers import (
     UserUpdateSerializer,
 )
 
+logger = logging.getLogger(__name__)
+
 
 class IsSuperadminOrAdmin(BasePermission):
     def has_permission(self, request, view):
@@ -44,7 +47,36 @@ class UserListCreateView(generics.ListCreateAPIView):
         restriction = get_access_restriction(request.user, write=True)
         if restriction:
             return Response({"detail": restriction}, status=status.HTTP_403_FORBIDDEN)
-        return super().create(request, *args, **kwargs)
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        user = serializer.save()
+        self._finalize_created_user(user)
+
+        warning = ""
+        if user.email:
+            try:
+                send_account_setup_email(
+                    user,
+                    include_google_sign_in=feature_enabled("google_login_enabled"),
+                )
+            except Exception:
+                logger.exception("Could not send setup email for created user %s", user.username)
+                warning = (
+                    "User was created, but the setup email could not be sent. "
+                    "Check your email configuration and retry the invitation flow."
+                )
+
+        response_data = UserListSerializer(user, context=self.get_serializer_context()).data
+        response_data.update(
+            {
+                "success": True,
+                "message": "User created successfully.",
+            }
+        )
+        if warning:
+            response_data["warning"] = warning
+        headers = self.get_success_headers(serializer.data)
+        return Response(response_data, status=status.HTTP_201_CREATED, headers=headers)
 
     def get_queryset(self):
         qs = super().get_queryset()
@@ -71,6 +103,9 @@ class UserListCreateView(generics.ListCreateAPIView):
                 | Q(first_name__icontains=search)
                 | Q(last_name__icontains=search)
                 | Q(profile__phone__icontains=search)
+                | Q(profile__agent_country__icontains=search)
+                | Q(profile__staff_side__icontains=search)
+                | Q(profile__staff_level_label__icontains=search)
             )
 
         if role_filter in {choice for choice, _ in Profile.ROLE_CHOICES}:
@@ -81,8 +116,7 @@ class UserListCreateView(generics.ListCreateAPIView):
 
         return queryset
 
-    def perform_create(self, serializer):
-        user = serializer.save()
+    def _finalize_created_user(self, user):
         organization = get_user_organization(self.request.user)
         log_audit(
             self.request.user,
@@ -101,11 +135,6 @@ class UserListCreateView(generics.ListCreateAPIView):
             ),
             kind=Notification.KIND_SUCCESS,
         )
-        if user.email:
-            send_account_setup_email(
-                user,
-                include_google_sign_in=feature_enabled("google_login_enabled"),
-            )
 
 
 class UserRetrieveUpdateDestroyView(generics.RetrieveUpdateDestroyAPIView):
@@ -246,3 +275,37 @@ class UserPasswordResetView(APIView):
             kind=Notification.KIND_WARNING,
         )
         return Response({"success": True, "message": "Password reset successful."})
+
+
+class StaffSideOptionsView(APIView):
+    permission_classes = [IsAuthenticated, IsSuperadminOrAdmin]
+
+    def get(self, request):
+        organization = get_user_organization(request.user)
+        if not organization:
+            return Response({"options": []})
+
+        agent_names = list(
+            User.objects.filter(
+                profile__organization=organization,
+                profile__role=Profile.ROLE_CUSTOMER,
+            )
+            .exclude(first_name="")
+            .values_list("first_name", flat=True)
+        )
+        usernames = list(
+            User.objects.filter(
+                profile__organization=organization,
+                profile__role=Profile.ROLE_CUSTOMER,
+            )
+            .exclude(username="")
+            .values_list("username", flat=True)
+        )
+        seen = set()
+        options = []
+        for value in [organization.name, *agent_names, *usernames]:
+            cleaned = (value or "").strip()
+            if cleaned and cleaned not in seen:
+                seen.add(cleaned)
+                options.append(cleaned)
+        return Response({"options": options})

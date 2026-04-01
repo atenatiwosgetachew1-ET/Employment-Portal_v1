@@ -1,14 +1,27 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Navigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
+import { RESIDENCE_COUNTRY_OPTIONS } from '../constants/employeeOptions'
 import * as usersService from '../services/usersService'
 
 const ROLE_OPTIONS = [
   { value: 'superadmin', label: 'Super admin' },
   { value: 'admin', label: 'Admin' },
   { value: 'staff', label: 'Staff' },
-  { value: 'customer', label: 'Customer' }
+  { value: 'customer', label: 'Agent' }
 ]
+
+const STAFF_ROLE_OPTIONS = [
+  { label: 'Reception', level: 1 },
+  { label: 'Secretary', level: 2 },
+  { label: 'IT', level: 3 },
+  { label: 'Operations', level: 4 },
+  { label: 'Supervisor', level: 5 }
+]
+
+function getStaffLevelForRole(roleLabel) {
+  return STAFF_ROLE_OPTIONS.find((option) => option.label === roleLabel)?.level || 1
+}
 
 function rolesForManager(currentUser) {
   if (currentUser?.role === 'superadmin') return ROLE_OPTIONS
@@ -21,6 +34,11 @@ const emptyForm = {
   first_name: '',
   last_name: '',
   phone: '',
+  agent_country: '',
+  agent_commission: '',
+  agent_salary: '',
+  staff_side: '',
+  staff_level_label: '',
   role: 'customer',
   is_active: true
 }
@@ -48,12 +66,24 @@ export default function UsersManagementPage() {
   const [usersData, setUsersData] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [notice, setNotice] = useState('')
   const [form, setForm] = useState(emptyForm)
+  const [editingUserId, setEditingUserId] = useState(null)
   const [creating, setCreating] = useState(false)
   const [rowBusy, setRowBusy] = useState({})
   const [page, setPage] = useState(1)
   const [searchInput, setSearchInput] = useState('')
   const [filters, setFilters] = useState({ q: '', role: '', isActive: '' })
+  const [staffSideOptions, setStaffSideOptions] = useState([])
+
+  const loadStaffSideOptions = useCallback(async () => {
+    try {
+      const options = await usersService.fetchStaffSideOptions()
+      setStaffSideOptions(options)
+    } catch {
+      setStaffSideOptions([])
+    }
+  }, [])
 
   const loadUsers = useCallback(async () => {
     setLoading(true)
@@ -77,10 +107,11 @@ export default function UsersManagementPage() {
   useEffect(() => {
     if (canManageUsers(currentUser)) {
       loadUsers()
+      loadStaffSideOptions()
     } else {
       setLoading(false)
     }
-  }, [currentUser, loadUsers])
+  }, [currentUser, loadUsers, loadStaffSideOptions])
 
   const setBusy = (id, key, value) => {
     setRowBusy((prev) => ({
@@ -93,6 +124,7 @@ export default function UsersManagementPage() {
     e.preventDefault()
     setCreating(true)
     setError('')
+    setNotice('')
     try {
       const payload = {
         username: form.username.trim(),
@@ -100,12 +132,47 @@ export default function UsersManagementPage() {
         first_name: form.first_name.trim(),
         last_name: form.last_name.trim(),
         phone: form.phone.trim(),
+        agent_country: form.role === 'customer' ? form.agent_country.trim() : '',
+        agent_commission:
+          form.role === 'customer' && form.agent_commission !== ''
+            ? form.agent_commission
+            : null,
+        agent_salary:
+          form.role === 'customer' && form.agent_salary !== ''
+            ? form.agent_salary
+            : null,
+        staff_side: form.role === 'staff' ? form.staff_side.trim() : '',
+        staff_level: form.role === 'staff' ? getStaffLevelForRole(form.staff_level_label) : 1,
+        staff_level_label: form.role === 'staff' ? form.staff_level_label.trim() : '',
         role: form.role,
         is_active: form.is_active
       }
-      await usersService.createUser(payload)
+      const result = editingUserId
+        ? await usersService.patchUser(editingUserId, {
+            email: payload.email,
+            first_name: payload.first_name,
+            last_name: payload.last_name,
+            is_active: payload.is_active,
+            role: payload.role,
+            phone: payload.phone,
+            agent_country: payload.agent_country,
+            agent_commission: payload.agent_commission,
+            agent_salary: payload.agent_salary,
+            staff_side: payload.staff_side,
+            staff_level: payload.staff_level,
+            staff_level_label: payload.staff_level_label
+          })
+        : await usersService.createUser(payload)
       setForm(emptyForm)
-      await loadUsers()
+      setEditingUserId(null)
+      if (result.warning) {
+        setNotice(result.warning)
+      } else if (editingUserId) {
+        setNotice('User updated successfully.')
+      } else {
+        setNotice('User created successfully.')
+      }
+      await Promise.all([loadUsers(), loadStaffSideOptions()])
     } catch (err) {
       setError(err.message || 'Could not create user')
     } finally {
@@ -116,15 +183,32 @@ export default function UsersManagementPage() {
   const handleRoleChange = async (row, newRole) => {
     setBusy(row.id, 'role', true)
     try {
-      await usersService.patchUser(row.id, { role: newRole })
+      const payload = { role: newRole }
+      if (newRole === 'staff') {
+        payload.staff_side = row.staff_side || currentUser?.organization?.name || ''
+        payload.staff_level_label = row.staff_level_label || STAFF_ROLE_OPTIONS[0].label
+        payload.staff_level = getStaffLevelForRole(payload.staff_level_label)
+      }
+      await usersService.patchUser(row.id, payload)
       setUsersData((prev) =>
         prev
           ? {
               ...prev,
-              results: prev.results.map((u) => (u.id === row.id ? { ...u, role: newRole } : u))
+              results: prev.results.map((u) =>
+                u.id === row.id
+                  ? {
+                      ...u,
+                      role: newRole,
+                      staff_side: newRole === 'staff' ? payload.staff_side : '',
+                      staff_level: newRole === 'staff' ? payload.staff_level : 1,
+                      staff_level_label: newRole === 'staff' ? payload.staff_level_label : ''
+                    }
+                  : u
+              )
             }
           : prev
       )
+      await loadStaffSideOptions()
     } catch (err) {
       setError(err.message || 'Could not update role')
     } finally {
@@ -173,6 +257,7 @@ export default function UsersManagementPage() {
             }
           : prev
       )
+      await loadStaffSideOptions()
     } catch (err) {
       setError(err.message || 'Could not delete user')
     } finally {
@@ -193,6 +278,7 @@ export default function UsersManagementPage() {
 
     setBusy(row.id, 'password', true)
     setError('')
+    setNotice('')
     try {
       await usersService.resetUserPassword(row.id, trimmed, confirmPassword)
     } catch (err) {
@@ -200,6 +286,30 @@ export default function UsersManagementPage() {
     } finally {
       setBusy(row.id, 'password', false)
     }
+  }
+
+  const handleStaffMetaUpdate = async (row) => {
+    setError('')
+    setNotice('')
+    setEditingUserId(row.id)
+    setForm({
+      username: row.username || '',
+      email: row.email || '',
+      first_name: row.first_name || '',
+      last_name: row.last_name || '',
+      phone: row.phone || '',
+      agent_country: row.agent_country || '',
+      agent_commission:
+        row.agent_commission === null || row.agent_commission === undefined
+          ? ''
+          : String(row.agent_commission),
+      agent_salary:
+        row.agent_salary === null || row.agent_salary === undefined ? '' : String(row.agent_salary),
+      staff_side: row.staff_side || currentUser?.organization?.name || '',
+      staff_level_label: row.staff_level_label || STAFF_ROLE_OPTIONS[0].label,
+      role: row.role || 'staff',
+      is_active: Boolean(row.is_active)
+    })
   }
 
   if (!canManageUsers(currentUser)) {
@@ -228,12 +338,12 @@ export default function UsersManagementPage() {
           <h1>Users management</h1>
           <p className="muted-text">
             Super admins manage every account including admins. Admins create and approve staff and
-            customer accounts (activate or suspend access below).
+            agent accounts (activate or suspend access below).
           </p>
           <p className="muted-text">
             Seats: superadmins {seatUsage.superadmin ?? 0}/{seatLimits.superadmin ?? 0}, admins{' '}
             {seatUsage.admin ?? 0}/{seatLimits.admin ?? 0}, staff {seatUsage.staff ?? 0}/
-            {seatLimits.staff ?? 0}, customers {seatUsage.customer ?? 0}/
+            {seatLimits.staff ?? 0}, agents {seatUsage.customer ?? 0}/
             {seatLimits.customer ?? 0}
           </p>
         </div>
@@ -301,10 +411,34 @@ export default function UsersManagementPage() {
           {error}
         </p>
       )}
+      {notice && (
+        <p className="muted-text" style={{ marginBottom: 16 }}>
+          {notice}
+        </p>
+      )}
+      {editingUserId && (
+        <div style={{ marginBottom: 16 }}>
+          <button
+            type="button"
+            className="btn-secondary"
+            onClick={() => {
+              setEditingUserId(null)
+              setForm(emptyForm)
+              setError('')
+              setNotice('')
+            }}
+          >
+            Cancel edit
+          </button>
+        </div>
+      )}
 
       <div className="users-grid">
         <form className="user-create-card" onSubmit={handleCreate}>
-          <h2>Create user</h2>
+          <h2>{editingUserId ? 'Edit user' : 'Create user'}</h2>
+          {editingUserId && (
+            <p className="muted-text">You are editing an existing user. Submit this form to save changes.</p>
+          )}
           {readOnly && (
             <p className="muted-text">User changes are disabled while this organization is restricted.</p>
           )}
@@ -316,6 +450,7 @@ export default function UsersManagementPage() {
                 onChange={(e) => setForm((f) => ({ ...f, username: e.target.value }))}
                 required
                 autoComplete="off"
+                disabled={Boolean(editingUserId)}
               />
             </label>
             <label>
@@ -349,11 +484,108 @@ export default function UsersManagementPage() {
                 onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))}
               />
             </label>
+            {form.role === 'customer' && (
+              <>
+                <label>
+                  Country *
+                  <select
+                    value={form.agent_country}
+                    onChange={(e) => setForm((f) => ({ ...f, agent_country: e.target.value }))}
+                    required
+                  >
+                    <option value="">Select country</option>
+                    {RESIDENCE_COUNTRY_OPTIONS.map((country) => (
+                      <option key={country} value={country}>
+                        {country}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  Commission
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={form.agent_commission}
+                    onChange={(e) => setForm((f) => ({ ...f, agent_commission: e.target.value }))}
+                  />
+                </label>
+                <label>
+                  Salary *
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={form.agent_salary}
+                    onChange={(e) => setForm((f) => ({ ...f, agent_salary: e.target.value }))}
+                    required
+                  />
+                </label>
+              </>
+            )}
+            {form.role === 'staff' && (
+              <>
+                <label>
+                  Side *
+                  <select
+                    value={form.staff_side}
+                    onChange={(e) => setForm((f) => ({ ...f, staff_side: e.target.value }))}
+                    required
+                  >
+                    <option value="">Select side</option>
+                    {staffSideOptions.map((option) => (
+                      <option key={option} value={option}>
+                        {option}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  Level
+                  <input type="text" value={getStaffLevelForRole(form.staff_level_label)} readOnly />
+                </label>
+                <label>
+                  Staff role *
+                  <select
+                    value={form.staff_level_label}
+                    onChange={(e) =>
+                      setForm((f) => ({ ...f, staff_level_label: e.target.value }))
+                    }
+                    required
+                  >
+                    <option value="">Select staff role</option>
+                    {STAFF_ROLE_OPTIONS.map((option) => (
+                      <option key={option.label} value={option.label}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </>
+            )}
             <label>
               Role *
               <select
                 value={form.role}
-                onChange={(e) => setForm((f) => ({ ...f, role: e.target.value }))}
+                disabled={Boolean(editingUserId)}
+                onChange={(e) =>
+                  setForm((f) => ({
+                    ...f,
+                    role: e.target.value,
+                    agent_country: e.target.value === 'customer' ? f.agent_country : '',
+                    agent_commission: e.target.value === 'customer' ? f.agent_commission : '',
+                    agent_salary: e.target.value === 'customer' ? f.agent_salary : '',
+                    staff_side:
+                      e.target.value === 'staff'
+                        ? f.staff_side || currentUser?.organization?.name || ''
+                        : '',
+                    staff_level_label:
+                      e.target.value === 'staff'
+                        ? f.staff_level_label || STAFF_ROLE_OPTIONS[0].label
+                        : ''
+                  }))
+                }
               >
                 {roleSelectOptions.map((r) => (
                   <option key={r.value} value={r.value}>
@@ -371,12 +603,19 @@ export default function UsersManagementPage() {
               Active account (approved)
             </label>
           </div>
+          {form.role === 'staff' && (
+            <p className="muted-text" style={{ marginBottom: 12 }}>
+              Set side to your organization name for home staff, or to an agent name for away
+              staff. Roles map to fixed authority levels: Reception 1, Secretary 2, IT 3,
+              Operations 4, Supervisor 5.
+            </p>
+          )}
           <p className="muted-text" style={{ marginBottom: 12 }}>
             New users receive an email to set their password. If Google sign-in is enabled, they can
             also use the same email with Google.
           </p>
           <button type="submit" disabled={creating || readOnly}>
-            {creating ? 'Creating…' : 'Create user'}
+            {creating ? (editingUserId ? 'Updating...' : 'Creating...') : editingUserId ? 'Update user' : 'Create user'}
           </button>
         </form>
 
@@ -401,6 +640,8 @@ export default function UsersManagementPage() {
                     <th>Name</th>
                     <th>Phone</th>
                     <th>Role</th>
+                    <th>Side</th>
+                    <th>Level</th>
                     <th>Active</th>
                     <th>Joined</th>
                     <th>Last login</th>
@@ -438,6 +679,14 @@ export default function UsersManagementPage() {
                           </select>
                         </td>
                         <td>
+                          {row.role === 'staff' ? row.staff_side || '—' : '—'}
+                        </td>
+                        <td>
+                          {row.role === 'staff'
+                            ? `L${row.staff_level || 1}${row.staff_level_label ? ` - ${row.staff_level_label}` : ''}`
+                            : '—'}
+                        </td>
+                        <td>
                           <label className="toggle-cell">
                             <input
                               type="checkbox"
@@ -452,6 +701,17 @@ export default function UsersManagementPage() {
                         <td className="nowrap">{formatDate(row.date_joined)}</td>
                         <td className="nowrap">{formatDate(row.last_login)}</td>
                         <td>
+                          {row.role === 'staff' && (
+                            <button
+                              type="button"
+                              className="btn-secondary"
+                              disabled={busy.staffMeta || readOnly}
+                              onClick={() => handleStaffMetaUpdate(row)}
+                              style={{ marginRight: 8 }}
+                            >
+                              {busy.staffMeta ? 'Saving...' : 'Edit staff'}
+                            </button>
+                          )}
                           <button
                             type="button"
                             className="btn-secondary"

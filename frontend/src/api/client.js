@@ -48,9 +48,13 @@ export async function ensureCsrfToken() {
  */
 export async function apiFetch(path, options = {}) {
   const method = (options.method || 'GET').toUpperCase()
-  const headers = {
-    'Content-Type': 'application/json',
-    ...options.headers
+  const headers = { ...options.headers }
+  const hasExplicitContentType =
+    Object.keys(headers).some((key) => key.toLowerCase() === 'content-type')
+  const isFormDataBody =
+    typeof FormData !== 'undefined' && options.body instanceof FormData
+  if (!hasExplicitContentType && !isFormDataBody) {
+    headers['Content-Type'] = 'application/json'
   }
   if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(method)) {
     if (!csrfToken) {

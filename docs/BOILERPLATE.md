@@ -99,7 +99,7 @@ sequenceDiagram
 
 ### Registration and verification
 
-1. `POST /api/register/` creates an inactive customer account
+1. `POST /api/register/` creates an inactive agent account
 2. The backend generates and emails a 6-digit verification code
 3. `POST /api/verify-email/` activates the account after code validation
 4. `POST /api/resend-verification/` reissues a code if needed
@@ -126,7 +126,7 @@ Roles still live on `Profile.role`:
 - `superadmin`
 - `admin`
 - `staff`
-- `customer`
+- `agent`
 
 But effective access is now driven by **dynamic role permissions** stored in `PlatformSettings.role_permissions`.
 
@@ -135,7 +135,7 @@ Default permissions:
 - `superadmin`: `users.manage_all`, `audit.view`, `platform.manage`
 - `admin`: `users.manage_limited`, `audit.view`
 - `staff`: none by default
-- `customer`: none by default
+- `agent`: none by default
 
 This means the boilerplate can evolve beyond fixed role behavior without changing code for every access rule.
 

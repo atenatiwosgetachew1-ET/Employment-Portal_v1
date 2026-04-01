@@ -33,6 +33,15 @@ export async function createUser(payload) {
   return data
 }
 
+export async function fetchStaffSideOptions() {
+  const response = await apiFetch('/api/users/staff-side-options/')
+  const data = await response.json().catch(() => ({}))
+  if (!response.ok) {
+    throw new Error(data.detail || data.message || 'Failed to load staff side options')
+  }
+  return Array.isArray(data.options) ? data.options : []
+}
+
 export async function patchUser(id, payload) {
   const response = await apiFetch(`/api/users/${id}/`, {
     method: 'PATCH',

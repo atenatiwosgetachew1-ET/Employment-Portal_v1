@@ -38,7 +38,7 @@ export default function SettingsPage() {
   const isSuperadmin = user?.role === 'superadmin'
   const permissionOptions = [
     { value: 'users.manage_all', label: 'Manage all users' },
-    { value: 'users.manage_limited', label: 'Manage staff/customers' },
+    { value: 'users.manage_limited', label: 'Manage staff/agents' },
     { value: 'audit.view', label: 'View audit log' },
     { value: 'platform.manage', label: 'Manage platform settings' }
   ]
@@ -229,7 +229,7 @@ export default function SettingsPage() {
               Seat usage
               <input
                 type="text"
-                value={`Superadmins ${user?.seat_usage?.superadmin ?? 0}/${user?.seat_limits?.superadmin ?? 0}, Admins ${user?.seat_usage?.admin ?? 0}/${user?.seat_limits?.admin ?? 0}, Staff ${user?.seat_usage?.staff ?? 0}/${user?.seat_limits?.staff ?? 0}, Customers ${user?.seat_usage?.customer ?? 0}/${user?.seat_limits?.customer ?? 0}`}
+                value={`Superadmins ${user?.seat_usage?.superadmin ?? 0}/${user?.seat_limits?.superadmin ?? 0}, Admins ${user?.seat_usage?.admin ?? 0}/${user?.seat_limits?.admin ?? 0}, Staff ${user?.seat_usage?.staff ?? 0}/${user?.seat_limits?.staff ?? 0}, Agents ${user?.seat_usage?.customer ?? 0}/${user?.seat_limits?.customer ?? 0}`}
                 readOnly
                 disabled
                 className="settings-readonly"

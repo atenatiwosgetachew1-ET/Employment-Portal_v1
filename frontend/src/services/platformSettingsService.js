@@ -37,6 +37,7 @@ export function defaultFeatureFlags() {
     registration_enabled: true,
     email_password_login_enabled: true,
     google_login_enabled: true,
+    employees_enabled: true,
     users_management_enabled: true,
     audit_log_enabled: true
   }

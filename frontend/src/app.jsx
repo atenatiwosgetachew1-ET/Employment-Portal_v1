@@ -7,6 +7,7 @@ import ForgotPasswordPage from './pages/ForgotPasswordPage'
 import ResetPasswordPage from './pages/ResetPasswordPage'
 import VerifyEmailPage from './pages/VerifyEmailPage'
 import DashboardPage from './pages/DashboardPage'
+import EmployeesPage from './pages/EmployeesPage'
 import UsersManagementPage from './pages/UsersManagementPage'
 import SettingsPage from './pages/SettingsPage'
 import ActivityLogPage from './pages/ActivityLogPage'
@@ -33,6 +34,7 @@ export default function App() {
             }
           >
             <Route index element={<DashboardPage />} />
+            <Route path="employees" element={<EmployeesPage />} />
             <Route path="users" element={<UsersManagementPage />} />
             <Route path="settings" element={<SettingsPage />} />
             <Route path="activity" element={<ActivityLogPage />} />

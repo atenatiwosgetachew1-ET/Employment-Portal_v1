@@ -73,7 +73,8 @@ def user_payload(user):
     subscription = get_organization_subscription(organization)
     access = get_access_state(organization)
     settings_obj = get_platform_settings()
-    feature_flags = dict(settings_obj.feature_flags or {})
+    feature_flags = dict(PlatformSettings.DEFAULT_FEATURE_FLAGS)
+    feature_flags.update(settings_obj.feature_flags or {})
     if subscription:
         feature_flags.update(subscription.plan.feature_flags or {})
     return {
@@ -84,6 +85,9 @@ def user_payload(user):
         "last_name": user.last_name or "",
         "role": profile.role,
         "phone": profile.phone or "",
+        "staff_side": profile.staff_side or "",
+        "staff_level": profile.staff_level or 1,
+        "staff_level_label": profile.staff_level_label or "",
         "email_verified": profile.email_verified,
         "google_linked": bool(profile.google_sub),
         "permissions": sorted(get_role_permissions(profile.role)),

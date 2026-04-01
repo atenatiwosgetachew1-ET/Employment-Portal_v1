@@ -7,14 +7,14 @@ flowchart TD
   A --> SA["Superadmin"]
   A --> AD["Admin"]
   A --> ST["Staff"]
-  A --> CU["Customer"]
+  A --> CU["Agent"]
 
   SA --> SA1["Default: manage all users"]
   SA --> SA2["Default: view audit logs"]
   SA --> SA3["Default: manage platform settings"]
   SA --> SA4["Can be reconfigured in platform settings"]
 
-  AD --> AD1["Default: manage staff and customer accounts"]
+  AD --> AD1["Default: manage staff and agent accounts"]
   AD --> AD2["Default: view audit logs"]
   AD --> AD3["Can be reconfigured in platform settings"]
 

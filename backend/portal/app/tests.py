@@ -1,5 +1,7 @@
 from datetime import timedelta
 import json
+import os
+import tempfile
 import time
 from unittest.mock import patch
 from urllib import error
@@ -7,13 +9,14 @@ from urllib import error
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 from django.contrib.auth.models import User
+from django.core.files.uploadedfile import SimpleUploadedFile
 from django.core import mail
 from django.test import Client, TestCase, override_settings
 from django.utils import timezone
 from rest_framework.test import APIClient
 
 from .licensing import get_user_organization
-from .models import AuditLog, OrganizationMembership, PlatformSettings, Profile
+from .models import AuditLog, Employee, OrganizationMembership, PlatformSettings, Profile
 
 
 @override_settings(EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend")
@@ -623,6 +626,9 @@ class UserManagementPermissionTests(TestCase):
                 "password": "strong-pass-123",
                 "email": "customer1@example.com",
                 "role": "customer",
+                "agent_country": "Saudi Arabia",
+                "agent_salary": "1800.00",
+                "agent_commission": "120.00",
                 "is_active": True,
             },
             format="json",
@@ -631,9 +637,35 @@ class UserManagementPermissionTests(TestCase):
         self.assertEqual(response.status_code, 201)
         created = User.objects.get(username="customer1")
         self.assertEqual(created.profile.role, Profile.ROLE_CUSTOMER)
+        self.assertEqual(created.profile.agent_country, "Saudi Arabia")
+        self.assertEqual(str(created.profile.agent_salary), "1800.00")
         self.assertTrue(created.profile.email_verified)
         self.assertEqual(len(mail.outbox), 1)
         self.assertIn("/reset-password?uid=", mail.outbox[0].body)
+
+    def test_admin_can_create_staff_with_side_and_level_metadata(self):
+        admin_user = self._create_user("manager", Profile.ROLE_ADMIN)
+        self.client.force_authenticate(user=admin_user)
+
+        response = self.client.post(
+            "/api/users/",
+            {
+                "username": "staff1",
+                "email": "staff1@example.com",
+                "role": "staff",
+                "staff_side": "North Branch",
+                "staff_level_label": "Secretary",
+                "is_active": True,
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 201)
+        created = User.objects.get(username="staff1")
+        self.assertEqual(created.profile.role, Profile.ROLE_STAFF)
+        self.assertEqual(created.profile.staff_side, "North Branch")
+        self.assertEqual(created.profile.staff_level, 2)
+        self.assertEqual(created.profile.staff_level_label, "Secretary")
 
     def test_manual_user_creation_email_mentions_google_when_enabled(self):
         admin_user = self._create_user("manager", Profile.ROLE_ADMIN)
@@ -648,6 +680,8 @@ class UserManagementPermissionTests(TestCase):
                 "username": "customer2",
                 "email": "customer2@example.com",
                 "role": "customer",
+                "agent_country": "Qatar",
+                "agent_salary": "2200.00",
                 "is_active": True,
             },
             format="json",
@@ -656,6 +690,29 @@ class UserManagementPermissionTests(TestCase):
         self.assertEqual(response.status_code, 201)
         self.assertEqual(len(mail.outbox), 1)
         self.assertIn("Sign in with Google", mail.outbox[0].body)
+
+    @patch("app.user_views.send_account_setup_email", side_effect=Exception("smtp down"))
+    def test_manual_user_creation_still_succeeds_when_setup_email_fails(self, _send_email):
+        admin_user = self._create_user("manager", Profile.ROLE_ADMIN)
+        self.client.force_authenticate(user=admin_user)
+
+        response = self.client.post(
+            "/api/users/",
+            {
+                "username": "email-fail-user",
+                "email": "email-fail@example.com",
+                "role": "customer",
+                "agent_country": "United Arab Emirates",
+                "agent_salary": "2500.00",
+                "is_active": True,
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 201)
+        self.assertEqual(response.data["username"], "email-fail-user")
+        self.assertIn("warning", response.data)
+        self.assertTrue(User.objects.filter(username="email-fail-user").exists())
 
     def test_only_superadmin_can_update_platform_lockout_settings(self):
         superadmin = self._create_user("root-admin", Profile.ROLE_SUPERADMIN)
@@ -703,6 +760,19 @@ class UserManagementPermissionTests(TestCase):
         self.client.force_authenticate(user=staff_user)
         response = self.client.get("/api/audit-logs/")
         self.assertEqual(response.status_code, 200)
+
+    def test_me_payload_includes_default_feature_flags(self):
+        staff_user = self._create_user("feature-user", Profile.ROLE_STAFF)
+        settings_obj = PlatformSettings.get_solo()
+        settings_obj.feature_flags = {}
+        settings_obj.save()
+
+        self.client.force_authenticate(user=staff_user)
+        response = self.client.get("/api/me/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("feature_flags", response.data)
+        self.assertTrue(response.data["feature_flags"]["employees_enabled"])
 
     def test_superadmin_can_reset_admin_password_but_not_own(self):
         superadmin = self._create_user("root-admin", Profile.ROLE_SUPERADMIN)
@@ -788,6 +858,203 @@ class UserManagementPermissionTests(TestCase):
             format="json",
         )
         self.assertEqual(blocked_self.status_code, 404)
+
+    def test_superadmin_can_update_staff_side_and_level(self):
+        superadmin = self._create_user("root-admin", Profile.ROLE_SUPERADMIN)
+        staff_user = self._create_user("helper", Profile.ROLE_STAFF)
+        self._assign_same_organization(superadmin, staff_user)
+        self.client.force_authenticate(user=superadmin)
+
+        response = self.client.patch(
+            f"/api/users/{staff_user.pk}/",
+            {
+                "staff_side": "Agent Atlas",
+                "staff_level_label": "Supervisor",
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        staff_user.refresh_from_db()
+        self.assertEqual(staff_user.profile.staff_side, "Agent Atlas")
+        self.assertEqual(staff_user.profile.staff_level, 5)
+        self.assertEqual(staff_user.profile.staff_level_label, "Supervisor")
+
+    def test_staff_side_options_include_organization_and_agents(self):
+        superadmin = self._create_user("root-admin", Profile.ROLE_SUPERADMIN)
+        agent_user = self._create_user("agent-atlas", Profile.ROLE_CUSTOMER)
+        agent_user.first_name = "Agent Atlas"
+        agent_user.save(update_fields=["first_name"])
+        self._assign_same_organization(superadmin, agent_user)
+        self.client.force_authenticate(user=superadmin)
+
+        response = self.client.get("/api/users/staff-side-options/")
+
+        self.assertEqual(response.status_code, 200)
+        options = response.data["options"]
+        self.assertIn(get_user_organization(superadmin).name, options)
+        self.assertIn("Agent Atlas", options)
+
+
+class EmployeeManagementTests(TestCase):
+    def setUp(self):
+        self.client = APIClient()
+        os.makedirs(os.path.join(os.path.dirname(__file__), "test_media"), exist_ok=True)
+        self.media_root = tempfile.mkdtemp(
+            prefix="portal-test-media-",
+            dir=os.path.join(os.path.dirname(__file__), "test_media"),
+        )
+
+    def tearDown(self):
+        import shutil
+
+        shutil.rmtree(self.media_root, ignore_errors=True)
+
+    def _create_user(self, username: str, role: str) -> User:
+        user = User.objects.create_user(
+            username=username,
+            email=f"{username}@example.com",
+            password="strong-pass-123",
+            is_active=True,
+        )
+        profile = user.profile
+        profile.role = role
+        profile.email_verified = True
+        profile.save(update_fields=["role", "email_verified"])
+        return user
+
+    def _assign_same_organization(self, owner: User, *members: User):
+        organization = get_user_organization(owner)
+        for user in members:
+            user.profile.organization = organization
+            user.profile.save(update_fields=["organization"])
+            OrganizationMembership.objects.update_or_create(
+                user=user,
+                defaults={
+                    "organization": organization,
+                    "role": user.profile.role,
+                    "is_owner": user.profile.role == Profile.ROLE_SUPERADMIN,
+                    "is_active": user.is_active,
+                },
+            )
+
+    def test_staff_user_can_create_employee_record(self):
+        staff_user = self._create_user("staff-maker", Profile.ROLE_STAFF)
+        self.client.force_authenticate(user=staff_user)
+
+        response = self.client.post(
+            "/api/employees/",
+            {
+                "first_name": "Jane",
+                "middle_name": "Ada",
+                "last_name": "Doe",
+                "date_of_birth": "1996-01-15",
+                "gender": "Female",
+                "passport_number": "P1234567",
+                "mobile_number": "+251900000001",
+                "application_countries": ["Saudi Arabia"],
+                "profession": "Cashier",
+                "employment_type": "Contract",
+                "languages": ["Amharic", "English"],
+                "email": "jane@example.com",
+                "phone": "+251900000001",
+                "summary": "Experienced finance professional.",
+                "skills": ["Cash handling", "Customer service"],
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 201)
+        employee = Employee.objects.get(full_name="Jane Ada Doe")
+        self.assertEqual(employee.registered_by, staff_user)
+        self.assertEqual(employee.organization, get_user_organization(staff_user))
+        self.assertTrue(
+            AuditLog.objects.filter(
+                actor=staff_user,
+                action="employee.create",
+                resource_id=employee.pk,
+            ).exists()
+        )
+
+    def test_employee_list_is_scoped_to_same_organization(self):
+        owner_a = self._create_user("owner-a", Profile.ROLE_SUPERADMIN)
+        owner_b = self._create_user("owner-b", Profile.ROLE_SUPERADMIN)
+
+        employee_a = Employee.objects.create(
+            organization=get_user_organization(owner_a),
+            registered_by=owner_a,
+            updated_by=owner_a,
+            full_name="Visible Employee",
+        )
+        Employee.objects.create(
+            organization=get_user_organization(owner_b),
+            registered_by=owner_b,
+            updated_by=owner_b,
+            full_name="Hidden Employee",
+        )
+
+        self.client.force_authenticate(user=owner_a)
+        response = self.client.get("/api/employees/")
+
+        self.assertEqual(response.status_code, 200)
+        returned_ids = [item["id"] for item in response.data["results"]]
+        self.assertIn(employee_a.id, returned_ids)
+        self.assertEqual(len(returned_ids), 1)
+
+    def test_employee_form_options_use_active_agent_countries_and_salaries(self):
+        superadmin = self._create_user("owner-options", Profile.ROLE_SUPERADMIN)
+        agent = self._create_user("agent-country", Profile.ROLE_CUSTOMER)
+        self._assign_same_organization(superadmin, agent)
+        agent.profile.agent_country = "Saudi Arabia"
+        agent.profile.agent_salary = "2400.00"
+        agent.profile.save(update_fields=["agent_country", "agent_salary"])
+
+        self.client.force_authenticate(user=superadmin)
+        response = self.client.get("/api/employees/form-options/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("Saudi Arabia", response.data["destination_countries"])
+        self.assertIn("2400.00", response.data["salary_options_by_country"]["Saudi Arabia"])
+
+    @patch(
+        "django.core.files.storage.FileSystemStorage.save",
+        return_value="employees/1/portrait.txt",
+    )
+    def test_employee_document_upload_and_delete_work(self, _storage_save):
+        superadmin = self._create_user("owner-a", Profile.ROLE_SUPERADMIN)
+        staff_user = self._create_user("staff-a", Profile.ROLE_STAFF)
+        self._assign_same_organization(superadmin, staff_user)
+        employee = Employee.objects.create(
+            organization=get_user_organization(superadmin),
+            registered_by=staff_user,
+            updated_by=staff_user,
+            full_name="Document Holder",
+        )
+
+        self.client.force_authenticate(user=staff_user)
+        upload = SimpleUploadedFile(
+            "portrait.txt",
+            b"employee-portrait",
+            content_type="text/plain",
+        )
+
+        response = self.client.post(
+            f"/api/employees/{employee.pk}/documents/",
+            {
+                "document_type": "portrait_photo",
+                "label": "Portrait photo",
+                "file": upload,
+            },
+            format="multipart",
+        )
+
+        self.assertEqual(response.status_code, 201)
+        document_id = response.data["id"]
+        self.assertTrue(response.data["file_url"])
+
+        delete_response = self.client.delete(f"/api/employee-documents/{document_id}/")
+
+        self.assertEqual(delete_response.status_code, 204)
 
 
 class CompanySyncTests(TestCase):

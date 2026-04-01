@@ -13,11 +13,15 @@ export default function DashboardLayout() {
   const canManageUsers =
     features.users_management_enabled &&
     (permissions.includes('users.manage_all') || permissions.includes('users.manage_limited'))
+  const canManageEmployees = features.employees_enabled
   const canViewAudit =
     features.audit_log_enabled && permissions.includes('audit.view')
 
   const navItems = [
     { to: '/dashboard', label: 'Dashboard', end: true },
+    ...(canManageEmployees
+      ? [{ to: '/dashboard/employees', label: 'Employees', end: false }]
+      : []),
     ...(canManageUsers
       ? [{ to: '/dashboard/users', label: 'Users management', end: false }]
       : []),
