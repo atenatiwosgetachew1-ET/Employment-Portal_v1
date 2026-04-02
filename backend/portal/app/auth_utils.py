@@ -4,6 +4,7 @@ from .licensing import (
     get_organization_subscription,
     sync_profile_membership,
 )
+from .employee_selection import build_agent_context
 from .models import PlatformSettings, Profile
 
 
@@ -105,4 +106,5 @@ def user_payload(user):
             "role": membership.role if membership else profile.role,
             "is_owner": membership.is_owner if membership else profile.role == Profile.ROLE_SUPERADMIN,
         },
+        "agent_context": build_agent_context(user, organization=organization),
     }

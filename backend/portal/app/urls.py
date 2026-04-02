@@ -9,7 +9,9 @@ from .employee_views import (
     EmployeeDocumentUploadView,
     EmployeeFormOptionsView,
     EmployeeListCreateView,
+    EmployeeProcessStartView,
     EmployeeRetrieveUpdateDestroyView,
+    EmployeeSelectionView,
 )
 from .registration_views import (
     company_superadmin_reset_token_consume,
@@ -76,6 +78,8 @@ urlpatterns = [
     path("employees/form-options/", EmployeeFormOptionsView.as_view(), name="employees-form-options"),
     path("employees/", EmployeeListCreateView.as_view(), name="employees-list"),
     path("employees/<int:pk>/", EmployeeRetrieveUpdateDestroyView.as_view(), name="employees-detail"),
+    path("employees/<int:employee_pk>/selection/", EmployeeSelectionView.as_view(), name="employees-selection"),
+    path("employees/<int:employee_pk>/process/", EmployeeProcessStartView.as_view(), name="employees-process-start"),
     path("employees/<int:employee_pk>/documents/", EmployeeDocumentUploadView.as_view(), name="employees-document-upload"),
     path("employee-documents/<int:pk>/", EmployeeDocumentDeleteView.as_view(), name="employees-document-delete"),
     path("users/", UserListCreateView.as_view(), name="users-list"),

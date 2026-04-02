@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Navigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import {
@@ -15,7 +15,71 @@ import {
 } from '../constants/employeeOptions'
 import * as employeesService from '../services/employeesService'
 
+const MINIMUM_EMPLOYEE_AGE = 18
+const PHONE_ALLOWED_CHARS = /^[+\d\s()-]+$/
+const DOCUMENT_NUMBER_PATTERN = /^[A-Za-z0-9\s/-]+$/
+const OPTIONAL_DATE_FIELDS = [
+  'departure_date',
+  'return_ticket_date',
+  'passport_expires_on',
+  'medical_expires_on',
+  'contract_expires_on',
+  'visa_expires_on',
+  'competency_certificate_expires_on',
+  'clearance_expires_on',
+  'insurance_expires_on'
+]
+const MANDATORY_ATTACHMENT_KEYS = ['portrait_photo', 'full_photo', 'passport_document']
+const ALLOWED_ATTACHMENT_MIME_TYPES = ['application/pdf', 'image/jpeg', 'image/png']
+const ALLOWED_ATTACHMENT_EXTENSIONS = ['.pdf', '.jpg', '.jpeg', '.png']
+const REGISTRATION_TEMPLATE_STORAGE_KEY = 'employment-portal.employee-registration-template'
+const TEMPLATE_FORM_FIELDS = [
+  'application_countries',
+  'profession',
+  'skills',
+  'employment_type',
+  'experiences',
+  'languages',
+  'application_salary',
+  'professional_title',
+  'summary',
+  'education',
+  'experience',
+  'certifications',
+  'references',
+  'notes',
+  'religion',
+  'marital_status',
+  'children_count',
+  'address',
+  'residence_country',
+  'nationality',
+  'birth_place',
+  'weight_kg',
+  'height_cm'
+]
 const emptyExperience = { country: '', years: '' }
+const REGISTRATION_STEPS = [
+  { id: 'personal', label: 'Personal' },
+  { id: 'application', label: 'Application' },
+  { id: 'profile', label: 'Profile' },
+  { id: 'contact', label: 'Contact' },
+  { id: 'attachments', label: 'Attachments' },
+  { id: 'summary', label: 'Summary' }
+]
+const EMPLOYEE_VIEW_TABS = [
+  { id: 'list', label: 'Employees list' },
+  { id: 'register', label: 'Register employee' },
+  { id: 'selected', label: 'Selected Employees' },
+  { id: 'under-process', label: 'Under process Employees' },
+  { id: 'employed', label: 'Employed' }
+]
+const CARD_PREVIEW_DOCUMENTS = [
+  { key: 'portrait', label: 'Portrait', types: ['portrait_photo'] },
+  { key: 'full', label: 'Full photo', types: ['full_photo'] },
+  { key: 'passport', label: 'Passport', types: ['passport_photo', 'passport_document'] }
+]
+
 const emptyForm = {
   first_name: '', middle_name: '', last_name: '', date_of_birth: '', gender: '',
   id_number: '', passport_number: '', labour_id: '', mobile_number: '', email: '', phone: '',
@@ -27,6 +91,7 @@ const emptyForm = {
   contact_person_mobile: '', did_travel: false, departure_date: '', return_ticket_date: '',
   passport_expires_on: '', medical_expires_on: '', contract_expires_on: '', visa_expires_on: '',
   competency_certificate_expires_on: '', clearance_expires_on: '', insurance_expires_on: '',
+  status: 'pending',
   is_active: true
 }
 
@@ -60,9 +125,370 @@ function normalizeEmployeeForm(employee) {
   }
 }
 
+function buildRegistrationTemplate(form) {
+  return TEMPLATE_FORM_FIELDS.reduce((template, field) => {
+    if (field === 'application_countries' || field === 'skills' || field === 'languages') {
+      template[field] = Array.isArray(form[field]) ? [...form[field]] : []
+      return template
+    }
+    if (field === 'experiences') {
+      template[field] = Array.isArray(form.experiences) && form.experiences.length > 0
+        ? form.experiences.map((item) => ({ country: item.country || '', years: item.years ?? '' }))
+        : [emptyExperience]
+      return template
+    }
+    template[field] = form[field]
+    return template
+  }, {})
+}
+
+function applyRegistrationTemplate(template) {
+  if (!template) return { ...emptyForm, experiences: [emptyExperience] }
+
+  return {
+    ...emptyForm,
+    ...template,
+    application_countries: Array.isArray(template.application_countries) ? [...template.application_countries] : [],
+    skills: Array.isArray(template.skills) ? [...template.skills] : [],
+    experiences: Array.isArray(template.experiences) && template.experiences.length > 0
+      ? template.experiences.map((item) => ({ country: item.country || '', years: item.years ?? '' }))
+      : [emptyExperience],
+    languages: Array.isArray(template.languages) ? [...template.languages] : []
+  }
+}
+
 function fileLabel(document, attachmentLabels) {
   if (document.label) return document.label
   return attachmentLabels[document.document_type] || document.document_type
+}
+
+function findEmployeeDocument(employee, documentTypes) {
+  return (employee.documents || []).find((document) => documentTypes.includes(document.document_type)) || null
+}
+
+function isImageDocument(document) {
+  if (!document?.file_url) return false
+  const value = document.file_url.toLowerCase()
+  return ['.jpg', '.jpeg', '.png', '.webp', '.gif'].some((extension) => value.includes(extension))
+}
+
+function attachmentFileAllowed(file) {
+  if (!file) return true
+  const lowerName = (file.name || '').toLowerCase()
+  const hasAllowedExtension = ALLOWED_ATTACHMENT_EXTENSIONS.some((extension) => lowerName.endsWith(extension))
+  const mimeType = (file.type || '').toLowerCase()
+  const hasAllowedMime = !mimeType || ALLOWED_ATTACHMENT_MIME_TYPES.includes(mimeType)
+  return hasAllowedExtension && hasAllowedMime
+}
+
+function attachmentDisplayName(document, attachmentLabels) {
+  if (!document) return ''
+  if (document.label) return document.label
+  if (document.file) {
+    const parts = String(document.file).split('/')
+    return parts[parts.length - 1] || document.file
+  }
+  return attachmentLabels[document.document_type] || document.document_type
+}
+
+function employeeProfilePhoto(employee) {
+  return findEmployeeDocument(employee, ['portrait_photo', 'full_photo', 'passport_photo', 'passport_document'])
+}
+
+function prettyStatus(value, fallback = '--') {
+  if (!value) return fallback
+  if (value === '--') return value
+  return String(value).replaceAll('_', ' ')
+}
+
+function employeeAvailability(employee) {
+  if (employee.selection_state?.selection?.status === 'under_process') return 'Under process'
+  if (employee.travel_status === 'travelled') return 'Not available'
+  return employee.is_active ? 'Available' : 'Not available'
+}
+
+function employeeStatusLabel(employee) {
+  if (employee.selection_state?.selection?.status === 'under_process') return 'Under process'
+  if (employee.status === 'suspended') return 'Suspended'
+  if (employee.status === 'rejected') return 'Rejected'
+  if (employee.status === 'pending') return 'Pending approval'
+  return employeeAvailability(employee)
+}
+
+function employeeStatusBadgeClass(employee) {
+  if (employee.selection_state?.selection?.status === 'under_process') return 'badge-warning'
+  if (employee.status === 'approved') return 'badge-success'
+  if (employee.status === 'pending') return 'badge-warning'
+  return 'badge-muted'
+}
+
+function progressTone(progress) {
+  if (progress >= 90) return '#16a34a'
+  if (progress >= 60) return '#2563eb'
+  return '#ea580c'
+}
+
+function buildProgressDonut(progressStatus) {
+  const overallProgress = Math.max(0, Math.min(100, Number(progressStatus?.overall_completion ?? 0)))
+  const radius = 44
+  const circumference = 2 * Math.PI * radius
+  const dashOffset = circumference - (overallProgress / 100) * circumference
+
+  return {
+    overallProgress,
+    radius,
+    circumference,
+    dashOffset,
+    tone: progressTone(overallProgress)
+  }
+}
+
+function formatDateForPrompt(value) {
+  if (!value) return ''
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return value
+  return date.toLocaleDateString(undefined, {
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric'
+  })
+}
+
+function isAgentSideWorkspace(user) {
+  if (user?.agent_context?.is_agent_side) return true
+  if (user?.role === 'customer') return true
+  if (user?.role !== 'staff') return false
+  const staffSide = (user?.staff_side || '').trim()
+  const organizationName = (user?.organization?.name || '').trim()
+  return Boolean(staffSide) && staffSide !== organizationName
+}
+
+function selectedEmployeesHelpText(user) {
+  return isAgentSideWorkspace(user)
+    ? 'Employees selected by your agent side are listed here so your team can continue the remaining information and attachments.'
+    : 'Employees selected by any agent are listed here together with the selecting agent name.'
+}
+
+function underProcessEmployeesHelpText(user) {
+  return `Employees under process for ${user?.first_name || user?.username || 'this agent'} are listed here.`
+}
+
+function employedEmployeesHelpText() {
+  return 'Employees who already travelled and reached 100% progress are listed here.'
+}
+
+function resolvedProcessAgentId(employee, processAgentAssignments, agentOptions) {
+  if (processAgentAssignments[employee.id]) return String(processAgentAssignments[employee.id])
+  if (employee.selection_state?.selection?.agent) return String(employee.selection_state.selection.agent)
+  if (agentOptions.length === 1) return String(agentOptions[0].id)
+  return ''
+}
+
+function isValidPhoneNumber(value) {
+  const raw = (value || '').trim()
+  if (!raw) return true
+  if (!PHONE_ALLOWED_CHARS.test(raw)) return false
+  const digits = raw.replace(/\D/g, '')
+  return digits.length >= 7 && digits.length <= 15
+}
+
+function isValidDocumentNumber(value) {
+  const raw = (value || '').trim()
+  if (!raw) return true
+  return DOCUMENT_NUMBER_PATTERN.test(raw)
+}
+
+function isValidEmailAddress(value) {
+  const raw = (value || '').trim()
+  if (!raw) return true
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(raw)
+}
+
+function getValidationStep(errorMessage) {
+  const target = getValidationTarget(errorMessage)
+  return target ? target.step : null
+}
+
+function getValidationTarget(errorMessage) {
+  const message = (errorMessage || '').toLowerCase()
+
+  if (!message) return null
+
+  if (
+    message.includes('first name')
+  ) return { step: 0, selector: '[name="first_name"]' }
+  if (message.includes('middle name')) return { step: 0, selector: '[name="middle_name"]' }
+  if (message.includes('last name')) return { step: 0, selector: '[name="last_name"]' }
+  if (message.includes('date of birth')) return { step: 0, selector: '[name="date_of_birth"]' }
+  if (message.includes('gender')) return { step: 0, selector: '[name="gender"]' }
+  if (message.includes('passport number')) return { step: 0, selector: '[name="passport_number"]' }
+  if (message.includes('mobile number')) return { step: 0, selector: '[name="mobile_number"]' }
+  if (message.includes('labour id')) return { step: 0, selector: '[name="labour_id"]' }
+  if (message.includes('id number')) return { step: 0, selector: '[name="id_number"]' }
+  if (
+    message.includes('passport expires on') ||
+    message.includes('passport_expires_on')
+  ) return { step: 4, selector: '[name="passport_expires_on"]' }
+
+  if (
+    message.includes('destination country') ||
+    message.includes('application_countries')
+  ) return { step: 1, selector: '[name="application_countries"]' }
+  if (message.includes('profession')) return { step: 1, selector: '[name="profession"]' }
+  if (message.includes('type is required') || message.includes('employment type')) return { step: 1, selector: '[name="employment_type"]' }
+  if (message.includes('salary')) return { step: 1, selector: '[name="application_salary"]' }
+  if (message.includes('skill')) return { step: 1, selector: '[name="skills"]' }
+  if (message.includes('experience') || message.includes('years')) return { step: 1, selector: '[name^="experience_country_"]' }
+
+  if (
+    message.includes('religion')
+  ) return { step: 2, selector: '[name="religion"]' }
+  if (message.includes('marital status')) return { step: 2, selector: '[name="marital_status"]' }
+  if (message.includes('residence country')) return { step: 2, selector: '[name="residence_country"]' }
+  if (message.includes('nationality')) return { step: 2, selector: '[name="nationality"]' }
+  if (message.includes('birth place')) return { step: 2, selector: '[name="birth_place"]' }
+  if (message.includes('weight')) return { step: 2, selector: '[name="weight_kg"]' }
+  if (message.includes('height')) return { step: 2, selector: '[name="height_cm"]' }
+  if (message.includes('children count')) return { step: 2, selector: '[name="children_count"]' }
+
+  if (
+    message.includes('contact person name')
+  ) return { step: 3, selector: '[name="contact_person_name"]' }
+  if (message.includes('contact person mobile')) return { step: 3, selector: '[name="contact_person_mobile"]' }
+  if (message.includes('contact person id')) return { step: 3, selector: '[name="contact_person_id_number"]' }
+  if (message.includes('secondary phone')) return { step: 3, selector: '[name="phone"]' }
+  if (message.includes('email')) return { step: 3, selector: '[name="email"]' }
+
+  if (
+    message.includes('portrait photo')
+  ) return { step: 4, selector: '[name="portrait_photo"]' }
+  if (message.includes('full photo')) return { step: 4, selector: '[name="full_photo"]' }
+  if (message.includes('passport is required') || message.includes('passport_document')) return { step: 4, selector: '[name="passport_document"]' }
+  if (message.includes('departure date') || message.includes('departure_date')) return { step: 4, selector: '[name="departure_date"]' }
+  if (message.includes('return ticket date') || message.includes('return_ticket_date')) return { step: 4, selector: '[name="return_ticket_date"]' }
+  if (message.includes('medical result date') || message.includes('medical_expires_on')) return { step: 4, selector: '[name="medical_expires_on"]' }
+  if (message.includes('contract') || message.includes('contract_expires_on')) return { step: 4, selector: '[name="contract_expires_on"]' }
+  if (message.includes('visa') || message.includes('visa_expires_on')) return { step: 4, selector: '[name="visa_expires_on"]' }
+  if (message.includes('competency') || message.includes('competency_certificate_expires_on')) return { step: 4, selector: '[name="competency_certificate_expires_on"]' }
+  if (message.includes('clearance') || message.includes('clearance_expires_on')) return { step: 4, selector: '[name="clearance_expires_on"]' }
+  if (message.includes('insurance') || message.includes('insurance_expires_on')) return { step: 4, selector: '[name="insurance_expires_on"]' }
+  if (message.includes('attachment')) return { step: 4, selector: '[name="portrait_photo"]' }
+
+  return { step: 0, selector: null }
+}
+
+function validateEmployeeForm(form) {
+  if (form.application_salary === '') return 'Salary is required.'
+  if (!Array.isArray(form.skills) || form.skills.length === 0) return 'Select at least one skill.'
+  const selectedExperiences = Array.isArray(form.experiences)
+    ? form.experiences.filter((item) => (item.country || '').trim())
+    : []
+  const hasMissingYearsForSelectedCountry = selectedExperiences.some((item) => String(item.years ?? '').trim() === '')
+  if (hasMissingYearsForSelectedCountry) return 'Fill in years for each selected experience country.'
+  if (!form.religion) return 'Religion is required.'
+  if (!form.marital_status) return 'Marital status is required.'
+  if (!form.residence_country) return 'Residence country is required.'
+  if (!(form.contact_person_name || '').trim()) return 'Contact person name is required.'
+  if (!(form.contact_person_mobile || '').trim()) return 'Contact person mobile is required.'
+  if (!isValidPhoneNumber(form.mobile_number)) return 'Enter a valid mobile number.'
+  if (!isValidPhoneNumber(form.phone)) return 'Enter a valid secondary phone number.'
+  if (!isValidPhoneNumber(form.contact_person_mobile)) return 'Enter a valid contact person mobile number.'
+  if (!isValidEmailAddress(form.email)) return 'Enter a valid email address.'
+  if (!isValidDocumentNumber(form.passport_number)) return 'Passport number may only contain letters, numbers, spaces, slashes, and hyphens.'
+  if (!isValidDocumentNumber(form.id_number)) return 'ID number may only contain letters, numbers, spaces, slashes, and hyphens.'
+  if (!isValidDocumentNumber(form.labour_id)) return 'Labour ID may only contain letters, numbers, spaces, slashes, and hyphens.'
+  if (!isValidDocumentNumber(form.contact_person_id_number)) return 'Contact person ID number may only contain letters, numbers, spaces, slashes, and hyphens.'
+  if (form.application_salary !== '' && Number(form.application_salary) < 0) return 'Salary cannot be negative.'
+  if (form.weight_kg !== '' && Number(form.weight_kg) < 0) return 'Weight cannot be negative.'
+  if (form.height_cm !== '' && Number(form.height_cm) < 0) return 'Height cannot be negative.'
+  if (Number(form.children_count || 0) < 0) return 'Children count cannot be negative.'
+  return ''
+}
+
+function validateStepFields(form, stepIndex, ageRestrictionError, validateAttachmentDates) {
+  if (stepIndex === 0) {
+    if (!form.first_name.trim()) return 'First name is required.'
+    if (!form.middle_name.trim()) return 'Middle name is required.'
+    if (!form.last_name.trim()) return 'Last name is required.'
+    if (!form.date_of_birth) return 'Date of birth is required.'
+    if (ageRestrictionError) return ageRestrictionError
+    if (!form.gender) return 'Gender is required.'
+    if (!form.passport_number.trim()) return 'Passport number is required.'
+    if (!form.mobile_number.trim()) return 'Mobile number is required.'
+    if (!isValidPhoneNumber(form.mobile_number)) return 'Enter a valid mobile number.'
+    if (!isValidDocumentNumber(form.passport_number)) return 'Passport number may only contain letters, numbers, spaces, slashes, and hyphens.'
+    if (!isValidDocumentNumber(form.id_number)) return 'ID number may only contain letters, numbers, spaces, slashes, and hyphens.'
+    if (!isValidDocumentNumber(form.labour_id)) return 'Labour ID may only contain letters, numbers, spaces, slashes, and hyphens.'
+    return ''
+  }
+
+  if (stepIndex === 1) {
+    if (form.application_countries.length === 0) return 'Select at least one destination country.'
+    if (!form.profession) return 'Profession is required.'
+    if (!form.employment_type) return 'Type is required.'
+    if (form.application_salary === '') return 'Salary is required.'
+    if (!Array.isArray(form.skills) || form.skills.length === 0) return 'Select at least one skill.'
+    const selectedExperiences = Array.isArray(form.experiences)
+      ? form.experiences.filter((item) => (item.country || '').trim())
+      : []
+    if (selectedExperiences.some((item) => String(item.years ?? '').trim() === '')) return 'Fill in years for each selected experience country.'
+    if (form.application_salary !== '' && Number(form.application_salary) < 0) return 'Salary cannot be negative.'
+    return ''
+  }
+
+  if (stepIndex === 2) {
+    if (!form.religion) return 'Religion is required.'
+    if (!form.marital_status) return 'Marital status is required.'
+    if (!form.residence_country) return 'Residence country is required.'
+    if (form.weight_kg !== '' && Number(form.weight_kg) < 0) return 'Weight cannot be negative.'
+    if (form.height_cm !== '' && Number(form.height_cm) < 0) return 'Height cannot be negative.'
+    if (Number(form.children_count || 0) < 0) return 'Children count cannot be negative.'
+    return ''
+  }
+
+  if (stepIndex === 3) {
+    if (!(form.contact_person_name || '').trim()) return 'Contact person name is required.'
+    if (!(form.contact_person_mobile || '').trim()) return 'Contact person mobile is required.'
+    if (!isValidPhoneNumber(form.phone)) return 'Enter a valid secondary phone number.'
+    if (!isValidPhoneNumber(form.contact_person_mobile)) return 'Enter a valid contact person mobile number.'
+    if (!isValidEmailAddress(form.email)) return 'Enter a valid email address.'
+    if (!isValidDocumentNumber(form.contact_person_id_number)) return 'Contact person ID number may only contain letters, numbers, spaces, slashes, and hyphens.'
+    return ''
+  }
+
+  if (stepIndex === 4) {
+    try {
+      validateAttachmentDates()
+    } catch (error) {
+      return error.message || 'Please complete the required attachments.'
+    }
+  }
+
+  return ''
+}
+
+function buildEmployeePayload(form, editingEmployeeId) {
+  const payload = {
+    ...form,
+    did_travel: false,
+    status: editingEmployeeId ? form.status || 'pending' : 'pending',
+    professional_title: form.professional_title.trim() || form.profession,
+    email: form.email.trim(),
+    phone: form.phone.trim(),
+    address: form.address.trim(),
+    experiences: form.experiences
+      .filter((item) => (item.country || '').trim())
+      .map((item) => ({ country: item.country.trim(), years: Number(item.years || 0) })),
+    application_salary: form.application_salary ? String(form.application_salary) : null,
+    weight_kg: form.weight_kg ? String(form.weight_kg) : null,
+    height_cm: form.height_cm ? String(form.height_cm) : null
+  }
+
+  OPTIONAL_DATE_FIELDS.forEach((field) => {
+    payload[field] = form[field] ? form[field] : null
+  })
+
+  return payload
 }
 
 export default function EmployeesPage() {
@@ -70,40 +496,66 @@ export default function EmployeesPage() {
   const [employeesData, setEmployeesData] = useState(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
-  const [error, setError] = useState('')
+  const [pageError, setPageError] = useState('')
+  const [modalError, setModalError] = useState('')
+  const [modalNotice, setModalNotice] = useState('')
   const [notice, setNotice] = useState('')
   const [page, setPage] = useState(1)
   const [searchInput, setSearchInput] = useState('')
   const [filters, setFilters] = useState({ q: '', isActive: '' })
   const [editingEmployeeId, setEditingEmployeeId] = useState(null)
   const [busyEmployeeId, setBusyEmployeeId] = useState(null)
+  const [actionBusyId, setActionBusyId] = useState(null)
   const [form, setForm] = useState(emptyForm)
-  const [formOptions, setFormOptions] = useState({ destination_countries: [], salary_options_by_country: {} })
+  const [formOptions, setFormOptions] = useState({ destination_countries: [], salary_options_by_country: {}, agent_options: [] })
   const [attachmentFiles, setAttachmentFiles] = useState({})
   const [attachmentLabels, setAttachmentLabels] = useState({})
+  const [existingAttachmentDocs, setExistingAttachmentDocs] = useState({})
+  const [savedTemplate, setSavedTemplate] = useState(null)
+  const [processAgentAssignments, setProcessAgentAssignments] = useState({})
+  const [openedEmployeeId, setOpenedEmployeeId] = useState(null)
+  const [currentView, setCurrentView] = useState('list')
+  const [activeStep, setActiveStep] = useState(0)
+  const registrationRef = useRef(null)
 
   const canManageEmployees = Boolean(user?.feature_flags?.employees_enabled)
   const readOnly = Boolean(user?.is_read_only || user?.is_suspended)
+  const isAgentSideUser = isAgentSideWorkspace(user)
+  const isMainAgentAccount = user?.role === 'customer'
+  const canManageOrganizationProcesses = user?.role === 'superadmin' || user?.role === 'admin'
+  const canOverrideProgress = canManageOrganizationProcesses
+  const selectedScope = isAgentSideUser ? 'mine' : 'organization'
+  const age = computeAge(form.date_of_birth)
+  const ageRestrictionError = age !== '' && age < MINIMUM_EMPLOYEE_AGE
+    ? `Employee must be at least ${MINIMUM_EMPLOYEE_AGE} years old.`
+    : ''
 
   const loadEmployees = useCallback(async () => {
     setLoading(true)
-    setError('')
+    setPageError('')
     try {
-      const data = await employeesService.fetchEmployees({ page, q: filters.q, isActive: filters.isActive })
+      const data = await employeesService.fetchEmployees({
+        page,
+        q: filters.q,
+        isActive: currentView === 'selected' || currentView === 'under-process' || currentView === 'employed' ? '' : filters.isActive,
+        selectedScope: currentView === 'selected' ? selectedScope : '',
+        processScope: currentView === 'under-process' ? (isAgentSideUser ? 'mine' : 'organization') : '',
+        employedScope: currentView === 'employed' ? (isAgentSideUser ? 'mine' : 'organization') : ''
+      })
       setEmployeesData(data)
     } catch (err) {
-      setError(err.message || 'Failed to load employees')
+      setPageError(err.message || 'Failed to load employees')
       setEmployeesData(null)
     } finally {
       setLoading(false)
     }
-  }, [filters, page])
+  }, [currentView, filters, isAgentSideUser, page, selectedScope])
 
   const loadFormOptions = useCallback(async () => {
     try {
       setFormOptions(await employeesService.fetchEmployeeFormOptions())
     } catch {
-      setFormOptions({ destination_countries: [], salary_options_by_country: {} })
+      setFormOptions({ destination_countries: [], salary_options_by_country: {}, agent_options: [] })
     }
   }, [])
 
@@ -116,6 +568,33 @@ export default function EmployeesPage() {
     }
   }, [canManageEmployees, loadEmployees, loadFormOptions])
 
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    try {
+      const rawTemplate = window.localStorage.getItem(REGISTRATION_TEMPLATE_STORAGE_KEY)
+      if (!rawTemplate) return
+      setSavedTemplate(applyRegistrationTemplate(JSON.parse(rawTemplate)))
+    } catch {
+      setSavedTemplate(null)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (currentView !== 'register' || !modalError) return
+    const target = getValidationTarget(modalError)
+    if (!target || target.step !== activeStep || !target.selector || !registrationRef.current) return
+    const timer = window.setTimeout(() => {
+      const element = registrationRef.current?.querySelector(target.selector)
+      if (element && typeof element.focus === 'function') {
+        element.focus()
+        if (typeof element.scrollIntoView === 'function') {
+          element.scrollIntoView({ behavior: 'smooth', block: 'center' })
+        }
+      }
+    }, 40)
+    return () => window.clearTimeout(timer)
+  }, [activeStep, currentView, modalError])
+
   const availableSkillOptions = useMemo(() => PROFESSION_SKILLS[form.profession] || [], [form.profession])
   const salaryOptions = useMemo(() => {
     const values = new Set()
@@ -125,12 +604,52 @@ export default function EmployeesPage() {
     return Array.from(values)
   }, [form.application_countries, formOptions.salary_options_by_country])
 
+  const hasSavedTemplate = Boolean(savedTemplate)
+  const createFormFromTemplate = useCallback(() => applyRegistrationTemplate(savedTemplate), [savedTemplate])
+
   const resetForm = useCallback(() => {
     setEditingEmployeeId(null)
     setForm(emptyForm)
     setAttachmentFiles({})
     setAttachmentLabels({})
+    setExistingAttachmentDocs({})
+    setActiveStep(0)
+    setModalError('')
+    setModalNotice('')
   }, [])
+
+  const openCreateModal = () => {
+    setEditingEmployeeId(null)
+    setForm(createFormFromTemplate())
+    setAttachmentFiles({})
+    setAttachmentLabels({})
+    setExistingAttachmentDocs({})
+    setActiveStep(0)
+    setPageError('')
+    setModalError('')
+    setModalNotice('')
+    setNotice('')
+    setCurrentView('register')
+  }
+
+  const handleSaveTemplate = () => {
+    const nextTemplate = buildRegistrationTemplate(form)
+    setSavedTemplate(nextTemplate)
+    if (typeof window !== 'undefined') {
+      window.localStorage.setItem(REGISTRATION_TEMPLATE_STORAGE_KEY, JSON.stringify(nextTemplate))
+    }
+    setNotice('Registration template saved. New registrations will start with these values.')
+    setModalNotice('Registration template saved for future new employees.')
+  }
+
+  const handleClearTemplate = () => {
+    setSavedTemplate(null)
+    if (typeof window !== 'undefined') {
+      window.localStorage.removeItem(REGISTRATION_TEMPLATE_STORAGE_KEY)
+    }
+    setNotice('Registration template cleared.')
+    setModalNotice('Registration template cleared.')
+  }
 
   const handleCheckboxList = (field, value) => {
     setForm((prev) => ({
@@ -146,9 +665,33 @@ export default function EmployeesPage() {
     }))
   }
 
-  const handleAttachmentPick = (key, file) => setAttachmentFiles((prev) => ({ ...prev, [key]: file || null }))
+  const handleAttachmentPick = (key, file) => {
+    if (file && !attachmentFileAllowed(file)) {
+      setModalError('Attachments must be PDF, JPG, JPEG, or PNG files only.')
+      return
+    }
+    setModalError('')
+    setAttachmentFiles((prev) => ({ ...prev, [key]: file || null }))
+  }
+
+  const validateAttachmentDates = () => {
+    for (const attachment of ATTACHMENT_FIELDS) {
+      if (!attachment.expiryField) continue
+      if (attachmentFiles[attachment.key] && !form[attachment.expiryField]) {
+        throw new Error(`${attachment.label} date is required when a file is selected.`)
+      }
+    }
+    for (const key of MANDATORY_ATTACHMENT_KEYS) {
+      const existingDocument = editingEmployeeId ? Boolean(existingAttachmentDocs[key]) : false
+      if (!attachmentFiles[key] && !existingDocument) {
+        const attachment = ATTACHMENT_FIELDS.find((item) => item.key === key)
+        throw new Error(`${attachment?.label || key} is required.`)
+      }
+    }
+  }
 
   const uploadPendingAttachments = async (employeeId) => {
+    validateAttachmentDates()
     const uploads = ATTACHMENT_FIELDS.filter((item) => attachmentFiles[item.key]).map((item) =>
       employeesService.uploadEmployeeDocument(
         employeeId,
@@ -161,30 +704,48 @@ export default function EmployeesPage() {
     if (uploads.length > 0) await Promise.all(uploads)
   }
 
-  const handleSubmit = async (event) => {
-    event.preventDefault()
+  const submitRegistration = async () => {
+    if (ageRestrictionError) {
+      setModalError(ageRestrictionError)
+      setActiveStep(0)
+      return
+    }
+    const validationError = validateEmployeeForm(form)
+    if (validationError) {
+      setModalError(validationError)
+      const targetStep = getValidationStep(validationError)
+      if (targetStep !== null) setActiveStep(targetStep)
+      return
+    }
     setSaving(true)
-    setError('')
+    setModalError('')
     setNotice('')
+    setModalNotice('')
     try {
-      const payload = {
-        ...form,
-        professional_title: form.professional_title.trim() || form.profession,
-        email: form.email.trim(),
-        phone: form.phone.trim(),
-        address: form.address.trim(),
-        experiences: form.experiences.filter((item) => item.country || item.years).map((item) => ({ country: item.country.trim(), years: Number(item.years || 0) })),
-        application_salary: form.application_salary ? String(form.application_salary) : null,
-        weight_kg: form.weight_kg ? String(form.weight_kg) : null,
-        height_cm: form.height_cm ? String(form.height_cm) : null
-      }
+      const payload = buildEmployeePayload(form, editingEmployeeId)
       const employee = editingEmployeeId ? await employeesService.updateEmployee(editingEmployeeId, payload) : await employeesService.createEmployee(payload)
       await uploadPendingAttachments(employee.id)
-      setNotice(editingEmployeeId ? 'Employee updated successfully.' : 'Employee registered successfully.')
-      resetForm()
+      if (editingEmployeeId) {
+        setNotice('Employee updated successfully.')
+        setCurrentView('list')
+        resetForm()
+      } else {
+        setNotice('Employee registered successfully.')
+        setModalNotice('Employee registered successfully. The form is ready for the next employee.')
+        setEditingEmployeeId(null)
+        setForm(createFormFromTemplate())
+        setAttachmentFiles({})
+        setAttachmentLabels({})
+        setExistingAttachmentDocs({})
+        setActiveStep(0)
+        setCurrentView('register')
+      }
       await Promise.all([loadEmployees(), loadFormOptions()])
     } catch (err) {
-      setError(err.message || 'Could not save employee')
+      const nextError = err.message || 'Could not save employee'
+      setModalError(nextError)
+      const targetStep = getValidationStep(nextError)
+      if (targetStep !== null) setActiveStep(targetStep)
     } finally {
       setSaving(false)
     }
@@ -192,18 +753,27 @@ export default function EmployeesPage() {
 
   const handleEdit = async (employeeId) => {
     setBusyEmployeeId(employeeId)
-    setError('')
+    setPageError('')
+    setModalError('')
+    setModalNotice('')
     setNotice('')
     try {
       const employee = await employeesService.fetchEmployee(employeeId)
       setEditingEmployeeId(employee.id)
       setForm(normalizeEmployeeForm(employee))
       const nextLabels = {}
-      ;(employee.documents || []).forEach((document) => { nextLabels[document.document_type] = document.label || '' })
+      const nextExistingDocs = {}
+      ;(employee.documents || []).forEach((document) => {
+        nextLabels[document.document_type] = document.label || ''
+        nextExistingDocs[document.document_type] = document
+      })
       setAttachmentLabels(nextLabels)
+      setExistingAttachmentDocs(nextExistingDocs)
       setAttachmentFiles({})
+      setActiveStep(0)
+      setCurrentView('register')
     } catch (err) {
-      setError(err.message || 'Could not load employee details')
+      setPageError(err.message || 'Could not load employee details')
     } finally {
       setBusyEmployeeId(null)
     }
@@ -211,7 +781,7 @@ export default function EmployeesPage() {
 
   const handleDelete = async (employee) => {
     if (!window.confirm(`Remove employee "${employee.full_name}"?`)) return
-    setError('')
+    setPageError('')
     setNotice('')
     try {
       await employeesService.deleteEmployee(employee.id)
@@ -219,334 +789,798 @@ export default function EmployeesPage() {
       setNotice('Employee removed.')
       await loadEmployees()
     } catch (err) {
-      setError(err.message || 'Could not delete employee')
+      setPageError(err.message || 'Could not delete employee')
     }
   }
 
   const handleDeleteDocument = async (documentId) => {
-    setError('')
+    setPageError('')
     setNotice('')
     try {
       await employeesService.deleteEmployeeDocument(documentId)
       setNotice('Document removed.')
       await loadEmployees()
     } catch (err) {
-      setError(err.message || 'Could not delete document')
+      setPageError(err.message || 'Could not delete document')
     }
+  }
+
+  const handleAvailabilityAction = async (employee, nextStatus, actionLabel) => {
+    setActionBusyId(employee.id)
+    setPageError('')
+    setNotice('')
+    try {
+      await employeesService.updateEmployee(employee.id, { status: nextStatus })
+      setNotice(`Employee ${actionLabel.toLowerCase()} successfully.`)
+      await loadEmployees()
+    } catch (err) {
+      setPageError(err.message || `Could not ${actionLabel.toLowerCase()} employee`)
+    } finally {
+      setActionBusyId(null)
+    }
+  }
+
+  const handleToggleSelectedEmployee = async (employee) => {
+    setActionBusyId(employee.id)
+    setPageError('')
+    setNotice('')
+    try {
+      if (employee.selection_state?.selected_by_current_agent) {
+        await employeesService.unselectEmployee(employee.id)
+        setNotice('Employee removed from Selected Employees.')
+      } else {
+        await employeesService.selectEmployee(employee.id)
+        setNotice('Employee added to Selected Employees.')
+      }
+      await loadEmployees()
+    } catch (err) {
+      setPageError(err.message || 'Could not update employee selection')
+    } finally {
+      setActionBusyId(null)
+    }
+  }
+
+  const handleStartProcess = async (employee) => {
+    const organizationName = user?.organization?.name || 'organization'
+    const assignedAgentId = resolvedProcessAgentId(employee, processAgentAssignments, formOptions.agent_options)
+    if (employee.status !== 'approved') {
+      setPageError('Only approved employees can have a process initiated.')
+      return
+    }
+    if (canManageOrganizationProcesses && !assignedAgentId) {
+      setPageError('Choose an agent before starting the process.')
+      return
+    }
+    const confirmed = window.confirm(
+      `Initiating a procees will inform the ${organizationName} to proceed to the arrangement of the employee documents.`
+    )
+    if (!confirmed) return
+
+    setActionBusyId(employee.id)
+    setPageError('')
+    setNotice('')
+    try {
+      await employeesService.startEmployeeProcess(employee.id, {
+        agentId: canManageOrganizationProcesses ? assignedAgentId : undefined
+      })
+      setNotice('Employee moved to Under process Employees.')
+      if (currentView !== 'under-process') {
+        setOpenedEmployeeId((prev) => (prev === employee.id ? null : prev))
+      }
+      await loadEmployees()
+    } catch (err) {
+      setPageError(err.message || 'Could not start employee process')
+    } finally {
+      setActionBusyId(null)
+    }
+  }
+
+  const handleDeclineProcess = async (employee) => {
+    const confirmed = window.confirm(
+      'Declining this process will remove the employee from Under process Employees and return them to the selected employees workflow.'
+    )
+    if (!confirmed) return
+
+    setActionBusyId(employee.id)
+    setPageError('')
+    setNotice('')
+    try {
+      await employeesService.declineEmployeeProcess(employee.id)
+      setNotice('Employee removed from Under process Employees and returned to Selected Employees.')
+      if (currentView === 'under-process') {
+        setOpenedEmployeeId((prev) => (prev === employee.id ? null : prev))
+      }
+      await loadEmployees()
+    } catch (err) {
+      setPageError(err.message || 'Could not decline employee process')
+    } finally {
+      setActionBusyId(null)
+    }
+  }
+
+  const handleMarkProgressComplete = async (employee) => {
+    const today = new Date()
+    const departureDate = employee.departure_date ? new Date(employee.departure_date) : null
+    const hasValidDepartureDate = Boolean(departureDate && !Number.isNaN(departureDate.getTime()))
+    const hasDepartureReached = hasValidDepartureDate
+      ? departureDate <= new Date(today.getFullYear(), today.getMonth(), today.getDate(), 23, 59, 59, 999)
+      : false
+    const departureText = hasValidDepartureDate
+      ? ` The recorded departure date is ${formatDateForPrompt(employee.departure_date)}.`
+      : ''
+    const didTravel = window.confirm(
+      `Did this Employee Travled?${departureText}${hasDepartureReached ? ' The departure date is today or earlier.' : ''} Click OK for Yes or Cancel for No.`
+    )
+
+    setActionBusyId(employee.id)
+    setPageError('')
+    setNotice('')
+    try {
+      await employeesService.updateEmployee(employee.id, {
+        progress_override_complete: true,
+        did_travel: didTravel
+      })
+      setNotice(
+        didTravel
+          ? 'Employee progress marked as 100% and travel confirmed.'
+          : 'Employee progress marked as 100%. Travel remains pending.'
+      )
+      await loadEmployees()
+    } catch (err) {
+      setPageError(err.message || 'Could not mark employee progress complete')
+    } finally {
+      setActionBusyId(null)
+    }
+  }
+
+  const validateStep = (stepIndex) => {
+    return validateStepFields(form, stepIndex, ageRestrictionError, validateAttachmentDates)
+  }
+
+  const goToNextStep = () => {
+    const stepError = validateStep(activeStep)
+    if (stepError) {
+      setModalError(stepError)
+      const targetStep = getValidationStep(stepError)
+      if (targetStep !== null) setActiveStep(targetStep)
+      return
+    }
+    setModalError('')
+    setActiveStep((prev) => Math.min(REGISTRATION_STEPS.length - 1, prev + 1))
+  }
+
+  const goToPreviousStep = () => {
+    setModalError('')
+    setActiveStep((prev) => Math.max(0, prev - 1))
   }
 
   if (!canManageEmployees) return <Navigate to="/dashboard" replace />
 
   const employees = employeesData?.results ?? []
+  const visibleEmployees = employees
   const total = employeesData?.count ?? employees.length
   const hasNext = Boolean(employeesData?.next)
   const hasPrev = Boolean(employeesData?.previous)
-  const age = computeAge(form.date_of_birth)
+  const openedEmployee = openedEmployeeId
+    ? visibleEmployees.find((employee) => employee.id === openedEmployeeId) || null
+    : null
+  const visibleTabs = EMPLOYEE_VIEW_TABS.filter((tab) => {
+    if (tab.id === 'selected') return isAgentSideUser
+    return true
+  })
+  const openedEmployeeProgress = buildProgressDonut(openedEmployee?.progress_status)
 
   return (
     <section className="dashboard-panel employees-page">
       <div className="users-management-header">
         <div>
           <h1>Employees</h1>
-          <p className="muted-text">Employee registration now follows a structured 8-section dossier, including travel dates, expiry tracking, and attachment management.</p>
+          <p className="muted-text">
+            {isAgentSideUser
+              ? 'Select employees from the organization list, then complete the remaining information and attachments for your agent side.'
+              : 'Register employees from the organization side, monitor selections, and review progress directly on the page.'}
+          </p>
           {readOnly ? <p className="muted-text">Employee changes are disabled while this organization is read-only.</p> : null}
         </div>
-        <button type="button" className="btn-secondary" onClick={loadEmployees} disabled={loading}>Refresh</button>
+        <div className="employees-header-actions">
+          <button type="button" className="btn-secondary" onClick={loadEmployees} disabled={loading}>Refresh</button>
+        </div>
       </div>
-      <form className="form-grid" onSubmit={(event) => { event.preventDefault(); setPage(1); setFilters((prev) => ({ ...prev, q: searchInput.trim() })) }} style={{ marginBottom: 16, alignItems: 'end' }}>
-        <label>
-          Search
-          <input value={searchInput} onChange={(event) => setSearchInput(event.target.value)} placeholder="Name, passport, mobile, profession" />
-        </label>
-        <label>
-          Status
-          <select value={filters.isActive} onChange={(event) => { setPage(1); setFilters((prev) => ({ ...prev, isActive: event.target.value })) }}>
-            <option value="">All statuses</option>
-            <option value="true">Active</option>
-            <option value="false">Archived</option>
-          </select>
-        </label>
-        <button type="submit" className="btn-secondary">Apply filters</button>
-      </form>
-
-      {error ? <p className="error-message">{error}</p> : null}
-      {notice ? <p className="muted-text" style={{ marginBottom: 16 }}>{notice}</p> : null}
-
-      <div className="users-grid">
-        <form className="user-create-card employee-form-card" onSubmit={handleSubmit}>
-          <h2>{editingEmployeeId ? 'Update employee' : 'Register employee'}</h2>
-          <div className="employee-fieldsets">
-            <fieldset className="employee-fieldset">
-              <legend>1. Personal informations</legend>
-              <div className="form-grid">
-                <label>First name *<input value={form.first_name} onChange={(event) => setForm((prev) => ({ ...prev, first_name: event.target.value }))} required /></label>
-                <label>Middle name *<input value={form.middle_name} onChange={(event) => setForm((prev) => ({ ...prev, middle_name: event.target.value }))} required /></label>
-                <label>Last name *<input value={form.last_name} onChange={(event) => setForm((prev) => ({ ...prev, last_name: event.target.value }))} required /></label>
-                <label>Date of birth *<input type="date" value={form.date_of_birth} onChange={(event) => setForm((prev) => ({ ...prev, date_of_birth: event.target.value }))} required /></label>
-                <label>Age<input value={age} readOnly /></label>
-                <label>
-                  Gender *
-                  <select value={form.gender} onChange={(event) => setForm((prev) => ({ ...prev, gender: event.target.value }))} required>
-                    <option value="">Select gender</option>
-                    {GENDER_OPTIONS.map((option) => <option key={option} value={option}>{option}</option>)}
-                  </select>
-                </label>
-              </div>
-            </fieldset>
-
-            <fieldset className="employee-fieldset">
-              <legend>2. Identifications</legend>
-              <div className="form-grid">
-                <label>ID Number<input value={form.id_number} onChange={(event) => setForm((prev) => ({ ...prev, id_number: event.target.value }))} /></label>
-                <label>Passport Number *<input value={form.passport_number} onChange={(event) => setForm((prev) => ({ ...prev, passport_number: event.target.value }))} required /></label>
-                <label>Labour ID<input value={form.labour_id} onChange={(event) => setForm((prev) => ({ ...prev, labour_id: event.target.value }))} /></label>
-                <label>Mobile Number *<input value={form.mobile_number} onChange={(event) => setForm((prev) => ({ ...prev, mobile_number: event.target.value }))} required /></label>
-              </div>
-            </fieldset>
-
-            <fieldset className="employee-fieldset">
-              <legend>3. Application</legend>
-              <div className="form-grid">
-                <div className="employee-span-two">
-                  <span className="employee-group-label">Country *</span>
-                  <div className="checkbox-grid">
-                    {formOptions.destination_countries.length === 0 ? <span className="muted-text">Create active agent accounts with countries first.</span> : formOptions.destination_countries.map((country) => (
-                      <label key={country} className="checkbox-pill">
-                        <input type="checkbox" checked={form.application_countries.includes(country)} onChange={() => handleCheckboxList('application_countries', country)} />
-                        <span>{country}</span>
-                      </label>
-                    ))}
-                  </div>
-                </div>
-                <label>
-                  Profession *
-                  <select value={form.profession} onChange={(event) => setForm((prev) => ({ ...prev, profession: event.target.value, skills: prev.skills.filter((item) => (PROFESSION_SKILLS[event.target.value] || []).includes(item)) }))} required>
-                    <option value="">Select profession</option>
-                    {PROFESSION_OPTIONS.map((option) => <option key={option} value={option}>{option}</option>)}
-                  </select>
-                </label>
-                <label>
-                  Type *
-                  <select value={form.employment_type} onChange={(event) => setForm((prev) => ({ ...prev, employment_type: event.target.value }))} required>
-                    <option value="">Select type</option>
-                    {EMPLOYMENT_TYPE_OPTIONS.map((option) => <option key={option} value={option}>{option}</option>)}
-                  </select>
-                </label>
-                <label>
-                  Salary
-                  <select value={form.application_salary} onChange={(event) => setForm((prev) => ({ ...prev, application_salary: event.target.value }))}>
-                    <option value="">Select salary</option>
-                    {salaryOptions.map((option) => <option key={option} value={option}>{option}</option>)}
-                  </select>
-                </label>
-                <label>Professional title<input value={form.professional_title} onChange={(event) => setForm((prev) => ({ ...prev, professional_title: event.target.value }))} /></label>
-                <div className="employee-span-two">
-                  <span className="employee-group-label">Skills</span>
-                  <div className="checkbox-grid">
-                    {availableSkillOptions.length === 0 ? <span className="muted-text">Choose a profession to load matching skills.</span> : availableSkillOptions.map((skill) => (
-                      <label key={skill} className="checkbox-pill">
-                        <input type="checkbox" checked={form.skills.includes(skill)} onChange={() => handleCheckboxList('skills', skill)} />
-                        <span>{skill}</span>
-                      </label>
-                    ))}
-                  </div>
-                </div>
-                <div className="employee-span-two">
-                  <span className="employee-group-label">Experiences</span>
-                  <div className="experience-list">
-                    {form.experiences.map((item, index) => (
-                      <div key={`${index}-${item.country}`} className="experience-row">
-                        <select value={item.country} onChange={(event) => handleExperienceChange(index, 'country', event.target.value)}>
-                          <option value="">Select country</option>
-                          {EXPERIENCE_COUNTRIES.map((country) => <option key={country} value={country}>{country}</option>)}
-                        </select>
-                        <input type="number" min="0" value={item.years} onChange={(event) => handleExperienceChange(index, 'years', event.target.value)} placeholder="Years" />
-                        {form.experiences.length > 1 ? <button type="button" className="btn-secondary" onClick={() => setForm((prev) => ({ ...prev, experiences: prev.experiences.filter((_, itemIndex) => itemIndex !== index) }))}>Remove</button> : null}
-                      </div>
-                    ))}
-                    <button type="button" className="btn-secondary" onClick={() => setForm((prev) => ({ ...prev, experiences: [...prev.experiences, { ...emptyExperience }] }))}>+ Add experience</button>
-                  </div>
-                </div>
-                <div className="employee-span-two">
-                  <span className="employee-group-label">Languages</span>
-                  <div className="checkbox-grid">
-                    {LANGUAGE_OPTIONS.map((language) => (
-                      <label key={language} className="checkbox-pill">
-                        <input type="checkbox" checked={form.languages.includes(language)} onChange={() => handleCheckboxList('languages', language)} />
-                        <span>{language}</span>
-                      </label>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            </fieldset>
-            <fieldset className="employee-fieldset">
-              <legend>4. Social status</legend>
-              <div className="form-grid">
-                <label>
-                  Religion
-                  <select value={form.religion} onChange={(event) => setForm((prev) => ({ ...prev, religion: event.target.value }))}>
-                    <option value="">Select religion</option>
-                    {RELIGION_OPTIONS.map((option) => <option key={option} value={option}>{option}</option>)}
-                  </select>
-                </label>
-                <label>
-                  Marital status
-                  <select value={form.marital_status} onChange={(event) => setForm((prev) => ({ ...prev, marital_status: event.target.value }))}>
-                    <option value="">Select marital status</option>
-                    {MARITAL_STATUS_OPTIONS.map((option) => <option key={option} value={option}>{option}</option>)}
-                  </select>
-                </label>
-                <label>Childrens<input type="number" min="0" value={form.children_count} onChange={(event) => setForm((prev) => ({ ...prev, children_count: event.target.value }))} /></label>
-              </div>
-            </fieldset>
-
-            <fieldset className="employee-fieldset">
-              <legend>5. Address</legend>
-              <div className="form-grid">
-                <label>
-                  Residence country
-                  <select value={form.residence_country} onChange={(event) => setForm((prev) => ({ ...prev, residence_country: event.target.value }))}>
-                    <option value="">Select country</option>
-                    {RESIDENCE_COUNTRY_OPTIONS.map((country) => <option key={country} value={country}>{country}</option>)}
-                  </select>
-                </label>
-                <label>Nationality<input value={form.nationality} onChange={(event) => setForm((prev) => ({ ...prev, nationality: event.target.value }))} /></label>
-                <label>Birth place<input value={form.birth_place} onChange={(event) => setForm((prev) => ({ ...prev, birth_place: event.target.value }))} /></label>
-                <label className="employee-span-two">Address<input value={form.address} onChange={(event) => setForm((prev) => ({ ...prev, address: event.target.value }))} /></label>
-              </div>
-            </fieldset>
-
-            <fieldset className="employee-fieldset">
-              <legend>6. Physique</legend>
-              <div className="form-grid">
-                <label>
-                  Weight
-                  <div className="input-suffix">
-                    <input type="number" min="0" value={form.weight_kg} onChange={(event) => setForm((prev) => ({ ...prev, weight_kg: event.target.value }))} />
-                    <span>Kg</span>
-                  </div>
-                </label>
-                <label>
-                  Height
-                  <div className="input-suffix">
-                    <input type="number" min="0" value={form.height_cm} onChange={(event) => setForm((prev) => ({ ...prev, height_cm: event.target.value }))} />
-                    <span>Cm</span>
-                  </div>
-                </label>
-              </div>
-            </fieldset>
-
-            <fieldset className="employee-fieldset">
-              <legend>7. Contact informations</legend>
-              <div className="form-grid">
-                <label>Contact person name<input value={form.contact_person_name} onChange={(event) => setForm((prev) => ({ ...prev, contact_person_name: event.target.value }))} /></label>
-                <label>Contact person ID.No<input value={form.contact_person_id_number} onChange={(event) => setForm((prev) => ({ ...prev, contact_person_id_number: event.target.value }))} /></label>
-                <label>Contact person mobile<input value={form.contact_person_mobile} onChange={(event) => setForm((prev) => ({ ...prev, contact_person_mobile: event.target.value }))} /></label>
-                <label>Email<input type="email" value={form.email} onChange={(event) => setForm((prev) => ({ ...prev, email: event.target.value }))} /></label>
-                <label>Secondary phone<input value={form.phone} onChange={(event) => setForm((prev) => ({ ...prev, phone: event.target.value }))} /></label>
-              </div>
-            </fieldset>
-
-            <fieldset className="employee-fieldset">
-              <legend>8. Attachments and status tracking</legend>
-              <div className="form-grid">
-                <label className="checkbox-label">
-                  <input type="checkbox" checked={form.did_travel} onChange={(event) => setForm((prev) => ({ ...prev, did_travel: event.target.checked }))} />
-                  Did the employee travel
-                </label>
-                <label>Departure date<input type="date" value={form.departure_date} onChange={(event) => setForm((prev) => ({ ...prev, departure_date: event.target.value }))} /></label>
-                <label>Return ticket date<input type="date" value={form.return_ticket_date} onChange={(event) => setForm((prev) => ({ ...prev, return_ticket_date: event.target.value }))} /></label>
-                <div className="employee-span-two attachment-grid">
-                  {ATTACHMENT_FIELDS.map((attachment) => (
-                    <label key={attachment.key} className="attachment-box">
-                      <span className="attachment-box-title">{attachment.label}</span>
-                      {attachment.key.startsWith('att_option_') ? <input type="text" value={attachmentLabels[attachment.key] || ''} onChange={(event) => setAttachmentLabels((prev) => ({ ...prev, [attachment.key]: event.target.value }))} placeholder="Attachment name" /> : null}
-                      {attachment.expiryField ? <input type="date" value={form[attachment.expiryField]} onChange={(event) => setForm((prev) => ({ ...prev, [attachment.expiryField]: event.target.value }))} /> : null}
-                      <span className="attachment-file-name">{attachmentFiles[attachment.key]?.name || 'Choose file'}</span>
-                      <input type="file" className="visually-hidden-file" onChange={(event) => handleAttachmentPick(attachment.key, event.target.files?.[0] || null)} />
-                    </label>
-                  ))}
-                </div>
-                <label className="checkbox-label">
-                  <input type="checkbox" checked={form.is_active} onChange={(event) => setForm((prev) => ({ ...prev, is_active: event.target.checked }))} />
-                  Active employee
-                </label>
-              </div>
-            </fieldset>
-
-            <fieldset className="employee-fieldset">
-              <legend>Notes and narrative</legend>
-              <div className="form-grid">
-                {[
-                  ['summary', 'Summary'],
-                  ['education', 'Education'],
-                  ['experience', 'Experience'],
-                  ['certifications', 'Certificate notes'],
-                  ['references', 'References'],
-                  ['notes', 'Notes']
-                ].map(([key, label]) => (
-                  <label key={key} className="employee-span-two">
-                    {label}
-                    <textarea value={form[key]} onChange={(event) => setForm((prev) => ({ ...prev, [key]: event.target.value }))} rows={4} />
-                  </label>
-                ))}
-              </div>
-            </fieldset>
-          </div>
-          <div className="employee-form-actions">
-            <button type="submit" disabled={saving || readOnly}>{saving ? 'Saving...' : editingEmployeeId ? 'Update employee' : 'Register employee'}</button>
-            {editingEmployeeId ? <button type="button" className="btn-secondary" onClick={resetForm}>Cancel edit</button> : null}
-          </div>
+      <div className="employee-subtabs" role="tablist" aria-label="Employee views">
+        {visibleTabs.map((tab) => (
+          <button
+            key={tab.id}
+            type="button"
+            className={`employee-subtab${currentView === tab.id ? ' is-active' : ''}`}
+            aria-selected={currentView === tab.id}
+            onClick={() => {
+              if (tab.id === 'register') {
+                openCreateModal()
+                return
+              }
+              setPage(1)
+              setCurrentView(tab.id)
+            }}
+            disabled={readOnly ? tab.id === 'register' : (isAgentSideUser && tab.id === 'register')}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </div>
+      {currentView !== 'register' ? (
+        <form className="form-grid employees-filter-grid" onSubmit={(event) => { event.preventDefault(); setPage(1); setFilters((prev) => ({ ...prev, q: searchInput.trim() })) }}>
+          <label>
+            Search
+            <input value={searchInput} onChange={(event) => setSearchInput(event.target.value)} placeholder="Name, passport, mobile, profession" />
+          </label>
+          <label>
+            Availability
+            <select value={filters.isActive} onChange={(event) => { setPage(1); setFilters((prev) => ({ ...prev, isActive: event.target.value })) }}>
+              <option value="">All employees</option>
+              <option value="true">Available</option>
+              <option value="false">Not available</option>
+            </select>
+          </label>
+          <button type="submit" className="btn-secondary">Apply filters</button>
         </form>
-        <div className="users-table-wrap">
-          <h2>Employee records</h2>
-          {!loading ? <p className="muted-text" style={{ marginBottom: 12 }}>Showing {employees.length} of {total} employees.</p> : null}
-          {loading ? (
-            <p className="muted-text">Loading employees...</p>
-          ) : employees.length === 0 ? (
-            <p className="muted-text">No employees found.</p>
-          ) : (
-            <div className="employee-cards">
-              {employees.map((employee) => (
-                <article key={employee.id} className="employee-card">
-                  <div className="employee-card-header">
-                    <div>
-                      <h3>{employee.full_name}</h3>
-                      <p className="muted-text">{employee.profession || employee.professional_title || 'No profession set'}</p>
-                    </div>
-                    <span className={`badge ${employee.is_active ? 'badge-success' : 'badge-muted'}`}>{employee.is_active ? 'Active' : 'Archived'}</span>
-                  </div>
-                  <p className="muted-text">{employee.application_countries?.join(', ') || 'No destination country'} | {employee.phone || 'No phone'}</p>
-                  <p className="muted-text">Progress {employee.progress_status?.overall_completion ?? 0}% | Travel {employee.travel_status || 'pending'} | Return {employee.return_status || 'n/a'}</p>
-                  {employee.urgency_alerts?.length ? (
-                    <div className="employee-alert-list">
-                      {employee.urgency_alerts.map((alert) => (
-                        <span key={`${employee.id}-${alert.field}`} className="badge badge-warning">
-                          {alert.label} {alert.days_remaining < 0 ? 'expired' : `${alert.days_remaining}d`}
-                        </span>
+      ) : null}
+      {pageError ? <p className="error-message">{pageError}</p> : null}
+      {notice ? <p className="muted-text" style={{ marginBottom: 16 }}>{notice}</p> : null}
+      {currentView === 'register' ? (
+        <div className="users-table-wrap employee-registration-surface">
+          <div ref={registrationRef} className="employee-modal" aria-labelledby="employee-modal-title">
+            <div className="employee-modal-header">
+              <div>
+                <p className="employee-modal-eyebrow">Register employee</p>
+                <h2 id="employee-modal-title">{editingEmployeeId ? 'Update employee' : 'New employee registration'}</h2>
+                <p className="muted-text">{REGISTRATION_STEPS[activeStep].label} step of {REGISTRATION_STEPS.length}</p>
+              </div>
+            </div>
+            {!editingEmployeeId ? (
+              <div className="employee-template-bar">
+                <p className="muted-text">
+                  {hasSavedTemplate
+                    ? 'Saved template is applied automatically to each new registration. Employee identity fields and file uploads stay blank.'
+                    : 'Save the repeatable registration values as a template to prefill the next employees.'}
+                </p>
+                <div className="employee-template-actions">
+                  <button type="button" className="btn-secondary" onClick={handleSaveTemplate} disabled={saving}>
+                    Save current values as template
+                  </button>
+                  {hasSavedTemplate ? (
+                    <button type="button" className="btn-secondary" onClick={handleClearTemplate} disabled={saving}>
+                      Clear template
+                    </button>
+                  ) : null}
+                </div>
+              </div>
+            ) : null}
+            <div className="employee-step-tabs" role="tablist" aria-label="Registration steps">
+              {REGISTRATION_STEPS.map((step, index) => (
+                <button key={step.id} type="button" className={`employee-step-tab${index === activeStep ? ' is-active' : ''}`} onClick={() => setActiveStep(index)}>
+                  <span>{index + 1}</span>
+                  {step.label}
+                </button>
+              ))}
+            </div>
+            {modalNotice ? <p className="muted-text employee-modal-error">{modalNotice}</p> : null}
+            {modalError ? <p className="error-message employee-modal-error">{modalError}</p> : null}
+            <form className="employee-modal-form" onSubmit={(event) => event.preventDefault()}>
+              {activeStep === 0 ? (
+                <div className="employee-step-grid">
+                  <label>First name *<input name="first_name" value={form.first_name} onChange={(event) => setForm((prev) => ({ ...prev, first_name: event.target.value }))} required /></label>
+                  <label>Middle name *<input name="middle_name" value={form.middle_name} onChange={(event) => setForm((prev) => ({ ...prev, middle_name: event.target.value }))} required /></label>
+                  <label>Last name *<input name="last_name" value={form.last_name} onChange={(event) => setForm((prev) => ({ ...prev, last_name: event.target.value }))} required /></label>
+                  <label>Date of birth *<input name="date_of_birth" type="date" value={form.date_of_birth} onChange={(event) => setForm((prev) => ({ ...prev, date_of_birth: event.target.value }))} required /></label>
+                  <label>Age<input value={age} readOnly /></label>
+                  <label>
+                    Gender *
+                    <select name="gender" value={form.gender} onChange={(event) => setForm((prev) => ({ ...prev, gender: event.target.value }))} required>
+                      <option value="">Select gender</option>
+                      {GENDER_OPTIONS.map((option) => <option key={option} value={option}>{option}</option>)}
+                    </select>
+                  </label>
+                  <label>ID Number<input name="id_number" value={form.id_number} onChange={(event) => setForm((prev) => ({ ...prev, id_number: event.target.value }))} pattern="[A-Za-z0-9\\s/-]+" /></label>
+                  <label>Passport Number *<input name="passport_number" value={form.passport_number} onChange={(event) => setForm((prev) => ({ ...prev, passport_number: event.target.value }))} pattern="[A-Za-z0-9\\s/-]+" required /></label>
+                  <label>Labour ID<input name="labour_id" value={form.labour_id} onChange={(event) => setForm((prev) => ({ ...prev, labour_id: event.target.value }))} pattern="[A-Za-z0-9\\s/-]+" /></label>
+                  <label>Mobile Number *<input name="mobile_number" value={form.mobile_number} onChange={(event) => setForm((prev) => ({ ...prev, mobile_number: event.target.value }))} inputMode="tel" placeholder="+251900000001" required /></label>
+                  {ageRestrictionError ? <p className="error-message employee-step-note">{ageRestrictionError}</p> : null}
+                </div>
+              ) : null}
+              {activeStep === 1 ? (
+                <div className="employee-step-grid">
+                  <div className="employee-span-two">
+                    <span className="employee-group-label">Destination countries *</span>
+                    <div className="checkbox-grid">
+                      {formOptions.destination_countries.length === 0 ? <span className="muted-text">Create active agent accounts with countries first.</span> : formOptions.destination_countries.map((country) => (
+                        <label key={country} className="checkbox-pill">
+                          <input name="application_countries" type="checkbox" checked={form.application_countries.includes(country)} onChange={() => handleCheckboxList('application_countries', country)} />
+                          <span>{country}</span>
+                        </label>
                       ))}
                     </div>
-                  ) : null}
-                  <div className="employee-card-actions">
-                    <button type="button" className="btn-secondary" onClick={() => handleEdit(employee.id)} disabled={busyEmployeeId === employee.id || readOnly}>
-                      {busyEmployeeId === employee.id ? 'Loading...' : 'Edit'}
-                    </button>
-                    <button type="button" className="btn-danger" onClick={() => handleDelete(employee)} disabled={readOnly}>Delete</button>
                   </div>
-                  {employee.documents?.length ? (
-                    <div className="employee-documents">
-                      <strong>Documents</strong>
-                      {employee.documents.map((document) => (
-                        <div key={document.id} className="employee-document-row">
-                          <a href={document.file_url} target="_blank" rel="noreferrer">{fileLabel(document, attachmentLabels)}</a>
-                          <button type="button" className="link-button" onClick={() => handleDeleteDocument(document.id)} disabled={readOnly}>Remove</button>
+                  <label>
+                    Profession *
+                    <select name="profession" value={form.profession} onChange={(event) => setForm((prev) => ({ ...prev, profession: event.target.value, skills: prev.skills.filter((item) => (PROFESSION_SKILLS[event.target.value] || []).includes(item)) }))} required>
+                      <option value="">Select profession</option>
+                      {PROFESSION_OPTIONS.map((option) => <option key={option} value={option}>{option}</option>)}
+                    </select>
+                  </label>
+                  <label>
+                    Application Type *
+                    <select name="employment_type" value={form.employment_type} onChange={(event) => setForm((prev) => ({ ...prev, employment_type: event.target.value }))} required>
+                      <option value="">Select type</option>
+                      {EMPLOYMENT_TYPE_OPTIONS.map((option) => <option key={option} value={option}>{option}</option>)}
+                    </select>
+                  </label>
+                  <label>
+                    Salary
+                    <select name="application_salary" value={form.application_salary} onChange={(event) => setForm((prev) => ({ ...prev, application_salary: event.target.value }))} required>
+                      <option value="">Select salary</option>
+                      {salaryOptions.map((option) => <option key={option} value={option}>{option}</option>)}
+                    </select>
+                  </label>
+                  <label>Professional title<input value={form.professional_title} onChange={(event) => setForm((prev) => ({ ...prev, professional_title: event.target.value }))} /></label>
+                  <div className="employee-span-two">
+                    <span className="employee-group-label">Skills</span>
+                    <div className="checkbox-grid">
+                      {availableSkillOptions.length === 0 ? <span className="muted-text">Choose a profession to load matching skills.</span> : availableSkillOptions.map((skill) => (
+                        <label key={skill} className="checkbox-pill">
+                          <input name="skills" type="checkbox" checked={form.skills.includes(skill)} onChange={() => handleCheckboxList('skills', skill)} />
+                          <span>{skill}</span>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="employee-span-two">
+                    <span className="employee-group-label">Experiences</span>
+                    <div className="experience-list">
+                      {form.experiences.map((item, index) => (
+                        <div key={`${index}-${item.country || 'exp'}`} className="experience-row">
+                          <select name={`experience_country_${index}`} value={item.country} onChange={(event) => handleExperienceChange(index, 'country', event.target.value)}>
+                            <option value="">Select country</option>
+                            {EXPERIENCE_COUNTRIES.map((country) => <option key={country} value={country}>{country}</option>)}
+                          </select>
+                          <input name={`experience_years_${index}`} type="number" min="0" value={item.years} onChange={(event) => handleExperienceChange(index, 'years', event.target.value)} placeholder="Years" />
+                          {form.experiences.length > 1 ? <button type="button" className="btn-secondary" onClick={() => setForm((prev) => ({ ...prev, experiences: prev.experiences.filter((_, itemIndex) => itemIndex !== index) }))}>Remove</button> : null}
+                        </div>
+                      ))}
+                      <button type="button" className="btn-secondary" onClick={() => setForm((prev) => ({ ...prev, experiences: [...prev.experiences, { ...emptyExperience }] }))}>Add experience</button>
+                    </div>
+                  </div>
+                  <div className="employee-span-two">
+                    <span className="employee-group-label">Languages</span>
+                    <div className="checkbox-grid">
+                      {LANGUAGE_OPTIONS.map((language) => (
+                        <label key={language} className="checkbox-pill">
+                          <input type="checkbox" checked={form.languages.includes(language)} onChange={() => handleCheckboxList('languages', language)} />
+                          <span>{language}</span>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              ) : null}
+              {activeStep === 2 ? (
+                <div className="employee-step-grid">
+                  <label>
+                    Religion
+                    <select name="religion" value={form.religion} onChange={(event) => setForm((prev) => ({ ...prev, religion: event.target.value }))} required>
+                      <option value="">Select religion</option>
+                      {RELIGION_OPTIONS.map((option) => <option key={option} value={option}>{option}</option>)}
+                    </select>
+                  </label>
+                  <label>
+                    Marital status
+                    <select name="marital_status" value={form.marital_status} onChange={(event) => setForm((prev) => ({ ...prev, marital_status: event.target.value }))} required>
+                      <option value="">Select marital status</option>
+                      {MARITAL_STATUS_OPTIONS.map((option) => <option key={option} value={option}>{option}</option>)}
+                    </select>
+                  </label>
+                  <label>Children<input name="children_count" type="number" min="0" value={form.children_count} onChange={(event) => setForm((prev) => ({ ...prev, children_count: event.target.value }))} /></label>
+                  <label>
+                    Residence country
+                    <select name="residence_country" value={form.residence_country} onChange={(event) => setForm((prev) => ({ ...prev, residence_country: event.target.value }))} required>
+                      <option value="">Select country</option>
+                      {RESIDENCE_COUNTRY_OPTIONS.map((country) => <option key={country} value={country}>{country}</option>)}
+                    </select>
+                  </label>
+                  <label>Nationality<input name="nationality" value={form.nationality} onChange={(event) => setForm((prev) => ({ ...prev, nationality: event.target.value }))} /></label>
+                  <label>Birth place<input name="birth_place" value={form.birth_place} onChange={(event) => setForm((prev) => ({ ...prev, birth_place: event.target.value }))} /></label>
+                  <label className="employee-span-two">Address<input value={form.address} onChange={(event) => setForm((prev) => ({ ...prev, address: event.target.value }))} /></label>
+                  <label>
+                    Weight
+                    <div className="input-suffix">
+                      <input name="weight_kg" type="number" min="0" value={form.weight_kg} onChange={(event) => setForm((prev) => ({ ...prev, weight_kg: event.target.value }))} />
+                      <span>Kg</span>
+                    </div>
+                  </label>
+                  <label>
+                    Height
+                    <div className="input-suffix">
+                      <input name="height_cm" type="number" min="0" value={form.height_cm} onChange={(event) => setForm((prev) => ({ ...prev, height_cm: event.target.value }))} />
+                      <span>Cm</span>
+                    </div>
+                  </label>
+                  <label className="employee-span-two">Summary<textarea value={form.summary} onChange={(event) => setForm((prev) => ({ ...prev, summary: event.target.value }))} rows={3} /></label>
+                  <label className="employee-span-two">Education<textarea value={form.education} onChange={(event) => setForm((prev) => ({ ...prev, education: event.target.value }))} rows={3} /></label>
+                  <label className="employee-span-two">Experience notes<textarea value={form.experience} onChange={(event) => setForm((prev) => ({ ...prev, experience: event.target.value }))} rows={3} /></label>
+                </div>
+              ) : null}
+              {activeStep === 3 ? (
+                <div className="employee-step-grid">
+                  <label>Contact person name<input name="contact_person_name" value={form.contact_person_name} onChange={(event) => setForm((prev) => ({ ...prev, contact_person_name: event.target.value }))} required /></label>
+                  <label>Contact person ID.No<input name="contact_person_id_number" value={form.contact_person_id_number} onChange={(event) => setForm((prev) => ({ ...prev, contact_person_id_number: event.target.value }))} pattern="[A-Za-z0-9\\s/-]+" /></label>
+                  <label>Contact person mobile<input name="contact_person_mobile" value={form.contact_person_mobile} onChange={(event) => setForm((prev) => ({ ...prev, contact_person_mobile: event.target.value }))} inputMode="tel" placeholder="+251900000002" required /></label>
+                  <label>Email<input name="email" type="email" value={form.email} onChange={(event) => setForm((prev) => ({ ...prev, email: event.target.value }))} placeholder="name@example.com" /></label>
+                  <label>Secondary phone<input name="phone" value={form.phone} onChange={(event) => setForm((prev) => ({ ...prev, phone: event.target.value }))} inputMode="tel" placeholder="+251900000003" /></label>
+                  <p className="muted-text employee-step-note">New registrations start as pending approval. Use the employee card actions to approve, reject, or suspend them.</p>
+                  <label className="employee-span-two">References<textarea value={form.references} onChange={(event) => setForm((prev) => ({ ...prev, references: event.target.value }))} rows={3} /></label>
+                  <label className="employee-span-two">Notes<textarea value={form.notes} onChange={(event) => setForm((prev) => ({ ...prev, notes: event.target.value }))} rows={3} /></label>
+                </div>
+              ) : null}
+              {activeStep === 4 ? (
+                <div className="employee-step-grid">
+                  <p className="muted-text employee-step-note">Only Portrait photo 3x4 size, Full photo, and Passport are mandatory here. The other dates can stay empty unless you attach their file.</p>
+                  <div className="employee-span-two attachment-grid">
+                    {ATTACHMENT_FIELDS.map((attachment) => {
+                      const inputId = `employee-attachment-${attachment.key}`;
+
+                      return (
+                        <div key={attachment.key} className="attachment-box">
+                          <span className="attachment-box-title">{attachment.label}</span>
+                          {attachment.key.startsWith('att_option_') ? <input type="text" value={attachmentLabels[attachment.key] || ''} onChange={(event) => setAttachmentLabels((prev) => ({ ...prev, [attachment.key]: event.target.value }))} placeholder="Attachment name" /> : null}
+                          {attachment.expiryField ? <input name={attachment.expiryField} type="date" value={form[attachment.expiryField]} onChange={(event) => setForm((prev) => ({ ...prev, [attachment.expiryField]: event.target.value }))} /> : null}
+                          <div className="attachment-file-row">
+                            <span className="attachment-file-name">
+                              {attachmentFiles[attachment.key]?.name
+                                || attachmentDisplayName(existingAttachmentDocs[attachment.key], attachmentLabels)
+                                || 'No file selected'}
+                            </span>
+                            <label htmlFor={inputId} className="attachment-file-trigger btn-secondary">
+                              Choose file
+                            </label>
+                          </div>
+                          {existingAttachmentDocs[attachment.key]?.file_url && !attachmentFiles[attachment.key] ? (
+                            <p className="muted-text employee-step-note">
+                              Existing file retained.
+                              {' '}
+                              <a href={existingAttachmentDocs[attachment.key].file_url} target="_blank" rel="noreferrer">Open current file</a>
+                            </p>
+                          ) : null}
+                          <input
+                            id={inputId}
+                            name={attachment.key}
+                            type="file"
+                            accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png"
+                            className="visually-hidden-file"
+                            onChange={(event) => handleAttachmentPick(attachment.key, event.target.files?.[0] || null)}
+                          />
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <label className="employee-span-two">Certificate notes<textarea value={form.certifications} onChange={(event) => setForm((prev) => ({ ...prev, certifications: event.target.value }))} rows={3} /></label>
+                </div>
+              ) : null}
+              {activeStep === 5 ? (
+                <div className="employee-step-grid">
+                  <div className="employee-span-two employee-summary-grid">
+                    <div className="employee-summary-card">
+                      <h3>Identity</h3>
+                      <p><strong>Name:</strong> {[form.first_name, form.middle_name, form.last_name].filter(Boolean).join(' ') || '--'}</p>
+                      <p><strong>Date of birth:</strong> {form.date_of_birth || '--'}</p>
+                      <p><strong>Gender:</strong> {form.gender || '--'}</p>
+                      <p><strong>Passport:</strong> {form.passport_number || '--'}</p>
+                      <p><strong>Mobile:</strong> {form.mobile_number || '--'}</p>
+                    </div>
+                    <div className="employee-summary-card">
+                      <h3>Application</h3>
+                      <p><strong>Countries:</strong> {form.application_countries.join(', ') || '--'}</p>
+                      <p><strong>Profession:</strong> {form.profession || '--'}</p>
+                      <p><strong>Type:</strong> {form.employment_type || '--'}</p>
+                      <p><strong>Salary:</strong> {form.application_salary || '--'}</p>
+                      <p><strong>Skills:</strong> {form.skills.join(', ') || '--'}</p>
+                    </div>
+                    <div className="employee-summary-card">
+                      <h3>Profile</h3>
+                      <p><strong>Religion:</strong> {form.religion || '--'}</p>
+                      <p><strong>Marital status:</strong> {form.marital_status || '--'}</p>
+                      <p><strong>Residence:</strong> {form.residence_country || '--'}</p>
+                      <p><strong>Nationality:</strong> {form.nationality || '--'}</p>
+                      <p><strong>Experience:</strong> {form.experiences.filter((item) => item.country || item.years !== '').map((item) => `${item.country || '--'} (${item.years || '--'} yrs)`).join(', ') || '--'}</p>
+                    </div>
+                    <div className="employee-summary-card">
+                      <h3>Contact</h3>
+                      <p><strong>Contact person:</strong> {form.contact_person_name || '--'}</p>
+                      <p><strong>Contact mobile:</strong> {form.contact_person_mobile || '--'}</p>
+                      <p><strong>Email:</strong> {form.email || '--'}</p>
+                      <p><strong>Secondary phone:</strong> {form.phone || '--'}</p>
+                    </div>
+                  </div>
+                  <div className="employee-span-two">
+                    <h3>Attachment preview</h3>
+                    <div className="employee-attachment-preview-grid">
+                      {ATTACHMENT_FIELDS.filter((attachment) => attachmentFiles[attachment.key]).length === 0 ? (
+                        <div className="employee-attachment-preview-card">
+                          <div className="employee-attachment-preview-file">No new files selected in this session.</div>
+                        </div>
+                      ) : ATTACHMENT_FIELDS.filter((attachment) => attachmentFiles[attachment.key]).map((attachment) => (
+                        <div key={attachment.key} className="employee-attachment-preview-card">
+                          <strong>{attachmentLabels[attachment.key] || attachment.label}</strong>
+                          {attachmentFiles[attachment.key]?.type?.startsWith('image/') ? (
+                            <img src={URL.createObjectURL(attachmentFiles[attachment.key])} alt={attachment.label} className="employee-attachment-preview-image" />
+                          ) : (
+                            <div className="employee-attachment-preview-file">{attachmentFiles[attachment.key]?.name || 'Attached file'}</div>
+                          )}
                         </div>
                       ))}
                     </div>
-                  ) : null}
-                </article>
-              ))}
+                  </div>
+                </div>
+              ) : null}
+              <div className="employee-modal-actions">
+                <button type="button" className="btn-secondary" onClick={goToPreviousStep} disabled={activeStep === 0 || saving}>Back</button>
+                {activeStep < REGISTRATION_STEPS.length - 1 ? (
+                  <button type="button" onClick={goToNextStep} disabled={saving}>Next</button>
+                ) : (
+                  <button type="button" onClick={submitRegistration} disabled={saving || readOnly}>{saving ? 'Saving...' : editingEmployeeId ? 'Update employee' : 'Register employee'}</button>
+                )}
+              </div>
+            </form>
+          </div>
+        </div>
+      ) : (
+        <div className="users-table-wrap">
+          <h2>
+            {currentView === 'employed'
+              ? 'Employed'
+              : currentView === 'under-process'
+              ? 'Under process Employees'
+              : currentView === 'selected'
+                ? 'Selected Employees'
+                : 'Employee records'}
+          </h2>
+          {!loading ? (
+            <p className="muted-text" style={{ marginBottom: 12 }}>
+              {currentView === 'employed'
+                ? `${employedEmployeesHelpText()} Showing ${visibleEmployees.length} of ${total} employees.`
+                : currentView === 'under-process'
+                ? `${underProcessEmployeesHelpText(user)} Showing ${visibleEmployees.length} of ${total} employees.`
+                : currentView === 'selected'
+                ? `${selectedEmployeesHelpText(user)} Showing ${visibleEmployees.length} of ${total} employees.`
+                : `Showing ${visibleEmployees.length} of ${total} employees.`}
+            </p>
+          ) : null}
+          {loading ? (
+            <p className="muted-text">Loading employees...</p>
+          ) : visibleEmployees.length === 0 ? (
+            <p className="muted-text">
+              {currentView === 'employed'
+                ? 'No employed employees found yet.'
+                : currentView === 'under-process'
+                ? 'No employees are under process for this agent yet.'
+                : currentView === 'selected'
+                  ? 'No selected employees found for this view yet.'
+                  : 'No employees found.'}
+            </p>
+          ) : (
+            <div className="employee-cards">
+              {visibleEmployees.map((employee) => {
+                const profilePhoto = employeeProfilePhoto(employee)
+                const isOpened = openedEmployeeId === employee.id
+                const selectionState = employee.selection_state || {}
+                const selection = selectionState.selection
+                const isSelected = Boolean(selectionState.is_selected)
+                const isSelectedByCurrentAgent = Boolean(selectionState.selected_by_current_agent)
+                const isUnderProcess = selection?.status === 'under_process'
+                const assignedAgentId = resolvedProcessAgentId(
+                  employee,
+                  processAgentAssignments,
+                  formOptions.agent_options
+                )
+
+                return (
+                  <article
+                    key={employee.id}
+                    className={`employee-card${isOpened ? ' is-open' : ''}`}
+                    onClick={() => setOpenedEmployeeId((prev) => prev === employee.id ? null : employee.id)}
+                    role="button"
+                    tabIndex={0}
+                    onKeyDown={(event) => {
+                      if (event.key === 'Enter' || event.key === ' ') {
+                        event.preventDefault()
+                        setOpenedEmployeeId((prev) => prev === employee.id ? null : employee.id)
+                      }
+                    }}
+                  >
+                    <div className="employee-card-header">
+                      <div className="employee-card-identity">
+                        <div className="employee-card-avatar">
+                          {profilePhoto?.file_url && isImageDocument(profilePhoto) ? (
+                            <img src={profilePhoto.file_url} alt={`${employee.full_name} profile`} />
+                          ) : (
+                            <span>{employee.full_name?.charAt(0) || '?'}</span>
+                          )}
+                        </div>
+                        <div>
+                          <h3>{employee.full_name}</h3>
+                          <p className="muted-text">{employee.profession || employee.professional_title || 'No profession set'}</p>
+                          <p className="muted-text">Registered by {employee.registered_by_username || '--'}</p>
+                        </div>
+                      </div>
+                      <div className="employee-card-header-meta">
+                        {isSelected ? <span className="badge badge-success">Selected</span> : null}
+                        <span className={`badge ${employeeStatusBadgeClass(employee)}`}>{employeeStatusLabel(employee)}</span>
+                      </div>
+                    </div>
+                    <p className="muted-text">{employee.application_countries?.join(', ') || 'No destination country'} | {employee.phone || employee.mobile_number || 'No phone'}</p>
+                    {selection ? (
+                      <p className="muted-text">
+                        Selected by {selection.agent_name || '--'}
+                        {selection.selected_by_username ? ` via ${selection.selected_by_username}` : ''}
+                      </p>
+                    ) : null}
+                    <p className="muted-text">Progress {employee.progress_status?.overall_completion ?? 0}% | Travel {prettyStatus(employee.travel_status, 'pending')} | Return {prettyStatus(employee.return_status)}</p>
+                    {employee.urgency_alerts?.length ? (
+                      <div className="employee-alert-list">
+                        {employee.urgency_alerts.map((alert) => (
+                          <span key={`${employee.id}-${alert.field}`} className="badge badge-warning">
+                            {alert.label} {alert.days_remaining < 0 ? 'expired' : `${alert.days_remaining}d`}
+                          </span>
+                        ))}
+                      </div>
+                    ) : null}
+                    <div className="employee-card-preview-strip">
+                      {CARD_PREVIEW_DOCUMENTS.map((preview) => {
+                        const document = findEmployeeDocument(employee, preview.types)
+                        const hasImage = document?.file_url && isImageDocument(document)
+
+                        return (
+                          <div key={`${employee.id}-${preview.key}`} className="employee-doc-preview">
+                            <div className="employee-doc-preview-tile">
+                              {hasImage ? (
+                                <img src={document.file_url} alt={`${employee.full_name} ${preview.label}`} />
+                              ) : (
+                                <span>{preview.label}</span>
+                              )}
+                            </div>
+                            <strong>{preview.label}</strong>
+                            {document?.file_url ? (
+                              <div className="employee-doc-preview-popover">
+                                {hasImage ? (
+                                  <img src={document.file_url} alt={`${employee.full_name} ${preview.label} preview`} />
+                                ) : (
+                                  <a href={document.file_url} target="_blank" rel="noreferrer">{fileLabel(document, attachmentLabels)}</a>
+                                )}
+                                <div className="employee-doc-preview-actions">
+                                  <a href={document.file_url} target="_blank" rel="noreferrer">Open</a>
+                                  <button type="button" className="link-button" onClick={() => handleDeleteDocument(document.id)} disabled={readOnly}>Remove</button>
+                                </div>
+                              </div>
+                            ) : null}
+                          </div>
+                        )
+                      })}
+                    </div>
+                    <div className="employee-card-actions">
+                      {!isUnderProcess ? (
+                        <button
+                          type="button"
+                          className="btn-secondary"
+                          onClick={(event) => { event.stopPropagation(); handleToggleSelectedEmployee(employee) }}
+                          disabled={
+                            readOnly ||
+                            !isAgentSideUser ||
+                            actionBusyId === employee.id ||
+                            (isSelected && !isSelectedByCurrentAgent)
+                          }
+                        >
+                          {actionBusyId === employee.id
+                            ? 'Saving...'
+                            : isSelectedByCurrentAgent
+                              ? 'Unselect employee'
+                              : isSelected
+                                ? 'Selected elsewhere'
+                                : 'Select employee'}
+                        </button>
+                      ) : null}
+                      {isMainAgentAccount && !isUnderProcess ? (
+                        <button
+                          type="button"
+                          className="btn-secondary"
+                          onClick={(event) => { event.stopPropagation(); handleStartProcess(employee) }}
+                          disabled={
+                            readOnly ||
+                            actionBusyId === employee.id ||
+                            !isSelectedByCurrentAgent ||
+                            employee.status !== 'approved' ||
+                            isUnderProcess
+                          }
+                        >
+                          {actionBusyId === employee.id
+                            ? 'Saving...'
+                            : 'Proceed to process'}
+                        </button>
+                      ) : null}
+                      {canManageOrganizationProcesses && !isUnderProcess ? (
+                        <>
+                          <select
+                            value={assignedAgentId}
+                            onClick={(event) => event.stopPropagation()}
+                            onChange={(event) => {
+                              event.stopPropagation()
+                              setPageError('')
+                              setProcessAgentAssignments((prev) => ({
+                                ...prev,
+                                [employee.id]: event.target.value
+                              }))
+                            }}
+                            disabled={readOnly || actionBusyId === employee.id}
+                          >
+                            <option value="">{formOptions.agent_options.length <= 1 ? 'Agent auto-selected' : 'Select agent'}</option>
+                            {formOptions.agent_options.map((agent) => (
+                              <option key={agent.id} value={String(agent.id)}>
+                                {agent.name || agent.username}
+                              </option>
+                            ))}
+                          </select>
+                          <button
+                            type="button"
+                            className="btn-secondary"
+                            onClick={(event) => { event.stopPropagation(); handleStartProcess(employee) }}
+                            disabled={readOnly || actionBusyId === employee.id || employee.status !== 'approved' || !assignedAgentId}
+                          >
+                            {actionBusyId === employee.id
+                              ? 'Saving...'
+                              : 'Initiate process'}
+                          </button>
+                        </>
+                      ) : null}
+                      {isMainAgentAccount && isUnderProcess ? (
+                        <button
+                          type="button"
+                          className="btn-danger"
+                          onClick={(event) => { event.stopPropagation(); handleDeclineProcess(employee) }}
+                          disabled={readOnly || actionBusyId === employee.id || !isSelectedByCurrentAgent}
+                        >
+                          {actionBusyId === employee.id ? 'Saving...' : 'Decline process'}
+                        </button>
+                      ) : null}
+                      {canManageOrganizationProcesses && isUnderProcess ? (
+                        <button
+                          type="button"
+                          className="btn-danger"
+                          onClick={(event) => { event.stopPropagation(); handleDeclineProcess(employee) }}
+                          disabled={readOnly || actionBusyId === employee.id}
+                        >
+                          {actionBusyId === employee.id ? 'Saving...' : 'Decline process'}
+                        </button>
+                      ) : null}
+                      {canOverrideProgress && (isUnderProcess || employee.did_travel) && (employee.progress_status?.overall_completion ?? 0) < 100 ? (
+                        <button
+                          type="button"
+                          className="btn-secondary"
+                          onClick={(event) => { event.stopPropagation(); handleMarkProgressComplete(employee) }}
+                          disabled={readOnly || actionBusyId === employee.id}
+                        >
+                          {actionBusyId === employee.id ? 'Saving...' : 'Mark progress 100%'}
+                        </button>
+                      ) : null}
+                      <button type="button" className="btn-secondary" onClick={(event) => { event.stopPropagation(); handleAvailabilityAction(employee, 'approved', 'Approved') }} disabled={actionBusyId === employee.id || readOnly || isAgentSideUser || employee.status === 'approved'}>
+                        {actionBusyId === employee.id ? 'Saving...' : 'Approve'}
+                      </button>
+                      <button type="button" className="btn-secondary" onClick={(event) => { event.stopPropagation(); handleAvailabilityAction(employee, 'rejected', 'Rejected') }} disabled={actionBusyId === employee.id || readOnly || isAgentSideUser || isUnderProcess || employee.status === 'rejected'}>Reject</button>
+                      <button type="button" className="btn-secondary" onClick={(event) => { event.stopPropagation(); handleAvailabilityAction(employee, 'suspended', 'Suspended') }} disabled={actionBusyId === employee.id || readOnly || isAgentSideUser || isUnderProcess || employee.status === 'suspended'}>Suspend</button>
+                      <button type="button" className="btn-secondary" onClick={(event) => { event.stopPropagation(); handleEdit(employee.id) }} disabled={busyEmployeeId === employee.id || readOnly || (isAgentSideUser && !isSelectedByCurrentAgent)}>
+                        {busyEmployeeId === employee.id ? 'Loading...' : 'Edit'}
+                      </button>
+                      <button type="button" className="btn-danger" onClick={(event) => { event.stopPropagation(); handleDelete(employee) }} disabled={readOnly || isAgentSideUser}>Delete</button>
+                    </div>
+                  </article>
+                )
+              })}
             </div>
           )}
           {!loading && employees.length > 0 ? (
@@ -557,7 +1591,88 @@ export default function EmployeesPage() {
             </div>
           ) : null}
         </div>
-      </div>
+      )}
+      {openedEmployee ? (
+        <div className="employee-review-backdrop" role="presentation" onClick={() => setOpenedEmployeeId(null)}>
+          <div className="employee-review-modal" role="dialog" aria-modal="true" aria-labelledby="employee-review-title" onClick={(event) => event.stopPropagation()}>
+            <div className="employee-review-header">
+              <div className="employee-card-identity">
+                <div className="employee-card-avatar employee-review-avatar">
+                  {employeeProfilePhoto(openedEmployee)?.file_url && isImageDocument(employeeProfilePhoto(openedEmployee)) ? (
+                    <img src={employeeProfilePhoto(openedEmployee).file_url} alt={`${openedEmployee.full_name} profile`} />
+                  ) : (
+                    <span>{openedEmployee.full_name?.charAt(0) || '?'}</span>
+                  )}
+                </div>
+                <div>
+                  <p className="employee-modal-eyebrow">Employee review</p>
+                  <h2 id="employee-review-title">{openedEmployee.full_name}</h2>
+                  <p className="muted-text">{openedEmployee.profession || openedEmployee.professional_title || '--'} | {employeeStatusLabel(openedEmployee)}</p>
+                </div>
+              </div>
+              <button type="button" className="btn-secondary" onClick={() => setOpenedEmployeeId(null)}>Close</button>
+            </div>
+            <div className="employee-review-grid">
+              <div className="employee-summary-card">
+                <h3>Overview</h3>
+                <p><strong>Age:</strong> {openedEmployee.age || '--'}</p>
+                <p><strong>Availability:</strong> {employeeAvailability(openedEmployee)}</p>
+                <p><strong>Phone:</strong> {openedEmployee.phone || openedEmployee.mobile_number || '--'}</p>
+                <p><strong>Email:</strong> {openedEmployee.email || '--'}</p>
+                  <p><strong>Registered by:</strong> {openedEmployee.registered_by_username || '--'}</p>
+                {openedEmployee.selection_state?.selection ? (
+                  <p><strong>Selected by:</strong> {openedEmployee.selection_state.selection.agent_name || '--'}</p>
+                ) : null}
+              </div>
+              <div className="employee-summary-card">
+                <h3>Application</h3>
+                <p><strong>Destination countries:</strong> {openedEmployee.application_countries?.join(', ') || '--'}</p>
+                <div className="employee-progress-panel">
+                  <div className="employee-progress-donut" aria-label={`Progress ${openedEmployeeProgress.overallProgress}%`}>
+                    <svg viewBox="0 0 120 120" role="img" aria-hidden="true">
+                      <circle cx="60" cy="60" r={openedEmployeeProgress.radius} className="employee-progress-track" />
+                      <circle
+                        cx="60"
+                        cy="60"
+                        r={openedEmployeeProgress.radius}
+                        className="employee-progress-value"
+                        stroke={openedEmployeeProgress.tone}
+                        strokeDasharray={openedEmployeeProgress.circumference}
+                        strokeDashoffset={openedEmployeeProgress.dashOffset}
+                      />
+                    </svg>
+                    <div className="employee-progress-donut-label">
+                      <strong>{openedEmployeeProgress.overallProgress}%</strong>
+                      <span>Overall</span>
+                    </div>
+                  </div>
+                  <div className="employee-progress-metrics">
+                    <p><strong>Fields:</strong> {openedEmployee.progress_status?.field_completion ?? 0}%</p>
+                    <p><strong>Documents:</strong> {openedEmployee.progress_status?.document_completion ?? 0}%</p>
+                    <p><strong>Status:</strong> {prettyStatus(openedEmployee.progress_status?.label)}</p>
+                  </div>
+                </div>
+                <p><strong>Travel:</strong> {prettyStatus(openedEmployee.travel_status, 'pending')}</p>
+                <p><strong>Return:</strong> {prettyStatus(openedEmployee.return_status)}</p>
+              </div>
+              <div className="employee-summary-card employee-review-documents">
+                <h3>Documents</h3>
+                <div className="employee-card-detail-links">
+                  {(openedEmployee.documents || []).length === 0 ? (
+                    <span className="muted-text">No documents uploaded.</span>
+                  ) : (
+                    openedEmployee.documents.map((document) => (
+                      <a key={document.id} href={document.file_url} target="_blank" rel="noreferrer">
+                        {fileLabel(document, attachmentLabels)}
+                      </a>
+                    ))
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </section>
   )
 }

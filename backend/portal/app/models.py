@@ -417,6 +417,18 @@ class LicenseEvent(models.Model):
 
 
 class Employee(models.Model):
+    STATUS_PENDING = "pending"
+    STATUS_APPROVED = "approved"
+    STATUS_REJECTED = "rejected"
+    STATUS_SUSPENDED = "suspended"
+
+    STATUS_CHOICES = [
+        (STATUS_PENDING, "Pending approval"),
+        (STATUS_APPROVED, "Approved"),
+        (STATUS_REJECTED, "Rejected"),
+        (STATUS_SUSPENDED, "Suspended"),
+    ]
+
     organization = models.ForeignKey(
         Organization,
         on_delete=models.CASCADE,
@@ -489,6 +501,12 @@ class Employee(models.Model):
     competency_certificate_expires_on = models.DateField(null=True, blank=True)
     clearance_expires_on = models.DateField(null=True, blank=True)
     insurance_expires_on = models.DateField(null=True, blank=True)
+    status = models.CharField(
+        max_length=20,
+        choices=STATUS_CHOICES,
+        default=STATUS_PENDING,
+    )
+    progress_override_complete = models.BooleanField(default=False)
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -503,6 +521,10 @@ class Employee(models.Model):
             self.full_name = computed_full_name
         if self.profession and not self.professional_title:
             self.professional_title = self.profession
+        if self.status == self.STATUS_APPROVED and not self.did_travel:
+            self.is_active = True
+        else:
+            self.is_active = False
         super().save(*args, **kwargs)
 
     def __str__(self):
@@ -582,3 +604,62 @@ class EmployeeDocument(models.Model):
 
     def __str__(self):
         return self.label or self.file.name.rsplit("/", 1)[-1]
+
+
+class EmployeeSelection(models.Model):
+    STATUS_SELECTED = "selected"
+    STATUS_UNDER_PROCESS = "under_process"
+    STATUS_CHOICES = [
+        (STATUS_SELECTED, "Selected"),
+        (STATUS_UNDER_PROCESS, "Under process"),
+    ]
+
+    organization = models.ForeignKey(
+        Organization,
+        on_delete=models.CASCADE,
+        related_name="employee_selections",
+    )
+    employee = models.OneToOneField(
+        Employee,
+        on_delete=models.CASCADE,
+        related_name="selection",
+    )
+    agent = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name="selected_employees",
+    )
+    selected_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="employee_selections_made",
+    )
+    status = models.CharField(
+        max_length=30,
+        choices=STATUS_CHOICES,
+        default=STATUS_SELECTED,
+    )
+    process_initiated_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="employee_processes_initiated",
+    )
+    process_started_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-updated_at"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["organization", "employee"],
+                name="unique_employee_selection_per_organization",
+            )
+        ]
+
+    def __str__(self):
+        return f"{self.employee.full_name} -> {self.agent.username}"

@@ -16,7 +16,14 @@ from django.utils import timezone
 from rest_framework.test import APIClient
 
 from .licensing import get_user_organization
-from .models import AuditLog, Employee, OrganizationMembership, PlatformSettings, Profile
+from .models import (
+    AuditLog,
+    Employee,
+    EmployeeSelection,
+    OrganizationMembership,
+    PlatformSettings,
+    Profile,
+)
 
 
 @override_settings(EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend")
@@ -959,7 +966,14 @@ class EmployeeManagementTests(TestCase):
                 "email": "jane@example.com",
                 "phone": "+251900000001",
                 "summary": "Experienced finance professional.",
+                "application_salary": "2200.00",
                 "skills": ["Cash handling", "Customer service"],
+                "experiences": [{"country": "Saudi Arabia", "years": 3}],
+                "religion": "Christianity",
+                "marital_status": "Single",
+                "residence_country": "Ethiopia",
+                "contact_person_name": "Anna Doe",
+                "contact_person_mobile": "+251900000010",
             },
             format="json",
         )
@@ -968,6 +982,8 @@ class EmployeeManagementTests(TestCase):
         employee = Employee.objects.get(full_name="Jane Ada Doe")
         self.assertEqual(employee.registered_by, staff_user)
         self.assertEqual(employee.organization, get_user_organization(staff_user))
+        self.assertEqual(employee.status, Employee.STATUS_PENDING)
+        self.assertFalse(employee.is_active)
         self.assertTrue(
             AuditLog.objects.filter(
                 actor=staff_user,
@@ -975,6 +991,71 @@ class EmployeeManagementTests(TestCase):
                 resource_id=employee.pk,
             ).exists()
         )
+
+    def test_employee_registration_requires_minimum_age_of_18(self):
+        staff_user = self._create_user("staff-young-check", Profile.ROLE_STAFF)
+        self.client.force_authenticate(user=staff_user)
+
+        response = self.client.post(
+            "/api/employees/",
+            {
+                "first_name": "Young",
+                "middle_name": "Applicant",
+                "last_name": "Example",
+                "date_of_birth": "2010-01-15",
+                "gender": "Female",
+                "passport_number": "P7654321",
+                "mobile_number": "+251900000099",
+                "application_countries": ["Saudi Arabia"],
+                "profession": "Cashier",
+                "employment_type": "Contract",
+                "languages": ["Amharic"],
+                "application_salary": "1800.00",
+                "skills": ["Cash handling"],
+                "experiences": [{"country": "Saudi Arabia", "years": 1}],
+                "religion": "Christianity",
+                "marital_status": "Single",
+                "residence_country": "Ethiopia",
+                "contact_person_name": "Guardian Example",
+                "contact_person_mobile": "+251900000100",
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("at least 18", response.data["date_of_birth"][0])
+
+    def test_employee_status_patch_updates_availability_state(self):
+        staff_user = self._create_user("staff-status", Profile.ROLE_STAFF)
+        self.client.force_authenticate(user=staff_user)
+        employee = Employee.objects.create(
+            organization=get_user_organization(staff_user),
+            registered_by=staff_user,
+            updated_by=staff_user,
+            full_name="Status Employee",
+            status=Employee.STATUS_PENDING,
+            is_active=False,
+        )
+
+        approve = self.client.patch(
+            f"/api/employees/{employee.pk}/",
+            {"status": "approved"},
+            format="json",
+        )
+        self.assertEqual(approve.status_code, 200)
+        employee.refresh_from_db()
+        self.assertEqual(employee.status, Employee.STATUS_APPROVED)
+        self.assertTrue(employee.is_active)
+
+        suspend = self.client.patch(
+            f"/api/employees/{employee.pk}/",
+            {"status": "suspended"},
+            format="json",
+        )
+        self.assertEqual(suspend.status_code, 200)
+        employee.refresh_from_db()
+        self.assertEqual(employee.status, Employee.STATUS_SUSPENDED)
+        self.assertFalse(employee.is_active)
 
     def test_employee_list_is_scoped_to_same_organization(self):
         owner_a = self._create_user("owner-a", Profile.ROLE_SUPERADMIN)
@@ -1004,6 +1085,8 @@ class EmployeeManagementTests(TestCase):
     def test_employee_form_options_use_active_agent_countries_and_salaries(self):
         superadmin = self._create_user("owner-options", Profile.ROLE_SUPERADMIN)
         agent = self._create_user("agent-country", Profile.ROLE_CUSTOMER)
+        agent.first_name = "Agent Country"
+        agent.save(update_fields=["first_name"])
         self._assign_same_organization(superadmin, agent)
         agent.profile.agent_country = "Saudi Arabia"
         agent.profile.agent_salary = "2400.00"
@@ -1015,10 +1098,575 @@ class EmployeeManagementTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertIn("Saudi Arabia", response.data["destination_countries"])
         self.assertIn("2400.00", response.data["salary_options_by_country"]["Saudi Arabia"])
+        self.assertTrue(any(option["id"] == agent.id for option in response.data["agent_options"]))
+
+    def test_agent_can_select_employee_and_org_can_filter_selected_employees(self):
+        superadmin = self._create_user("owner-select", Profile.ROLE_SUPERADMIN)
+        agent = self._create_user("agent-atlas", Profile.ROLE_CUSTOMER)
+        agent.first_name = "Agent Atlas"
+        agent.save(update_fields=["first_name"])
+        self._assign_same_organization(superadmin, agent)
+        employee = Employee.objects.create(
+            organization=get_user_organization(superadmin),
+            registered_by=superadmin,
+            updated_by=superadmin,
+            first_name="Selam",
+            middle_name="K",
+            last_name="Worker",
+            full_name="Selam K Worker",
+        )
+
+        self.client.force_authenticate(user=agent)
+        select_response = self.client.post(f"/api/employees/{employee.pk}/selection/")
+
+        self.assertEqual(select_response.status_code, 200)
+        employee.refresh_from_db()
+        self.assertTrue(hasattr(employee, "selection"))
+        self.assertEqual(employee.selection.agent_id, agent.id)
+        self.assertEqual(
+            select_response.data["selection_state"]["selection"]["agent_name"],
+            "Agent Atlas",
+        )
+
+        self.client.force_authenticate(user=superadmin)
+        org_selected = self.client.get("/api/employees/", {"selected_scope": "organization"})
+
+        self.assertEqual(org_selected.status_code, 200)
+        self.assertEqual(org_selected.data["count"], 1)
+        self.assertEqual(
+            org_selected.data["results"][0]["selection_state"]["selection"]["agent_name"],
+            "Agent Atlas",
+        )
+
+    def test_agent_staff_selection_belongs_to_agent_owner_and_mine_scope_uses_agent(self):
+        superadmin = self._create_user("owner-staff-select", Profile.ROLE_SUPERADMIN)
+        agent = self._create_user("agent-owner", Profile.ROLE_CUSTOMER)
+        agent.first_name = "Agent Atlas"
+        agent.save(update_fields=["first_name"])
+        agent_staff = self._create_user("agent-staff", Profile.ROLE_STAFF)
+        self._assign_same_organization(superadmin, agent, agent_staff)
+        agent_staff.profile.staff_side = "Agent Atlas"
+        agent_staff.profile.save(update_fields=["staff_side"])
+        employee = Employee.objects.create(
+            organization=get_user_organization(superadmin),
+            registered_by=superadmin,
+            updated_by=superadmin,
+            first_name="Marta",
+            middle_name="N",
+            last_name="Helper",
+            full_name="Marta N Helper",
+        )
+
+        self.client.force_authenticate(user=agent_staff)
+        select_response = self.client.post(f"/api/employees/{employee.pk}/selection/")
+
+        self.assertEqual(select_response.status_code, 200)
+        selection = EmployeeSelection.objects.get(employee=employee)
+        self.assertEqual(selection.agent_id, agent.id)
+        self.assertEqual(selection.selected_by_id, agent_staff.id)
+
+        mine_response = self.client.get("/api/employees/", {"selected_scope": "mine"})
+
+        self.assertEqual(mine_response.status_code, 200)
+        self.assertEqual(mine_response.data["count"], 1)
+        self.assertEqual(mine_response.data["results"][0]["id"], employee.id)
+        self.assertTrue(mine_response.data["results"][0]["selection_state"]["selected_by_current_agent"])
+
+    def test_agent_cannot_select_employee_already_selected_by_another_agent(self):
+        superadmin = self._create_user("owner-conflict", Profile.ROLE_SUPERADMIN)
+        first_agent = self._create_user("agent-first", Profile.ROLE_CUSTOMER)
+        second_agent = self._create_user("agent-second", Profile.ROLE_CUSTOMER)
+        self._assign_same_organization(superadmin, first_agent, second_agent)
+        employee = Employee.objects.create(
+            organization=get_user_organization(superadmin),
+            registered_by=superadmin,
+            updated_by=superadmin,
+            full_name="Conflict Employee",
+        )
+        EmployeeSelection.objects.create(
+            organization=get_user_organization(superadmin),
+            employee=employee,
+            agent=first_agent,
+            selected_by=first_agent,
+        )
+
+        self.client.force_authenticate(user=second_agent)
+        response = self.client.post(f"/api/employees/{employee.pk}/selection/")
+
+        self.assertEqual(response.status_code, 409)
+
+    def test_agent_can_only_update_selected_employee_and_cannot_create_employee(self):
+        superadmin = self._create_user("owner-agent-rules", Profile.ROLE_SUPERADMIN)
+        agent = self._create_user("agent-rules", Profile.ROLE_CUSTOMER)
+        self._assign_same_organization(superadmin, agent)
+        selected_employee = Employee.objects.create(
+            organization=get_user_organization(superadmin),
+            registered_by=superadmin,
+            updated_by=superadmin,
+            first_name="Chosen",
+            middle_name="A",
+            last_name="Worker",
+            full_name="Chosen A Worker",
+        )
+        other_employee = Employee.objects.create(
+            organization=get_user_organization(superadmin),
+            registered_by=superadmin,
+            updated_by=superadmin,
+            first_name="Open",
+            middle_name="B",
+            last_name="Worker",
+            full_name="Open B Worker",
+        )
+        EmployeeSelection.objects.create(
+            organization=get_user_organization(superadmin),
+            employee=selected_employee,
+            agent=agent,
+            selected_by=agent,
+        )
+
+        self.client.force_authenticate(user=agent)
+
+        create_response = self.client.post(
+            "/api/employees/",
+            {
+                "first_name": "Should",
+                "middle_name": "Not",
+                "last_name": "Create",
+                "date_of_birth": "1996-01-15",
+                "gender": "Female",
+                "passport_number": "P1234567",
+                "mobile_number": "+251900000001",
+                "application_countries": ["Saudi Arabia"],
+                "profession": "Cashier",
+                "employment_type": "Contract",
+                "languages": ["Amharic", "English"],
+                "application_salary": "2200.00",
+                "skills": ["Cash handling"],
+                "experiences": [{"country": "Saudi Arabia", "years": 3}],
+                "religion": "Christianity",
+                "marital_status": "Single",
+                "residence_country": "Ethiopia",
+                "contact_person_name": "Anna Doe",
+                "contact_person_mobile": "+251900000010",
+            },
+            format="json",
+        )
+        self.assertEqual(create_response.status_code, 403)
+
+        update_selected = self.client.patch(
+            f"/api/employees/{selected_employee.pk}/",
+            {"email": "chosen@example.com"},
+            format="json",
+        )
+        self.assertEqual(update_selected.status_code, 200)
+
+        update_other = self.client.patch(
+            f"/api/employees/{other_employee.pk}/",
+            {"email": "blocked@example.com"},
+            format="json",
+        )
+        self.assertEqual(update_other.status_code, 403)
+
+        update_status = self.client.patch(
+            f"/api/employees/{selected_employee.pk}/",
+            {"status": "approved"},
+            format="json",
+        )
+        self.assertEqual(update_status.status_code, 403)
+
+    def test_main_agent_can_start_process_and_under_process_employee_stays_visible_to_org_and_assigned_agent(self):
+        superadmin = self._create_user("owner-process", Profile.ROLE_SUPERADMIN)
+        agent = self._create_user("agent-process", Profile.ROLE_CUSTOMER)
+        other_agent = self._create_user("agent-other-process", Profile.ROLE_CUSTOMER)
+        self._assign_same_organization(superadmin, agent, other_agent)
+        employee = Employee.objects.create(
+            organization=get_user_organization(superadmin),
+            registered_by=superadmin,
+            updated_by=superadmin,
+            full_name="Process Employee",
+            status=Employee.STATUS_APPROVED,
+            is_active=True,
+        )
+        EmployeeSelection.objects.create(
+            organization=get_user_organization(superadmin),
+            employee=employee,
+            agent=agent,
+            selected_by=agent,
+        )
+
+        self.client.force_authenticate(user=agent)
+        start_response = self.client.post(f"/api/employees/{employee.pk}/process/")
+
+        self.assertEqual(start_response.status_code, 200)
+        employee.refresh_from_db()
+        self.assertEqual(employee.selection.status, EmployeeSelection.STATUS_UNDER_PROCESS)
+        self.assertEqual(employee.selection.process_initiated_by_id, agent.id)
+        self.assertIsNotNone(employee.selection.process_started_at)
+
+        default_list = self.client.get("/api/employees/")
+        self.assertEqual(default_list.status_code, 200)
+        self.assertEqual(default_list.data["count"], 1)
+
+        under_process = self.client.get("/api/employees/", {"process_scope": "mine"})
+        self.assertEqual(under_process.status_code, 200)
+        self.assertEqual(under_process.data["count"], 1)
+        self.assertEqual(
+            under_process.data["results"][0]["selection_state"]["selection"]["status"],
+            "under_process",
+        )
+
+        self.client.force_authenticate(user=superadmin)
+        org_list = self.client.get("/api/employees/")
+        self.assertEqual(org_list.status_code, 200)
+        self.assertEqual(org_list.data["count"], 1)
+
+        self.client.force_authenticate(user=other_agent)
+        other_agent_list = self.client.get("/api/employees/")
+        self.assertEqual(other_agent_list.status_code, 200)
+        self.assertEqual(other_agent_list.data["count"], 0)
+
+    def test_agent_staff_cannot_start_process_even_for_selected_employee(self):
+        superadmin = self._create_user("owner-process-staff", Profile.ROLE_SUPERADMIN)
+        agent = self._create_user("agent-process-owner", Profile.ROLE_CUSTOMER)
+        agent.first_name = "Agent Prime"
+        agent.save(update_fields=["first_name"])
+        agent_staff = self._create_user("agent-process-staff", Profile.ROLE_STAFF)
+        self._assign_same_organization(superadmin, agent, agent_staff)
+        agent_staff.profile.staff_side = "Agent Prime"
+        agent_staff.profile.save(update_fields=["staff_side"])
+        employee = Employee.objects.create(
+            organization=get_user_organization(superadmin),
+            registered_by=superadmin,
+            updated_by=superadmin,
+            full_name="Staff Cannot Process",
+            status=Employee.STATUS_APPROVED,
+            is_active=True,
+        )
+        EmployeeSelection.objects.create(
+            organization=get_user_organization(superadmin),
+            employee=employee,
+            agent=agent,
+            selected_by=agent_staff,
+        )
+
+        self.client.force_authenticate(user=agent_staff)
+        response = self.client.post(f"/api/employees/{employee.pk}/process/")
+
+        self.assertEqual(response.status_code, 403)
+
+    def test_main_agent_can_decline_process_and_employee_returns_to_selected_list(self):
+        superadmin = self._create_user("owner-decline", Profile.ROLE_SUPERADMIN)
+        agent = self._create_user("agent-decline", Profile.ROLE_CUSTOMER)
+        self._assign_same_organization(superadmin, agent)
+        employee = Employee.objects.create(
+            organization=get_user_organization(superadmin),
+            registered_by=superadmin,
+            updated_by=superadmin,
+            full_name="Decline Process Employee",
+        )
+        EmployeeSelection.objects.create(
+            organization=get_user_organization(superadmin),
+            employee=employee,
+            agent=agent,
+            selected_by=agent,
+            status=EmployeeSelection.STATUS_UNDER_PROCESS,
+            process_initiated_by=agent,
+            process_started_at=timezone.now(),
+        )
+
+        self.client.force_authenticate(user=agent)
+        response = self.client.delete(f"/api/employees/{employee.pk}/process/")
+
+        self.assertEqual(response.status_code, 200)
+        employee.refresh_from_db()
+        self.assertEqual(employee.selection.status, EmployeeSelection.STATUS_SELECTED)
+        self.assertIsNone(employee.selection.process_initiated_by)
+        self.assertIsNone(employee.selection.process_started_at)
+
+        default_list = self.client.get("/api/employees/")
+        self.assertEqual(default_list.status_code, 200)
+        returned_ids = [item["id"] for item in default_list.data["results"]]
+        self.assertIn(employee.id, returned_ids)
+
+        selected_list = self.client.get("/api/employees/", {"selected_scope": "mine"})
+        self.assertEqual(selected_list.status_code, 200)
+        self.assertEqual(selected_list.data["count"], 1)
+
+        under_process = self.client.get("/api/employees/", {"process_scope": "mine"})
+        self.assertEqual(under_process.status_code, 200)
+        self.assertEqual(under_process.data["count"], 0)
+
+    def test_admin_can_assign_agent_and_start_process_on_behalf(self):
+        superadmin = self._create_user("owner-org-process", Profile.ROLE_SUPERADMIN)
+        admin_user = self._create_user("org-admin-process", Profile.ROLE_ADMIN)
+        agent = self._create_user("assigned-agent", Profile.ROLE_CUSTOMER)
+        other_agent = self._create_user("other-assigned-agent", Profile.ROLE_CUSTOMER)
+        self._assign_same_organization(superadmin, admin_user, agent, other_agent)
+        employee = Employee.objects.create(
+            organization=get_user_organization(superadmin),
+            registered_by=superadmin,
+            updated_by=superadmin,
+            full_name="Admin Started Process",
+            status=Employee.STATUS_APPROVED,
+            is_active=True,
+        )
+
+        self.client.force_authenticate(user=admin_user)
+        response = self.client.post(
+            f"/api/employees/{employee.pk}/process/",
+            {"agent_id": agent.id},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        employee.refresh_from_db()
+        self.assertEqual(employee.selection.agent_id, agent.id)
+        self.assertEqual(employee.selection.status, EmployeeSelection.STATUS_UNDER_PROCESS)
+        self.assertEqual(employee.selection.selected_by_id, admin_user.id)
+        self.assertEqual(employee.selection.process_initiated_by_id, admin_user.id)
+
+        under_process = self.client.get("/api/employees/", {"process_scope": "mine"})
+        self.assertEqual(under_process.status_code, 200)
+        returned_ids = [item["id"] for item in under_process.data["results"]]
+        self.assertIn(employee.id, returned_ids)
+
+        default_list = self.client.get("/api/employees/")
+        self.assertEqual(default_list.status_code, 200)
+        returned_ids = [item["id"] for item in default_list.data["results"]]
+        self.assertIn(employee.id, returned_ids)
+
+        self.client.force_authenticate(user=agent)
+        assigned_agent_list = self.client.get("/api/employees/")
+        self.assertEqual(assigned_agent_list.status_code, 200)
+        returned_ids = [item["id"] for item in assigned_agent_list.data["results"]]
+        self.assertIn(employee.id, returned_ids)
+
+        self.client.force_authenticate(user=other_agent)
+        other_agent_list = self.client.get("/api/employees/")
+        self.assertEqual(other_agent_list.status_code, 200)
+        self.assertEqual(other_agent_list.data["count"], 0)
+
+    def test_process_cannot_start_until_employee_is_approved(self):
+        superadmin = self._create_user("owner-approval-gate", Profile.ROLE_SUPERADMIN)
+        agent = self._create_user("agent-approval-gate", Profile.ROLE_CUSTOMER)
+        self._assign_same_organization(superadmin, agent)
+        employee = Employee.objects.create(
+            organization=get_user_organization(superadmin),
+            registered_by=superadmin,
+            updated_by=superadmin,
+            full_name="Approval Required Employee",
+            status=Employee.STATUS_PENDING,
+            is_active=False,
+        )
+        EmployeeSelection.objects.create(
+            organization=get_user_organization(superadmin),
+            employee=employee,
+            agent=agent,
+            selected_by=agent,
+        )
+
+        self.client.force_authenticate(user=agent)
+        response = self.client.post(f"/api/employees/{employee.pk}/process/")
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("Only approved employees can have a process initiated.", response.data["detail"])
+
+    def test_admin_can_decline_under_process_employee(self):
+        superadmin = self._create_user("owner-admin-decline", Profile.ROLE_SUPERADMIN)
+        admin_user = self._create_user("decline-admin", Profile.ROLE_ADMIN)
+        agent = self._create_user("agent-under-process", Profile.ROLE_CUSTOMER)
+        self._assign_same_organization(superadmin, admin_user, agent)
+        employee = Employee.objects.create(
+            organization=get_user_organization(superadmin),
+            registered_by=superadmin,
+            updated_by=superadmin,
+            full_name="Admin Decline Process",
+        )
+        EmployeeSelection.objects.create(
+            organization=get_user_organization(superadmin),
+            employee=employee,
+            agent=agent,
+            selected_by=admin_user,
+            status=EmployeeSelection.STATUS_UNDER_PROCESS,
+            process_initiated_by=admin_user,
+            process_started_at=timezone.now(),
+        )
+
+        self.client.force_authenticate(user=admin_user)
+        response = self.client.delete(f"/api/employees/{employee.pk}/process/")
+
+        self.assertEqual(response.status_code, 200)
+        employee.refresh_from_db()
+        self.assertEqual(employee.selection.status, EmployeeSelection.STATUS_SELECTED)
+        self.assertIsNone(employee.selection.process_initiated_by)
+
+    def test_org_side_cannot_reject_or_suspend_employee_while_under_process(self):
+        superadmin = self._create_user("owner-block-status", Profile.ROLE_SUPERADMIN)
+        agent = self._create_user("agent-block-status", Profile.ROLE_CUSTOMER)
+        self._assign_same_organization(superadmin, agent)
+        employee = Employee.objects.create(
+            organization=get_user_organization(superadmin),
+            registered_by=superadmin,
+            updated_by=superadmin,
+            full_name="Blocked Status Employee",
+            status=Employee.STATUS_APPROVED,
+        )
+        EmployeeSelection.objects.create(
+            organization=get_user_organization(superadmin),
+            employee=employee,
+            agent=agent,
+            selected_by=agent,
+            status=EmployeeSelection.STATUS_UNDER_PROCESS,
+            process_initiated_by=agent,
+            process_started_at=timezone.now(),
+        )
+
+        self.client.force_authenticate(user=superadmin)
+        reject_response = self.client.patch(
+            f"/api/employees/{employee.pk}/",
+            {"status": "rejected"},
+            format="json",
+        )
+        suspend_response = self.client.patch(
+            f"/api/employees/{employee.pk}/",
+            {"status": "suspended"},
+            format="json",
+        )
+
+        self.assertEqual(reject_response.status_code, 400)
+        self.assertIn("Decline the process first", reject_response.data["detail"])
+        self.assertEqual(suspend_response.status_code, 400)
+        self.assertIn("Decline the process first", suspend_response.data["detail"])
+
+    def test_admin_can_mark_progress_complete_with_override(self):
+        superadmin = self._create_user("owner-progress-override", Profile.ROLE_SUPERADMIN)
+        admin_user = self._create_user("admin-progress-override", Profile.ROLE_ADMIN)
+        self._assign_same_organization(superadmin, admin_user)
+        employee = Employee.objects.create(
+            organization=get_user_organization(superadmin),
+            registered_by=superadmin,
+            updated_by=superadmin,
+            full_name="Override Progress Employee",
+            did_travel=True,
+            status=Employee.STATUS_APPROVED,
+            is_active=True,
+        )
+
+        self.client.force_authenticate(user=admin_user)
+        response = self.client.patch(
+            f"/api/employees/{employee.pk}/",
+            {"progress_override_complete": True},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        employee.refresh_from_db()
+        self.assertTrue(employee.progress_override_complete)
+        self.assertEqual(response.data["progress_status"]["overall_completion"], 100)
+
+    def test_employed_scope_returns_travelled_employees_with_full_progress(self):
+        superadmin = self._create_user("owner-employed", Profile.ROLE_SUPERADMIN)
+        agent = self._create_user("agent-employed", Profile.ROLE_CUSTOMER)
+        other_agent = self._create_user("agent-employed-other", Profile.ROLE_CUSTOMER)
+        self._assign_same_organization(superadmin, agent, other_agent)
+
+        employed_employee = Employee.objects.create(
+            organization=get_user_organization(superadmin),
+            registered_by=superadmin,
+            updated_by=superadmin,
+            full_name="Employed Worker",
+            did_travel=True,
+            status=Employee.STATUS_APPROVED,
+            is_active=True,
+            progress_override_complete=True,
+        )
+        EmployeeSelection.objects.create(
+            organization=get_user_organization(superadmin),
+            employee=employed_employee,
+            agent=agent,
+            selected_by=agent,
+            status=EmployeeSelection.STATUS_UNDER_PROCESS,
+        )
+
+        incomplete_employee = Employee.objects.create(
+            organization=get_user_organization(superadmin),
+            registered_by=superadmin,
+            updated_by=superadmin,
+            full_name="Incomplete Worker",
+            did_travel=True,
+            status=Employee.STATUS_APPROVED,
+            is_active=True,
+        )
+
+        self.client.force_authenticate(user=superadmin)
+        org_response = self.client.get("/api/employees/", {"employed_scope": "organization"})
+        self.assertEqual(org_response.status_code, 200)
+        returned_ids = [item["id"] for item in org_response.data["results"]]
+        self.assertIn(employed_employee.id, returned_ids)
+        self.assertNotIn(incomplete_employee.id, returned_ids)
+
+        self.client.force_authenticate(user=agent)
+        agent_response = self.client.get("/api/employees/", {"employed_scope": "mine"})
+        self.assertEqual(agent_response.status_code, 200)
+        returned_ids = [item["id"] for item in agent_response.data["results"]]
+        self.assertIn(employed_employee.id, returned_ids)
+
+        self.client.force_authenticate(user=other_agent)
+        other_agent_response = self.client.get("/api/employees/", {"employed_scope": "mine"})
+        self.assertEqual(other_agent_response.status_code, 200)
+        self.assertEqual(other_agent_response.data["count"], 0)
+
+    def test_completed_employee_is_hidden_from_other_agents_in_default_list(self):
+        superadmin = self._create_user("owner-employed-default", Profile.ROLE_SUPERADMIN)
+        agent = self._create_user("agent-employed-default", Profile.ROLE_CUSTOMER)
+        other_agent = self._create_user("agent-employed-default-other", Profile.ROLE_CUSTOMER)
+        self._assign_same_organization(superadmin, agent, other_agent)
+
+        employed_employee = Employee.objects.create(
+            organization=get_user_organization(superadmin),
+            registered_by=superadmin,
+            updated_by=superadmin,
+            full_name="Completed Worker",
+            did_travel=True,
+            status=Employee.STATUS_APPROVED,
+            is_active=True,
+            progress_override_complete=True,
+        )
+        EmployeeSelection.objects.create(
+            organization=get_user_organization(superadmin),
+            employee=employed_employee,
+            agent=agent,
+            selected_by=agent,
+            status=EmployeeSelection.STATUS_UNDER_PROCESS,
+        )
+
+        self.client.force_authenticate(user=superadmin)
+        org_response = self.client.get("/api/employees/")
+        self.assertEqual(org_response.status_code, 200)
+        self.assertIn(
+            employed_employee.id,
+            [item["id"] for item in org_response.data["results"]],
+        )
+
+        self.client.force_authenticate(user=agent)
+        agent_response = self.client.get("/api/employees/")
+        self.assertEqual(agent_response.status_code, 200)
+        self.assertIn(
+            employed_employee.id,
+            [item["id"] for item in agent_response.data["results"]],
+        )
+
+        self.client.force_authenticate(user=other_agent)
+        other_agent_response = self.client.get("/api/employees/")
+        self.assertEqual(other_agent_response.status_code, 200)
+        self.assertNotIn(
+            employed_employee.id,
+            [item["id"] for item in other_agent_response.data["results"]],
+        )
 
     @patch(
         "django.core.files.storage.FileSystemStorage.save",
-        return_value="employees/1/portrait.txt",
+        return_value="employees/1/portrait.jpg",
     )
     def test_employee_document_upload_and_delete_work(self, _storage_save):
         superadmin = self._create_user("owner-a", Profile.ROLE_SUPERADMIN)
@@ -1033,9 +1681,9 @@ class EmployeeManagementTests(TestCase):
 
         self.client.force_authenticate(user=staff_user)
         upload = SimpleUploadedFile(
-            "portrait.txt",
+            "portrait.jpg",
             b"employee-portrait",
-            content_type="text/plain",
+            content_type="image/jpeg",
         )
 
         response = self.client.post(
@@ -1055,6 +1703,37 @@ class EmployeeManagementTests(TestCase):
         delete_response = self.client.delete(f"/api/employee-documents/{document_id}/")
 
         self.assertEqual(delete_response.status_code, 204)
+
+    def test_employee_document_upload_rejects_non_pdf_or_image_formats(self):
+        superadmin = self._create_user("owner-invalid-doc", Profile.ROLE_SUPERADMIN)
+        staff_user = self._create_user("staff-invalid-doc", Profile.ROLE_STAFF)
+        self._assign_same_organization(superadmin, staff_user)
+        employee = Employee.objects.create(
+            organization=get_user_organization(superadmin),
+            registered_by=staff_user,
+            updated_by=staff_user,
+            full_name="Invalid Document Holder",
+        )
+
+        self.client.force_authenticate(user=staff_user)
+        upload = SimpleUploadedFile(
+            "portrait.txt",
+            b"invalid-document",
+            content_type="text/plain",
+        )
+
+        response = self.client.post(
+            f"/api/employees/{employee.pk}/documents/",
+            {
+                "document_type": "portrait_photo",
+                "label": "Portrait photo",
+                "file": upload,
+            },
+            format="multipart",
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("Only PDF, JPG, JPEG, and PNG files are allowed.", response.data["file"][0])
 
 
 class CompanySyncTests(TestCase):

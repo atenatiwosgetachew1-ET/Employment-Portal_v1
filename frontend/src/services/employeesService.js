@@ -11,11 +11,23 @@ function responseError(data, fallback) {
   return fallback
 }
 
-export async function fetchEmployees({ page = 1, q = '', isActive = '' } = {}) {
+export async function fetchEmployees({
+  page = 1,
+  q = '',
+  isActive = '',
+  mine = false,
+  selectedScope = '',
+  processScope = '',
+  employedScope = ''
+} = {}) {
   const params = new URLSearchParams()
   params.set('page', String(page))
   if (q.trim()) params.set('q', q.trim())
   if (isActive) params.set('is_active', isActive)
+  if (mine) params.set('mine', 'true')
+  if (selectedScope) params.set('selected_scope', selectedScope)
+  if (processScope) params.set('process_scope', processScope)
+  if (employedScope) params.set('employed_scope', employedScope)
 
   const response = await apiFetch(`/api/employees/?${params.toString()}`)
   const data = await response.json().catch(() => ({}))
@@ -38,7 +50,8 @@ export async function fetchEmployeeFormOptions() {
     salary_options_by_country:
       data.salary_options_by_country && typeof data.salary_options_by_country === 'object'
         ? data.salary_options_by_country
-        : {}
+        : {},
+    agent_options: Array.isArray(data.agent_options) ? data.agent_options : []
   }
 }
 
@@ -107,4 +120,44 @@ export async function deleteEmployeeDocument(id) {
     const data = await response.json().catch(() => ({}))
     throw new Error(responseError(data, 'Failed to delete document'))
   }
+}
+
+export async function selectEmployee(id) {
+  const response = await apiFetch(`/api/employees/${id}/selection/`, { method: 'POST' })
+  const data = await response.json().catch(() => ({}))
+  if (!response.ok) {
+    throw new Error(responseError(data, 'Failed to select employee'))
+  }
+  return data
+}
+
+export async function unselectEmployee(id) {
+  const response = await apiFetch(`/api/employees/${id}/selection/`, { method: 'DELETE' })
+  if (!response.ok && response.status !== 204) {
+    const data = await response.json().catch(() => ({}))
+    throw new Error(responseError(data, 'Failed to remove employee selection'))
+  }
+}
+
+export async function startEmployeeProcess(id, { agentId } = {}) {
+  const body = {}
+  if (agentId) body.agent_id = agentId
+  const response = await apiFetch(`/api/employees/${id}/process/`, {
+    method: 'POST',
+    body: JSON.stringify(body)
+  })
+  const data = await response.json().catch(() => ({}))
+  if (!response.ok) {
+    throw new Error(responseError(data, 'Failed to start employee process'))
+  }
+  return data
+}
+
+export async function declineEmployeeProcess(id) {
+  const response = await apiFetch(`/api/employees/${id}/process/`, { method: 'DELETE' })
+  const data = await response.json().catch(() => ({}))
+  if (!response.ok) {
+    throw new Error(responseError(data, 'Failed to decline employee process'))
+  }
+  return data
 }

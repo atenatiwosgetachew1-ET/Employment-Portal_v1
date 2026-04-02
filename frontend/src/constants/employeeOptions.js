@@ -138,7 +138,6 @@ export const RESIDENCE_COUNTRY_OPTIONS = [
 export const ATTACHMENT_FIELDS = [
   { key: 'portrait_photo', label: 'Portrait photo 3x4 size', expiryField: '' },
   { key: 'full_photo', label: 'Full photo', expiryField: '' },
-  { key: 'passport_photo', label: 'Passport photo', expiryField: '' },
   { key: 'passport_document', label: 'Passport', expiryField: 'passport_expires_on' },
   { key: 'employee_id', label: 'Employee ID', expiryField: '' },
   { key: 'contact_person_id', label: 'Contact person ID', expiryField: '' },

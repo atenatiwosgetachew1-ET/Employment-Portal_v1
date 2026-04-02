@@ -1,9 +1,11 @@
 from datetime import date
+import os
 
 from django.contrib.auth.models import User
 from rest_framework import serializers
 
 from .auth_utils import get_profile_role, is_admin, is_superadmin
+from .employee_selection import agent_display_name, get_selection_agent_for_user
 from .licensing import (
     can_assign_role,
     get_access_state,
@@ -15,6 +17,7 @@ from .models import (
     AuditLog,
     Employee,
     EmployeeDocument,
+    EmployeeSelection,
     LicenseEvent,
     Notification,
     Organization,
@@ -36,6 +39,7 @@ STAFF_ROLE_LEVELS = {
 
 PHONE_MIN_DIGITS = 7
 PHONE_MAX_DIGITS = 15
+EMPLOYEE_MINIMUM_AGE = 18
 
 
 def normalize_phone(value):
@@ -60,19 +64,21 @@ def calculate_age(value):
 EMPLOYEE_REQUIRED_DOCUMENT_TYPES = [
     "portrait_photo",
     "full_photo",
-    "passport_photo",
     "passport_document",
-    "employee_id",
-    "contact_person_id",
-    "medical_result",
-    "certificate_of_competency",
-    "contract",
-    "visa",
-    "insurance",
-    "clearance",
-    "departure_ticket",
-    "return_ticket",
 ]
+
+ALLOWED_EMPLOYEE_DOCUMENT_MIME_TYPES = {
+    "application/pdf",
+    "image/jpeg",
+    "image/png",
+}
+
+ALLOWED_EMPLOYEE_DOCUMENT_EXTENSIONS = {
+    ".pdf",
+    ".jpg",
+    ".jpeg",
+    ".png",
+}
 
 
 EMPLOYEE_URGENCY_DATE_FIELDS = [
@@ -89,6 +95,13 @@ EMPLOYEE_URGENCY_DATE_FIELDS = [
 
 
 def build_employee_progress_status(employee):
+    if getattr(employee, "progress_override_complete", False):
+        return {
+            "field_completion": 100,
+            "document_completion": 100,
+            "overall_completion": 100,
+            "label": "ready",
+        }
     mandatory_fields = [
         employee.first_name,
         employee.middle_name,
@@ -142,7 +155,7 @@ def build_employee_travel_status(employee):
 def build_employee_return_status(employee):
     today = date.today()
     if not employee.did_travel:
-        return "not_applicable"
+        return "--"
     if not employee.return_ticket_date:
         return "missing_ticket"
     if employee.return_ticket_date < today:
@@ -933,6 +946,51 @@ class EmployeeDocumentSerializer(serializers.ModelSerializer):
         return obj.file.url
 
 
+class EmployeeSelectionSerializer(serializers.ModelSerializer):
+    agent_name = serializers.SerializerMethodField()
+    selected_by_username = serializers.CharField(source="selected_by.username", read_only=True)
+    process_initiated_by_username = serializers.CharField(
+        source="process_initiated_by.username",
+        read_only=True,
+    )
+
+    class Meta:
+        model = EmployeeSelection
+        fields = (
+            "agent",
+            "agent_name",
+            "selected_by",
+            "selected_by_username",
+            "status",
+            "process_initiated_by",
+            "process_initiated_by_username",
+            "process_started_at",
+            "created_at",
+            "updated_at",
+        )
+        read_only_fields = fields
+
+    def get_agent_name(self, obj):
+        return agent_display_name(obj.agent)
+
+
+def build_employee_selection_payload(employee, request):
+    selection = getattr(employee, "selection", None)
+    current_agent = None
+    if request and request.user.is_authenticated:
+        current_agent = get_selection_agent_for_user(
+            request.user,
+            organization=employee.organization,
+        )
+    return {
+        "is_selected": bool(selection),
+        "selected_by_current_agent": bool(
+            selection and current_agent and selection.agent_id == current_agent.id
+        ),
+        "selection": EmployeeSelectionSerializer(selection).data if selection else None,
+    }
+
+
 class EmployeeListSerializer(serializers.ModelSerializer):
     registered_by_username = serializers.CharField(source="registered_by.username", read_only=True)
     documents = EmployeeDocumentSerializer(many=True, read_only=True)
@@ -941,6 +999,7 @@ class EmployeeListSerializer(serializers.ModelSerializer):
     travel_status = serializers.SerializerMethodField()
     return_status = serializers.SerializerMethodField()
     urgency_alerts = serializers.SerializerMethodField()
+    selection_state = serializers.SerializerMethodField()
 
     class Meta:
         model = Employee
@@ -955,12 +1014,14 @@ class EmployeeListSerializer(serializers.ModelSerializer):
             "email",
             "phone",
             "application_countries",
+            "status",
             "is_active",
             "age",
             "progress_status",
             "travel_status",
             "return_status",
             "urgency_alerts",
+            "selection_state",
             "registered_by_username",
             "documents",
             "created_at",
@@ -983,8 +1044,14 @@ class EmployeeListSerializer(serializers.ModelSerializer):
     def get_urgency_alerts(self, obj):
         return build_employee_urgency_alerts(obj)
 
+    def get_selection_state(self, obj):
+        request = self.context.get("request")
+        return build_employee_selection_payload(obj, request)
+
 
 class EmployeeSerializer(serializers.ModelSerializer):
+    status = serializers.ChoiceField(choices=Employee.STATUS_CHOICES, required=False)
+    progress_override_complete = serializers.BooleanField(required=False)
     application_countries = serializers.ListField(
         child=serializers.CharField(max_length=120),
         required=False,
@@ -1009,6 +1076,7 @@ class EmployeeSerializer(serializers.ModelSerializer):
     travel_status = serializers.SerializerMethodField()
     return_status = serializers.SerializerMethodField()
     urgency_alerts = serializers.SerializerMethodField()
+    selection_state = serializers.SerializerMethodField()
 
     class Meta:
         model = Employee
@@ -1063,11 +1131,14 @@ class EmployeeSerializer(serializers.ModelSerializer):
             "competency_certificate_expires_on",
             "clearance_expires_on",
             "insurance_expires_on",
+            "status",
+            "progress_override_complete",
             "is_active",
             "progress_status",
             "travel_status",
             "return_status",
             "urgency_alerts",
+            "selection_state",
             "registered_by_username",
             "updated_by_username",
             "documents",
@@ -1099,7 +1170,7 @@ class EmployeeSerializer(serializers.ModelSerializer):
             country = (item.get("country") or "").strip()
             years = item.get("years")
             if not country:
-                raise serializers.ValidationError("Each experience entry needs a country.")
+                continue
             try:
                 years_value = int(years)
             except (TypeError, ValueError):
@@ -1109,8 +1180,62 @@ class EmployeeSerializer(serializers.ModelSerializer):
             cleaned.append({"country": country, "years": years_value})
         return cleaned
 
+    def validate_status(self, value):
+        return (value or Employee.STATUS_PENDING).strip()
+
     def validate(self, attrs):
         attrs = super().validate(attrs)
+        if self.instance and getattr(self, "partial", False):
+            status_only_fields = {"status", "is_active"}
+            if attrs and set(attrs.keys()).issubset(status_only_fields):
+                attrs["status"] = attrs.get(
+                    "status",
+                    getattr(self.instance, "status", Employee.STATUS_PENDING),
+                )
+                return attrs
+            required_partial_fields = {
+                "first_name": "First name is required.",
+                "middle_name": "Middle name is required.",
+                "last_name": "Last name is required.",
+                "passport_number": "Passport number is required.",
+                "profession": "Profession is required.",
+                "employment_type": "Type is required.",
+                "religion": "Religion is required.",
+                "marital_status": "Marital status is required.",
+                "residence_country": "Residence country is required.",
+                "contact_person_name": "Contact person name is required.",
+                "contact_person_mobile": "Contact person mobile is required.",
+            }
+            for field_name, message in required_partial_fields.items():
+                if field_name in attrs and not (attrs.get(field_name) or "").strip():
+                    raise serializers.ValidationError({field_name: message})
+            if "date_of_birth" in attrs:
+                if not attrs.get("date_of_birth"):
+                    raise serializers.ValidationError(
+                        {"date_of_birth": "Date of birth is required."}
+                    )
+                age = calculate_age(attrs["date_of_birth"])
+                if age is not None and age < EMPLOYEE_MINIMUM_AGE:
+                    raise serializers.ValidationError(
+                        {
+                            "date_of_birth": f"Employee must be at least {EMPLOYEE_MINIMUM_AGE} years old."
+                        }
+                    )
+            if "application_countries" in attrs and not attrs.get("application_countries"):
+                raise serializers.ValidationError(
+                    {"application_countries": "Select at least one destination country."}
+                )
+            if "skills" in attrs and not attrs.get("skills"):
+                raise serializers.ValidationError({"skills": "Select at least one skill."})
+            if "application_salary" in attrs and attrs.get("application_salary") in (None, ""):
+                raise serializers.ValidationError(
+                    {"application_salary": "Salary is required."}
+                )
+            attrs["status"] = attrs.get(
+                "status",
+                getattr(self.instance, "status", Employee.STATUS_PENDING),
+            )
+            return attrs
         if not (attrs.get("first_name") or getattr(self.instance, "first_name", "")):
             raise serializers.ValidationError({"first_name": "First name is required."})
         if not (attrs.get("middle_name") or getattr(self.instance, "middle_name", "")):
@@ -1119,6 +1244,17 @@ class EmployeeSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError({"last_name": "Last name is required."})
         if not (attrs.get("date_of_birth") or getattr(self.instance, "date_of_birth", None)):
             raise serializers.ValidationError({"date_of_birth": "Date of birth is required."})
+        date_of_birth = attrs.get(
+            "date_of_birth",
+            getattr(self.instance, "date_of_birth", None),
+        )
+        age = calculate_age(date_of_birth)
+        if age is not None and age < EMPLOYEE_MINIMUM_AGE:
+            raise serializers.ValidationError(
+                {
+                    "date_of_birth": f"Employee must be at least {EMPLOYEE_MINIMUM_AGE} years old."
+                }
+            )
         if not (attrs.get("passport_number") or getattr(self.instance, "passport_number", "")):
             raise serializers.ValidationError(
                 {"passport_number": "Passport number is required."}
@@ -1131,6 +1267,9 @@ class EmployeeSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError(
                 {"application_countries": "Select at least one destination country."}
             )
+        skills = attrs.get("skills", getattr(self.instance, "skills", []))
+        if not skills:
+            raise serializers.ValidationError({"skills": "Select at least one skill."})
         profession = attrs.get("profession", getattr(self.instance, "profession", ""))
         if not profession:
             raise serializers.ValidationError({"profession": "Profession is required."})
@@ -1140,6 +1279,58 @@ class EmployeeSerializer(serializers.ModelSerializer):
         )
         if not employment_type:
             raise serializers.ValidationError({"employment_type": "Type is required."})
+        application_salary = attrs.get(
+            "application_salary",
+            getattr(self.instance, "application_salary", None),
+        )
+        if application_salary in (None, ""):
+            raise serializers.ValidationError(
+                {"application_salary": "Salary is required."}
+            )
+        religion = (attrs.get("religion", getattr(self.instance, "religion", "")) or "").strip()
+        if not religion:
+            raise serializers.ValidationError({"religion": "Religion is required."})
+        marital_status = (
+            attrs.get("marital_status", getattr(self.instance, "marital_status", "")) or ""
+        ).strip()
+        if not marital_status:
+            raise serializers.ValidationError(
+                {"marital_status": "Marital status is required."}
+            )
+        residence_country = (
+            attrs.get(
+                "residence_country",
+                getattr(self.instance, "residence_country", ""),
+            )
+            or ""
+        ).strip()
+        if not residence_country:
+            raise serializers.ValidationError(
+                {"residence_country": "Residence country is required."}
+            )
+        contact_person_name = (
+            attrs.get(
+                "contact_person_name",
+                getattr(self.instance, "contact_person_name", ""),
+            )
+            or ""
+        ).strip()
+        if not contact_person_name:
+            raise serializers.ValidationError(
+                {"contact_person_name": "Contact person name is required."}
+            )
+        contact_person_mobile = attrs.get(
+            "contact_person_mobile",
+            getattr(self.instance, "contact_person_mobile", ""),
+        )
+        if not contact_person_mobile:
+            raise serializers.ValidationError(
+                {"contact_person_mobile": "Contact person mobile is required."}
+            )
+        attrs["status"] = attrs.get(
+            "status",
+            getattr(self.instance, "status", Employee.STATUS_PENDING),
+        )
         return attrs
 
     def get_age(self, obj):
@@ -1157,8 +1348,25 @@ class EmployeeSerializer(serializers.ModelSerializer):
     def get_urgency_alerts(self, obj):
         return build_employee_urgency_alerts(obj)
 
+    def get_selection_state(self, obj):
+        request = self.context.get("request")
+        return build_employee_selection_payload(obj, request)
+
 
 class EmployeeDocumentCreateSerializer(serializers.ModelSerializer):
+    def validate_file(self, value):
+        content_type = (getattr(value, "content_type", "") or "").lower()
+        extension = os.path.splitext(getattr(value, "name", "") or "")[1].lower()
+        if extension not in ALLOWED_EMPLOYEE_DOCUMENT_EXTENSIONS:
+            raise serializers.ValidationError(
+                "Only PDF, JPG, JPEG, and PNG files are allowed."
+            )
+        if content_type and content_type not in ALLOWED_EMPLOYEE_DOCUMENT_MIME_TYPES:
+            raise serializers.ValidationError(
+                "Only PDF, JPG, JPEG, and PNG files are allowed."
+            )
+        return value
+
     class Meta:
         model = EmployeeDocument
         fields = ("document_type", "label", "file", "expires_on")
