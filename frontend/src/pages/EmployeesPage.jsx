@@ -178,6 +178,27 @@ function isPdfDocumentUrl(value) {
   return String(value).toLowerCase().includes('.pdf')
 }
 
+function buildDownloadName(label, url) {
+  const safeLabel = (label || 'document')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '') || 'document'
+  const lowerUrl = String(url || '').toLowerCase()
+  if (lowerUrl.includes('.pdf')) return `${safeLabel}.pdf`
+  if (lowerUrl.includes('.png')) return `${safeLabel}.png`
+  if (lowerUrl.includes('.jpeg') || lowerUrl.includes('.jpg')) return `${safeLabel}.jpg`
+  if (lowerUrl.includes('.webp')) return `${safeLabel}.webp`
+  return safeLabel
+}
+
+async function fetchPreviewBlob(url) {
+  const response = await fetch(url, { credentials: 'include' })
+  if (!response.ok) {
+    throw new Error('Could not load file for preview action.')
+  }
+  return response.blob()
+}
+
 function attachmentFileAllowed(file) {
   if (!file) return true
   const lowerName = (file.name || '').toLowerCase()
@@ -565,9 +586,13 @@ export default function EmployeesPage() {
   const [requestedReturns, setRequestedReturns] = useState([])
   const [requestedReturnsLoading, setRequestedReturnsLoading] = useState(false)
   const [previewDocument, setPreviewDocument] = useState(null)
+  const [previewZoom, setPreviewZoom] = useState(1)
+  const [previewOffset, setPreviewOffset] = useState({ x: 0, y: 0 })
+  const [previewDragging, setPreviewDragging] = useState(false)
   const [currentView, setCurrentView] = useState('list')
   const [activeStep, setActiveStep] = useState(0)
   const registrationRef = useRef(null)
+  const previewDragRef = useRef({ startX: 0, startY: 0, originX: 0, originY: 0 })
 
   const canManageEmployees = Boolean(user?.feature_flags?.employees_enabled)
   const readOnly = Boolean(user?.is_read_only || user?.is_suspended)
@@ -679,6 +704,30 @@ export default function EmployeesPage() {
       setSavedTemplate(null)
     }
   }, [])
+
+  useEffect(() => {
+    if (!previewDragging) return undefined
+
+    function handlePointerMove(event) {
+      const { startX, startY, originX, originY } = previewDragRef.current
+      setPreviewOffset({
+        x: originX + (event.clientX - startX),
+        y: originY + (event.clientY - startY)
+      })
+    }
+
+    function handlePointerUp() {
+      setPreviewDragging(false)
+    }
+
+    window.addEventListener('mousemove', handlePointerMove)
+    window.addEventListener('mouseup', handlePointerUp)
+
+    return () => {
+      window.removeEventListener('mousemove', handlePointerMove)
+      window.removeEventListener('mouseup', handlePointerUp)
+    }
+  }, [previewDragging])
 
   useEffect(() => {
     if (currentView !== 'register' || !modalError) return
@@ -1219,6 +1268,146 @@ export default function EmployeesPage() {
     openedEmployeeIsReturned &&
     canManageOrganizationProcesses
   )
+  const openDocumentPreview = useCallback((payload) => {
+    setPreviewDocument(payload)
+    setPreviewZoom(1)
+    setPreviewOffset({ x: 0, y: 0 })
+    setPreviewDragging(false)
+  }, [])
+  const closeDocumentPreview = useCallback(() => {
+    setPreviewDocument(null)
+    setPreviewZoom(1)
+    setPreviewOffset({ x: 0, y: 0 })
+    setPreviewDragging(false)
+  }, [])
+  const handlePreviewZoomIn = useCallback(() => {
+    setPreviewZoom((prev) => Math.min(4, Number((prev + 0.25).toFixed(2))))
+  }, [])
+  const handlePreviewZoomOut = useCallback(() => {
+    setPreviewZoom((prev) => {
+      const next = Math.max(1, Number((prev - 0.25).toFixed(2)))
+      if (next === 1) setPreviewOffset({ x: 0, y: 0 })
+      return next
+    })
+  }, [])
+  const handlePreviewReset = useCallback(() => {
+    setPreviewZoom(1)
+    setPreviewOffset({ x: 0, y: 0 })
+    setPreviewDragging(false)
+  }, [])
+  const handlePreviewDownload = useCallback(async () => {
+    if (!previewDocument?.url || typeof window === 'undefined') return
+    try {
+      const blob = await fetchPreviewBlob(previewDocument.url)
+      const objectUrl = window.URL.createObjectURL(blob)
+      const anchor = document.createElement('a')
+      anchor.href = objectUrl
+      anchor.download = buildDownloadName(previewDocument.label, previewDocument.url)
+      document.body.appendChild(anchor)
+      anchor.click()
+      anchor.remove()
+      window.setTimeout(() => window.URL.revokeObjectURL(objectUrl), 1000)
+    } catch {
+      const anchor = document.createElement('a')
+      anchor.href = previewDocument.url
+      anchor.download = buildDownloadName(previewDocument.label, previewDocument.url)
+      anchor.rel = 'noreferrer'
+      document.body.appendChild(anchor)
+      anchor.click()
+      anchor.remove()
+    }
+  }, [previewDocument])
+  const handlePreviewPrint = useCallback(async () => {
+    if (!previewDocument?.url || typeof window === 'undefined') return
+    let objectUrl = ''
+    try {
+      const blob = await fetchPreviewBlob(previewDocument.url)
+      objectUrl = window.URL.createObjectURL(blob)
+      const printWindow = window.open('', '_blank')
+      if (!printWindow) return
+
+      const escapedTitle = String(previewDocument.label || 'Document preview')
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;')
+
+      if (previewDocument.isImage) {
+        printWindow.document.write(`
+          <!doctype html>
+          <html>
+            <head>
+              <title>${escapedTitle}</title>
+              <style>
+                html, body { margin: 0; background: #111; }
+                body {
+                  display: flex;
+                  align-items: center;
+                  justify-content: center;
+                  min-height: 100vh;
+                }
+                img {
+                  max-width: 100%;
+                  max-height: 100vh;
+                  object-fit: contain;
+                }
+                @media print {
+                  html, body { background: #fff; }
+                }
+              </style>
+            </head>
+            <body>
+              <img src="${objectUrl}" alt="${escapedTitle}" onload="setTimeout(() => window.print(), 150)" />
+            </body>
+          </html>
+        `)
+        printWindow.document.close()
+      } else {
+        printWindow.location.href = objectUrl
+        window.setTimeout(() => {
+          try {
+            printWindow.focus()
+            printWindow.print()
+          } catch {}
+        }, 700)
+      }
+
+      window.setTimeout(() => {
+        if (objectUrl) window.URL.revokeObjectURL(objectUrl)
+      }, 60000)
+    } catch {
+      const fallbackWindow = window.open(previewDocument.url, '_blank')
+      if (!fallbackWindow) return
+      window.setTimeout(() => {
+        try {
+          fallbackWindow.focus()
+          fallbackWindow.print()
+        } catch {}
+      }, 700)
+    }
+  }, [previewDocument])
+  const handlePreviewWheel = useCallback((event) => {
+    if (!previewDocument?.isImage) return
+    event.preventDefault()
+    if (event.deltaY < 0) {
+      setPreviewZoom((prev) => Math.min(4, Number((prev + 0.2).toFixed(2))))
+      return
+    }
+    setPreviewZoom((prev) => {
+      const next = Math.max(1, Number((prev - 0.2).toFixed(2)))
+      if (next === 1) setPreviewOffset({ x: 0, y: 0 })
+      return next
+    })
+  }, [previewDocument])
+  const handlePreviewPointerDown = useCallback((event) => {
+    if (!previewDocument?.isImage || previewZoom <= 1) return
+    previewDragRef.current = {
+      startX: event.clientX,
+      startY: event.clientY,
+      originX: previewOffset.x,
+      originY: previewOffset.y
+    }
+    setPreviewDragging(true)
+  }, [previewDocument, previewOffset, previewZoom])
 
   return (
     <section className="dashboard-panel employees-page">
@@ -1970,7 +2159,7 @@ export default function EmployeesPage() {
               <div className="employee-summary-card">
                 <h3>Choose employee</h3>
                 <label>
-                  Search eligible employed employees
+                  Search employed employees 
                   <input
                     value={returnRequestSearch}
                     onChange={(event) => setReturnRequestSearch(event.target.value)}
@@ -2085,25 +2274,36 @@ export default function EmployeesPage() {
                       {[openedEmployeeReturnRequest?.evidence_file_1_url, openedEmployeeReturnRequest?.evidence_file_2_url, openedEmployeeReturnRequest?.evidence_file_3_url]
                         .filter(Boolean)
                         .map((url, index) => (
-                          <button
+                          <div
                             key={`return-request-evidence-${index}`}
-                            type="button"
                             className="employee-modal-document-card"
+                            role="button"
+                            tabIndex={0}
                             title={`Evidence ${index + 1}`}
                             onClick={() =>
-                              setPreviewDocument({
+                              openDocumentPreview({
                                 url,
                                 label: `Evidence ${index + 1}`,
                                 isImage: !isPdfDocumentUrl(url),
                                 isPdf: isPdfDocumentUrl(url)
                               })
                             }
+                            onKeyDown={(event) => {
+                              if (event.key === 'Enter' || event.key === ' ') {
+                                event.preventDefault()
+                                openDocumentPreview({
+                                  url,
+                                  label: `Evidence ${index + 1}`,
+                                  isImage: !isPdfDocumentUrl(url),
+                                  isPdf: isPdfDocumentUrl(url)
+                                })
+                              }
+                            }}
                           >
                             <div className="employee-modal-document-tile">
                               {isPdfDocumentUrl(url) ? <span>PDF</span> : <img src={url} alt={`Evidence ${index + 1}`} />}
                             </div>
-                            <strong>{`Evidence ${index + 1}`}</strong>
-                          </button>
+                          </div>
                         ))}
                       {![openedEmployeeReturnRequest?.evidence_file_1_url, openedEmployeeReturnRequest?.evidence_file_2_url, openedEmployeeReturnRequest?.evidence_file_3_url].some(Boolean) ? (
                         <span className="muted-text">No evidence uploaded.</span>
@@ -2167,19 +2367,31 @@ export default function EmployeesPage() {
                         <span className="muted-text">No documents uploaded.</span>
                       ) : (
                         openedEmployee.documents.map((document) => (
-                          <button
+                          <div
                             key={document.id}
-                            type="button"
                             className="employee-modal-document-card"
+                            role="button"
+                            tabIndex={0}
                             title={fileLabel(document, attachmentLabels)}
                             onClick={() =>
-                              setPreviewDocument({
+                              openDocumentPreview({
                                 url: document.file_url,
                                 label: fileLabel(document, attachmentLabels),
                                 isImage: isImageDocument(document),
                                 isPdf: isPdfDocumentUrl(document.file_url)
                               })
                             }
+                            onKeyDown={(event) => {
+                              if (event.key === 'Enter' || event.key === ' ') {
+                                event.preventDefault()
+                                openDocumentPreview({
+                                  url: document.file_url,
+                                  label: fileLabel(document, attachmentLabels),
+                                  isImage: isImageDocument(document),
+                                  isPdf: isPdfDocumentUrl(document.file_url)
+                                })
+                              }
+                            }}
                           >
                             <div className="employee-modal-document-tile">
                               {isImageDocument(document) ? (
@@ -2188,8 +2400,7 @@ export default function EmployeesPage() {
                                 <span>{fileLabel(document, attachmentLabels).slice(0, 2).toUpperCase()}</span>
                               )}
                             </div>
-                            <strong>{fileLabel(document, attachmentLabels)}</strong>
-                          </button>
+                          </div>
                         ))
                       )}
                     </div>
@@ -2211,25 +2422,36 @@ export default function EmployeesPage() {
                           {[openedEmployeeReturnRequest.evidence_file_1_url, openedEmployeeReturnRequest.evidence_file_2_url, openedEmployeeReturnRequest.evidence_file_3_url]
                             .filter(Boolean)
                             .map((url, index) => (
-                              <button
+                              <div
                                 key={`last-return-request-evidence-${index}`}
-                                type="button"
                                 className="employee-modal-document-card"
+                                role="button"
+                                tabIndex={0}
                                 title={`Evidence ${index + 1}`}
                                 onClick={() =>
-                                  setPreviewDocument({
+                                  openDocumentPreview({
                                     url,
                                     label: `Evidence ${index + 1}`,
                                     isImage: !isPdfDocumentUrl(url),
                                     isPdf: isPdfDocumentUrl(url)
                                   })
                                 }
+                                onKeyDown={(event) => {
+                                  if (event.key === 'Enter' || event.key === ' ') {
+                                    event.preventDefault()
+                                    openDocumentPreview({
+                                      url,
+                                      label: `Evidence ${index + 1}`,
+                                      isImage: !isPdfDocumentUrl(url),
+                                      isPdf: isPdfDocumentUrl(url)
+                                    })
+                                  }
+                                }}
                               >
                                 <div className="employee-modal-document-tile">
                                   {isPdfDocumentUrl(url) ? <span>PDF</span> : <img src={url} alt={`Evidence ${index + 1}`} />}
                                 </div>
-                                <strong>{`Evidence ${index + 1}`}</strong>
-                              </button>
+                              </div>
                             ))}
                         </div>
                       </>
@@ -2254,7 +2476,7 @@ export default function EmployeesPage() {
         </div>
       ) : null}
       {previewDocument ? (
-        <div className="document-preview-backdrop" role="presentation" onClick={() => setPreviewDocument(null)}>
+        <div className="document-preview-backdrop" role="presentation" onClick={closeDocumentPreview}>
           <div
             className="document-preview-modal"
             role="dialog"
@@ -2270,22 +2492,46 @@ export default function EmployeesPage() {
                 </p>
               </div>
               <div className="document-preview-actions">
-                <a
+                <button
+                  type="button"
                   className="btn-secondary document-preview-download"
-                  href={previewDocument.url}
-                  target="_blank"
-                  rel="noreferrer"
+                  onClick={handlePreviewDownload}
                 >
-                  Open in new tab
-                </a>
-                <button type="button" className="btn-secondary" onClick={() => setPreviewDocument(null)}>
+                  Download
+                </button>
+                <button type="button" className="btn-secondary" onClick={handlePreviewPrint}>
+                  Print
+                </button>
+                {previewDocument.isImage ? (
+                  <>
+                    <button type="button" className="btn-secondary" onClick={handlePreviewZoomOut} disabled={previewZoom <= 1}>
+                      Zoom out
+                    </button>
+                    <button type="button" className="btn-secondary" onClick={handlePreviewZoomIn} disabled={previewZoom >= 4}>
+                      Zoom in
+                    </button>
+                    <button type="button" className="btn-secondary" onClick={handlePreviewReset} disabled={previewZoom === 1 && previewOffset.x === 0 && previewOffset.y === 0}>
+                      Reset
+                    </button>
+                  </>
+                ) : null}
+                <button type="button" className="btn-secondary" onClick={closeDocumentPreview}>
                   Close
                 </button>
               </div>
             </div>
-            <div className="document-preview-canvas">
+            <div
+              className={`document-preview-canvas${previewZoom > 1 ? ' is-zoomed' : ''}${previewDragging ? ' is-dragging' : ''}`}
+              onWheel={handlePreviewWheel}
+              onMouseDown={handlePreviewPointerDown}
+            >
               {previewDocument.isImage ? (
-                <img src={previewDocument.url} alt={previewDocument.label} />
+                <img
+                  src={previewDocument.url}
+                  alt={previewDocument.label}
+                  draggable={false}
+                  style={{ transform: `translate(${previewOffset.x}px, ${previewOffset.y}px) scale(${previewZoom})` }}
+                />
               ) : previewDocument.isPdf ? (
                 <iframe
                   src={previewDocument.url}

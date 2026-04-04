@@ -1624,11 +1624,11 @@ button:disabled {
 }
 
 .employee-modal-document-card {
-  min-width: 50px;
-  max-width: 50px;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
+  width: 75px;
+  min-width: 75px;
+  max-width: 75px;
+  height: 75px;
+  display: block;
   padding: 0;
   border: none;
   background: transparent;
@@ -1639,8 +1639,8 @@ button:disabled {
 }
 
 .employee-modal-document-tile {
-  width: 50px;
-  height: 50px;
+  width: 75px;
+  height: 75px;
   border-radius: 12px;
   overflow: hidden;
   display: flex;
@@ -1660,10 +1660,7 @@ button:disabled {
 }
 
 .employee-modal-document-card strong {
-  font-size: 0.68rem;
-  line-height: 1.2;
-  word-break: break-word;
-  color: #475569;
+  display: none;
 }
 
 .document-preview-backdrop {
