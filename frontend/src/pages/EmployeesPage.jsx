@@ -72,7 +72,8 @@ const EMPLOYEE_VIEW_TABS = [
   { id: 'register', label: 'Register employee' },
   { id: 'selected', label: 'Selected Employees' },
   { id: 'under-process', label: 'Under process Employees' },
-  { id: 'employed', label: 'Employed' }
+  { id: 'employed', label: 'Employed' },
+  { id: 'returned', label: 'Returned list' }
 ]
 const CARD_PREVIEW_DOCUMENTS = [
   { key: 'portrait', label: 'Portrait', types: ['portrait_photo'] },
@@ -172,6 +173,11 @@ function isImageDocument(document) {
   return ['.jpg', '.jpeg', '.png', '.webp', '.gif'].some((extension) => value.includes(extension))
 }
 
+function isPdfDocumentUrl(value) {
+  if (!value) return false
+  return String(value).toLowerCase().includes('.pdf')
+}
+
 function attachmentFileAllowed(file) {
   if (!file) return true
   const lowerName = (file.name || '').toLowerCase()
@@ -195,6 +201,18 @@ function employeeProfilePhoto(employee) {
   return findEmployeeDocument(employee, ['portrait_photo', 'full_photo', 'passport_photo', 'passport_document'])
 }
 
+function isEmployeeReturned(employee) {
+  return Boolean(employee?.returned_from_employment)
+}
+
+function isEmployeeEmployed(employee) {
+  return Boolean(
+    !employee?.returned_from_employment &&
+    employee?.did_travel &&
+    Number(employee?.progress_status?.overall_completion ?? 0) >= 100
+  )
+}
+
 function prettyStatus(value, fallback = '--') {
   if (!value) return fallback
   if (value === '--') return value
@@ -202,12 +220,16 @@ function prettyStatus(value, fallback = '--') {
 }
 
 function employeeAvailability(employee) {
+  if (isEmployeeReturned(employee)) return 'Returned'
+  if (isEmployeeEmployed(employee)) return 'Employed'
   if (employee.selection_state?.selection?.status === 'under_process') return 'Under process'
   if (employee.travel_status === 'travelled') return 'Not available'
   return employee.is_active ? 'Available' : 'Not available'
 }
 
 function employeeStatusLabel(employee) {
+  if (isEmployeeReturned(employee)) return 'Returned'
+  if (isEmployeeEmployed(employee)) return 'Employed'
   if (employee.selection_state?.selection?.status === 'under_process') return 'Under process'
   if (employee.status === 'suspended') return 'Suspended'
   if (employee.status === 'rejected') return 'Rejected'
@@ -216,10 +238,31 @@ function employeeStatusLabel(employee) {
 }
 
 function employeeStatusBadgeClass(employee) {
+  if (isEmployeeReturned(employee)) return 'badge-muted'
+  if (isEmployeeEmployed(employee)) return 'badge-success'
   if (employee.selection_state?.selection?.status === 'under_process') return 'badge-warning'
   if (employee.status === 'approved') return 'badge-success'
   if (employee.status === 'pending') return 'badge-warning'
   return 'badge-muted'
+}
+
+function employedEmployeesHelpText() {
+  return 'Employees who already travelled and reached 100% progress are listed here.'
+}
+
+function returnedEmployeesHelpText() {
+  return 'Employees whose employment has already been discontinued and recorded as returned are listed here.'
+}
+
+function formatDateTime(value) {
+  if (!value) return '--'
+  const parsed = new Date(value)
+  if (Number.isNaN(parsed.getTime())) return value
+  return parsed.toLocaleString()
+}
+
+function employedCommissionLabel(employee) {
+  return employee?.did_travel ? 'Unsettled commission' : 'Commission pending travel'
 }
 
 function progressTone(progress) {
@@ -271,10 +314,6 @@ function selectedEmployeesHelpText(user) {
 
 function underProcessEmployeesHelpText(user) {
   return `Employees under process for ${user?.first_name || user?.username || 'this agent'} are listed here.`
-}
-
-function employedEmployeesHelpText() {
-  return 'Employees who already travelled and reached 100% progress are listed here.'
 }
 
 function resolvedProcessAgentId(employee, processAgentAssignments, agentOptions) {
@@ -514,6 +553,18 @@ export default function EmployeesPage() {
   const [savedTemplate, setSavedTemplate] = useState(null)
   const [processAgentAssignments, setProcessAgentAssignments] = useState({})
   const [openedEmployeeId, setOpenedEmployeeId] = useState(null)
+  const [openedEmployeeMode, setOpenedEmployeeMode] = useState('full')
+  const [returnRequestModalOpen, setReturnRequestModalOpen] = useState(false)
+  const [returnRequestLoading, setReturnRequestLoading] = useState(false)
+  const [returnRequestError, setReturnRequestError] = useState('')
+  const [returnRequestSearch, setReturnRequestSearch] = useState('')
+  const [returnRequestEmployees, setReturnRequestEmployees] = useState([])
+  const [selectedReturnEmployeeId, setSelectedReturnEmployeeId] = useState('')
+  const [returnRequestRemark, setReturnRequestRemark] = useState('')
+  const [returnRequestEvidenceFiles, setReturnRequestEvidenceFiles] = useState([null, null, null])
+  const [requestedReturns, setRequestedReturns] = useState([])
+  const [requestedReturnsLoading, setRequestedReturnsLoading] = useState(false)
+  const [previewDocument, setPreviewDocument] = useState(null)
   const [currentView, setCurrentView] = useState('list')
   const [activeStep, setActiveStep] = useState(0)
   const registrationRef = useRef(null)
@@ -537,10 +588,11 @@ export default function EmployeesPage() {
       const data = await employeesService.fetchEmployees({
         page,
         q: filters.q,
-        isActive: currentView === 'selected' || currentView === 'under-process' || currentView === 'employed' ? '' : filters.isActive,
+        isActive: currentView === 'selected' || currentView === 'under-process' || currentView === 'employed' || currentView === 'returned' ? '' : filters.isActive,
         selectedScope: currentView === 'selected' ? selectedScope : '',
         processScope: currentView === 'under-process' ? (isAgentSideUser ? 'mine' : 'organization') : '',
-        employedScope: currentView === 'employed' ? (isAgentSideUser ? 'mine' : 'organization') : ''
+        employedScope: currentView === 'employed' ? (isAgentSideUser ? 'mine' : 'organization') : '',
+        returnedScope: currentView === 'returned' ? (isAgentSideUser ? 'mine' : 'organization') : ''
       })
       setEmployeesData(data)
     } catch (err) {
@@ -567,6 +619,55 @@ export default function EmployeesPage() {
       setLoading(false)
     }
   }, [canManageEmployees, loadEmployees, loadFormOptions])
+
+  const loadReturnRequestEmployees = useCallback(async (search = '') => {
+    setReturnRequestLoading(true)
+    try {
+      const data = await employeesService.fetchEmployees({
+        page: 1,
+        q: search,
+        employedScope: isAgentSideUser ? 'mine' : 'organization'
+      })
+      setReturnRequestEmployees(
+        (data.results || []).filter((employee) => employee.return_request?.status !== 'pending')
+      )
+    } catch (err) {
+      setPageError(err.message || 'Could not load employed employees')
+      setReturnRequestEmployees([])
+    } finally {
+      setReturnRequestLoading(false)
+    }
+  }, [isAgentSideUser])
+
+  const loadRequestedReturns = useCallback(async () => {
+    if (currentView !== 'returned') {
+      setRequestedReturns([])
+      return
+    }
+    setRequestedReturnsLoading(true)
+    try {
+      const data = await employeesService.fetchEmployees({
+        page: 1,
+        q: filters.q,
+        employedScope: isAgentSideUser ? 'mine' : 'organization'
+      })
+      setRequestedReturns((data.results || []).filter((employee) => employee.return_request?.status === 'pending'))
+    } catch (err) {
+      setPageError(err.message || 'Could not load requested returns')
+      setRequestedReturns([])
+    } finally {
+      setRequestedReturnsLoading(false)
+    }
+  }, [currentView, filters.q, isAgentSideUser])
+
+  useEffect(() => {
+    if (!canManageEmployees || currentView !== 'returned') {
+      setRequestedReturns([])
+      setRequestedReturnsLoading(false)
+      return
+    }
+    loadRequestedReturns()
+  }, [canManageEmployees, currentView, loadRequestedReturns])
 
   useEffect(() => {
     if (typeof window === 'undefined') return
@@ -805,6 +906,132 @@ export default function EmployeesPage() {
     }
   }
 
+  const openReturnRequestModal = async () => {
+    setReturnRequestModalOpen(true)
+    setReturnRequestError('')
+    setReturnRequestSearch('')
+    setSelectedReturnEmployeeId('')
+    setReturnRequestRemark('')
+    setReturnRequestEvidenceFiles([null, null, null])
+    await loadReturnRequestEmployees('')
+  }
+
+  const closeReturnRequestModal = () => {
+    setReturnRequestModalOpen(false)
+    setReturnRequestError('')
+    setReturnRequestSearch('')
+    setSelectedReturnEmployeeId('')
+    setReturnRequestRemark('')
+    setReturnRequestEvidenceFiles([null, null, null])
+  }
+
+  const handleReturnRequestEvidencePick = (index, file) => {
+    if (file && !attachmentFileAllowed(file)) {
+      setReturnRequestError('Attachments must be PDF, JPG, JPEG, or PNG files only.')
+      return
+    }
+    setReturnRequestError('')
+    setReturnRequestEvidenceFiles((prev) => prev.map((item, itemIndex) => itemIndex === index ? file || null : item))
+  }
+
+  const handleSubmitReturnRequest = async () => {
+    if (!selectedReturnEmployeeId) {
+      setReturnRequestError('Choose an employed employee first.')
+      return
+    }
+    if (!returnRequestRemark.trim()) {
+      setReturnRequestError('Add a remark explaining the reason for initiating the return.')
+      return
+    }
+    if (!returnRequestEvidenceFiles.some(Boolean)) {
+      setReturnRequestError('Attach at least one evidence document.')
+      return
+    }
+
+    setReturnRequestLoading(true)
+    setReturnRequestError('')
+    setNotice('')
+    try {
+      await employeesService.createEmployeeReturnRequest(selectedReturnEmployeeId, {
+        remark: returnRequestRemark.trim(),
+        evidenceFiles: returnRequestEvidenceFiles.filter(Boolean)
+      })
+      setNotice('Return request submitted successfully.')
+      closeReturnRequestModal()
+      await Promise.all([loadEmployees(), loadRequestedReturns()])
+    } catch (err) {
+      setReturnRequestError(err.message || 'Could not create return request')
+    } finally {
+      setReturnRequestLoading(false)
+    }
+  }
+
+  const handleApproveEmploymentReturn = async (employee) => {
+    if (!window.confirm('Acknowledge this return request and move the employee to Returned list?')) return
+    setActionBusyId(employee.id)
+    setPageError('')
+    setNotice('')
+    try {
+      await employeesService.approveEmployeeReturnRequest(employee.id)
+      setNotice('Return request approved and employee moved to Returned list.')
+      await Promise.all([loadEmployees(), loadRequestedReturns()])
+    } catch (err) {
+      setPageError(err.message || 'Could not approve employee return')
+    } finally {
+      setActionBusyId(null)
+    }
+  }
+
+  const handleRefuseEmployeeReturnRequest = async (employee) => {
+    if (!window.confirm('Refuse this return request and keep the employee in the Employed list?')) return
+    setActionBusyId(employee.id)
+    setPageError('')
+    setNotice('')
+    try {
+      await employeesService.refuseEmployeeReturnRequest(employee.id)
+      setNotice('Return request refused.')
+      await Promise.all([loadEmployees(), loadRequestedReturns()])
+    } catch (err) {
+      setPageError(err.message || 'Could not refuse return request')
+    } finally {
+      setActionBusyId(null)
+    }
+  }
+
+  const handleCancelEmployeeReturnRequest = async (employee) => {
+    if (!window.confirm('Cancel this return request?')) return
+    setActionBusyId(employee.id)
+    setPageError('')
+    setNotice('')
+    try {
+      await employeesService.cancelEmployeeReturnRequest(employee.id)
+      setNotice('Return request cancelled.')
+      await Promise.all([loadEmployees(), loadRequestedReturns()])
+    } catch (err) {
+      setPageError(err.message || 'Could not cancel return request')
+    } finally {
+      setActionBusyId(null)
+    }
+  }
+
+  const handleReinstateEmployeeEmployment = async (employee) => {
+    if (!window.confirm('Move this employee from Returned list back to Employed?')) return
+    setActionBusyId(employee.id)
+    setPageError('')
+    setNotice('')
+    try {
+      await employeesService.updateEmployee(employee.id, {
+        returned_from_employment: false
+      })
+      setNotice('Employee moved back to Employed.')
+      await Promise.all([loadEmployees(), loadRequestedReturns()])
+    } catch (err) {
+      setPageError(err.message || 'Could not restore employee to employed')
+    } finally {
+      setActionBusyId(null)
+    }
+  }
+
   const handleAvailabilityAction = async (employee, nextStatus, actionLabel) => {
     setActionBusyId(employee.id)
     setPageError('')
@@ -961,14 +1188,37 @@ export default function EmployeesPage() {
   const total = employeesData?.count ?? employees.length
   const hasNext = Boolean(employeesData?.next)
   const hasPrev = Boolean(employeesData?.previous)
+  const modalEmployees = [...visibleEmployees, ...requestedReturns]
   const openedEmployee = openedEmployeeId
-    ? visibleEmployees.find((employee) => employee.id === openedEmployeeId) || null
+    ? modalEmployees.find((employee) => employee.id === openedEmployeeId) || null
     : null
   const visibleTabs = EMPLOYEE_VIEW_TABS.filter((tab) => {
     if (tab.id === 'selected') return isAgentSideUser
     return true
   })
   const openedEmployeeProgress = buildProgressDonut(openedEmployee?.progress_status)
+  const openedEmployeeIsReturned = isEmployeeReturned(openedEmployee)
+  const openedEmployeeIsEmployed = isEmployeeEmployed(openedEmployee)
+  const openedEmployeeReturnRequest = openedEmployee?.return_request || null
+  const canApproveOpenedEmployeeReturn = Boolean(
+    openedEmployee &&
+    !openedEmployeeIsReturned &&
+    openedEmployeeReturnRequest?.status === 'pending' &&
+    canManageOrganizationProcesses
+  )
+  const canRefuseOpenedEmployeeReturn = canApproveOpenedEmployeeReturn
+  const canCancelOpenedEmployeeReturnRequest = Boolean(
+    openedEmployee &&
+    !openedEmployeeIsReturned &&
+    openedEmployeeReturnRequest?.status === 'pending' &&
+    isAgentSideUser &&
+    openedEmployee.selection_state?.selected_by_current_agent
+  )
+  const canReinstateOpenedEmployeeEmployment = Boolean(
+    openedEmployee &&
+    openedEmployeeIsReturned &&
+    canManageOrganizationProcesses
+  )
 
   return (
     <section className="dashboard-panel employees-page">
@@ -1336,6 +1586,8 @@ export default function EmployeesPage() {
           <h2>
             {currentView === 'employed'
               ? 'Employed'
+              : currentView === 'returned'
+              ? 'Returned list'
               : currentView === 'under-process'
               ? 'Under process Employees'
               : currentView === 'selected'
@@ -1343,15 +1595,100 @@ export default function EmployeesPage() {
                 : 'Employee records'}
           </h2>
           {!loading ? (
-            <p className="muted-text" style={{ marginBottom: 12 }}>
-              {currentView === 'employed'
-                ? `${employedEmployeesHelpText()} Showing ${visibleEmployees.length} of ${total} employees.`
-                : currentView === 'under-process'
-                ? `${underProcessEmployeesHelpText(user)} Showing ${visibleEmployees.length} of ${total} employees.`
-                : currentView === 'selected'
-                ? `${selectedEmployeesHelpText(user)} Showing ${visibleEmployees.length} of ${total} employees.`
-                : `Showing ${visibleEmployees.length} of ${total} employees.`}
-            </p>
+            currentView === 'returned' ? (
+              <div className="returned-list-surface">
+                <div className="returned-list-intro">
+                  <p className="muted-text" style={{ marginBottom: 0 }}>
+                    {`${returnedEmployeesHelpText()} Showing ${visibleEmployees.length} of ${total} employees.`}
+                  </p>
+                  <button type="button" className="btn-secondary" onClick={openReturnRequestModal} disabled={readOnly}>
+                    +
+                  </button>
+                </div>
+                <div className="returned-request-surface">
+                  <h3>Requested returns</h3>
+                    {requestedReturnsLoading ? (
+                      <p className="muted-text">Loading requested returns...</p>
+                    ) : requestedReturns.length === 0 ? (
+                      <p className="muted-text">No pending return requests right now.</p>
+                    ) : (
+                      <div className="returned-request-list">
+                        {requestedReturns.map((employee) => {
+                          const canApproveHere = canManageOrganizationProcesses
+                          const canCancelHere = isAgentSideUser && employee.selection_state?.selected_by_current_agent
+                          return (
+                            <div key={`requested-return-${employee.id}`} className="returned-request-item">
+                              <button
+                                type="button"
+                                className="returned-request-item-main"
+                                onClick={() => {
+                                  setOpenedEmployeeMode('request')
+                                  setOpenedEmployeeId(employee.id)
+                                }}
+                              >
+                                <span>
+                                  <strong>{employee.full_name}</strong>
+                                  <span className="return-request-employee-meta">
+                                    {employee.profession || employee.professional_title || '--'}
+                                  </span>
+                                  <span className="return-request-employee-meta">
+                                    Requested by {employee.return_request?.requested_by_username || '--'} on {formatDateTime(employee.return_request?.requested_at)}
+                                  </span>
+                                </span>
+                                <span className="return-request-employee-state">
+                                  {prettyStatus(employee.return_request?.status)}
+                                </span>
+                              </button>
+                              <div className="returned-request-actions">
+                                {canApproveHere ? (
+                                  <>
+                                    <button
+                                      type="button"
+                                      className="btn-danger"
+                                      onClick={() => handleApproveEmploymentReturn(employee)}
+                                      disabled={readOnly || actionBusyId === employee.id}
+                                    >
+                                      {actionBusyId === employee.id ? 'Saving...' : 'Acknowledge return'}
+                                    </button>
+                                    <button
+                                      type="button"
+                                      className="btn-secondary"
+                                      onClick={() => handleRefuseEmployeeReturnRequest(employee)}
+                                      disabled={readOnly || actionBusyId === employee.id}
+                                    >
+                                      {actionBusyId === employee.id ? 'Saving...' : 'Refuse request'}
+                                    </button>
+                                  </>
+                                ) : null}
+                                {canCancelHere ? (
+                                  <button
+                                    type="button"
+                                    className="btn-secondary"
+                                    onClick={() => handleCancelEmployeeReturnRequest(employee)}
+                                    disabled={readOnly || actionBusyId === employee.id}
+                                  >
+                                    {actionBusyId === employee.id ? 'Saving...' : 'Cancel request'}
+                                  </button>
+                                ) : null}
+                              </div>
+                            </div>
+                          )
+                        })}
+                      </div>
+                    )}
+                </div>
+              </div>
+            ) : (
+              <p className="muted-text" style={{ marginBottom: 12 }}>
+                {currentView === 'employed'
+                  ? `${employedEmployeesHelpText()} Showing ${visibleEmployees.length} of ${total} employees.`
+                  : currentView === 'under-process'
+                  ? `${underProcessEmployeesHelpText(user)} Showing ${visibleEmployees.length} of ${total} employees.`
+                  : currentView === 'selected'
+                  ? `${selectedEmployeesHelpText(user)} Showing ${visibleEmployees.length} of ${total} employees.`
+                  : `Showing ${visibleEmployees.length} of ${total} employees.`}
+              </p>
+            )
           ) : null}
           {loading ? (
             <p className="muted-text">Loading employees...</p>
@@ -1359,6 +1696,8 @@ export default function EmployeesPage() {
             <p className="muted-text">
               {currentView === 'employed'
                 ? 'No employed employees found yet.'
+                : currentView === 'returned'
+                ? 'No returned employees found yet.'
                 : currentView === 'under-process'
                 ? 'No employees are under process for this agent yet.'
                 : currentView === 'selected'
@@ -1375,6 +1714,8 @@ export default function EmployeesPage() {
                 const isSelected = Boolean(selectionState.is_selected)
                 const isSelectedByCurrentAgent = Boolean(selectionState.selected_by_current_agent)
                 const isUnderProcess = selection?.status === 'under_process'
+                const isEmployedEmployee = isEmployeeEmployed(employee)
+                const isReturnedEmployee = isEmployeeReturned(employee)
                 const assignedAgentId = resolvedProcessAgentId(
                   employee,
                   processAgentAssignments,
@@ -1385,12 +1726,16 @@ export default function EmployeesPage() {
                   <article
                     key={employee.id}
                     className={`employee-card${isOpened ? ' is-open' : ''}`}
-                    onClick={() => setOpenedEmployeeId((prev) => prev === employee.id ? null : employee.id)}
+                    onClick={() => {
+                      setOpenedEmployeeMode('full')
+                      setOpenedEmployeeId((prev) => prev === employee.id ? null : employee.id)
+                    }}
                     role="button"
                     tabIndex={0}
                     onKeyDown={(event) => {
                       if (event.key === 'Enter' || event.key === ' ') {
                         event.preventDefault()
+                        setOpenedEmployeeMode('full')
                         setOpenedEmployeeId((prev) => prev === employee.id ? null : employee.id)
                       }
                     }}
@@ -1411,7 +1756,8 @@ export default function EmployeesPage() {
                         </div>
                       </div>
                       <div className="employee-card-header-meta">
-                        {isSelected ? <span className="badge badge-success">Selected</span> : null}
+                        {currentView === 'selected' && isSelected ? <span className="badge badge-success">Selected</span> : null}
+                        {employee.return_request?.status === 'pending' ? <span className="badge badge-warning">Return requested</span> : null}
                         <span className={`badge ${employeeStatusBadgeClass(employee)}`}>{employeeStatusLabel(employee)}</span>
                       </div>
                     </div>
@@ -1422,6 +1768,9 @@ export default function EmployeesPage() {
                         {selection.selected_by_username ? ` via ${selection.selected_by_username}` : ''}
                       </p>
                     ) : null}
+                    {employee.return_request?.status === 'approved' && employee.return_request?.remark ? (
+                      <p className="muted-text">Return remark: {employee.return_request.remark}</p>
+                    ) : null}
                     <p className="muted-text">Progress {employee.progress_status?.overall_completion ?? 0}% | Travel {prettyStatus(employee.travel_status, 'pending')} | Return {prettyStatus(employee.return_status)}</p>
                     {employee.urgency_alerts?.length ? (
                       <div className="employee-alert-list">
@@ -1430,6 +1779,15 @@ export default function EmployeesPage() {
                             {alert.label} {alert.days_remaining < 0 ? 'expired' : `${alert.days_remaining}d`}
                           </span>
                         ))}
+                      </div>
+                    ) : null}
+                    {(isEmployedEmployee || isReturnedEmployee) ? (
+                      <div className="employee-employed-summary">
+                        <div className="employee-employed-block">
+                          <strong>Commission</strong>
+                          <span className="badge badge-warning">{employedCommissionLabel(employee)}</span>
+                          <p className="muted-text">Collection from the agent side to the organization is a future settlement concept.</p>
+                        </div>
                       </div>
                     ) : null}
                     <div className="employee-card-preview-strip">
@@ -1456,7 +1814,9 @@ export default function EmployeesPage() {
                                 )}
                                 <div className="employee-doc-preview-actions">
                                   <a href={document.file_url} target="_blank" rel="noreferrer">Open</a>
-                                  <button type="button" className="link-button" onClick={() => handleDeleteDocument(document.id)} disabled={readOnly}>Remove</button>
+                                  {!isEmployedEmployee && !isReturnedEmployee ? (
+                                    <button type="button" className="link-button" onClick={() => handleDeleteDocument(document.id)} disabled={readOnly}>Remove</button>
+                                  ) : null}
                                 </div>
                               </div>
                             ) : null}
@@ -1464,6 +1824,7 @@ export default function EmployeesPage() {
                         )
                       })}
                     </div>
+                    {!isEmployedEmployee && !isReturnedEmployee ? (
                     <div className="employee-card-actions">
                       {!isUnderProcess ? (
                         <button
@@ -1576,8 +1937,9 @@ export default function EmployeesPage() {
                       <button type="button" className="btn-secondary" onClick={(event) => { event.stopPropagation(); handleEdit(employee.id) }} disabled={busyEmployeeId === employee.id || readOnly || (isAgentSideUser && !isSelectedByCurrentAgent)}>
                         {busyEmployeeId === employee.id ? 'Loading...' : 'Edit'}
                       </button>
-                      <button type="button" className="btn-danger" onClick={(event) => { event.stopPropagation(); handleDelete(employee) }} disabled={readOnly || isAgentSideUser}>Delete</button>
+                      <button type="button" className="btn-danger" onClick={(event) => { event.stopPropagation(); handleDelete(employee) }} disabled={readOnly || isAgentSideUser || isUnderProcess}>Delete</button>
                     </div>
+                    ) : null}
                   </article>
                 )
               })}
@@ -1592,6 +1954,92 @@ export default function EmployeesPage() {
           ) : null}
         </div>
       )}
+      {returnRequestModalOpen ? (
+        <div className="employee-review-backdrop" role="presentation" onClick={closeReturnRequestModal}>
+          <div className="employee-review-modal" role="dialog" aria-modal="true" aria-label="Create return request" onClick={(event) => event.stopPropagation()}>
+            <div className="employee-review-header">
+              <div>
+                <p className="employee-modal-eyebrow">Returned list</p>
+                <h2>Create return request</h2>
+                <p className="muted-text">Initiate a return from the employed employees and attach at least one evidence file.</p>
+              </div>
+              <button type="button" className="btn-secondary" onClick={closeReturnRequestModal}>Close</button>
+            </div>
+            {returnRequestError ? <p className="error-message employee-modal-error">{returnRequestError}</p> : null}
+            <div className="employee-summary-grid">
+              <div className="employee-summary-card">
+                <h3>Choose employee</h3>
+                <label>
+                  Search eligible employed employees
+                  <input
+                    value={returnRequestSearch}
+                    onChange={(event) => setReturnRequestSearch(event.target.value)}
+                    placeholder="Search employed employee"
+                  />
+                </label>
+                <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
+                  <button type="button" className="btn-secondary" onClick={() => loadReturnRequestEmployees(returnRequestSearch)} disabled={returnRequestLoading}>
+                    {returnRequestLoading ? 'Loading...' : 'Search'}
+                  </button>
+                </div>
+                <div className="return-request-employee-list">
+                  {returnRequestEmployees.map((employee) => (
+                    <button
+                      key={`return-request-${employee.id}`}
+                      type="button"
+                      className={`return-request-employee-option${selectedReturnEmployeeId === String(employee.id) ? ' is-selected' : ''}`}
+                      onClick={() => setSelectedReturnEmployeeId(String(employee.id))}
+                      aria-pressed={selectedReturnEmployeeId === String(employee.id)}
+                    >
+                      <span>
+                        <strong>{employee.full_name}</strong>
+                        <span className="return-request-employee-meta">
+                          {employee.profession || employee.professional_title || '--'}
+                        </span>
+                      </span>
+                      <span className="return-request-employee-state">
+                        {selectedReturnEmployeeId === String(employee.id) ? 'Selected' : 'Select'}
+                      </span>
+                    </button>
+                  ))}
+                  {!returnRequestLoading && returnRequestEmployees.length === 0 ? (
+                    <span className="muted-text">No eligible employed employees found.</span>
+                  ) : null}
+                </div>
+              </div>
+              <div className="employee-summary-card">
+                <h3>Reason and evidence</h3>
+                <label>
+                  Remark
+                  <textarea
+                    value={returnRequestRemark}
+                    onChange={(event) => setReturnRequestRemark(event.target.value)}
+                    rows={5}
+                    placeholder="Explain the reason for initiating this return."
+                  />
+                </label>
+                <div className="form-grid" style={{ marginTop: 12 }}>
+                  {[0, 1, 2].map((index) => (
+                    <label key={`return-evidence-${index}`}>
+                      Evidence {index + 1}
+                      <input
+                        type="file"
+                        accept=".pdf,.jpg,.jpeg,.png"
+                        onChange={(event) => handleReturnRequestEvidencePick(index, event.target.files?.[0] || null)}
+                      />
+                    </label>
+                  ))}
+                </div>
+                <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
+                  <button type="button" onClick={handleSubmitReturnRequest} disabled={returnRequestLoading || readOnly}>
+                    {returnRequestLoading ? 'Saving...' : 'Submit return'}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
       {openedEmployee ? (
         <div className="employee-review-backdrop" role="presentation" onClick={() => setOpenedEmployeeId(null)}>
           <div className="employee-review-modal" role="dialog" aria-modal="true" aria-labelledby="employee-review-title" onClick={(event) => event.stopPropagation()}>
@@ -1610,65 +2058,245 @@ export default function EmployeesPage() {
                   <p className="muted-text">{openedEmployee.profession || openedEmployee.professional_title || '--'} | {employeeStatusLabel(openedEmployee)}</p>
                 </div>
               </div>
-              <button type="button" className="btn-secondary" onClick={() => setOpenedEmployeeId(null)}>Close</button>
+              <div style={{ display: 'flex', gap: 8 }}>
+                {openedEmployeeMode === 'request' ? (
+                  <button type="button" className="btn-secondary" onClick={() => setOpenedEmployeeMode('full')}>Open employee details</button>
+                ) : null}
+                <button type="button" className="btn-secondary" onClick={() => setOpenedEmployeeId(null)}>Close</button>
+              </div>
             </div>
             <div className="employee-review-grid">
-              <div className="employee-summary-card">
-                <h3>Overview</h3>
-                <p><strong>Age:</strong> {openedEmployee.age || '--'}</p>
-                <p><strong>Availability:</strong> {employeeAvailability(openedEmployee)}</p>
-                <p><strong>Phone:</strong> {openedEmployee.phone || openedEmployee.mobile_number || '--'}</p>
-                <p><strong>Email:</strong> {openedEmployee.email || '--'}</p>
-                  <p><strong>Registered by:</strong> {openedEmployee.registered_by_username || '--'}</p>
-                {openedEmployee.selection_state?.selection ? (
-                  <p><strong>Selected by:</strong> {openedEmployee.selection_state.selection.agent_name || '--'}</p>
-                ) : null}
-              </div>
-              <div className="employee-summary-card">
-                <h3>Application</h3>
-                <p><strong>Destination countries:</strong> {openedEmployee.application_countries?.join(', ') || '--'}</p>
-                <div className="employee-progress-panel">
-                  <div className="employee-progress-donut" aria-label={`Progress ${openedEmployeeProgress.overallProgress}%`}>
-                    <svg viewBox="0 0 120 120" role="img" aria-hidden="true">
-                      <circle cx="60" cy="60" r={openedEmployeeProgress.radius} className="employee-progress-track" />
-                      <circle
-                        cx="60"
-                        cy="60"
-                        r={openedEmployeeProgress.radius}
-                        className="employee-progress-value"
-                        stroke={openedEmployeeProgress.tone}
-                        strokeDasharray={openedEmployeeProgress.circumference}
-                        strokeDashoffset={openedEmployeeProgress.dashOffset}
-                      />
-                    </svg>
-                    <div className="employee-progress-donut-label">
-                      <strong>{openedEmployeeProgress.overallProgress}%</strong>
-                      <span>Overall</span>
+              {openedEmployeeMode === 'request' ? (
+                <>
+                  <div className="employee-summary-card">
+                    <h3>Commission</h3>
+                    <p><strong>Status:</strong> {employedCommissionLabel(openedEmployee)}</p>
+                    <p className="muted-text">Collection from the agent side to the organization is a future settlement concept.</p>
+                  </div>
+                  <div className="employee-summary-card">
+                    <h3>Last return request</h3>
+                    <p><strong>Status:</strong> {openedEmployeeReturnRequest ? prettyStatus(openedEmployeeReturnRequest.status) : 'None'}</p>
+                    <p><strong>Remark:</strong> {openedEmployeeReturnRequest?.remark || 'None'}</p>
+                    <p><strong>Requested by:</strong> {openedEmployeeReturnRequest?.requested_by_username || '--'}</p>
+                    <p><strong>Requested at:</strong> {formatDateTime(openedEmployeeReturnRequest?.requested_at)}</p>
+                    <p><strong>Responded by:</strong> {openedEmployeeReturnRequest?.approved_by_username || '--'}</p>
+                    <p><strong>Responded at:</strong> {formatDateTime(openedEmployeeReturnRequest?.approved_at)}</p>
+                    <div className="employee-modal-document-strip" style={{ marginTop: 12 }}>
+                      {[openedEmployeeReturnRequest?.evidence_file_1_url, openedEmployeeReturnRequest?.evidence_file_2_url, openedEmployeeReturnRequest?.evidence_file_3_url]
+                        .filter(Boolean)
+                        .map((url, index) => (
+                          <button
+                            key={`return-request-evidence-${index}`}
+                            type="button"
+                            className="employee-modal-document-card"
+                            title={`Evidence ${index + 1}`}
+                            onClick={() =>
+                              setPreviewDocument({
+                                url,
+                                label: `Evidence ${index + 1}`,
+                                isImage: !isPdfDocumentUrl(url),
+                                isPdf: isPdfDocumentUrl(url)
+                              })
+                            }
+                          >
+                            <div className="employee-modal-document-tile">
+                              {isPdfDocumentUrl(url) ? <span>PDF</span> : <img src={url} alt={`Evidence ${index + 1}`} />}
+                            </div>
+                            <strong>{`Evidence ${index + 1}`}</strong>
+                          </button>
+                        ))}
+                      {![openedEmployeeReturnRequest?.evidence_file_1_url, openedEmployeeReturnRequest?.evidence_file_2_url, openedEmployeeReturnRequest?.evidence_file_3_url].some(Boolean) ? (
+                        <span className="muted-text">No evidence uploaded.</span>
+                      ) : null}
                     </div>
                   </div>
-                  <div className="employee-progress-metrics">
-                    <p><strong>Fields:</strong> {openedEmployee.progress_status?.field_completion ?? 0}%</p>
-                    <p><strong>Documents:</strong> {openedEmployee.progress_status?.document_completion ?? 0}%</p>
-                    <p><strong>Status:</strong> {prettyStatus(openedEmployee.progress_status?.label)}</p>
+                </>
+              ) : (
+                <>
+                  <div className="employee-summary-card">
+                    <h3>Overview</h3>
+                    <p><strong>Age:</strong> {openedEmployee.age || '--'}</p>
+                    <p><strong>Availability:</strong> {employeeAvailability(openedEmployee)}</p>
+                    <p><strong>Phone:</strong> {openedEmployee.phone || openedEmployee.mobile_number || '--'}</p>
+                    <p><strong>Email:</strong> {openedEmployee.email || '--'}</p>
+                    <p><strong>Registered by:</strong> {openedEmployee.registered_by_username || '--'}</p>
+                    {openedEmployee.selection_state?.selection ? (
+                      <p><strong>Selected by:</strong> {openedEmployee.selection_state.selection.agent_name || '--'}</p>
+                    ) : null}
                   </div>
-                </div>
-                <p><strong>Travel:</strong> {prettyStatus(openedEmployee.travel_status, 'pending')}</p>
-                <p><strong>Return:</strong> {prettyStatus(openedEmployee.return_status)}</p>
+                  <div className="employee-summary-card">
+                    <h3>Application</h3>
+                    <p><strong>Destination countries:</strong> {openedEmployee.application_countries?.join(', ') || '--'}</p>
+                    <div className="employee-progress-panel">
+                      <div className="employee-progress-donut" aria-label={`Progress ${openedEmployeeProgress.overallProgress}%`}>
+                        <svg viewBox="0 0 120 120" role="img" aria-hidden="true">
+                          <circle cx="60" cy="60" r={openedEmployeeProgress.radius} className="employee-progress-track" />
+                          <circle
+                            cx="60"
+                            cy="60"
+                            r={openedEmployeeProgress.radius}
+                            className="employee-progress-value"
+                            stroke={openedEmployeeProgress.tone}
+                            strokeDasharray={openedEmployeeProgress.circumference}
+                            strokeDashoffset={openedEmployeeProgress.dashOffset}
+                          />
+                        </svg>
+                        <div className="employee-progress-donut-label">
+                          <strong>{openedEmployeeProgress.overallProgress}%</strong>
+                          <span>Overall</span>
+                        </div>
+                      </div>
+                      <div className="employee-progress-metrics">
+                        <p><strong>Fields:</strong> {openedEmployee.progress_status?.field_completion ?? 0}%</p>
+                        <p><strong>Documents:</strong> {openedEmployee.progress_status?.document_completion ?? 0}%</p>
+                        <p><strong>Status:</strong> {employeeStatusLabel(openedEmployee)}</p>
+                      </div>
+                    </div>
+                    <p><strong>Travel:</strong> {prettyStatus(openedEmployee.travel_status, 'pending')}</p>
+                    <p><strong>Return:</strong> {prettyStatus(openedEmployee.return_status)}</p>
+                  </div>
+                  <div className="employee-summary-card">
+                    <h3>Commission</h3>
+                    <p><strong>Status:</strong> {employedCommissionLabel(openedEmployee)}</p>
+                    <p className="muted-text">Collection from the agent side to the organization is a future settlement concept.</p>
+                  </div>
+                  <div className="employee-summary-card employee-review-documents">
+                    <h3>Documents</h3>
+                    <div className="employee-modal-document-strip">
+                      {(openedEmployee.documents || []).length === 0 ? (
+                        <span className="muted-text">No documents uploaded.</span>
+                      ) : (
+                        openedEmployee.documents.map((document) => (
+                          <button
+                            key={document.id}
+                            type="button"
+                            className="employee-modal-document-card"
+                            title={fileLabel(document, attachmentLabels)}
+                            onClick={() =>
+                              setPreviewDocument({
+                                url: document.file_url,
+                                label: fileLabel(document, attachmentLabels),
+                                isImage: isImageDocument(document),
+                                isPdf: isPdfDocumentUrl(document.file_url)
+                              })
+                            }
+                          >
+                            <div className="employee-modal-document-tile">
+                              {isImageDocument(document) ? (
+                                <img src={document.file_url} alt={fileLabel(document, attachmentLabels)} />
+                              ) : (
+                                <span>{fileLabel(document, attachmentLabels).slice(0, 2).toUpperCase()}</span>
+                              )}
+                            </div>
+                            <strong>{fileLabel(document, attachmentLabels)}</strong>
+                          </button>
+                        ))
+                      )}
+                    </div>
+                  </div>
+                  <div className="employee-summary-card">
+                    <h3>Last return request</h3>
+                    {openedEmployeeReturnRequest ? (
+                      <>
+                        <p><strong>Status:</strong> {prettyStatus(openedEmployeeReturnRequest.status)}</p>
+                        <p><strong>Remark:</strong> {openedEmployeeReturnRequest.remark || '--'}</p>
+                        <p><strong>Requested by:</strong> {openedEmployeeReturnRequest.requested_by_username || '--'}</p>
+                        <p><strong>Requested at:</strong> {formatDateTime(openedEmployeeReturnRequest.requested_at)}</p>
+                        <p><strong>Responded by:</strong> {openedEmployeeReturnRequest.approved_by_username || '--'}</p>
+                        <p><strong>Responded at:</strong> {formatDateTime(openedEmployeeReturnRequest.approved_at)}</p>
+                        {openedEmployee.returned_recorded_by_username ? (
+                          <p><strong>Returned recorded by:</strong> {openedEmployee.returned_recorded_by_username}</p>
+                        ) : null}
+                        <div className="employee-modal-document-strip" style={{ marginTop: 12 }}>
+                          {[openedEmployeeReturnRequest.evidence_file_1_url, openedEmployeeReturnRequest.evidence_file_2_url, openedEmployeeReturnRequest.evidence_file_3_url]
+                            .filter(Boolean)
+                            .map((url, index) => (
+                              <button
+                                key={`last-return-request-evidence-${index}`}
+                                type="button"
+                                className="employee-modal-document-card"
+                                title={`Evidence ${index + 1}`}
+                                onClick={() =>
+                                  setPreviewDocument({
+                                    url,
+                                    label: `Evidence ${index + 1}`,
+                                    isImage: !isPdfDocumentUrl(url),
+                                    isPdf: isPdfDocumentUrl(url)
+                                  })
+                                }
+                              >
+                                <div className="employee-modal-document-tile">
+                                  {isPdfDocumentUrl(url) ? <span>PDF</span> : <img src={url} alt={`Evidence ${index + 1}`} />}
+                                </div>
+                                <strong>{`Evidence ${index + 1}`}</strong>
+                              </button>
+                            ))}
+                        </div>
+                      </>
+                    ) : (
+                      <p>None</p>
+                    )}
+                  </div>
+                </>
+              )}
+              {canReinstateOpenedEmployeeEmployment ? (
+                <button
+                  type="button"
+                  className="btn-secondary"
+                  onClick={() => handleReinstateEmployeeEmployment(openedEmployee)}
+                  disabled={actionBusyId === openedEmployee.id || readOnly}
+                >
+                  {actionBusyId === openedEmployee.id ? 'Saving...' : 'Reverse to employed'}
+                </button>
+              ) : null}
+            </div>
+          </div>
+        </div>
+      ) : null}
+      {previewDocument ? (
+        <div className="document-preview-backdrop" role="presentation" onClick={() => setPreviewDocument(null)}>
+          <div
+            className="document-preview-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-label={previewDocument.label || 'Document preview'}
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="document-preview-toolbar">
+              <div>
+                <h3 style={{ margin: 0 }}>{previewDocument.label}</h3>
+                <p className="muted-text" style={{ margin: '6px 0 0' }}>
+                  Previewing attached document
+                </p>
               </div>
-              <div className="employee-summary-card employee-review-documents">
-                <h3>Documents</h3>
-                <div className="employee-card-detail-links">
-                  {(openedEmployee.documents || []).length === 0 ? (
-                    <span className="muted-text">No documents uploaded.</span>
-                  ) : (
-                    openedEmployee.documents.map((document) => (
-                      <a key={document.id} href={document.file_url} target="_blank" rel="noreferrer">
-                        {fileLabel(document, attachmentLabels)}
-                      </a>
-                    ))
-                  )}
-                </div>
+              <div className="document-preview-actions">
+                <a
+                  className="btn-secondary document-preview-download"
+                  href={previewDocument.url}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  Open in new tab
+                </a>
+                <button type="button" className="btn-secondary" onClick={() => setPreviewDocument(null)}>
+                  Close
+                </button>
               </div>
+            </div>
+            <div className="document-preview-canvas">
+              {previewDocument.isImage ? (
+                <img src={previewDocument.url} alt={previewDocument.label} />
+              ) : previewDocument.isPdf ? (
+                <iframe
+                  src={previewDocument.url}
+                  title={previewDocument.label}
+                  style={{ width: '100%', minHeight: '72vh', border: 0, borderRadius: 12 }}
+                />
+              ) : (
+                <div className="employee-attachment-preview-file">
+                  Preview unavailable for this file type.
+                </div>
+              )}
             </div>
           </div>
         </div>

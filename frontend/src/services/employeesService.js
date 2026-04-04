@@ -18,7 +18,8 @@ export async function fetchEmployees({
   mine = false,
   selectedScope = '',
   processScope = '',
-  employedScope = ''
+  employedScope = '',
+  returnedScope = ''
 } = {}) {
   const params = new URLSearchParams()
   params.set('page', String(page))
@@ -28,6 +29,7 @@ export async function fetchEmployees({
   if (selectedScope) params.set('selected_scope', selectedScope)
   if (processScope) params.set('process_scope', processScope)
   if (employedScope) params.set('employed_scope', employedScope)
+  if (returnedScope) params.set('returned_scope', returnedScope)
 
   const response = await apiFetch(`/api/employees/?${params.toString()}`)
   const data = await response.json().catch(() => ({}))
@@ -158,6 +160,51 @@ export async function declineEmployeeProcess(id) {
   const data = await response.json().catch(() => ({}))
   if (!response.ok) {
     throw new Error(responseError(data, 'Failed to decline employee process'))
+  }
+  return data
+}
+
+export async function createEmployeeReturnRequest(id, { remark, evidenceFiles = [] } = {}) {
+  const formData = new FormData()
+  formData.append('remark', remark || '')
+  evidenceFiles.slice(0, 3).forEach((file, index) => {
+    if (file) formData.append(`evidence_file_${index + 1}`, file)
+  })
+
+  const response = await apiFetch(`/api/employees/${id}/return-request/`, {
+    method: 'POST',
+    body: formData
+  })
+  const data = await response.json().catch(() => ({}))
+  if (!response.ok) {
+    throw new Error(responseError(data, 'Failed to create return request'))
+  }
+  return data
+}
+
+export async function cancelEmployeeReturnRequest(id) {
+  const response = await apiFetch(`/api/employees/${id}/return-request/`, { method: 'DELETE' })
+  const data = await response.json().catch(() => ({}))
+  if (!response.ok) {
+    throw new Error(responseError(data, 'Failed to cancel return request'))
+  }
+  return data
+}
+
+export async function approveEmployeeReturnRequest(id) {
+  const response = await apiFetch(`/api/employees/${id}/return-request/approve/`, { method: 'POST' })
+  const data = await response.json().catch(() => ({}))
+  if (!response.ok) {
+    throw new Error(responseError(data, 'Failed to approve employee return'))
+  }
+  return data
+}
+
+export async function refuseEmployeeReturnRequest(id) {
+  const response = await apiFetch(`/api/employees/${id}/return-request/refuse/`, { method: 'POST' })
+  const data = await response.json().catch(() => ({}))
+  if (!response.ok) {
+    throw new Error(responseError(data, 'Failed to refuse return request'))
   }
   return data
 }

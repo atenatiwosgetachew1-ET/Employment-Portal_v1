@@ -3,7 +3,7 @@ import * as authService from '../services/authService'
 import * as platformSettingsService from '../services/platformSettingsService'
 import * as preferencesService from '../services/preferencesService'
 import { useAuth } from '../context/AuthContext'
-import { applyTheme } from '../utils/theme'
+import { applyAccent, applyTheme, getStoredAccent, storeAccent } from '../utils/theme'
 
 const TIMEZONES = [
   'UTC',
@@ -12,6 +12,8 @@ const TIMEZONES = [
   'Europe/London',
   'Asia/Tokyo'
 ]
+
+const ACCENT_OPTIONS = [{ value: 'orange', label: 'Orange' }]
 
 export default function SettingsPage() {
   const { user, refreshUser } = useAuth()
@@ -35,6 +37,7 @@ export default function SettingsPage() {
   const [profileSaved, setProfileSaved] = useState(false)
   const [platformSaved, setPlatformSaved] = useState(false)
   const [platformSettings, setPlatformSettings] = useState(null)
+  const [accent, setAccent] = useState(() => getStoredAccent())
   const isSuperadmin = user?.role === 'superadmin'
   const permissionOptions = [
     { value: 'users.manage_all', label: 'Manage all users' },
@@ -57,12 +60,13 @@ export default function SettingsPage() {
       setPrefs(prefsData)
       setPlatformSettings(platformData)
       applyTheme(prefsData.theme)
+      applyAccent(accent)
     } catch (e) {
       setError(e.message || 'Could not load settings')
     } finally {
       setLoading(false)
     }
-  }, [isSuperadmin])
+  }, [accent, isSuperadmin])
 
   useEffect(() => {
     load()
@@ -161,6 +165,8 @@ export default function SettingsPage() {
       })
       setPrefs(updated)
       applyTheme(updated.theme)
+      storeAccent(accent)
+      applyAccent(accent)
       setSaved(true)
     } catch (err) {
       setError(err.message || 'Could not save')
@@ -203,7 +209,7 @@ export default function SettingsPage() {
   return (
     <section className="dashboard-panel settings-page">
       <h1>Settings</h1>
-      <p className="muted-text">Profile, appearance, locale, and notification defaults.</p>
+      <p className="muted-text">Profile, grayscale appearance, locale, and notification defaults.</p>
 
       {organization && (
         <>
@@ -306,6 +312,24 @@ export default function SettingsPage() {
             <option value="system">System</option>
             <option value="light">Light</option>
             <option value="dark">Dark</option>
+          </select>
+        </label>
+        <label>
+          Accent
+          <select
+            value={accent}
+            onChange={(e) => {
+              const nextAccent = e.target.value
+              setAccent(nextAccent)
+              applyAccent(nextAccent)
+              setSaved(false)
+            }}
+          >
+            {ACCENT_OPTIONS.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
           </select>
         </label>
         <label>

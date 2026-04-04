@@ -1,3 +1,5 @@
+from calendar import monthrange
+
 from django.db.models import Q
 from django.utils import timezone
 from rest_framework import generics, status
@@ -11,13 +13,20 @@ from .auth_utils import feature_enabled, is_admin, is_superadmin
 from .employee_selection import build_agent_context, get_selection_agent_for_user
 from .licensing import get_access_restriction, get_user_organization
 from django.contrib.auth.models import User
-from .models import Employee, EmployeeDocument, EmployeeSelection, Profile
+from .models import (
+    Employee,
+    EmployeeDocument,
+    EmployeeReturnRequest,
+    EmployeeSelection,
+    Profile,
+)
 from .platform_views import UserPagination
 from .serializers import (
     build_employee_progress_status,
     EmployeeDocumentCreateSerializer,
     EmployeeDocumentSerializer,
     EmployeeListSerializer,
+    EmployeeReturnRequestSerializer,
     EmployeeSerializer,
 )
 
@@ -81,9 +90,60 @@ def get_agent_by_id_for_organization(organization, agent_id):
 
 def is_employee_employed(employee):
     return bool(
+        not getattr(employee, "returned_from_employment", False)
+        and
         employee.did_travel
         and build_employee_progress_status(employee)["overall_completion"] == 100
     )
+
+
+def add_one_calendar_month(value):
+    if not value:
+        return None
+    year = value.year + (1 if value.month == 12 else 0)
+    month = 1 if value.month == 12 else value.month + 1
+    day = min(value.day, monthrange(year, month)[1])
+    return value.replace(year=year, month=month, day=day)
+
+
+def auto_finalize_overdue_return(employee):
+    if getattr(employee, "returned_from_employment", False):
+        return employee
+    if not is_employee_employed(employee):
+        return employee
+    return_window_end = add_one_calendar_month(employee.contract_expires_on)
+    if not return_window_end or timezone.localdate() <= return_window_end:
+        return employee
+
+    return_request, _ = EmployeeReturnRequest.objects.get_or_create(
+        employee=employee,
+        defaults={"organization": employee.organization},
+    )
+    if return_request.organization_id != employee.organization_id:
+        return_request.organization = employee.organization
+    return_request.status = EmployeeReturnRequest.STATUS_APPROVED
+    return_request.remark = "Expected to be returned"
+    return_request.approved_by = None
+    return_request.approved_at = timezone.now()
+    if not return_request.requested_at:
+        return_request.requested_at = timezone.now()
+    return_request.save()
+
+    employee.returned_from_employment = True
+    employee.returned_recorded_by = None
+    employee.save(update_fields=["returned_from_employment", "returned_recorded_by", "is_active", "updated_at"])
+    return employee
+
+
+def can_initiate_return_request(user, employee):
+    organization = employee.organization
+    if can_manage_process_for_organization(user, organization):
+        return True
+    scope, context = get_employee_user_scope(user, organization)
+    if scope != "agent":
+        return False
+    selection = getattr(employee, "selection", None)
+    return bool(selection and context["agent_id"] and selection.agent_id == context["agent_id"])
 
 
 class EmployeesEnabled(BasePermission):
@@ -105,8 +165,12 @@ class EmployeeListCreateView(generics.ListCreateAPIView):
             "registered_by",
             "updated_by",
             "organization",
+            "returned_recorded_by",
             "selection__agent",
             "selection__selected_by",
+            "return_request",
+            "return_request__requested_by",
+            "return_request__approved_by",
         ).prefetch_related("documents")
         if organization:
             queryset = queryset.filter(organization=organization)
@@ -116,6 +180,7 @@ class EmployeeListCreateView(generics.ListCreateAPIView):
         selected_scope = (self.request.query_params.get("selected_scope") or "").strip().lower()
         process_scope = (self.request.query_params.get("process_scope") or "").strip().lower()
         employed_scope = (self.request.query_params.get("employed_scope") or "").strip().lower()
+        returned_scope = (self.request.query_params.get("returned_scope") or "").strip().lower()
         user_scope, agent_context = get_employee_user_scope(self.request.user, organization)
         q = (self.request.query_params.get("q") or "").strip()
         is_active = (self.request.query_params.get("is_active") or "").strip().lower()
@@ -133,6 +198,11 @@ class EmployeeListCreateView(generics.ListCreateAPIView):
             queryset = queryset.filter(is_active=(is_active == "true"))
         if mine == "true":
             queryset = queryset.filter(registered_by=self.request.user)
+        if returned_scope in {"mine", "organization"}:
+            queryset = queryset.filter(returned_from_employment=True)
+            if user_scope == "agent":
+                return queryset.filter(selection__agent_id=agent_context["agent_id"])
+            return queryset
         if employed_scope in {"mine", "organization"}:
             if user_scope == "organization":
                 return queryset
@@ -141,11 +211,13 @@ class EmployeeListCreateView(generics.ListCreateAPIView):
             if user_scope == "organization":
                 queryset = queryset.filter(
                     selection__status=EmployeeSelection.STATUS_UNDER_PROCESS,
+                    returned_from_employment=False,
                 )
             else:
                 queryset = queryset.filter(
                     selection__status=EmployeeSelection.STATUS_UNDER_PROCESS,
                     selection__agent_id=agent_context["agent_id"],
+                    returned_from_employment=False,
                 )
         elif selected_scope == "organization":
             queryset = queryset.filter(
@@ -164,7 +236,7 @@ class EmployeeListCreateView(generics.ListCreateAPIView):
                 return queryset
             queryset = queryset.filter(
                 Q(selection__status=EmployeeSelection.STATUS_UNDER_PROCESS, selection__agent_id=agent_context["agent_id"])
-                | ~Q(selection__status=EmployeeSelection.STATUS_UNDER_PROCESS)
+                | (~Q(selection__status=EmployeeSelection.STATUS_UNDER_PROCESS) & Q(returned_from_employment=False))
             )
         return queryset
 
@@ -173,14 +245,19 @@ class EmployeeListCreateView(generics.ListCreateAPIView):
         organization = get_user_organization(request.user)
         user_scope, agent_context = get_employee_user_scope(request.user, organization)
         employed_scope = (request.query_params.get("employed_scope") or "").strip().lower()
+        returned_scope = (request.query_params.get("returned_scope") or "").strip().lower()
         process_scope = (request.query_params.get("process_scope") or "").strip().lower()
         selected_scope = (request.query_params.get("selected_scope") or "").strip().lower()
         should_python_filter = employed_scope in {"mine", "organization"} or (
             user_scope == "agent"
             and employed_scope not in {"mine", "organization"}
+            and returned_scope not in {"mine", "organization"}
             and process_scope not in {"mine", "organization"}
             and selected_scope != "mine"
         )
+
+        if should_python_filter or employed_scope in {"mine", "organization"} or returned_scope in {"mine", "organization"}:
+            queryset = [auto_finalize_overdue_return(employee) for employee in queryset]
 
         if should_python_filter:
             queryset = [
@@ -254,12 +331,20 @@ class EmployeeRetrieveUpdateDestroyView(generics.RetrieveUpdateDestroyAPIView):
             "registered_by",
             "updated_by",
             "organization",
+            "returned_recorded_by",
             "selection__agent",
             "selection__selected_by",
+            "return_request",
+            "return_request__requested_by",
+            "return_request__approved_by",
         ).prefetch_related("documents")
         if organization:
             return queryset.filter(organization=organization)
         return Employee.objects.none()
+
+    def get_object(self):
+        employee = super().get_object()
+        return auto_finalize_overdue_return(employee)
 
     def update(self, request, *args, **kwargs):
         restriction = get_access_restriction(request.user, write=True)
@@ -284,9 +369,9 @@ class EmployeeRetrieveUpdateDestroyView(generics.RetrieveUpdateDestroyAPIView):
                 status=status.HTTP_403_FORBIDDEN,
             )
         scope, _ = get_employee_user_scope(request.user, employee.organization)
-        if scope == "agent" and any(field in request.data for field in {"status", "is_active"}):
+        if scope == "agent" and any(field in request.data for field in {"status", "is_active", "returned_from_employment"}):
             return Response(
-                {"detail": "Agent-side users cannot change employee approval status."},
+                {"detail": "Agent-side users cannot change employee approval or return status."},
                 status=status.HTTP_403_FORBIDDEN,
             )
         if "progress_override_complete" in request.data and not can_override_employee_progress(
@@ -700,6 +785,190 @@ class EmployeeProcessStartView(APIView):
             EmployeeSerializer(employee, context={"request": request}).data,
             status=status.HTTP_200_OK,
         )
+
+
+class EmployeeReturnRequestView(APIView):
+    permission_classes = [IsAuthenticated, EmployeesEnabled]
+    parser_classes = [MultiPartParser, FormParser]
+
+    def _get_employee(self, request, employee_pk):
+        organization = get_user_organization(request.user)
+        return (
+            Employee.objects.select_related(
+                "organization",
+                "selection__agent",
+                "selection__selected_by",
+                "return_request",
+                "return_request__requested_by",
+                "return_request__approved_by",
+            )
+            .filter(pk=employee_pk, organization=organization)
+            .first()
+        )
+
+    def post(self, request, employee_pk):
+        restriction = get_access_restriction(request.user, write=True)
+        if restriction:
+            return Response({"detail": restriction}, status=status.HTTP_403_FORBIDDEN)
+
+        employee = self._get_employee(request, employee_pk)
+        if not employee:
+            return Response({"detail": "Employee not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        employee = auto_finalize_overdue_return(employee)
+        if not can_initiate_return_request(request.user, employee):
+            return Response(
+                {"detail": "Only the assigned agent side or organization-side admins can initiate a return."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+        if not is_employee_employed(employee):
+            return Response(
+                {"detail": "Only currently employed employees can receive a return request."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        remark = (request.data.get("remark") or "").strip()
+        if not remark:
+            return Response(
+                {"detail": "Add a remark explaining the reason for initiating the return."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        evidence_files = [
+            request.FILES.get("evidence_file_1"),
+            request.FILES.get("evidence_file_2"),
+            request.FILES.get("evidence_file_3"),
+        ]
+        if not any(evidence_files):
+            return Response(
+                {"detail": "Attach at least one evidence document."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        return_request = getattr(employee, "return_request", None)
+        if return_request and return_request.status == EmployeeReturnRequest.STATUS_PENDING:
+            return Response(
+                {"detail": "This employee already has a pending return request."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        if not return_request:
+            return_request = EmployeeReturnRequest(
+                employee=employee,
+                organization=employee.organization,
+            )
+
+        return_request.status = EmployeeReturnRequest.STATUS_PENDING
+        return_request.remark = remark
+        return_request.requested_by = request.user
+        return_request.requested_at = timezone.now()
+        return_request.approved_by = None
+        return_request.approved_at = None
+        for index, file_obj in enumerate(evidence_files, start=1):
+            if file_obj is not None:
+                setattr(return_request, f"evidence_file_{index}", file_obj)
+        return_request.save()
+
+        employee.refresh_from_db()
+        return Response(
+            EmployeeSerializer(employee, context={"request": request}).data,
+            status=status.HTTP_200_OK,
+        )
+
+    def delete(self, request, employee_pk):
+        restriction = get_access_restriction(request.user, write=True)
+        if restriction:
+            return Response({"detail": restriction}, status=status.HTTP_403_FORBIDDEN)
+
+        employee = self._get_employee(request, employee_pk)
+        if not employee:
+            return Response({"detail": "Employee not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        return_request = getattr(employee, "return_request", None)
+        if not return_request:
+            return Response({"detail": "No return request found for this employee."}, status=status.HTTP_404_NOT_FOUND)
+        if return_request.status != EmployeeReturnRequest.STATUS_PENDING:
+            return Response(
+                {"detail": f"This return request is already {return_request.status}."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        if not can_initiate_return_request(request.user, employee):
+            return Response(
+                {"detail": "Only the assigned agent side can cancel a pending return request."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        return_request.status = EmployeeReturnRequest.STATUS_CANCELLED
+        return_request.approved_by = request.user
+        return_request.approved_at = timezone.now()
+        return_request.save(update_fields=["status", "approved_by", "approved_at", "updated_at"])
+        employee.refresh_from_db()
+        return Response(
+            EmployeeSerializer(employee, context={"request": request}).data,
+            status=status.HTTP_200_OK,
+        )
+
+
+class EmployeeReturnRequestDecisionView(APIView):
+    permission_classes = [IsAuthenticated, EmployeesEnabled]
+
+    decision_status = None
+
+    def post(self, request, employee_pk):
+        restriction = get_access_restriction(request.user, write=True)
+        if restriction:
+            return Response({"detail": restriction}, status=status.HTTP_403_FORBIDDEN)
+
+        organization = get_user_organization(request.user)
+        employee = (
+            Employee.objects.select_related(
+                "organization",
+                "return_request",
+                "return_request__requested_by",
+                "return_request__approved_by",
+            )
+            .filter(pk=employee_pk, organization=organization)
+            .first()
+        )
+        if not employee:
+            return Response({"detail": "Employee not found."}, status=status.HTTP_404_NOT_FOUND)
+        if not can_manage_process_for_organization(request.user, organization):
+            return Response(
+                {"detail": "Only organization-side admins can review a pending return request."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        return_request = getattr(employee, "return_request", None)
+        if not return_request:
+            return Response({"detail": "No return request found for this employee."}, status=status.HTTP_404_NOT_FOUND)
+        if return_request.status != EmployeeReturnRequest.STATUS_PENDING:
+            return Response(
+                {"detail": f"This return request is already {return_request.status}."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        return_request.status = self.decision_status
+        return_request.approved_by = request.user
+        return_request.approved_at = timezone.now()
+        return_request.save(update_fields=["status", "approved_by", "approved_at", "updated_at"])
+
+        if self.decision_status == EmployeeReturnRequest.STATUS_APPROVED:
+            employee.returned_from_employment = True
+            employee.returned_recorded_by = request.user
+            employee.save(update_fields=["returned_from_employment", "returned_recorded_by", "is_active", "updated_at"])
+
+        employee.refresh_from_db()
+        return Response(
+            EmployeeSerializer(employee, context={"request": request}).data,
+            status=status.HTTP_200_OK,
+        )
+
+
+class EmployeeReturnRequestApproveView(EmployeeReturnRequestDecisionView):
+    decision_status = EmployeeReturnRequest.STATUS_APPROVED
+
+
+class EmployeeReturnRequestRefuseView(EmployeeReturnRequestDecisionView):
+    decision_status = EmployeeReturnRequest.STATUS_REFUSED
 
     def delete(self, request, employee_pk):
         restriction = get_access_restriction(request.user, write=True)

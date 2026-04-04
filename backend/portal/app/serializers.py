@@ -17,6 +17,7 @@ from .models import (
     AuditLog,
     Employee,
     EmployeeDocument,
+    EmployeeReturnRequest,
     EmployeeSelection,
     LicenseEvent,
     Notification,
@@ -143,6 +144,8 @@ def build_employee_progress_status(employee):
 
 def build_employee_travel_status(employee):
     today = date.today()
+    if getattr(employee, "returned_from_employment", False):
+        return "travelled"
     if employee.did_travel:
         return "travelled"
     if employee.departure_date and employee.departure_date < today:
@@ -153,6 +156,8 @@ def build_employee_travel_status(employee):
 
 
 def build_employee_return_status(employee):
+    if getattr(employee, "returned_from_employment", False):
+        return "returned"
     today = date.today()
     if not employee.did_travel:
         return "--"
@@ -974,6 +979,56 @@ class EmployeeSelectionSerializer(serializers.ModelSerializer):
         return agent_display_name(obj.agent)
 
 
+class EmployeeReturnRequestSerializer(serializers.ModelSerializer):
+    requested_by_username = serializers.CharField(
+        source="requested_by.username",
+        read_only=True,
+        allow_null=True,
+    )
+    approved_by_username = serializers.CharField(
+        source="approved_by.username",
+        read_only=True,
+        allow_null=True,
+    )
+    evidence_file_1_url = serializers.SerializerMethodField()
+    evidence_file_2_url = serializers.SerializerMethodField()
+    evidence_file_3_url = serializers.SerializerMethodField()
+
+    class Meta:
+        model = EmployeeReturnRequest
+        fields = (
+            "status",
+            "remark",
+            "requested_by_username",
+            "requested_at",
+            "approved_by_username",
+            "approved_at",
+            "evidence_file_1_url",
+            "evidence_file_2_url",
+            "evidence_file_3_url",
+            "updated_at",
+        )
+        read_only_fields = fields
+
+    def _build_file_url(self, obj, field_name):
+        request = self.context.get("request")
+        file_obj = getattr(obj, field_name, None)
+        if not file_obj:
+            return ""
+        if request:
+            return request.build_absolute_uri(file_obj.url)
+        return file_obj.url
+
+    def get_evidence_file_1_url(self, obj):
+        return self._build_file_url(obj, "evidence_file_1")
+
+    def get_evidence_file_2_url(self, obj):
+        return self._build_file_url(obj, "evidence_file_2")
+
+    def get_evidence_file_3_url(self, obj):
+        return self._build_file_url(obj, "evidence_file_3")
+
+
 def build_employee_selection_payload(employee, request):
     selection = getattr(employee, "selection", None)
     current_agent = None
@@ -1000,6 +1055,12 @@ class EmployeeListSerializer(serializers.ModelSerializer):
     return_status = serializers.SerializerMethodField()
     urgency_alerts = serializers.SerializerMethodField()
     selection_state = serializers.SerializerMethodField()
+    return_request = serializers.SerializerMethodField()
+    returned_recorded_by_username = serializers.CharField(
+        source="returned_recorded_by.username",
+        read_only=True,
+        allow_null=True,
+    )
 
     class Meta:
         model = Employee
@@ -1022,6 +1083,9 @@ class EmployeeListSerializer(serializers.ModelSerializer):
             "return_status",
             "urgency_alerts",
             "selection_state",
+            "return_request",
+            "returned_from_employment",
+            "returned_recorded_by_username",
             "registered_by_username",
             "documents",
             "created_at",
@@ -1047,6 +1111,15 @@ class EmployeeListSerializer(serializers.ModelSerializer):
     def get_selection_state(self, obj):
         request = self.context.get("request")
         return build_employee_selection_payload(obj, request)
+
+    def get_return_request(self, obj):
+        request_obj = getattr(obj, "return_request", None)
+        if not request_obj:
+            return None
+        return EmployeeReturnRequestSerializer(
+            request_obj,
+            context=self.context,
+        ).data
 
 
 class EmployeeSerializer(serializers.ModelSerializer):
@@ -1077,6 +1150,12 @@ class EmployeeSerializer(serializers.ModelSerializer):
     return_status = serializers.SerializerMethodField()
     urgency_alerts = serializers.SerializerMethodField()
     selection_state = serializers.SerializerMethodField()
+    return_request = serializers.SerializerMethodField()
+    returned_recorded_by_username = serializers.CharField(
+        source="returned_recorded_by.username",
+        read_only=True,
+        allow_null=True,
+    )
 
     class Meta:
         model = Employee
@@ -1131,6 +1210,7 @@ class EmployeeSerializer(serializers.ModelSerializer):
             "competency_certificate_expires_on",
             "clearance_expires_on",
             "insurance_expires_on",
+            "returned_from_employment",
             "status",
             "progress_override_complete",
             "is_active",
@@ -1139,6 +1219,8 @@ class EmployeeSerializer(serializers.ModelSerializer):
             "return_status",
             "urgency_alerts",
             "selection_state",
+            "return_request",
+            "returned_recorded_by_username",
             "registered_by_username",
             "updated_by_username",
             "documents",
@@ -1351,6 +1433,15 @@ class EmployeeSerializer(serializers.ModelSerializer):
     def get_selection_state(self, obj):
         request = self.context.get("request")
         return build_employee_selection_payload(obj, request)
+
+    def get_return_request(self, obj):
+        request_obj = getattr(obj, "return_request", None)
+        if not request_obj:
+            return None
+        return EmployeeReturnRequestSerializer(
+            request_obj,
+            context=self.context,
+        ).data
 
 
 class EmployeeDocumentCreateSerializer(serializers.ModelSerializer):

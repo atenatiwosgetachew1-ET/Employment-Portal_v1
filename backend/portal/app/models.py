@@ -501,6 +501,14 @@ class Employee(models.Model):
     competency_certificate_expires_on = models.DateField(null=True, blank=True)
     clearance_expires_on = models.DateField(null=True, blank=True)
     insurance_expires_on = models.DateField(null=True, blank=True)
+    returned_from_employment = models.BooleanField(default=False)
+    returned_recorded_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="employees_returned_recorded",
+    )
     status = models.CharField(
         max_length=20,
         choices=STATUS_CHOICES,
@@ -521,7 +529,9 @@ class Employee(models.Model):
             self.full_name = computed_full_name
         if self.profession and not self.professional_title:
             self.professional_title = self.profession
-        if self.status == self.STATUS_APPROVED and not self.did_travel:
+        if self.returned_from_employment:
+            self.is_active = False
+        elif self.status == self.STATUS_APPROVED and not self.did_travel:
             self.is_active = True
         else:
             self.is_active = False
@@ -663,3 +673,77 @@ class EmployeeSelection(models.Model):
 
     def __str__(self):
         return f"{self.employee.full_name} -> {self.agent.username}"
+
+
+def employee_return_request_upload_to(instance, filename):
+    employee_id = instance.employee_id or "unassigned"
+    return f"employees/{employee_id}/return-requests/{filename}"
+
+
+class EmployeeReturnRequest(models.Model):
+    STATUS_PENDING = "pending"
+    STATUS_APPROVED = "approved"
+    STATUS_REFUSED = "refused"
+    STATUS_CANCELLED = "cancelled"
+
+    STATUS_CHOICES = [
+        (STATUS_PENDING, "Pending"),
+        (STATUS_APPROVED, "Approved"),
+        (STATUS_REFUSED, "Refused"),
+        (STATUS_CANCELLED, "Cancelled"),
+    ]
+
+    organization = models.ForeignKey(
+        Organization,
+        on_delete=models.CASCADE,
+        related_name="employee_return_requests",
+    )
+    employee = models.OneToOneField(
+        Employee,
+        on_delete=models.CASCADE,
+        related_name="return_request",
+    )
+    status = models.CharField(
+        max_length=20,
+        choices=STATUS_CHOICES,
+        default=STATUS_PENDING,
+    )
+    remark = models.TextField(blank=True, default="")
+    evidence_file_1 = models.FileField(
+        upload_to=employee_return_request_upload_to,
+        null=True,
+        blank=True,
+    )
+    evidence_file_2 = models.FileField(
+        upload_to=employee_return_request_upload_to,
+        null=True,
+        blank=True,
+    )
+    evidence_file_3 = models.FileField(
+        upload_to=employee_return_request_upload_to,
+        null=True,
+        blank=True,
+    )
+    requested_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="employee_return_requests_requested",
+    )
+    approved_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="employee_return_requests_approved",
+    )
+    requested_at = models.DateTimeField(auto_now_add=True)
+    approved_at = models.DateTimeField(null=True, blank=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-requested_at"]
+
+    def __str__(self):
+        return f"Return request for {self.employee.full_name}"
