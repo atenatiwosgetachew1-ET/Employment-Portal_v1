@@ -1,6 +1,7 @@
 import { useEffect } from 'react'
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 import { AuthProvider } from './context/AuthContext'
+import { UiFeedbackProvider } from './context/UiFeedbackContext'
 import DashboardLayoutSidebar from './components/layout/DashboardLayoutSidebar'
 import LoginPage from './pages/LoginPage'
 import RegisterPage from './pages/RegisterPage'
@@ -66,7 +67,9 @@ function AppRoutes() {
 export default function App() {
   return (
     <AuthProvider>
-      <AppRoutes />
+      <UiFeedbackProvider>
+        <AppRoutes />
+      </UiFeedbackProvider>
     </AuthProvider>
   )
 }

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Navigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
+import { useUiFeedback } from '../context/UiFeedbackContext'
 import { RESIDENCE_COUNTRY_OPTIONS } from '../constants/employeeOptions'
 import * as usersService from '../services/usersService'
 
@@ -17,6 +18,11 @@ const STAFF_ROLE_OPTIONS = [
   { label: 'IT', level: 3 },
   { label: 'Operations', level: 4 },
   { label: 'Supervisor', level: 5 }
+]
+
+const USER_VIEW_TABS = [
+  { id: 'list', label: 'Users list' },
+  { id: 'register', label: 'Register user' }
 ]
 
 function getStaffLevelForRole(roleLabel) {
@@ -63,6 +69,7 @@ function canManageUsers(user) {
 
 export default function UsersManagementPage() {
   const { user: currentUser } = useAuth()
+  const { showToast, confirm } = useUiFeedback()
   const [usersData, setUsersData] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -75,6 +82,7 @@ export default function UsersManagementPage() {
   const [searchInput, setSearchInput] = useState('')
   const [filters, setFilters] = useState({ q: '', role: '', isActive: '' })
   const [staffSideOptions, setStaffSideOptions] = useState([])
+  const [currentView, setCurrentView] = useState('list')
 
   const loadStaffSideOptions = useCallback(async () => {
     try {
@@ -112,6 +120,14 @@ export default function UsersManagementPage() {
       setLoading(false)
     }
   }, [currentUser, loadUsers, loadStaffSideOptions])
+
+  useEffect(() => {
+    if (notice) showToast(notice, { tone: 'success' })
+  }, [notice, showToast])
+
+  useEffect(() => {
+    if (error) showToast(error, { tone: 'danger', title: 'Action failed' })
+  }, [error, showToast])
 
   const setBusy = (id, key, value) => {
     setRowBusy((prev) => ({
@@ -172,6 +188,7 @@ export default function UsersManagementPage() {
       } else {
         setNotice('User created successfully.')
       }
+      setCurrentView('list')
       await Promise.all([loadUsers(), loadStaffSideOptions()])
     } catch (err) {
       setError(err.message || 'Could not create user')
@@ -238,11 +255,14 @@ export default function UsersManagementPage() {
   }
 
   const handleDelete = async (row) => {
-    if (
-      !window.confirm(
-        `Remove user "${row.username}"? This cannot be undone.`
-      )
-    ) {
+    const confirmed = await confirm({
+      title: 'Remove user',
+      message: `Remove user "${row.username}"? This cannot be undone.`,
+      confirmLabel: 'Remove',
+      cancelLabel: 'Keep',
+      tone: 'danger'
+    })
+    if (!confirmed) {
       return
     }
     setBusy(row.id, 'delete', true)
@@ -292,6 +312,7 @@ export default function UsersManagementPage() {
     setError('')
     setNotice('')
     setEditingUserId(row.id)
+    setCurrentView('register')
     setForm({
       username: row.username || '',
       email: row.email || '',
@@ -357,54 +378,19 @@ export default function UsersManagementPage() {
         </button>
       </div>
 
-      <form
-        className="form-grid"
-        onSubmit={handleFilterSubmit}
-        style={{ marginBottom: 16, alignItems: 'end' }}
-      >
-        <label>
-          Search
-          <input
-            value={searchInput}
-            onChange={(e) => setSearchInput(e.target.value)}
-            placeholder="Username, email, name, or phone"
-          />
-        </label>
-        <label>
-          Role
-          <select
-            value={filters.role}
-            onChange={(e) => {
-              setPage(1)
-              setFilters((prev) => ({ ...prev, role: e.target.value }))
-            }}
+      <div className="employee-subtabs" role="tablist" aria-label="User management views">
+        {USER_VIEW_TABS.map((tab) => (
+          <button
+            key={tab.id}
+            type="button"
+            className={`employee-subtab${currentView === tab.id ? ' is-active' : ''}`}
+            onClick={() => setCurrentView(tab.id)}
+            aria-selected={currentView === tab.id}
           >
-            <option value="">All roles</option>
-            {roleSelectOptions.map((r) => (
-              <option key={r.value} value={r.value}>
-                {r.label}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label>
-          Status
-          <select
-            value={filters.isActive}
-            onChange={(e) => {
-              setPage(1)
-              setFilters((prev) => ({ ...prev, isActive: e.target.value }))
-            }}
-          >
-            <option value="">All statuses</option>
-            <option value="true">Active</option>
-            <option value="false">Suspended</option>
-          </select>
-        </label>
-        <button type="submit" className="btn-secondary">
-          Apply filters
-        </button>
-      </form>
+            {tab.label}
+          </button>
+        ))}
+      </div>
 
       {error && (
         <p className="error-message" style={{ marginBottom: 16 }}>
@@ -423,6 +409,7 @@ export default function UsersManagementPage() {
             className="btn-secondary"
             onClick={() => {
               setEditingUserId(null)
+              setCurrentView('list')
               setForm(emptyForm)
               setError('')
               setNotice('')
@@ -434,6 +421,7 @@ export default function UsersManagementPage() {
       )}
 
       <div className="users-grid">
+        {currentView === 'register' ? (
         <form className="user-create-card" onSubmit={handleCreate}>
           <h2>{editingUserId ? 'Edit user' : 'Create user'}</h2>
           {editingUserId && (
@@ -442,7 +430,7 @@ export default function UsersManagementPage() {
           {readOnly && (
             <p className="muted-text">User changes are disabled while this organization is restricted.</p>
           )}
-          <div className="form-grid">
+          <div className="users-form-grid">
             <label>
               Username *
               <input
@@ -618,8 +606,54 @@ export default function UsersManagementPage() {
             {creating ? (editingUserId ? 'Updating...' : 'Creating...') : editingUserId ? 'Update user' : 'Create user'}
           </button>
         </form>
+        ) : null}
 
+        {currentView === 'list' ? (
         <div className="users-table-wrap">
+          <form className="users-filter-grid" onSubmit={handleFilterSubmit}>
+            <label>
+              Search
+              <input
+                value={searchInput}
+                onChange={(e) => setSearchInput(e.target.value)}
+                placeholder="Username, email, name, or phone"
+              />
+            </label>
+            <label>
+              Role
+              <select
+                value={filters.role}
+                onChange={(e) => {
+                  setPage(1)
+                  setFilters((prev) => ({ ...prev, role: e.target.value }))
+                }}
+              >
+                <option value="">All roles</option>
+                {roleSelectOptions.map((r) => (
+                  <option key={r.value} value={r.value}>
+                    {r.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              Status
+              <select
+                value={filters.isActive}
+                onChange={(e) => {
+                  setPage(1)
+                  setFilters((prev) => ({ ...prev, isActive: e.target.value }))
+                }}
+              >
+                <option value="">All statuses</option>
+                <option value="true">Active</option>
+                <option value="false">Suspended</option>
+              </select>
+            </label>
+            <button type="submit" className="btn-secondary users-filter-submit">
+              Apply filters
+            </button>
+          </form>
           <h2>All users</h2>
           {!loading && (
             <p className="muted-text" style={{ marginBottom: 12 }}>
@@ -700,14 +734,13 @@ export default function UsersManagementPage() {
                         </td>
                         <td className="nowrap">{formatDate(row.date_joined)}</td>
                         <td className="nowrap">{formatDate(row.last_login)}</td>
-                        <td>
+                        <td className="users-actions-cell">
                           {row.role === 'staff' && (
                             <button
                               type="button"
                               className="btn-secondary"
                               disabled={busy.staffMeta || readOnly}
                               onClick={() => handleStaffMetaUpdate(row)}
-                              style={{ marginRight: 8 }}
                             >
                               {busy.staffMeta ? 'Saving...' : 'Edit staff'}
                             </button>
@@ -718,7 +751,6 @@ export default function UsersManagementPage() {
                             disabled={busy.password || isSelf || readOnly}
                             onClick={() => handlePasswordReset(row)}
                             title={isSelf ? 'Use the forgot-password flow for your own account' : 'Reset password'}
-                            style={{ marginRight: 8 }}
                           >
                             {busy.password ? 'Resetting...' : 'Reset password'}
                           </button>
@@ -761,6 +793,7 @@ export default function UsersManagementPage() {
             </div>
           )}
         </div>
+        ) : null}
       </div>
     </section>
   )

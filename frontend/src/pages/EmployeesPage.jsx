@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Navigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
+import { useUiFeedback } from '../context/UiFeedbackContext'
 import {
   ATTACHMENT_FIELDS,
   EMPLOYMENT_TYPE_OPTIONS,
@@ -164,7 +165,7 @@ function fileLabel(document, attachmentLabels) {
 }
 
 function findEmployeeDocument(employee, documentTypes) {
-  return (employee.documents || []).find((document) => documentTypes.includes(document.document_type)) || null
+  return (employee?.documents || []).find((document) => documentTypes.includes(document.document_type)) || null
 }
 
 function isImageDocument(document) {
@@ -219,19 +220,29 @@ function attachmentDisplayName(document, attachmentLabels) {
 }
 
 function employeeProfilePhoto(employee) {
-  return findEmployeeDocument(employee, ['portrait_photo', 'full_photo', 'passport_photo', 'passport_document'])
+  return (
+    findEmployeeDocument(employee, ['portrait_photo']) ||
+    findEmployeeDocument(employee, ['full_photo']) ||
+    findEmployeeDocument(employee, ['passport_photo', 'passport_document'])
+  )
 }
 
 function isEmployeeReturned(employee) {
-  return Boolean(employee?.returned_from_employment)
+  return Boolean(
+    employee?.returned_from_employment ||
+    employee?.return_request?.status === 'approved'
+  )
 }
 
 function isEmployeeEmployed(employee) {
   return Boolean(
-    !employee?.returned_from_employment &&
-    employee?.did_travel &&
-    Number(employee?.progress_status?.overall_completion ?? 0) >= 100
+    !isEmployeeReturned(employee) &&
+    (employee?.did_travel || employee?.travel_status === 'travelled')
   )
+}
+
+function isEmployeeEmployedInView(employee, currentView) {
+  return currentView === 'employed' || isEmployeeEmployed(employee)
 }
 
 function prettyStatus(value, fallback = '--') {
@@ -240,31 +251,38 @@ function prettyStatus(value, fallback = '--') {
   return String(value).replaceAll('_', ' ')
 }
 
-function employeeAvailability(employee) {
+function employeeAvailability(employee, currentView = '') {
   if (isEmployeeReturned(employee)) return 'Returned'
-  if (isEmployeeEmployed(employee)) return 'Employed'
+  if (isEmployeeEmployedInView(employee, currentView)) return 'Employed'
   if (employee.selection_state?.selection?.status === 'under_process') return 'Under process'
   if (employee.travel_status === 'travelled') return 'Not available'
   return employee.is_active ? 'Available' : 'Not available'
 }
 
-function employeeStatusLabel(employee) {
+function employeeStatusLabel(employee, currentView = '') {
   if (isEmployeeReturned(employee)) return 'Returned'
-  if (isEmployeeEmployed(employee)) return 'Employed'
+  if (isEmployeeEmployedInView(employee, currentView)) return 'Employed'
   if (employee.selection_state?.selection?.status === 'under_process') return 'Under process'
   if (employee.status === 'suspended') return 'Suspended'
   if (employee.status === 'rejected') return 'Rejected'
   if (employee.status === 'pending') return 'Pending approval'
-  return employeeAvailability(employee)
+  return employeeAvailability(employee, currentView)
 }
 
-function employeeStatusBadgeClass(employee) {
+function employeeStatusBadgeClass(employee, currentView = '') {
   if (isEmployeeReturned(employee)) return 'badge-muted'
-  if (isEmployeeEmployed(employee)) return 'badge-success'
-  if (employee.selection_state?.selection?.status === 'under_process') return 'badge-warning'
-  if (employee.status === 'approved') return 'badge-success'
+  if (isEmployeeEmployedInView(employee, currentView)) return 'badge-success'
+  if (employee.selection_state?.selection?.status === 'under_process') return 'badge-info'
+  if (employee.status === 'approved') return employee.is_active ? 'badge-success' : 'badge-danger'
   if (employee.status === 'pending') return 'badge-warning'
-  return 'badge-muted'
+  if (employee.status === 'rejected' || employee.status === 'suspended') return 'badge-danger'
+  if (!employee.is_active || employee.travel_status === 'travelled') return 'badge-danger'
+  return 'badge-success'
+}
+
+function employeeStatusBadgeVariantClass(employee, currentView = '') {
+  if (isEmployeeEmployedInView(employee, currentView)) return 'employee-card-status-badge--employed'
+  return ''
 }
 
 function employedEmployeesHelpText() {
@@ -553,6 +571,7 @@ function buildEmployeePayload(form, editingEmployeeId) {
 
 export default function EmployeesPage() {
   const { user } = useAuth()
+  const { showToast, confirm } = useUiFeedback()
   const [employeesData, setEmployeesData] = useState(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -695,6 +714,22 @@ export default function EmployeesPage() {
   }, [canManageEmployees, currentView, loadRequestedReturns])
 
   useEffect(() => {
+    if (notice) showToast(notice, { tone: 'success' })
+  }, [notice, showToast])
+
+  useEffect(() => {
+    if (pageError) showToast(pageError, { tone: 'danger', title: 'Action failed' })
+  }, [pageError, showToast])
+
+  useEffect(() => {
+    if (modalNotice) showToast(modalNotice, { tone: 'success' })
+  }, [modalNotice, showToast])
+
+  useEffect(() => {
+    if (modalError) showToast(modalError, { tone: 'danger', title: 'Action failed' })
+  }, [modalError, showToast])
+
+  useEffect(() => {
     if (typeof window === 'undefined') return
     try {
       const rawTemplate = window.localStorage.getItem(REGISTRATION_TEMPLATE_STORAGE_KEY)
@@ -703,6 +738,24 @@ export default function EmployeesPage() {
     } catch {
       setSavedTemplate(null)
     }
+  }, [])
+
+  const patchEmployeeCollections = useCallback((employeeId, updater) => {
+    setEmployeesData((prev) => {
+      if (!prev) return prev
+      return {
+        ...prev,
+        results: prev.results
+          .map((employee) => (employee.id === employeeId ? updater(employee) : employee))
+          .filter(Boolean)
+      }
+    })
+
+    setRequestedReturns((prev) =>
+      prev
+        .map((employee) => (employee.id === employeeId ? updater(employee) : employee))
+        .filter(Boolean)
+    )
   }, [])
 
   useEffect(() => {
@@ -930,7 +983,14 @@ export default function EmployeesPage() {
   }
 
   const handleDelete = async (employee) => {
-    if (!window.confirm(`Remove employee "${employee.full_name}"?`)) return
+    const confirmed = await confirm({
+      title: 'Remove employee',
+      message: `Remove employee "${employee.full_name}"?`,
+      confirmLabel: 'Remove',
+      cancelLabel: 'Keep',
+      tone: 'danger'
+    })
+    if (!confirmed) return
     setPageError('')
     setNotice('')
     try {
@@ -1016,14 +1076,29 @@ export default function EmployeesPage() {
   }
 
   const handleApproveEmploymentReturn = async (employee) => {
-    if (!window.confirm('Acknowledge this return request and move the employee to Returned list?')) return
+    const confirmed = await confirm({
+      title: 'Acknowledge return',
+      message: 'Acknowledge this return request and move the employee to Returned list?',
+      confirmLabel: 'Acknowledge',
+      cancelLabel: 'Cancel',
+      tone: 'warning'
+    })
+    if (!confirmed) return
     setActionBusyId(employee.id)
     setPageError('')
     setNotice('')
     try {
       await employeesService.approveEmployeeReturnRequest(employee.id)
+      patchEmployeeCollections(employee.id, (current) => ({
+        ...current,
+        returned_from_employment: true,
+        return_status: 'returned',
+        return_request: current.return_request
+          ? { ...current.return_request, status: 'approved' }
+          : { status: 'approved' }
+      }))
+      setRequestedReturns((prev) => prev.filter((item) => item.id !== employee.id))
       setNotice('Return request approved and employee moved to Returned list.')
-      await Promise.all([loadEmployees(), loadRequestedReturns()])
     } catch (err) {
       setPageError(err.message || 'Could not approve employee return')
     } finally {
@@ -1032,14 +1107,27 @@ export default function EmployeesPage() {
   }
 
   const handleRefuseEmployeeReturnRequest = async (employee) => {
-    if (!window.confirm('Refuse this return request and keep the employee in the Employed list?')) return
+    const confirmed = await confirm({
+      title: 'Refuse return request',
+      message: 'Refuse this return request and keep the employee in the Employed list?',
+      confirmLabel: 'Refuse request',
+      cancelLabel: 'Cancel',
+      tone: 'danger'
+    })
+    if (!confirmed) return
     setActionBusyId(employee.id)
     setPageError('')
     setNotice('')
     try {
       await employeesService.refuseEmployeeReturnRequest(employee.id)
+      patchEmployeeCollections(employee.id, (current) => ({
+        ...current,
+        return_request: current.return_request
+          ? { ...current.return_request, status: 'refused' }
+          : null
+      }))
+      setRequestedReturns((prev) => prev.filter((item) => item.id !== employee.id))
       setNotice('Return request refused.')
-      await Promise.all([loadEmployees(), loadRequestedReturns()])
     } catch (err) {
       setPageError(err.message || 'Could not refuse return request')
     } finally {
@@ -1048,14 +1136,25 @@ export default function EmployeesPage() {
   }
 
   const handleCancelEmployeeReturnRequest = async (employee) => {
-    if (!window.confirm('Cancel this return request?')) return
+    const confirmed = await confirm({
+      title: 'Cancel return request',
+      message: 'Cancel this return request?',
+      confirmLabel: 'Cancel request',
+      cancelLabel: 'Keep',
+      tone: 'warning'
+    })
+    if (!confirmed) return
     setActionBusyId(employee.id)
     setPageError('')
     setNotice('')
     try {
       await employeesService.cancelEmployeeReturnRequest(employee.id)
+      patchEmployeeCollections(employee.id, (current) => ({
+        ...current,
+        return_request: null
+      }))
+      setRequestedReturns((prev) => prev.filter((item) => item.id !== employee.id))
       setNotice('Return request cancelled.')
-      await Promise.all([loadEmployees(), loadRequestedReturns()])
     } catch (err) {
       setPageError(err.message || 'Could not cancel return request')
     } finally {
@@ -1064,7 +1163,14 @@ export default function EmployeesPage() {
   }
 
   const handleReinstateEmployeeEmployment = async (employee) => {
-    if (!window.confirm('Move this employee from Returned list back to Employed?')) return
+    const confirmed = await confirm({
+      title: 'Restore employed status',
+      message: 'Move this employee from Returned list back to Employed?',
+      confirmLabel: 'Restore',
+      cancelLabel: 'Cancel',
+      tone: 'warning'
+    })
+    if (!confirmed) return
     setActionBusyId(employee.id)
     setPageError('')
     setNotice('')
@@ -1072,8 +1178,20 @@ export default function EmployeesPage() {
       await employeesService.updateEmployee(employee.id, {
         returned_from_employment: false
       })
+      patchEmployeeCollections(employee.id, (current) => {
+        const nextEmployee = {
+          ...current,
+          returned_from_employment: false,
+          return_status: 'pending',
+          return_request: current.return_request
+            ? { ...current.return_request, status: 'reinstated' }
+            : null
+        }
+
+        if (currentView === 'returned') return null
+        return nextEmployee
+      })
       setNotice('Employee moved back to Employed.')
-      await Promise.all([loadEmployees(), loadRequestedReturns()])
     } catch (err) {
       setPageError(err.message || 'Could not restore employee to employed')
     } finally {
@@ -1089,6 +1207,30 @@ export default function EmployeesPage() {
       await employeesService.updateEmployee(employee.id, { status: nextStatus })
       setNotice(`Employee ${actionLabel.toLowerCase()} successfully.`)
       await loadEmployees()
+    } catch (err) {
+      setPageError(err.message || `Could not ${actionLabel.toLowerCase()} employee`)
+    } finally {
+      setActionBusyId(null)
+    }
+  }
+
+  const handleEmployeeAvailabilityToggle = async (employee, nextActive, actionLabel) => {
+    setActionBusyId(employee.id)
+    setPageError('')
+    setNotice('')
+    try {
+      await employeesService.updateEmployee(employee.id, { is_active: nextActive })
+      patchEmployeeCollections(employee.id, (current) => {
+        const nextEmployee = {
+          ...current,
+          is_active: nextActive
+        }
+
+        if (currentView === 'list' && filters.isActive === 'true' && !nextActive) return null
+        if (currentView === 'list' && filters.isActive === 'false' && nextActive) return null
+        return nextEmployee
+      })
+      setNotice(`Employee ${actionLabel.toLowerCase()} successfully.`)
     } catch (err) {
       setPageError(err.message || `Could not ${actionLabel.toLowerCase()} employee`)
     } finally {
@@ -1127,9 +1269,13 @@ export default function EmployeesPage() {
       setPageError('Choose an agent before starting the process.')
       return
     }
-    const confirmed = window.confirm(
-      `Initiating a procees will inform the ${organizationName} to proceed to the arrangement of the employee documents.`
-    )
+    const confirmed = await confirm({
+      title: 'Initiate process',
+      message: `Initiating a procees will inform the ${organizationName} to proceed to the arrangement of the employee documents.`,
+      confirmLabel: 'Initiate',
+      cancelLabel: 'Cancel',
+      tone: 'warning'
+    })
     if (!confirmed) return
 
     setActionBusyId(employee.id)
@@ -1152,9 +1298,13 @@ export default function EmployeesPage() {
   }
 
   const handleDeclineProcess = async (employee) => {
-    const confirmed = window.confirm(
-      'Declining this process will remove the employee from Under process Employees and return them to the selected employees workflow.'
-    )
+    const confirmed = await confirm({
+      title: 'Decline process',
+      message: 'Declining this process will remove the employee from Under process Employees and return them to the selected employees workflow.',
+      confirmLabel: 'Decline',
+      cancelLabel: 'Keep',
+      tone: 'danger'
+    })
     if (!confirmed) return
 
     setActionBusyId(employee.id)
@@ -1184,9 +1334,13 @@ export default function EmployeesPage() {
     const departureText = hasValidDepartureDate
       ? ` The recorded departure date is ${formatDateForPrompt(employee.departure_date)}.`
       : ''
-    const didTravel = window.confirm(
-      `Did this Employee Travled?${departureText}${hasDepartureReached ? ' The departure date is today or earlier.' : ''} Click OK for Yes or Cancel for No.`
-    )
+    const didTravel = await confirm({
+      title: 'Confirm travel',
+      message: `Did this Employee Travled?${departureText}${hasDepartureReached ? ' The departure date is today or earlier.' : ''}`,
+      confirmLabel: 'Yes',
+      cancelLabel: 'No',
+      tone: 'warning'
+    })
 
     setActionBusyId(employee.id)
     setPageError('')
@@ -1246,8 +1400,9 @@ export default function EmployeesPage() {
     return true
   })
   const openedEmployeeProgress = buildProgressDonut(openedEmployee?.progress_status)
+  const openedEmployeeProfileDocument = employeeProfilePhoto(openedEmployee)
   const openedEmployeeIsReturned = isEmployeeReturned(openedEmployee)
-  const openedEmployeeIsEmployed = isEmployeeEmployed(openedEmployee)
+  const openedEmployeeIsEmployed = isEmployeeEmployedInView(openedEmployee, currentView)
   const openedEmployeeReturnRequest = openedEmployee?.return_request || null
   const canApproveOpenedEmployeeReturn = Boolean(
     openedEmployee &&
@@ -1833,7 +1988,7 @@ export default function EmployeesPage() {
                                   <>
                                     <button
                                       type="button"
-                                      className="btn-danger"
+                                      className="btn-warning"
                                       onClick={() => handleApproveEmploymentReturn(employee)}
                                       disabled={readOnly || actionBusyId === employee.id}
                                     >
@@ -1841,7 +1996,7 @@ export default function EmployeesPage() {
                                     </button>
                                     <button
                                       type="button"
-                                      className="btn-secondary"
+                                      className="btn-danger"
                                       onClick={() => handleRefuseEmployeeReturnRequest(employee)}
                                       disabled={readOnly || actionBusyId === employee.id}
                                     >
@@ -1852,7 +2007,7 @@ export default function EmployeesPage() {
                                 {canCancelHere ? (
                                   <button
                                     type="button"
-                                    className="btn-secondary"
+                                    className="btn-muted-action"
                                     onClick={() => handleCancelEmployeeReturnRequest(employee)}
                                     disabled={readOnly || actionBusyId === employee.id}
                                   >
@@ -1903,8 +2058,9 @@ export default function EmployeesPage() {
                 const isSelected = Boolean(selectionState.is_selected)
                 const isSelectedByCurrentAgent = Boolean(selectionState.selected_by_current_agent)
                 const isUnderProcess = selection?.status === 'under_process'
-                const isEmployedEmployee = isEmployeeEmployed(employee)
+                const isEmployedEmployee = isEmployeeEmployedInView(employee, currentView)
                 const isReturnedEmployee = isEmployeeReturned(employee)
+                const isAvailableEmployee = employeeAvailability(employee, currentView) === 'Available'
                 const assignedAgentId = resolvedProcessAgentId(
                   employee,
                   processAgentAssignments,
@@ -1947,7 +2103,7 @@ export default function EmployeesPage() {
                       <div className="employee-card-header-meta">
                         {currentView === 'selected' && isSelected ? <span className="badge badge-success">Selected</span> : null}
                         {employee.return_request?.status === 'pending' ? <span className="badge badge-warning">Return requested</span> : null}
-                        <span className={`badge ${employeeStatusBadgeClass(employee)}`}>{employeeStatusLabel(employee)}</span>
+                        <span className={`badge employee-card-status-badge ${employeeStatusBadgeClass(employee, currentView)} ${employeeStatusBadgeVariantClass(employee, currentView)}`.trim()}>{employeeStatusLabel(employee, currentView)}</span>
                       </div>
                     </div>
                     <p className="muted-text">{employee.application_countries?.join(', ') || 'No destination country'} | {employee.phone || employee.mobile_number || 'No phone'}</p>
@@ -1999,14 +2155,8 @@ export default function EmployeesPage() {
                                 {hasImage ? (
                                   <img src={document.file_url} alt={`${employee.full_name} ${preview.label} preview`} />
                                 ) : (
-                                  <a href={document.file_url} target="_blank" rel="noreferrer">{fileLabel(document, attachmentLabels)}</a>
+                                  <span>{fileLabel(document, attachmentLabels)}</span>
                                 )}
-                                <div className="employee-doc-preview-actions">
-                                  <a href={document.file_url} target="_blank" rel="noreferrer">Open</a>
-                                  {!isEmployedEmployee && !isReturnedEmployee ? (
-                                    <button type="button" className="link-button" onClick={() => handleDeleteDocument(document.id)} disabled={readOnly}>Remove</button>
-                                  ) : null}
-                                </div>
                               </div>
                             ) : null}
                           </div>
@@ -2111,18 +2261,28 @@ export default function EmployeesPage() {
                       {canOverrideProgress && (isUnderProcess || employee.did_travel) && (employee.progress_status?.overall_completion ?? 0) < 100 ? (
                         <button
                           type="button"
-                          className="btn-secondary"
+                          className="btn-info"
                           onClick={(event) => { event.stopPropagation(); handleMarkProgressComplete(employee) }}
                           disabled={readOnly || actionBusyId === employee.id}
                         >
                           {actionBusyId === employee.id ? 'Saving...' : 'Mark progress 100%'}
                         </button>
                       ) : null}
-                      <button type="button" className="btn-secondary" onClick={(event) => { event.stopPropagation(); handleAvailabilityAction(employee, 'approved', 'Approved') }} disabled={actionBusyId === employee.id || readOnly || isAgentSideUser || employee.status === 'approved'}>
+                      <button type="button" className="btn-success" onClick={(event) => { event.stopPropagation(); handleAvailabilityAction(employee, 'approved', 'Approved') }} disabled={actionBusyId === employee.id || readOnly || isAgentSideUser || employee.status === 'approved'}>
                         {actionBusyId === employee.id ? 'Saving...' : 'Approve'}
                       </button>
-                      <button type="button" className="btn-secondary" onClick={(event) => { event.stopPropagation(); handleAvailabilityAction(employee, 'rejected', 'Rejected') }} disabled={actionBusyId === employee.id || readOnly || isAgentSideUser || isUnderProcess || employee.status === 'rejected'}>Reject</button>
-                      <button type="button" className="btn-secondary" onClick={(event) => { event.stopPropagation(); handleAvailabilityAction(employee, 'suspended', 'Suspended') }} disabled={actionBusyId === employee.id || readOnly || isAgentSideUser || isUnderProcess || employee.status === 'suspended'}>Suspend</button>
+                      {isAvailableEmployee ? (
+                        <button
+                          type="button"
+                          className="btn-muted-action"
+                          onClick={(event) => { event.stopPropagation(); handleEmployeeAvailabilityToggle(employee, false, 'Marked as not available') }}
+                          disabled={actionBusyId === employee.id || readOnly || isAgentSideUser || isUnderProcess}
+                        >
+                          {actionBusyId === employee.id ? 'Saving...' : 'Make not available'}
+                        </button>
+                      ) : null}
+                      <button type="button" className="btn-danger" onClick={(event) => { event.stopPropagation(); handleAvailabilityAction(employee, 'rejected', 'Rejected') }} disabled={actionBusyId === employee.id || readOnly || isAgentSideUser || isUnderProcess || employee.status === 'rejected'}>Reject</button>
+                      <button type="button" className="btn-warning" onClick={(event) => { event.stopPropagation(); handleAvailabilityAction(employee, 'suspended', 'Suspended') }} disabled={actionBusyId === employee.id || readOnly || isAgentSideUser || isUnderProcess || employee.status === 'suspended'}>Suspend</button>
                       <button type="button" className="btn-secondary" onClick={(event) => { event.stopPropagation(); handleEdit(employee.id) }} disabled={busyEmployeeId === employee.id || readOnly || (isAgentSideUser && !isSelectedByCurrentAgent)}>
                         {busyEmployeeId === employee.id ? 'Loading...' : 'Edit'}
                       </button>
@@ -2234,9 +2394,39 @@ export default function EmployeesPage() {
           <div className="employee-review-modal" role="dialog" aria-modal="true" aria-labelledby="employee-review-title" onClick={(event) => event.stopPropagation()}>
             <div className="employee-review-header">
               <div className="employee-card-identity">
-                <div className="employee-card-avatar employee-review-avatar">
-                  {employeeProfilePhoto(openedEmployee)?.file_url && isImageDocument(employeeProfilePhoto(openedEmployee)) ? (
-                    <img src={employeeProfilePhoto(openedEmployee).file_url} alt={`${openedEmployee.full_name} profile`} />
+                <div
+                  className={`employee-card-avatar employee-review-avatar${openedEmployeeProfileDocument?.file_url && isImageDocument(openedEmployeeProfileDocument) ? ' is-clickable' : ''}`}
+                  role={openedEmployeeProfileDocument?.file_url && isImageDocument(openedEmployeeProfileDocument) ? 'button' : undefined}
+                  tabIndex={openedEmployeeProfileDocument?.file_url && isImageDocument(openedEmployeeProfileDocument) ? 0 : undefined}
+                  onClick={
+                    openedEmployeeProfileDocument?.file_url && isImageDocument(openedEmployeeProfileDocument)
+                      ? () =>
+                          openDocumentPreview({
+                            url: openedEmployeeProfileDocument.file_url,
+                            label: `${openedEmployee.full_name} portrait`,
+                            isImage: true,
+                            isPdf: false
+                          })
+                      : undefined
+                  }
+                  onKeyDown={
+                    openedEmployeeProfileDocument?.file_url && isImageDocument(openedEmployeeProfileDocument)
+                      ? (event) => {
+                          if (event.key === 'Enter' || event.key === ' ') {
+                            event.preventDefault()
+                            openDocumentPreview({
+                              url: openedEmployeeProfileDocument.file_url,
+                              label: `${openedEmployee.full_name} portrait`,
+                              isImage: true,
+                              isPdf: false
+                            })
+                          }
+                        }
+                      : undefined
+                  }
+                >
+                  {openedEmployeeProfileDocument?.file_url && isImageDocument(openedEmployeeProfileDocument) ? (
+                    <img src={openedEmployeeProfileDocument.file_url} alt={`${openedEmployee.full_name} profile`} />
                   ) : (
                     <span>{openedEmployee.full_name?.charAt(0) || '?'}</span>
                   )}
@@ -2244,7 +2434,7 @@ export default function EmployeesPage() {
                 <div>
                   <p className="employee-modal-eyebrow">Employee review</p>
                   <h2 id="employee-review-title">{openedEmployee.full_name}</h2>
-                  <p className="muted-text">{openedEmployee.profession || openedEmployee.professional_title || '--'} | {employeeStatusLabel(openedEmployee)}</p>
+                  <p className="muted-text">{openedEmployee.profession || openedEmployee.professional_title || '--'} | {employeeStatusLabel(openedEmployee, currentView)}</p>
                 </div>
               </div>
               <div style={{ display: 'flex', gap: 8 }}>
@@ -2316,7 +2506,7 @@ export default function EmployeesPage() {
                   <div className="employee-summary-card">
                     <h3>Overview</h3>
                     <p><strong>Age:</strong> {openedEmployee.age || '--'}</p>
-                    <p><strong>Availability:</strong> {employeeAvailability(openedEmployee)}</p>
+                    <p><strong>Availability:</strong> {employeeAvailability(openedEmployee, currentView)}</p>
                     <p><strong>Phone:</strong> {openedEmployee.phone || openedEmployee.mobile_number || '--'}</p>
                     <p><strong>Email:</strong> {openedEmployee.email || '--'}</p>
                     <p><strong>Registered by:</strong> {openedEmployee.registered_by_username || '--'}</p>
@@ -2349,7 +2539,7 @@ export default function EmployeesPage() {
                       <div className="employee-progress-metrics">
                         <p><strong>Fields:</strong> {openedEmployee.progress_status?.field_completion ?? 0}%</p>
                         <p><strong>Documents:</strong> {openedEmployee.progress_status?.document_completion ?? 0}%</p>
-                        <p><strong>Status:</strong> {employeeStatusLabel(openedEmployee)}</p>
+                        <p><strong>Status:</strong> {employeeStatusLabel(openedEmployee, currentView)}</p>
                       </div>
                     </div>
                     <p><strong>Travel:</strong> {prettyStatus(openedEmployee.travel_status, 'pending')}</p>
