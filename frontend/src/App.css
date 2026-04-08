@@ -329,10 +329,167 @@ button:disabled {
   gap: 14px;
 }
 
+.commission-agents-list {
+  display: grid;
+  gap: 16px;
+}
+
+.commission-agent-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(300px, 0.9fr) minmax(220px, 0.75fr) 110px;
+  gap: 18px;
+  align-items: start;
+  padding: 20px;
+  border: 1px solid var(--color-border);
+  border-radius: 18px;
+  background: var(--color-card);
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.05);
+}
+
+.commission-agent-card-main {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+}
+
+.commission-agent-card-kicker {
+  margin: 0;
+  font-size: 0.76rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-primary);
+}
+
+.commission-agent-card-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.commission-agent-card-heading h3 {
+  margin: 0;
+  color: var(--color-foreground);
+}
+
+.commission-agent-card-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  color: var(--color-muted-foreground);
+  font-size: 0.92rem;
+}
+
+.commission-agent-card-description {
+  margin: 0;
+  max-width: 58ch;
+}
+
+.commission-agent-card-stats {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.commission-agent-stat {
+  display: grid;
+  gap: 4px;
+  padding: 12px 14px;
+  border: 1px solid var(--color-border);
+  border-radius: 14px;
+  background: color-mix(in oklch, var(--color-card) 88%, var(--color-muted));
+}
+
+.commission-agent-stat strong {
+  font-size: 1rem;
+  color: var(--color-foreground);
+}
+
+.commission-agent-stat span {
+  color: var(--color-muted-foreground);
+  font-size: 0.84rem;
+}
+
+.commission-agent-card-graph {
+  min-width: 0;
+  align-self: center;
+}
+
+.commission-agent-card-score {
+  display: grid;
+  place-items: center;
+  gap: 6px;
+  min-height: 100%;
+  padding: 14px 10px;
+  border: 1px solid var(--color-border);
+  border-radius: 18px;
+  background: color-mix(in oklch, var(--color-card) 86%, var(--color-muted));
+  text-align: center;
+}
+
+.commission-agent-card-score-label {
+  font-size: 0.74rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-muted-foreground);
+}
+
+.commission-agent-card-score strong {
+  font-size: 1.8rem;
+  line-height: 1;
+  color: var(--color-foreground);
+}
+
+.commission-agent-card-score-note {
+  font-size: 0.8rem;
+  color: var(--color-muted-foreground);
+}
+
+.commission-agent-card-score.is-strong {
+  border-color: color-mix(in oklch, var(--color-chart-2) 42%, var(--color-border));
+  background: color-mix(in oklch, var(--color-chart-2) 14%, var(--color-card));
+}
+
+.commission-agent-card-score.is-balanced {
+  border-color: color-mix(in oklch, var(--color-chart-4) 42%, var(--color-border));
+  background: color-mix(in oklch, var(--color-chart-4) 14%, var(--color-card));
+}
+
+.commission-agent-card-score.is-watch {
+  border-color: color-mix(in oklch, var(--color-destructive) 32%, var(--color-border));
+  background: color-mix(in oklch, var(--color-destructive) 10%, var(--color-card));
+}
+
 .commission-rate-graph {
   display: grid;
   gap: 8px;
   margin: 14px 0 12px;
+}
+
+.commission-rate-graph-row {
+  display: grid;
+  grid-template-columns: 52px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+}
+
+.commission-rate-graph-label {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--color-muted-foreground);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.commission-rate-graph-value {
+  min-width: 48px;
+  text-align: right;
+  font-size: 0.84rem;
+  font-weight: 700;
+  color: var(--color-foreground);
 }
 
 .commission-rate-graph-wrap {
@@ -422,6 +579,1060 @@ button:disabled {
 .commission-group-list {
   display: grid;
   gap: 18px;
+}
+
+.commission-request-list {
+  display: grid;
+  gap: 16px;
+}
+
+.commission-request-card {
+  display: grid;
+  gap: 14px;
+  padding: 18px;
+  border: 1px solid var(--color-border);
+  border-radius: 18px;
+  background: var(--color-card);
+}
+
+.commission-request-card-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.commission-request-card-header h3 {
+  margin: 0 0 6px;
+  color: var(--color-foreground);
+}
+
+.commission-request-card-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.commission-request-employee-list {
+  display: grid;
+  gap: 10px;
+}
+
+.commission-request-employee-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  padding: 12px 14px;
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  background: color-mix(in oklch, var(--color-card) 92%, var(--color-muted));
+  color: var(--color-foreground);
+  text-align: left;
+}
+
+.commission-request-employee-item:hover {
+  border-color: color-mix(in oklch, var(--color-ring) 34%, var(--color-border));
+  background: color-mix(in oklch, var(--color-card) 84%, var(--color-muted));
+}
+
+.commission-request-employee-item > span:first-child {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.commission-request-employee-meta,
+.commission-request-card-footer {
+  color: var(--color-muted-foreground);
+  font-size: 0.92rem;
+}
+
+.commission-request-card-footer {
+  margin: 0;
+}
+
+.commission-request-employee-state {
+  flex-shrink: 0;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: color-mix(in oklch, var(--color-muted) 74%, transparent);
+  color: var(--color-foreground);
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.commission-timeline-card {
+  display: grid;
+  gap: 18px;
+  padding: 20px;
+  border: 1px solid var(--color-border);
+  border-radius: 18px;
+  background: var(--color-card);
+}
+
+.commission-timeline-header h3 {
+  margin: 0 0 6px;
+  color: var(--color-foreground);
+}
+
+.commission-collected-breadcrumb {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.commission-collected-breadcrumb .muted-text {
+  margin: 0;
+}
+
+.commission-range-tabs {
+  margin: 0;
+}
+
+.commission-chart-card {
+  display: grid;
+  gap: 18px;
+}
+
+.commission-chart-surface {
+  padding: 18px 18px 10px;
+  border: 1px solid var(--color-border);
+  border-radius: 18px;
+  background: color-mix(in oklch, var(--color-card) 94%, var(--color-muted));
+}
+
+.commission-chart-svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.commission-chart-grid-line {
+  stroke: color-mix(in oklch, var(--color-border) 84%, transparent);
+  stroke-width: 1;
+}
+
+.commission-chart-vertical-guide {
+  stroke: color-mix(in oklch, var(--color-border) 62%, transparent);
+  stroke-width: 0.8;
+  stroke-dasharray: 2 5;
+}
+
+.commission-chart-grid-label,
+.commission-chart-axis-label {
+  fill: var(--color-muted-foreground);
+  font-size: 10px;
+}
+
+.commission-chart-line {
+  fill: none;
+  stroke: rgb(134 78 24);
+  stroke-width: 0.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.commission-chart-point {
+  fill: rgb(201 133 60);
+  stroke: #3c281a;
+  stroke-width: 2;
+  opacity: 0.75;
+  transition: opacity 140ms ease, transform 140ms ease;
+}
+
+.commission-chart-point.is-active {
+  opacity: 1;
+}
+
+.commission-chart-tooltip {
+  pointer-events: none;
+}
+
+.commission-chart-tooltip-box {
+  fill: color-mix(in oklch, var(--color-card) 82%, transparent);
+  stroke: color-mix(in oklch, var(--color-border) 80%, transparent);
+  stroke-width: 1;
+}
+
+.commission-chart-tooltip-title,
+.commission-chart-tooltip-text {
+  fill: var(--color-foreground);
+  font-size: 8px;
+  text-rendering: geometricPrecision;
+}
+
+.commission-chart-tooltip-title {
+  font-weight: 700;
+}
+
+.commission-chart-tooltip-text {
+  fill: var(--color-muted-foreground);
+}
+
+.commission-chart-details {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 12px;
+}
+
+.commission-chart-detail-filter {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.commission-chart-detail-filter .commission-search {
+  margin-top: 0;
+  min-width: min(320px, 100%);
+}
+
+.commission-chart-detail-filter > button + button {
+  margin-left: -4px;
+}
+
+.reports-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 16px;
+}
+
+.reports-chart-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 16px;
+}
+
+.reports-chart-card {
+  display: grid;
+  gap: 14px;
+  padding: 18px;
+  border: 1px solid var(--color-border);
+  border-radius: 16px;
+  background: var(--color-card);
+}
+
+.reports-chart-card.is-compact {
+  max-width: 648px;
+  justify-self: start;
+}
+
+.reports-chart-header h3 {
+  margin: 0 0 6px;
+  color: var(--color-foreground);
+}
+
+.reports-chart-surface {
+  overflow-x: auto;
+  border: 1px solid color-mix(in oklch, var(--color-border) 58%, transparent);
+  border-radius: 14px;
+  background: color-mix(in oklch, var(--color-card) 90%, var(--color-muted));
+}
+
+.reports-chart-svg {
+  width: 100%;
+  min-width: 540px;
+  height: auto;
+  display: block;
+}
+
+.reports-chart-card.is-compact .reports-chart-svg {
+  min-width: 432px;
+}
+
+.reports-chart-grid-line {
+  stroke: color-mix(in oklch, var(--color-border) 70%, transparent);
+  stroke-width: 1;
+  stroke-dasharray: 4 5;
+}
+
+.reports-chart-grid-label,
+.reports-chart-axis-label,
+.reports-chart-value {
+  fill: var(--color-muted-foreground);
+  font-size: 11px;
+}
+
+.reports-chart-track {
+  fill: color-mix(in oklch, var(--color-muted) 72%, transparent);
+}
+
+.reports-chart-bar {
+  opacity: 0.94;
+}
+
+.reports-stage-bar {
+  fill: #b67237;
+}
+
+.reports-stage-link {
+  stroke: color-mix(in oklch, var(--color-border) 58%, #c97f3d);
+  stroke-width: 2.5;
+  stroke-linecap: round;
+}
+
+.reports-stage-value,
+.reports-donut-total-value {
+  fill: var(--color-foreground);
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.reports-donut-total-label {
+  fill: var(--color-muted-foreground);
+  font-size: 11px;
+}
+
+.reports-donut-segment {
+  stroke: var(--color-card);
+  stroke-width: 3;
+}
+
+.reports-line-path {
+  fill: none;
+  stroke: #9f6a3b;
+  stroke-width: 2.5;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+
+.reports-line-point {
+  fill: #d89b62;
+  stroke: #5a3a22;
+  stroke-width: 1.5;
+}
+
+.reports-scatter-point {
+  fill: rgb(201 127 61 / 0.62);
+  stroke: #5a3a22;
+  stroke-width: 1.5;
+}
+
+.reports-chart-value {
+  fill: var(--color-foreground);
+  font-weight: 600;
+}
+
+.reports-chart-empty {
+  padding: 18px;
+  border: 1px dashed var(--color-border);
+  border-radius: 14px;
+  color: var(--color-muted-foreground);
+  background: color-mix(in oklch, var(--color-card) 92%, var(--color-muted));
+}
+
+.reports-list {
+  display: grid;
+  gap: 14px;
+}
+
+.reports-list-item {
+  display: grid;
+  gap: 10px;
+  padding: 18px;
+  border: 1px solid var(--color-border);
+  border-radius: 16px;
+  background: var(--color-card);
+}
+
+.reports-list-item h3 {
+  margin: 0 0 6px;
+  color: var(--color-foreground);
+}
+
+.reports-inline-metrics {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+  color: var(--color-muted-foreground);
+  font-size: 0.92rem;
+}
+
+.reports-rank-list {
+  display: grid;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.reports-rank-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  background: color-mix(in oklch, var(--color-card) 92%, var(--color-muted));
+}
+
+.reports-rank-item strong {
+  color: var(--color-foreground);
+}
+
+.reports-rank-item span,
+.reports-card-note {
+  color: var(--color-muted-foreground);
+}
+
+.profiles-layout {
+  display: grid;
+  grid-template-columns: minmax(320px, 420px) minmax(0, 1fr);
+  gap: 20px;
+  margin-top: 18px;
+  align-items: start;
+}
+
+.profiles-profile-card,
+.profiles-page .employee-summary-card {
+  text-align: left;
+}
+
+.profiles-profile-head {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 18px;
+}
+
+.profiles-profile-avatar {
+  width: 72px !important;
+  height: 72px !important;
+  min-width: 72px !important;
+  flex-basis: 72px !important;
+}
+
+.profiles-agent-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 12px;
+  margin-top: 14px;
+}
+
+.profiles-side-panels {
+  display: grid;
+  gap: 20px;
+}
+
+.profiles-side-user-list {
+  display: grid;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.profiles-side-user-item {
+  display: block;
+  width: 100%;
+  padding: 4px 8px;
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  background: color-mix(in oklch, var(--color-card) 96%, var(--color-muted));
+  text-align: left;
+  cursor: default;
+  opacity: 0.94;
+}
+
+.profiles-side-user-item .profiles-agent-card-head {
+  gap: 8px;
+  flex-wrap: nowrap;
+}
+
+.profiles-side-user-item .profiles-agent-avatar {
+  width: 24px !important;
+  height: 24px !important;
+  min-width: 24px !important;
+  flex-basis: 24px !important;
+  font-size: 0.75rem !important;
+}
+
+.profiles-side-user-inline {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-width: 0;
+}
+
+.profiles-side-user-inline strong,
+.profiles-side-user-inline span,
+.profiles-side-user-inline .badge {
+  margin: 0;
+  line-height: 1.1;
+}
+
+.profiles-side-user-inline .badge,
+.profiles-agent-card .badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: auto;
+  line-height: 1;
+  padding-top: 2px !important;
+  padding-bottom: 2px !important;
+}
+
+.profiles-agent-card,
+.profiles-doc-item {
+  display: grid;
+  gap: 8px;
+  padding: 14px;
+  border: 1px solid var(--color-border);
+  border-radius: 14px;
+  background: color-mix(in oklch, var(--color-card) 94%, var(--color-muted));
+}
+
+.profiles-agent-card {
+  width: 100%;
+  text-align: left;
+  cursor: pointer;
+}
+
+.profiles-agent-card:hover {
+  border-color: color-mix(in oklch, var(--color-ring) 34%, var(--color-border));
+  background: color-mix(in oklch, var(--color-card) 88%, var(--color-muted));
+}
+
+.profiles-agent-card.is-disabled,
+.profiles-agent-card:disabled {
+  cursor: default;
+  opacity: 0.72;
+}
+
+.profiles-agent-card.is-disabled:hover,
+.profiles-agent-card:disabled:hover {
+  border-color: var(--color-border);
+  background: color-mix(in oklch, var(--color-card) 94%, var(--color-muted));
+}
+
+.profiles-agent-card-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.profiles-admin-badge {
+  margin-top: 6px;
+  margin-left: 0;
+}
+
+.profiles-agreement-status {
+  margin-top: 0;
+}
+
+.profiles-agreement-status--signed {
+  background: #166534 !important;
+  border-color: #166534 !important;
+  color: #effdf5 !important;
+}
+
+.profiles-agreement-status--pending {
+  background: #ca8a04 !important;
+  border-color: #ca8a04 !important;
+  color: #fffbea !important;
+}
+
+.profiles-agreement-status--rejected {
+  background: #b91c1c !important;
+  border-color: #b91c1c !important;
+  color: #fef2f2 !important;
+}
+
+.profiles-agreement-status--active {
+  background: #15803d !important;
+  border-color: #15803d !important;
+  color: #f0fdf4 !important;
+}
+
+.profiles-agreement-status--expired {
+  background: #6b7280 !important;
+  border-color: #6b7280 !important;
+  color: #f9fafb !important;
+}
+
+.profiles-agent-avatar {
+  width: 48px !important;
+  height: 48px !important;
+  min-width: 48px !important;
+  flex-basis: 48px !important;
+}
+
+.profiles-doc-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.profiles-doc-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none;
+}
+
+.profiles-agreements-layout {
+  grid-template-columns: minmax(320px, 420px) minmax(0, 1fr);
+}
+
+.profiles-agreement-doc-picker {
+  display: grid;
+  gap: 10px;
+}
+
+.profiles-agreement-doc-picker-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.profiles-agreement-doc-options {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  max-height: 420px;
+  overflow: auto;
+}
+
+.profiles-agreement-doc-group {
+  display: grid;
+  gap: 8px;
+}
+
+.profiles-agreement-doc-group > .employee-modal-eyebrow {
+  margin: 0;
+}
+
+.profiles-agreement-selected-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(90px, 90px));
+  gap: 10px;
+}
+
+.profiles-agreement-selected-tile {
+  position: relative;
+  display: grid;
+  gap: 6px;
+  justify-items: center;
+  align-content: start;
+  padding: 10px 8px 8px;
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  background: color-mix(in oklch, var(--color-card) 94%, var(--color-muted));
+  text-align: center;
+}
+
+.profiles-agreement-selected-tile.is-previewable {
+  cursor: pointer;
+}
+
+.profiles-agreement-selected-tile.is-previewable:hover {
+  border-color: color-mix(in oklch, var(--color-ring) 34%, var(--color-border));
+  background: color-mix(in oklch, var(--color-card) 88%, var(--color-muted));
+}
+
+.profiles-agreement-selected-thumb {
+  width: 54px;
+  height: 54px;
+  border-radius: 10px;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: color-mix(in oklch, var(--color-muted) 76%, var(--color-card));
+  border: 1px solid color-mix(in oklch, var(--color-border) 80%, var(--color-muted));
+}
+
+.profiles-agreement-selected-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.profiles-agreement-selected-thumb span {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--color-muted-foreground);
+}
+
+.profiles-agreement-selected-tile strong,
+.profiles-agreement-selected-tile small {
+  width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.profiles-agreement-selected-tile strong {
+  font-size: 0.74rem;
+  color: var(--color-foreground);
+}
+
+.profiles-agreement-selected-tile small {
+  font-size: 0.68rem;
+  color: var(--color-muted-foreground);
+}
+
+.profiles-agreement-selected-remove {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 20px !important;
+  height: 20px !important;
+  min-width: 20px !important;
+  min-height: 20px !important;
+  max-width: 20px !important;
+  max-height: 20px !important;
+  padding: 5px !important;
+  border-radius: 3px !important;
+  border: 1px solid color-mix(in oklch, var(--color-ring) 42%, var(--color-border)) !important;
+  background: #fff !important;
+  color: #111 !important;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  flex: 0 0 15px;
+  overflow: hidden;
+  font-size: 0.56rem !important;
+  font-weight: 700;
+  line-height: 1;
+  opacity: 0.96;
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.14);
+}
+
+.profiles-agreement-selected-remove:hover:not(:disabled) {
+  background: #f4f4f4 !important;
+  border-color: #cfcfcf !important;
+  box-shadow: 0 2px 4px rgb(0 0 0 / 0.18);
+}
+
+html[data-accent='orange'] .profiles-agreement-selected-remove,
+html[data-theme='dark'][data-accent='orange'] .profiles-agreement-selected-remove,
+html:not([data-theme])[data-accent='orange'] .profiles-agreement-selected-remove {
+  width: 20px !important;
+  height: 20px !important;
+  min-width: 20px !important;
+  min-height: 20px !important;
+  max-width: 20px !important;
+  max-height: 20px !important;
+  padding: 0 !important;
+  background: #ffffffb6 !important;
+  color: #111 !important;
+  border-radius: 3px !important;
+  border-color: #d8d8d8 !important;
+}
+
+html[data-accent='orange'] .profiles-agreement-selected-remove:hover:not(:disabled),
+html[data-theme='dark'][data-accent='orange'] .profiles-agreement-selected-remove:hover:not(:disabled),
+html:not([data-theme])[data-accent='orange'] .profiles-agreement-selected-remove:hover:not(:disabled) {
+  background: #f4f4f4 !important;
+  color: #111 !important;
+  border-color: #cfcfcf !important;
+  box-shadow: 0 2px 4px rgb(0 0 0 / 0.18) !important;
+}
+
+.profiles-agreement-doc-option {
+  position: relative;
+  display: grid;
+  gap: 2px;
+  padding: 10px 12px;
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  background: color-mix(in oklch, var(--color-card) 94%, var(--color-muted));
+  cursor: pointer;
+}
+
+.profiles-agreement-doc-option input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.profiles-agreement-doc-option:has(input:checked) {
+  border-color: color-mix(in oklch, var(--color-ring) 44%, var(--color-border));
+  background: color-mix(in oklch, var(--color-card) 82%, var(--color-muted));
+}
+
+.profiles-agreement-doc-option span {
+  font-weight: 600;
+  color: var(--color-foreground);
+}
+
+.profiles-agreement-doc-option small {
+  color: var(--color-muted-foreground);
+}
+
+.profiles-agreement-list {
+  display: grid;
+  gap: 16px;
+  margin-top: 14px;
+}
+
+.profiles-agreement-item {
+  display: grid;
+  gap: 14px;
+  padding: 16px;
+  border: 1px solid var(--color-border);
+  border-radius: 16px;
+  background: color-mix(in oklch, var(--color-card) 95%, var(--color-muted));
+}
+
+.profiles-agreement-item--signed {
+  padding: 0;
+}
+
+.profiles-agreement-item--signed .commission-group-header {
+  align-items: start;
+  padding: 18px 18px 12px;
+}
+
+.profiles-agreement-head-copy {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.profiles-agreement-head-copy .employee-modal-eyebrow,
+.profiles-agreement-head-copy .muted-text {
+  margin: 0;
+}
+
+.profiles-agreement-signed-content {
+  display: grid;
+  gap: 14px;
+  padding: 0 16px 16px;
+}
+
+.profiles-agreement-toolbar {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.profiles-agreement-head {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.profiles-agreement-head-actions {
+  display: grid;
+  justify-items: end;
+  gap: 8px;
+}
+
+.profiles-agreement-head h3 {
+  margin: 0 0 4px;
+  overflow-wrap: anywhere;
+}
+
+.profiles-agreement-item--signed .commission-group-toggle-button {
+  width: 36px;
+  height: 36px;
+  min-width: 36px;
+  min-height: 36px;
+}
+
+.profiles-agreement-item--signed .commission-group-toggle-icon {
+  font-size: 0;
+}
+
+.profiles-agreement-item--signed .commission-group-toggle-icon::before {
+  content: '▸';
+  font-size: 1rem;
+  line-height: 1;
+}
+
+.profiles-agreement-details {
+  padding: 12px 14px;
+  border: 1px solid color-mix(in oklch, var(--color-border) 74%, var(--color-muted));
+  border-radius: 14px;
+  background: color-mix(in oklch, var(--color-card) 97%, var(--color-muted));
+}
+
+.profiles-agreement-details p {
+  margin: 0;
+  white-space: pre-wrap;
+}
+
+.profiles-agreement-doc-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 10px;
+}
+
+.profiles-signature-board {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.profiles-signature-card {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid color-mix(in oklch, var(--color-border) 74%, var(--color-muted));
+  border-radius: 14px;
+  background: color-mix(in oklch, var(--color-card) 97%, var(--color-muted));
+}
+
+.profiles-signature-card strong {
+  color: var(--color-foreground);
+}
+
+.profiles-signature-consent {
+  display: flex;
+  flex-direction: row-reverse !important;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px !important;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  text-align: right;
+}
+
+.profiles-signature-consent input {
+  float: right;
+  margin: 0;
+}
+
+.profiles-signature-pad {
+  min-height: 140px;
+  display: flex;
+  align-items: stretch;
+  justify-content: center;
+  padding: 10px;
+  border: 1px dashed color-mix(in oklch, var(--color-ring) 34%, var(--color-border));
+  border-radius: 14px;
+  background:
+    linear-gradient(180deg, transparent 0%, transparent 74%, color-mix(in oklch, var(--color-ring) 22%, transparent) 74%, color-mix(in oklch, var(--color-ring) 22%, transparent) 76%, transparent 76%);
+  color: var(--color-muted-foreground);
+  font-style: italic;
+}
+
+.profiles-signature-pad canvas {
+  width: 100%;
+  height: 140px;
+  display: block;
+  cursor: crosshair;
+  touch-action: none;
+}
+
+.profiles-signature-pad span {
+  display: flex;
+  align-items: end;
+  width: 100%;
+}
+
+.profiles-signature-preview {
+  padding: 8px;
+  border: 1px solid color-mix(in oklch, var(--color-border) 74%, var(--color-muted));
+  border-radius: 12px;
+  background: color-mix(in oklch, var(--color-card) 98%, var(--color-muted));
+}
+
+.profiles-signature-preview img {
+  display: block;
+  width: 100%;
+  max-height: 120px;
+  object-fit: contain;
+}
+
+@media (max-width: 980px) {
+  .profiles-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .profiles-doc-list {
+    grid-template-columns: 1fr;
+  }
+
+  .profiles-signature-board {
+    grid-template-columns: 1fr;
+  }
+
+  .profiles-agreement-doc-options {
+    grid-template-columns: 1fr;
+  }
+}
+
+.commission-timeline-list {
+  display: grid;
+  gap: 12px;
+}
+
+.commission-timeline-item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 14px;
+  border: 1px solid color-mix(in oklch, var(--color-border) 68%, var(--color-muted));
+  border-radius: 14px;
+  background: color-mix(in oklch, var(--color-muted) 76%, var(--color-card));
+  color: var(--color-foreground);
+}
+
+.commission-timeline-item.is-drillable {
+  cursor: pointer;
+}
+
+.commission-timeline-item.is-drillable:hover {
+  border-color: color-mix(in oklch, var(--color-ring) 34%, var(--color-border));
+  background: color-mix(in oklch, var(--color-muted) 68%, var(--color-card));
+}
+
+.commission-timeline-item:disabled {
+  opacity: 1 !important;
+  cursor: default;
+}
+
+.commission-timeline-item:disabled:hover {
+  border-color: color-mix(in oklch, var(--color-border) 68%, var(--color-muted));
+  background: color-mix(in oklch, var(--color-muted) 76%, var(--color-card));
+  box-shadow: none !important;
+}
+
+.commission-timeline-meta {
+  display: grid;
+  gap: 4px;
+}
+
+.commission-timeline-meta strong {
+  color: var(--color-foreground);
+}
+
+.commission-timeline-meta span {
+  color: var(--color-muted-foreground);
+  font-size: 0.9rem;
+}
+
+.commission-timeline-bar {
+  position: relative;
+  height: 14px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: color-mix(in oklch, var(--color-muted) 76%, var(--color-card));
+  border: 1px solid color-mix(in oklch, var(--color-border) 74%, transparent);
+}
+
+.commission-timeline-bar-fill {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, rgb(201 133 60) 0%, rgb(134 78 24) 100%);
+}
+
+.commission-timeline-value {
+  color: var(--color-foreground);
+  white-space: nowrap;
 }
 
 .commission-group {
@@ -2167,6 +3378,74 @@ html:not([data-theme]) .commission-settlement-card {
   margin: 0;
 }
 
+.employee-stage-pending-surface {
+  display: grid;
+  gap: 16px;
+  margin-bottom: 20px;
+  padding: 0;
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  background: var(--color-card);
+  overflow: hidden;
+}
+
+.employee-stage-pending-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 18px;
+}
+
+.employee-stage-pending-header h3 {
+  margin: 0 0 6px;
+  color: var(--color-foreground);
+}
+
+.employee-stage-pending-header .muted-text {
+  margin-bottom: 0;
+}
+
+.employee-stage-pending-list {
+  display: grid;
+  gap: 12px;
+  padding: 0 18px 18px;
+}
+
+.employee-stage-pending-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 14px;
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  background: var(--color-card);
+}
+
+.employee-stage-pending-main {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+  flex: 1;
+  min-width: 0;
+  padding: 0;
+  border: 0 !important;
+  background: transparent !important;
+  color: inherit !important;
+  box-shadow: none !important;
+  text-align: left;
+}
+
+.employee-stage-pending-main:hover,
+.employee-stage-pending-main:focus-visible,
+.employee-stage-pending-main:active {
+  background: transparent !important;
+  color: inherit !important;
+  box-shadow: none !important;
+}
+
 @media (max-width: 960px) {
   .employees-filter-grid,
   .employee-step-grid,
@@ -2175,6 +3454,26 @@ html:not([data-theme]) .commission-settlement-card {
   .employee-template-bar,
   .employee-employed-summary {
     grid-template-columns: 1fr;
+  }
+
+  .commission-agent-card {
+    grid-template-columns: 1fr;
+  }
+
+  .commission-agent-card-stats {
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  }
+
+  .commission-timeline-item {
+    grid-template-columns: 1fr;
+  }
+
+  .commission-chart-details {
+    grid-template-columns: 1fr;
+  }
+
+  .commission-chart-detail-filter {
+    display: grid;
   }
 
   .employee-template-bar {
@@ -4723,6 +6022,46 @@ html[data-accent='orange'] .employee-card-status-badge.badge-muted {
   color: #f6f6f6 !important;
 }
 
+html[data-accent='orange'] .profiles-agreement-status.profiles-agreement-status--signed,
+html[data-theme='dark'][data-accent='orange'] .profiles-agreement-status.profiles-agreement-status--signed,
+html:not([data-theme])[data-accent='orange'] .profiles-agreement-status.profiles-agreement-status--signed {
+  background: #166534 !important;
+  border-color: #166534 !important;
+  color: #effdf5 !important;
+}
+
+html[data-accent='orange'] .profiles-agreement-status.profiles-agreement-status--active,
+html[data-theme='dark'][data-accent='orange'] .profiles-agreement-status.profiles-agreement-status--active,
+html:not([data-theme])[data-accent='orange'] .profiles-agreement-status.profiles-agreement-status--active {
+  background: #15803d !important;
+  border-color: #15803d !important;
+  color: #f0fdf4 !important;
+}
+
+html[data-accent='orange'] .profiles-agreement-status.profiles-agreement-status--pending,
+html[data-theme='dark'][data-accent='orange'] .profiles-agreement-status.profiles-agreement-status--pending,
+html:not([data-theme])[data-accent='orange'] .profiles-agreement-status.profiles-agreement-status--pending {
+  background: #ca8a04 !important;
+  border-color: #ca8a04 !important;
+  color: #fffbea !important;
+}
+
+html[data-accent='orange'] .profiles-agreement-status.profiles-agreement-status--rejected,
+html[data-theme='dark'][data-accent='orange'] .profiles-agreement-status.profiles-agreement-status--rejected,
+html:not([data-theme])[data-accent='orange'] .profiles-agreement-status.profiles-agreement-status--rejected {
+  background: #b91c1c !important;
+  border-color: #b91c1c !important;
+  color: #fef2f2 !important;
+}
+
+html[data-accent='orange'] .profiles-agreement-status.profiles-agreement-status--expired,
+html[data-theme='dark'][data-accent='orange'] .profiles-agreement-status.profiles-agreement-status--expired,
+html:not([data-theme])[data-accent='orange'] .profiles-agreement-status.profiles-agreement-status--expired {
+  background: #6b7280 !important;
+  border-color: #6b7280 !important;
+  color: #f9fafb !important;
+}
+
 /* Global feedback layer */
 
 .app-toast-stack {
@@ -5147,5 +6486,308 @@ html[data-accent='orange'] .auth-links a:hover,
 html[data-accent='orange'] .employee-card-detail-links a:hover,
 html[data-accent='orange'] .employee-doc-preview-popover a:hover {
   color: rgb(var(--accent-active)) !important;
+}
+
+/* Cross-workspace surface normalization
+   Use the organization-side admin surface style as the shared reference. */
+
+.employee-modal,
+.employee-review-modal,
+.document-preview-modal,
+.users-table-wrap,
+.user-create-card,
+.table-scroll,
+.notification-dropdown,
+.commission-group,
+.commission-case-card,
+.commission-settlement-card,
+.commission-receipt-item,
+.notifications-page-list,
+.returned-list-surface,
+.returned-request-surface,
+.returned-request-item {
+  background: var(--color-card) !important;
+  border-color: var(--color-border) !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+.employee-modal-header,
+.employee-review-header,
+.document-preview-toolbar,
+.notification-dropdown-header,
+.users-table th {
+  background: color-mix(in oklch, var(--color-card) 94%, var(--color-muted)) !important;
+  border-color: var(--color-border) !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+html[data-accent='orange'] .employee-modal,
+html[data-accent='orange'] .employee-review-modal,
+html[data-accent='orange'] .users-table-wrap,
+html[data-accent='orange'] .user-create-card,
+html[data-accent='orange'] .table-scroll,
+html[data-accent='orange'] .notification-dropdown,
+html[data-accent='orange'] .commission-group,
+html[data-accent='orange'] .commission-case-card,
+html[data-accent='orange'] .commission-settlement-card,
+html[data-accent='orange'] .commission-receipt-item,
+html[data-accent='orange'] .notifications-page-list,
+html[data-accent='orange'] .returned-list-surface,
+html[data-accent='orange'] .returned-request-surface,
+html[data-accent='orange'] .returned-request-item {
+  background: var(--color-card) !important;
+  border-color: var(--color-border) !important;
+  box-shadow: 0 10px 18px rgb(0 0 0 / 0.08), 0 2px 6px rgb(0 0 0 / 0.04) !important;
+}
+
+html[data-accent='orange'] .employee-modal-header,
+html[data-accent='orange'] .employee-review-header,
+html[data-accent='orange'] .document-preview-toolbar,
+html[data-accent='orange'] .notification-dropdown-header,
+html[data-accent='orange'] .users-table th {
+  background: color-mix(in oklch, var(--color-card) 94%, var(--color-muted)) !important;
+  border-color: var(--color-border) !important;
+}
+
+html[data-accent='orange'] .employee-card,
+html[data-accent='orange'] .employee-summary-card,
+html[data-accent='orange'] .employee-attachment-preview-card,
+html[data-accent='orange'] .return-request-employee-option,
+html[data-accent='orange'] .employee-employed-block {
+  background: color-mix(in oklch, var(--color-card) 94%, var(--color-muted)) !important;
+  border-color: var(--color-border) !important;
+  color: var(--color-card-foreground) !important;
+}
+
+html[data-accent='orange'] .employee-card-avatar,
+html[data-accent='orange'] .employee-doc-preview-tile,
+html[data-accent='orange'] .employee-modal-document-tile,
+html[data-accent='orange'] .employee-attachment-preview-file,
+html[data-accent='orange'] .employee-attachment-preview-image,
+html[data-accent='orange'] .return-request-employee-state,
+html[data-accent='orange'] .employee-template-bar,
+html[data-accent='orange'] .employee-step-tab,
+html[data-accent='orange'] .employee-subtab,
+html[data-accent='orange'] .activity-code {
+  background: color-mix(in oklch, var(--color-muted) 40%, transparent) !important;
+  border-color: color-mix(in oklch, var(--color-border) 48%, transparent) !important;
+  color: var(--color-foreground) !important;
+}
+
+html[data-accent='orange'] .employee-card:hover,
+html[data-accent='orange'] .employee-summary-card:hover,
+html[data-accent='orange'] .return-request-employee-option:hover,
+html[data-accent='orange'] .returned-request-item:hover {
+  background: var(--color-card) !important;
+  border-color: color-mix(in srgb, var(--color-border) 72%, #9a9a9a 28%) !important;
+  box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.08), 0 2px 4px -2px rgb(0 0 0 / 0.08) !important;
+}
+
+html[data-accent='orange'] .employee-card h3,
+html[data-accent='orange'] .employee-card p,
+html[data-accent='orange'] .employee-doc-preview strong,
+html[data-accent='orange'] .employee-modal-header h2,
+html[data-accent='orange'] .employee-review-header h2,
+html[data-accent='orange'] .employee-modal-eyebrow {
+  color: inherit !important;
+}
+
+/* Full app cross-workspace normalization
+   Keep orange-accent accounts on the same core page-surface language as the organization-side admin. */
+
+html[data-accent='orange'] .dashboard-panel,
+html[data-accent='orange'] .employees-page,
+html[data-accent='orange'] .commissions-page,
+html[data-accent='orange'] .concept-page,
+html[data-accent='orange'] .notifications-page,
+html[data-accent='orange'] .settings-form,
+html[data-accent='orange'] .concept-card,
+html[data-accent='orange'] .concept-summary-pill,
+html[data-accent='orange'] .commission-group,
+html[data-accent='orange'] .commission-case-card,
+html[data-accent='orange'] .commission-settlement-card,
+html[data-accent='orange'] .commission-receipt-item,
+html[data-accent='orange'] .notification-dropdown,
+html[data-accent='orange'] .notifications-page-list,
+html[data-accent='orange'] .notification-item,
+html[data-accent='orange'] .notification-item.is-unread,
+html[data-accent='orange'] .attachment-box,
+html[data-accent='orange'] .attachment-file-name,
+html[data-accent='orange'] .checkbox-pill,
+html[data-accent='orange'] .input-suffix span,
+html[data-accent='orange'] .activity-code,
+html[data-accent='orange'] .employee-doc-preview-popover,
+html[data-accent='orange'] .oauth-block,
+html[data-accent='orange'] .oauth-error,
+html[data-accent='orange'] .demo-box,
+html[data-accent='orange'] .placeholder-card {
+  background: var(--color-card) !important;
+  border-color: var(--color-border) !important;
+  color: var(--color-card-foreground) !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+html[data-accent='orange'] .dashboard-header,
+html[data-accent='orange'] .notification-dropdown-header,
+html[data-accent='orange'] .users-table th,
+html[data-accent='orange'] .card-header {
+  background: color-mix(in oklch, var(--color-card) 94%, var(--color-muted)) !important;
+  border-color: var(--color-border) !important;
+  color: var(--color-foreground) !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+html[data-accent='orange'] .notification-item:hover,
+html[data-accent='orange'] .notifications-page-item:hover,
+html[data-accent='orange'] .commission-case-card:hover,
+html[data-accent='orange'] .concept-card:hover,
+html[data-accent='orange'] .users-table tbody tr:hover,
+html[data-accent='orange'] .activity-log-table tbody tr:hover {
+  background: color-mix(in oklch, var(--color-muted) 32%, transparent) !important;
+  border-color: var(--color-border) !important;
+  box-shadow: var(--shadow-md) !important;
+}
+
+html[data-accent='orange'] .muted-text,
+html[data-accent='orange'] .notification-item-body,
+html[data-accent='orange'] .notification-item-time,
+html[data-accent='orange'] .commission-case-meta,
+html[data-accent='orange'] .card-description,
+html[data-accent='orange'] .form-help,
+html[data-accent='orange'] .settings-section-hint {
+  color: var(--color-muted-foreground) !important;
+}
+
+/* Organization-side admin reference normalization across all major pages */
+
+html[data-accent='orange'] .auth-form,
+html[data-accent='orange'] .card,
+html[data-accent='orange'] .dashboard-panel,
+html[data-accent='orange'] .users-table-wrap,
+html[data-accent='orange'] .user-create-card,
+html[data-accent='orange'] .table-scroll,
+html[data-accent='orange'] .employee-modal,
+html[data-accent='orange'] .employee-review-modal,
+html[data-accent='orange'] .document-preview-modal,
+html[data-accent='orange'] .employee-card,
+html[data-accent='orange'] .employee-summary-card,
+html[data-accent='orange'] .employee-employed-block,
+html[data-accent='orange'] .employee-attachment-preview-card,
+html[data-accent='orange'] .employees-page,
+html[data-accent='orange'] .commissions-page,
+html[data-accent='orange'] .concept-page,
+html[data-accent='orange'] .notifications-page,
+html[data-accent='orange'] .settings-form,
+html[data-accent='orange'] .concept-card,
+html[data-accent='orange'] .concept-summary-pill,
+html[data-accent='orange'] .commission-group,
+html[data-accent='orange'] .commission-case-card,
+html[data-accent='orange'] .commission-settlement-card,
+html[data-accent='orange'] .commission-receipt-item,
+html[data-accent='orange'] .notification-dropdown,
+html[data-accent='orange'] .notifications-page-list,
+html[data-accent='orange'] .notification-item,
+html[data-accent='orange'] .notification-item.is-unread,
+html[data-accent='orange'] .returned-list-surface,
+html[data-accent='orange'] .returned-request-surface,
+html[data-accent='orange'] .returned-request-item,
+html[data-accent='orange'] .return-request-employee-option,
+html[data-accent='orange'] .attachment-box,
+html[data-accent='orange'] .attachment-file-name,
+html[data-accent='orange'] .checkbox-pill,
+html[data-accent='orange'] .input-suffix span,
+html[data-accent='orange'] .employee-doc-preview-popover,
+html[data-accent='orange'] .placeholder-card,
+html[data-accent='orange'] .demo-box,
+html[data-accent='orange'] .oauth-block,
+html[data-accent='orange'] .oauth-error {
+  background: var(--color-card) !important;
+  color: var(--color-card-foreground) !important;
+  border-color: var(--color-border) !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+html[data-accent='orange'] .employee-card-avatar,
+html[data-accent='orange'] .employee-doc-preview-tile,
+html[data-accent='orange'] .employee-modal-document-tile,
+html[data-accent='orange'] .employee-attachment-preview-file,
+html[data-accent='orange'] .employee-attachment-preview-image,
+html[data-accent='orange'] .return-request-employee-state,
+html[data-accent='orange'] .employee-template-bar,
+html[data-accent='orange'] .employee-step-tab,
+html[data-accent='orange'] .employee-subtab,
+html[data-accent='orange'] .activity-code,
+html[data-accent='orange'] .commission-group-toggle-button,
+html[data-accent='orange'] .commission-rate-popover,
+html[data-accent='orange'] .commission-rate-graph-bar,
+html[data-accent='orange'] .settings-form input.settings-readonly {
+  background: color-mix(in oklch, var(--color-muted) 40%, transparent) !important;
+  color: var(--color-foreground) !important;
+  border-color: color-mix(in oklch, var(--color-border) 48%, transparent) !important;
+  box-shadow: none !important;
+}
+
+html[data-accent='orange'] .dashboard-header,
+html[data-accent='orange'] .employee-modal-header,
+html[data-accent='orange'] .employee-review-header,
+html[data-accent='orange'] .document-preview-toolbar,
+html[data-accent='orange'] .notification-dropdown-header,
+html[data-accent='orange'] .users-table th,
+html[data-accent='orange'] .activity-log-table thead th,
+html[data-accent='orange'] .card-header {
+  background: color-mix(in oklch, var(--color-card) 94%, var(--color-muted)) !important;
+  color: var(--color-foreground) !important;
+  border-color: var(--color-border) !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+html[data-accent='orange'] .employee-card:hover,
+html[data-accent='orange'] .employee-summary-card:hover,
+html[data-accent='orange'] .return-request-employee-option:hover,
+html[data-accent='orange'] .returned-request-item:hover,
+html[data-accent='orange'] .notification-item:hover,
+html[data-accent='orange'] .notifications-page-item:hover,
+html[data-accent='orange'] .commission-case-card:hover,
+html[data-accent='orange'] .concept-card:hover,
+html[data-accent='orange'] .users-table tbody tr:hover,
+html[data-accent='orange'] .activity-log-table tbody tr:hover {
+  background: color-mix(in oklch, var(--color-muted) 32%, transparent) !important;
+  border-color: color-mix(in srgb, var(--color-border) 72%, #9a9a9a 28%) !important;
+  box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.08), 0 2px 4px -2px rgb(0 0 0 / 0.08) !important;
+}
+
+html[data-accent='orange'] .dashboard-panel h1,
+html[data-accent='orange'] .users-table-wrap h2,
+html[data-accent='orange'] .employee-card h3,
+html[data-accent='orange'] .employee-summary-card h3,
+html[data-accent='orange'] .employee-modal-header h2,
+html[data-accent='orange'] .employee-review-header h2,
+html[data-accent='orange'] .concept-card h3,
+html[data-accent='orange'] .concept-section h2,
+html[data-accent='orange'] .commission-group-header h3,
+html[data-accent='orange'] .notification-item-title {
+  color: var(--color-foreground) !important;
+}
+
+html[data-accent='orange'] .muted-text,
+html[data-accent='orange'] .dashboard-header-user,
+html[data-accent='orange'] .employee-card p,
+html[data-accent='orange'] .employee-doc-preview strong,
+html[data-accent='orange'] .notification-item-body,
+html[data-accent='orange'] .notification-item-time,
+html[data-accent='orange'] .commission-case-meta,
+html[data-accent='orange'] .concept-eyebrow,
+html[data-accent='orange'] .concept-card-kicker,
+html[data-accent='orange'] .settings-section-hint,
+html[data-accent='orange'] .activity-log-meta,
+html[data-accent='orange'] .card-description,
+html[data-accent='orange'] .form-help {
+  color: var(--color-muted-foreground) !important;
 }
 

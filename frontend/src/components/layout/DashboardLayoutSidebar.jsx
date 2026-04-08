@@ -1,15 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { NavLink, Outlet, useNavigate } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
-
-function isAgentSideWorkspace(user) {
-  if (user?.agent_context?.is_agent_side) return true
-  if (user?.role === 'customer') return true
-  if (user?.role !== 'staff') return false
-  const staffSide = (user?.staff_side || '').trim()
-  const organizationName = (user?.organization?.name || '').trim()
-  return Boolean(staffSide) && staffSide !== organizationName
-}
+import { isAgentSideWorkspace } from '../../utils/profileStore'
 
 export default function DashboardLayoutSidebar() {
   const { user, signOut } = useAuth()
@@ -57,6 +49,7 @@ export default function DashboardLayoutSidebar() {
     { to: '/dashboard/compliances', label: 'Compliances', end: false },
     { to: '/dashboard/commissions', label: 'Commissions', end: false },
     { to: '/dashboard/reports', label: 'Reports', end: false },
+    { to: '/dashboard/profiles', label: 'Profiles', end: false },
     ...(canManageUsers
       ? [{ to: '/dashboard/users', label: 'Users management', end: false }]
       : []),
@@ -114,6 +107,9 @@ export default function DashboardLayoutSidebar() {
                 <p className="dashboard-profile-dropdown-name">{displayName}</p>
                 {user?.username && (
                   <p className="dashboard-profile-dropdown-meta">@{user.username}</p>
+                )}
+                {user?.slug && (
+                  <p className="dashboard-profile-dropdown-meta">/{user.slug}</p>
                 )}
                 {subscription?.plan_name && (
                   <p className="dashboard-profile-dropdown-meta">{subscription.plan_name}</p>

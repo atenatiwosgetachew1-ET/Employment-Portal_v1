@@ -34,6 +34,8 @@ const MANDATORY_ATTACHMENT_KEYS = ['portrait_photo', 'full_photo', 'passport_doc
 const ALLOWED_ATTACHMENT_MIME_TYPES = ['application/pdf', 'image/jpeg', 'image/png']
 const ALLOWED_ATTACHMENT_EXTENSIONS = ['.pdf', '.jpg', '.jpeg', '.png']
 const REGISTRATION_TEMPLATE_STORAGE_KEY = 'employment-portal.employee-registration-template'
+const TRAVEL_CONFIRMATION_DECLINED_STORAGE_KEY = 'employment-portal.travel-confirmation-declined'
+const TRAVEL_CONFIRMATION_CONFIRMED_STORAGE_KEY = 'employment-portal.travel-confirmation-confirmed'
 const TEMPLATE_FORM_FIELDS = [
   'application_countries',
   'profession',
@@ -237,12 +239,92 @@ function isEmployeeReturned(employee) {
 function isEmployeeEmployed(employee) {
   return Boolean(
     !isEmployeeReturned(employee) &&
-    (employee?.did_travel || employee?.travel_status === 'travelled')
+    employee?.did_travel
   )
 }
 
-function isEmployeeEmployedInView(employee, currentView) {
-  return currentView === 'employed' || isEmployeeEmployed(employee)
+function isEmployeeReadyForEmploymentStage(employee) {
+  return Boolean(
+    !isEmployeeReturned(employee) &&
+    employee?.selection_state?.selection?.status === 'under_process' &&
+    (employee?.progress_status?.overall_completion ?? 0) >= 100
+  )
+}
+
+function isEmployeeTravelConfirmationPending(employee) {
+  return Boolean(
+    isEmployeeReadyForEmploymentStage(employee) &&
+    !employee?.did_travel
+  )
+}
+
+function readTravelConfirmationDeclinedIds() {
+  if (typeof window === 'undefined') return []
+  try {
+    const stored = window.localStorage.getItem(TRAVEL_CONFIRMATION_DECLINED_STORAGE_KEY)
+    const parsed = stored ? JSON.parse(stored) : []
+    return Array.isArray(parsed) ? parsed : []
+  } catch {
+    return []
+  }
+}
+
+function writeTravelConfirmationDeclinedIds(ids) {
+  if (typeof window === 'undefined') return
+  window.localStorage.setItem(TRAVEL_CONFIRMATION_DECLINED_STORAGE_KEY, JSON.stringify(ids))
+}
+
+function readTravelConfirmationConfirmedIds() {
+  if (typeof window === 'undefined') return []
+  try {
+    const stored = window.localStorage.getItem(TRAVEL_CONFIRMATION_CONFIRMED_STORAGE_KEY)
+    const parsed = stored ? JSON.parse(stored) : []
+    return Array.isArray(parsed) ? parsed : []
+  } catch {
+    return []
+  }
+}
+
+function writeTravelConfirmationConfirmedIds(ids) {
+  if (typeof window === 'undefined') return
+  window.localStorage.setItem(TRAVEL_CONFIRMATION_CONFIRMED_STORAGE_KEY, JSON.stringify(ids))
+}
+
+function patchEmployeeCollection(list, employeeId, changes) {
+  return (list || []).map((employee) => (
+    employee.id === employeeId
+      ? {
+          ...employee,
+          ...changes
+        }
+      : employee
+  ))
+}
+
+function isEmployeeInEmployedStage(employee) {
+  return isEmployeeEmployed(employee) || isEmployeeTravelConfirmationPending(employee)
+}
+
+function isEmployeeEmployedInView(employee) {
+  return isEmployeeEmployed(employee)
+}
+
+async function fetchAllEmployeePages(params = {}) {
+  let page = 1
+  let aggregated = []
+  let pageCount = 1
+
+  while (page <= pageCount) {
+    const response = await employeesService.fetchEmployees({
+      ...params,
+      page
+    })
+    aggregated = aggregated.concat(response.results || [])
+    pageCount = response.total_pages || response.totalPages || 1
+    page += 1
+  }
+
+  return aggregated
 }
 
 function prettyStatus(value, fallback = '--') {
@@ -253,15 +335,16 @@ function prettyStatus(value, fallback = '--') {
 
 function employeeAvailability(employee, currentView = '') {
   if (isEmployeeReturned(employee)) return 'Returned'
-  if (isEmployeeEmployedInView(employee, currentView)) return 'Employed'
+  if (isEmployeeEmployedInView(employee)) return 'Employed'
+  if (currentView === 'employed' && isEmployeeTravelConfirmationPending(employee)) return 'Travel confirmation pending'
   if (employee.selection_state?.selection?.status === 'under_process') return 'Under process'
-  if (employee.travel_status === 'travelled') return 'Not available'
   return employee.is_active ? 'Available' : 'Not available'
 }
 
 function employeeStatusLabel(employee, currentView = '') {
   if (isEmployeeReturned(employee)) return 'Returned'
-  if (isEmployeeEmployedInView(employee, currentView)) return 'Employed'
+  if (isEmployeeEmployedInView(employee)) return 'Employed'
+  if (currentView === 'employed' && isEmployeeTravelConfirmationPending(employee)) return 'Travel confirmation pending'
   if (employee.selection_state?.selection?.status === 'under_process') return 'Under process'
   if (employee.status === 'suspended') return 'Suspended'
   if (employee.status === 'rejected') return 'Rejected'
@@ -271,22 +354,23 @@ function employeeStatusLabel(employee, currentView = '') {
 
 function employeeStatusBadgeClass(employee, currentView = '') {
   if (isEmployeeReturned(employee)) return 'badge-muted'
-  if (isEmployeeEmployedInView(employee, currentView)) return 'badge-success'
+  if (isEmployeeEmployedInView(employee)) return 'badge-success'
+  if (currentView === 'employed' && isEmployeeTravelConfirmationPending(employee)) return 'badge-warning'
   if (employee.selection_state?.selection?.status === 'under_process') return 'badge-info'
   if (employee.status === 'approved') return employee.is_active ? 'badge-success' : 'badge-danger'
   if (employee.status === 'pending') return 'badge-warning'
   if (employee.status === 'rejected' || employee.status === 'suspended') return 'badge-danger'
-  if (!employee.is_active || employee.travel_status === 'travelled') return 'badge-danger'
+  if (!employee.is_active) return 'badge-danger'
   return 'badge-success'
 }
 
 function employeeStatusBadgeVariantClass(employee, currentView = '') {
-  if (isEmployeeEmployedInView(employee, currentView)) return 'employee-card-status-badge--employed'
+  if (isEmployeeEmployedInView(employee)) return 'employee-card-status-badge--employed'
   return ''
 }
 
 function employedEmployeesHelpText() {
-  return 'Employees who already travelled and reached 100% progress are listed here.'
+  return 'Employees who either already travelled or completed 100% progress and are waiting for travel confirmation are listed here.'
 }
 
 function returnedEmployeesHelpText() {
@@ -608,6 +692,9 @@ export default function EmployeesPage() {
   const [previewZoom, setPreviewZoom] = useState(1)
   const [previewOffset, setPreviewOffset] = useState({ x: 0, y: 0 })
   const [previewDragging, setPreviewDragging] = useState(false)
+  const [travelConfirmationDeclinedIds, setTravelConfirmationDeclinedIds] = useState(() => readTravelConfirmationDeclinedIds())
+  const [travelConfirmationConfirmedIds, setTravelConfirmationConfirmedIds] = useState(() => readTravelConfirmationConfirmedIds())
+  const [travelPendingOpen, setTravelPendingOpen] = useState(false)
   const [currentView, setCurrentView] = useState('list')
   const [activeStep, setActiveStep] = useState(0)
   const registrationRef = useRef(null)
@@ -621,22 +708,100 @@ export default function EmployeesPage() {
   const canOverrideProgress = canManageOrganizationProcesses
   const selectedScope = isAgentSideUser ? 'mine' : 'organization'
   const age = computeAge(form.date_of_birth)
+  const isTravelConfirmationDeclined = useCallback(
+    (employee) => travelConfirmationDeclinedIds.includes(employee?.id),
+    [travelConfirmationDeclinedIds]
+  )
   const ageRestrictionError = age !== '' && age < MINIMUM_EMPLOYEE_AGE
     ? `Employee must be at least ${MINIMUM_EMPLOYEE_AGE} years old.`
     : ''
 
-  const loadEmployees = useCallback(async () => {
+  const loadEmployees = useCallback(async (
+    viewOverride = currentView,
+    declinedIdsOverride = travelConfirmationDeclinedIds,
+    confirmedIdsOverride = travelConfirmationConfirmedIds
+  ) => {
     setLoading(true)
     setPageError('')
     try {
+      const isDeclinedById = (employee) => declinedIdsOverride.includes(employee?.id)
+      const applyTravelOverrides = (employee) => (
+        confirmedIdsOverride.includes(employee?.id)
+          ? {
+              ...employee,
+              did_travel: true,
+              progress_override_complete: true
+            }
+          : employee
+      )
+
+      if (viewOverride === 'under-process') {
+        const baseEmployees = await fetchAllEmployeePages({
+          q: filters.q
+        })
+        const visibleProcessEmployees = baseEmployees.map(applyTravelOverrides).filter(
+          (employee) =>
+            employee?.selection_state?.selection?.status === 'under_process' &&
+            (!isEmployeeReadyForEmploymentStage(employee) || isDeclinedById(employee))
+        )
+        setEmployeesData({
+          count: visibleProcessEmployees.length,
+          results: visibleProcessEmployees,
+          next: null,
+          previous: null
+        })
+        return
+      }
+
+      if (viewOverride === 'employed') {
+        const scope = isAgentSideUser ? 'mine' : 'organization'
+        const [baseEmployees, processEmployees] = await Promise.all([
+          isAgentSideUser
+            ? fetchAllEmployeePages({
+                q: filters.q,
+                employedScope: scope
+              })
+            : fetchAllEmployeePages({
+                q: filters.q
+              }),
+          fetchAllEmployeePages({
+            q: filters.q,
+            processScope: scope
+          })
+        ])
+        const stageEmployees = new Map()
+        baseEmployees
+          .map(applyTravelOverrides)
+          .filter((employee) => isEmployeeEmployed(employee))
+          .forEach((employee) => stageEmployees.set(employee.id, employee))
+        processEmployees
+          .map(applyTravelOverrides)
+          .filter((employee) => isEmployeeTravelConfirmationPending(employee))
+          .forEach((employee) => {
+            if (!stageEmployees.has(employee.id)) {
+              stageEmployees.set(employee.id, employee)
+            }
+          })
+        const visibleEmployedEmployees = Array.from(stageEmployees.values())
+          .filter((employee) => isEmployeeInEmployedStage(employee))
+          .filter((employee) => !isDeclinedById(employee))
+        setEmployeesData({
+          count: visibleEmployedEmployees.length,
+          results: visibleEmployedEmployees,
+          next: null,
+          previous: null
+        })
+        return
+      }
+
       const data = await employeesService.fetchEmployees({
         page,
         q: filters.q,
-        isActive: currentView === 'selected' || currentView === 'under-process' || currentView === 'employed' || currentView === 'returned' ? '' : filters.isActive,
-        selectedScope: currentView === 'selected' ? selectedScope : '',
-        processScope: currentView === 'under-process' ? (isAgentSideUser ? 'mine' : 'organization') : '',
-        employedScope: currentView === 'employed' ? (isAgentSideUser ? 'mine' : 'organization') : '',
-        returnedScope: currentView === 'returned' ? (isAgentSideUser ? 'mine' : 'organization') : ''
+        isActive: viewOverride === 'selected' || viewOverride === 'under-process' || viewOverride === 'employed' || viewOverride === 'returned' ? '' : filters.isActive,
+        selectedScope: viewOverride === 'selected' ? selectedScope : '',
+        processScope: viewOverride === 'under-process' ? (isAgentSideUser ? 'mine' : 'organization') : '',
+        employedScope: viewOverride === 'employed' ? (isAgentSideUser ? 'mine' : 'organization') : '',
+        returnedScope: viewOverride === 'returned' ? (isAgentSideUser ? 'mine' : 'organization') : ''
       })
       setEmployeesData(data)
     } catch (err) {
@@ -645,7 +810,7 @@ export default function EmployeesPage() {
     } finally {
       setLoading(false)
     }
-  }, [currentView, filters, isAgentSideUser, page, selectedScope])
+  }, [currentView, filters, isAgentSideUser, page, selectedScope, travelConfirmationDeclinedIds, travelConfirmationConfirmedIds])
 
   const loadFormOptions = useCallback(async () => {
     try {
@@ -667,13 +832,47 @@ export default function EmployeesPage() {
   const loadReturnRequestEmployees = useCallback(async (search = '') => {
     setReturnRequestLoading(true)
     try {
-      const data = await employeesService.fetchEmployees({
-        page: 1,
-        q: search,
-        employedScope: isAgentSideUser ? 'mine' : 'organization'
-      })
+      const scope = isAgentSideUser ? 'mine' : 'organization'
+      const [baseEmployees, processEmployees] = await Promise.all([
+        isAgentSideUser
+          ? fetchAllEmployeePages({
+              q: search,
+              employedScope: scope
+            })
+          : fetchAllEmployeePages({
+              q: search
+            }),
+        fetchAllEmployeePages({
+          q: search,
+          processScope: scope
+        })
+      ])
+      const stageEmployees = new Map()
+      baseEmployees
+        .map((employee) => (
+          travelConfirmationConfirmedIds.includes(employee?.id)
+            ? { ...employee, did_travel: true, progress_override_complete: true }
+            : employee
+        ))
+        .filter((employee) => isEmployeeEmployed(employee))
+        .forEach((employee) => stageEmployees.set(employee.id, employee))
+      processEmployees
+        .map((employee) => (
+          travelConfirmationConfirmedIds.includes(employee?.id)
+            ? { ...employee, did_travel: true, progress_override_complete: true }
+            : employee
+        ))
+        .filter((employee) => isEmployeeEmployed(employee))
+        .forEach((employee) => {
+          if (!stageEmployees.has(employee.id)) {
+            stageEmployees.set(employee.id, employee)
+          }
+        })
       setReturnRequestEmployees(
-        (data.results || []).filter((employee) => employee.return_request?.status !== 'pending')
+        Array.from(stageEmployees.values()).filter((employee) => (
+          isEmployeeEmployed(employee) &&
+          employee.return_request?.status !== 'pending'
+        ))
       )
     } catch (err) {
       setPageError(err.message || 'Could not load employed employees')
@@ -681,7 +880,7 @@ export default function EmployeesPage() {
     } finally {
       setReturnRequestLoading(false)
     }
-  }, [isAgentSideUser])
+  }, [isAgentSideUser, travelConfirmationConfirmedIds])
 
   const loadRequestedReturns = useCallback(async () => {
     if (currentView !== 'returned') {
@@ -1325,6 +1524,66 @@ export default function EmployeesPage() {
   }
 
   const handleMarkProgressComplete = async (employee) => {
+    const currentProgress = employee.progress_status?.overall_completion ?? 0
+    const alreadyComplete = currentProgress >= 100
+
+    if (alreadyComplete) {
+      const didTravel = await confirm({
+        title: 'Confirm travel',
+        message: 'Has this employee travelled now? Confirming travel will move the employee into Employed.',
+        confirmLabel: 'Yes',
+        cancelLabel: 'No',
+        tone: 'warning'
+      })
+
+      setActionBusyId(employee.id)
+      setPageError('')
+      setNotice('')
+      try {
+        const nextDeclinedIds = didTravel
+          ? travelConfirmationDeclinedIds.filter((id) => id !== employee.id)
+          : Array.from(new Set([...travelConfirmationDeclinedIds, employee.id]))
+        const nextConfirmedIds = didTravel
+          ? Array.from(new Set([...travelConfirmationConfirmedIds, employee.id]))
+          : travelConfirmationConfirmedIds.filter((id) => id !== employee.id)
+        setTravelConfirmationDeclinedIds(nextDeclinedIds)
+        writeTravelConfirmationDeclinedIds(nextDeclinedIds)
+        setTravelConfirmationConfirmedIds(nextConfirmedIds)
+        writeTravelConfirmationConfirmedIds(nextConfirmedIds)
+        await employeesService.updateEmployee(employee.id, {
+          progress_override_complete: didTravel,
+          did_travel: didTravel
+        })
+        const refreshedEmployee = await employeesService.fetchEmployee(employee.id)
+        setEmployeesData((prev) => {
+          if (!prev) return prev
+          const otherEmployees = (prev.results || []).filter((item) => item.id !== employee.id)
+          return didTravel
+            ? {
+                ...prev,
+                results: [refreshedEmployee, ...otherEmployees]
+              }
+            : {
+                ...prev,
+                results: otherEmployees
+              }
+        })
+        setNotice(
+          didTravel
+            ? 'Employee travel confirmed and moved into Employed.'
+            : 'Employee returned to Under process until travel is confirmed.'
+        )
+        const nextView = didTravel ? 'employed' : 'under-process'
+        setCurrentView(nextView)
+        await loadEmployees(nextView, nextDeclinedIds, nextConfirmedIds)
+      } catch (err) {
+        setPageError(err.message || 'Could not confirm employee travel')
+      } finally {
+        setActionBusyId(null)
+      }
+      return
+    }
+
     const today = new Date()
     const departureDate = employee.departure_date ? new Date(employee.departure_date) : null
     const hasValidDepartureDate = Boolean(departureDate && !Number.isNaN(departureDate.getTime()))
@@ -1346,6 +1605,14 @@ export default function EmployeesPage() {
     setPageError('')
     setNotice('')
     try {
+      const nextDeclinedIds = travelConfirmationDeclinedIds.filter((id) => id !== employee.id)
+      const nextConfirmedIds = didTravel
+        ? Array.from(new Set([...travelConfirmationConfirmedIds, employee.id]))
+        : travelConfirmationConfirmedIds.filter((id) => id !== employee.id)
+      setTravelConfirmationDeclinedIds(nextDeclinedIds)
+      writeTravelConfirmationDeclinedIds(nextDeclinedIds)
+      setTravelConfirmationConfirmedIds(nextConfirmedIds)
+      writeTravelConfirmationConfirmedIds(nextConfirmedIds)
       await employeesService.updateEmployee(employee.id, {
         progress_override_complete: true,
         did_travel: didTravel
@@ -1355,7 +1622,8 @@ export default function EmployeesPage() {
           ? 'Employee progress marked as 100% and travel confirmed.'
           : 'Employee progress marked as 100%. Travel remains pending.'
       )
-      await loadEmployees()
+      setCurrentView('employed')
+      await loadEmployees('employed', nextDeclinedIds, nextConfirmedIds)
     } catch (err) {
       setPageError(err.message || 'Could not mark employee progress complete')
     } finally {
@@ -1388,6 +1656,12 @@ export default function EmployeesPage() {
 
   const employees = employeesData?.results ?? []
   const visibleEmployees = employees
+  const travelConfirmationPendingEmployees = currentView === 'employed'
+    ? visibleEmployees.filter((employee) => isEmployeeTravelConfirmationPending(employee))
+    : []
+  const primaryVisibleEmployees = currentView === 'employed'
+    ? visibleEmployees.filter((employee) => !isEmployeeTravelConfirmationPending(employee))
+    : visibleEmployees
   const total = employeesData?.count ?? employees.length
   const hasNext = Boolean(employeesData?.next)
   const hasPrev = Boolean(employeesData?.previous)
@@ -2049,8 +2323,70 @@ export default function EmployeesPage() {
                   : 'No employees found.'}
             </p>
           ) : (
+            <>
+              {currentView === 'employed' && travelConfirmationPendingEmployees.length > 0 ? (
+                <section className="employee-stage-pending-surface">
+                  <div className="employee-stage-pending-header">
+                    <div>
+                      <h3>Travel confirmation pending</h3>
+                      <p className="muted-text">
+                        {travelConfirmationPendingEmployees.length} employee{travelConfirmationPendingEmployees.length === 1 ? '' : 's'} completed `100%` and are waiting for travel confirmation.
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      className="commission-group-toggle-button"
+                      onClick={() => setTravelPendingOpen((prev) => !prev)}
+                      aria-label={travelPendingOpen ? 'Collapse travel confirmation pending' : 'Expand travel confirmation pending'}
+                      aria-expanded={travelPendingOpen}
+                    >
+                      <span className={`commission-group-toggle-icon${travelPendingOpen ? ' is-open' : ''}`}>â–¸</span>
+                    </button>
+                  </div>
+                  {travelPendingOpen ? (
+                  <div className="employee-stage-pending-list">
+                    {travelConfirmationPendingEmployees.map((employee) => (
+                      <div key={employee.id} className="employee-stage-pending-item">
+                        <button
+                          type="button"
+                          className="employee-stage-pending-main"
+                          onClick={() => {
+                            setOpenedEmployeeMode('full')
+                            setOpenedEmployeeId(employee.id)
+                          }}
+                        >
+                          <span>
+                            <strong>{employee.full_name}</strong>
+                            <span className="return-request-employee-meta">
+                              {employee.profession || employee.professional_title || '--'}
+                            </span>
+                            <span className="return-request-employee-meta">
+                              Progress {employee.progress_status?.overall_completion ?? 0}% | Travel {prettyStatus(employee.travel_status, 'pending')}
+                            </span>
+                          </span>
+                          <span className="return-request-employee-state">
+                            {employeeStatusLabel(employee, currentView)}
+                          </span>
+                        </button>
+                        <div className="returned-request-actions">
+                          <button
+                            type="button"
+                            className="btn-info"
+                            onClick={() => handleMarkProgressComplete(employee)}
+                            disabled={readOnly || actionBusyId === employee.id}
+                          >
+                            {actionBusyId === employee.id ? 'Saving...' : 'Confirm travelled'}
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  ) : null}
+                </section>
+              ) : null}
+              {primaryVisibleEmployees.length > 0 ? (
             <div className="employee-cards">
-              {visibleEmployees.map((employee) => {
+              {primaryVisibleEmployees.map((employee) => {
                 const profilePhoto = employeeProfilePhoto(employee)
                 const isOpened = openedEmployeeId === employee.id
                 const selectionState = employee.selection_state || {}
@@ -2058,7 +2394,8 @@ export default function EmployeesPage() {
                 const isSelected = Boolean(selectionState.is_selected)
                 const isSelectedByCurrentAgent = Boolean(selectionState.selected_by_current_agent)
                 const isUnderProcess = selection?.status === 'under_process'
-                const isEmployedEmployee = isEmployeeEmployedInView(employee, currentView)
+                const isEmployedEmployee = isEmployeeEmployedInView(employee)
+                const isTravelConfirmationPending = isEmployeeTravelConfirmationPending(employee)
                 const isReturnedEmployee = isEmployeeReturned(employee)
                 const isAvailableEmployee = employeeAvailability(employee, currentView) === 'Available'
                 const assignedAgentId = resolvedProcessAgentId(
@@ -2163,7 +2500,7 @@ export default function EmployeesPage() {
                         )
                       })}
                     </div>
-                    {!isEmployedEmployee && !isReturnedEmployee ? (
+                    {(!isEmployedEmployee || isTravelConfirmationPending) && !isReturnedEmployee ? (
                     <div className="employee-card-actions">
                       {!isUnderProcess ? (
                         <button
@@ -2258,14 +2595,18 @@ export default function EmployeesPage() {
                           {actionBusyId === employee.id ? 'Saving...' : 'Decline process'}
                         </button>
                       ) : null}
-                      {canOverrideProgress && (isUnderProcess || employee.did_travel) && (employee.progress_status?.overall_completion ?? 0) < 100 ? (
+                      {canOverrideProgress && isUnderProcess && ((employee.progress_status?.overall_completion ?? 0) < 100 || !employee.did_travel) ? (
                         <button
                           type="button"
                           className="btn-info"
                           onClick={(event) => { event.stopPropagation(); handleMarkProgressComplete(employee) }}
                           disabled={readOnly || actionBusyId === employee.id}
                         >
-                          {actionBusyId === employee.id ? 'Saving...' : 'Mark progress 100%'}
+                          {actionBusyId === employee.id
+                            ? 'Saving...'
+                            : (employee.progress_status?.overall_completion ?? 0) >= 100
+                              ? 'Confirm travelled'
+                              : 'Mark progress 100%'}
                         </button>
                       ) : null}
                       <button type="button" className="btn-success" onClick={(event) => { event.stopPropagation(); handleAvailabilityAction(employee, 'approved', 'Approved') }} disabled={actionBusyId === employee.id || readOnly || isAgentSideUser || employee.status === 'approved'}>
@@ -2293,6 +2634,8 @@ export default function EmployeesPage() {
                 )
               })}
             </div>
+              ) : null}
+            </>
           )}
           {!loading && employees.length > 0 ? (
             <div className="activity-log-pagination">

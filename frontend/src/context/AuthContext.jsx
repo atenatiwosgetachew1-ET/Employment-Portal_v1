@@ -2,6 +2,7 @@ import { createContext, useContext, useEffect, useMemo, useState } from 'react'
 import * as authService from '../services/authService'
 import * as preferencesService from '../services/preferencesService'
 import { applyTheme } from '../utils/theme'
+import { applyStoredProfileOverride } from '../utils/profileStore'
 
 const AuthContext = createContext(null)
 
@@ -20,10 +21,18 @@ export function AuthProvider({ children }) {
   }, [])
 
   useEffect(() => {
+    const onProfileUpdated = () => {
+      setUser((current) => (current ? applyStoredProfileOverride(current) : current))
+    }
+    window.addEventListener('profile:updated', onProfileUpdated)
+    return () => window.removeEventListener('profile:updated', onProfileUpdated)
+  }, [])
+
+  useEffect(() => {
     authService
       .fetchCurrentUser()
       .then(async (u) => {
-        setUser(u)
+        setUser(applyStoredProfileOverride(u))
         try {
           const prefs = await preferencesService.fetchPreferences()
           applyTheme(prefs.theme)
@@ -41,7 +50,7 @@ export function AuthProvider({ children }) {
   const signIn = async ({ username, password }) => {
     setAuthLoading(true)
     try {
-      const loggedInUser = await authService.login({ username, password })
+      const loggedInUser = applyStoredProfileOverride(await authService.login({ username, password }))
       setUser(loggedInUser)
       try {
         const prefs = await preferencesService.fetchPreferences()
@@ -58,7 +67,7 @@ export function AuthProvider({ children }) {
   const signInWithGoogle = async (credential) => {
     setAuthLoading(true)
     try {
-      const loggedInUser = await authService.loginWithGoogle(credential)
+      const loggedInUser = applyStoredProfileOverride(await authService.loginWithGoogle(credential))
       setUser(loggedInUser)
       try {
         const prefs = await preferencesService.fetchPreferences()
@@ -82,7 +91,7 @@ export function AuthProvider({ children }) {
   }
 
   const refreshUser = async () => {
-    const u = await authService.fetchCurrentUser()
+    const u = applyStoredProfileOverride(await authService.fetchCurrentUser())
     setUser(u)
     return u
   }
