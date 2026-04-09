@@ -14,6 +14,12 @@ const TIMEZONES = [
 ]
 
 const ACCENT_OPTIONS = [{ value: 'orange', label: 'Orange' }]
+const SETTINGS_TABS = [
+  { id: 'organization', label: 'Organization' },
+  { id: 'profile', label: 'Profile' },
+  { id: 'preferences', label: 'Preferences' },
+  { id: 'platform', label: 'Platform' }
+]
 
 export default function SettingsPage() {
   const { user, refreshUser } = useAuth()
@@ -38,6 +44,7 @@ export default function SettingsPage() {
   const [platformSaved, setPlatformSaved] = useState(false)
   const [platformSettings, setPlatformSettings] = useState(null)
   const [accent, setAccent] = useState(() => getStoredAccent())
+  const [currentTab, setCurrentTab] = useState(organization ? 'organization' : 'profile')
   const isSuperadmin = user?.role === 'superadmin'
   const permissionOptions = [
     { value: 'users.manage_all', label: 'Manage all users' },
@@ -81,6 +88,13 @@ export default function SettingsPage() {
       phone: user.phone || ''
     })
   }, [user])
+
+  useEffect(() => {
+    if (currentTab !== 'platform') return
+    if (!isSuperadmin) {
+      setCurrentTab(organization ? 'organization' : 'profile')
+    }
+  }, [currentTab, isSuperadmin, organization])
 
   const handlePrefChange = (field, value) => {
     setPrefs((p) => (p ? { ...p, [field]: value } : p))
@@ -201,7 +215,7 @@ export default function SettingsPage() {
     return (
       <section className="dashboard-panel">
         <h1>Settings</h1>
-        <p className="muted-text">{loading ? 'Loading…' : '—'}</p>
+        <p className="muted-text">{loading ? 'Loading...' : '--'}</p>
       </section>
     )
   }
@@ -209,14 +223,31 @@ export default function SettingsPage() {
   return (
     <section className="dashboard-panel settings-page">
       <h1>Settings</h1>
-      <p className="muted-text">Profile, grayscale appearance, locale, and notification defaults.</p>
+      <p className="muted-text">Profile, organization, locale, and platform controls from one workspace.</p>
 
-      {organization && (
-        <>
+      <div className="employee-subtabs settings-tabs" role="tablist" aria-label="Settings views">
+        {SETTINGS_TABS.filter((tab) => {
+          if (tab.id === 'organization') return Boolean(organization)
+          if (tab.id === 'platform') return isSuperadmin
+          return true
+        }).map((tab) => (
+          <button
+            key={tab.id}
+            type="button"
+            className={`employee-subtab${currentTab === tab.id ? ' is-active' : ''}`}
+            onClick={() => setCurrentTab(tab.id)}
+            aria-pressed={currentTab === tab.id}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </div>
+
+      {organization && currentTab === 'organization' ? (
+        <article className="employee-summary-card settings-tab-card">
           <h2 className="settings-section-title">Organization license</h2>
           <p className="muted-text settings-section-hint">
-            Licensing is managed by your company account owner and your provider&apos;s company
-            console.
+            Licensing is managed by your company account owner and your provider's company console.
           </p>
           <div className="settings-form">
             <label>
@@ -242,141 +273,138 @@ export default function SettingsPage() {
               />
             </label>
           </div>
-        </>
-      )}
+        </article>
+      ) : null}
 
-      <h2 className="settings-section-title">Profile</h2>
-      <p className="muted-text settings-section-hint">
-        How you appear in the app. New Google accounts use your email and name automatically; you can
-        refine them here.
-      </p>
-      {profileError && <p className="error-message">{profileError}</p>}
-      {profileSaved && <p className="settings-saved">Profile saved.</p>}
-      <form className="settings-form" onSubmit={handleProfileSubmit}>
-        <label>
-          Email
-          <input type="text" value={user?.email || ''} readOnly disabled className="settings-readonly" />
-        </label>
-        <label>
-          Username
-          <input
-            type="text"
-            value={profile.username}
-            onChange={(e) => handleProfileChange('username', e.target.value)}
-            autoComplete="username"
-            required
-          />
-        </label>
-        <label>
-          First name
-          <input
-            type="text"
-            value={profile.first_name}
-            onChange={(e) => handleProfileChange('first_name', e.target.value)}
-            autoComplete="given-name"
-          />
-        </label>
-        <label>
-          Last name
-          <input
-            type="text"
-            value={profile.last_name}
-            onChange={(e) => handleProfileChange('last_name', e.target.value)}
-            autoComplete="family-name"
-          />
-        </label>
-        <label>
-          Phone
-          <input
-            type="text"
-            value={profile.phone}
-            onChange={(e) => handleProfileChange('phone', e.target.value)}
-            autoComplete="tel"
-          />
-        </label>
-        <button type="submit" disabled={profileSaving}>
-          {profileSaving ? 'Saving…' : 'Save profile'}
-        </button>
-      </form>
+      {currentTab === 'profile' ? (
+        <article className="employee-summary-card settings-tab-card">
+          <h2 className="settings-section-title">Profile</h2>
+          <p className="muted-text settings-section-hint">
+            How you appear in the app. New Google accounts use your email and name automatically; you can refine them here.
+          </p>
+          {profileError && <p className="error-message">{profileError}</p>}
+          {profileSaved && <p className="settings-saved">Profile saved.</p>}
+          <form className="settings-form" onSubmit={handleProfileSubmit}>
+            <label>
+              Email
+              <input type="text" value={user?.email || ''} readOnly disabled className="settings-readonly" />
+            </label>
+            <label>
+              Username
+              <input
+                type="text"
+                value={profile.username}
+                onChange={(e) => handleProfileChange('username', e.target.value)}
+                autoComplete="username"
+                required
+              />
+            </label>
+            <label>
+              First name
+              <input
+                type="text"
+                value={profile.first_name}
+                onChange={(e) => handleProfileChange('first_name', e.target.value)}
+                autoComplete="given-name"
+              />
+            </label>
+            <label>
+              Last name
+              <input
+                type="text"
+                value={profile.last_name}
+                onChange={(e) => handleProfileChange('last_name', e.target.value)}
+                autoComplete="family-name"
+              />
+            </label>
+            <label>
+              Phone
+              <input
+                type="text"
+                value={profile.phone}
+                onChange={(e) => handleProfileChange('phone', e.target.value)}
+                autoComplete="tel"
+              />
+            </label>
+            <button type="submit" disabled={profileSaving}>
+              {profileSaving ? 'Saving...' : 'Save profile'}
+            </button>
+          </form>
+        </article>
+      ) : null}
 
-      <h2 className="settings-section-title">Preferences</h2>
-      {error && <p className="error-message">{error}</p>}
-      {saved && <p className="settings-saved">Preferences saved.</p>}
-      <form className="settings-form" onSubmit={handlePrefsSubmit}>
-        <label>
-          Theme
-          <select
-            value={prefs.theme}
-            onChange={(e) => handlePrefChange('theme', e.target.value)}
-          >
-            <option value="system">System</option>
-            <option value="light">Light</option>
-            <option value="dark">Dark</option>
-          </select>
-        </label>
-        <label>
-          Accent
-          <select
-            value={accent}
-            onChange={(e) => {
-              const nextAccent = e.target.value
-              setAccent(nextAccent)
-              applyAccent(nextAccent)
-              setSaved(false)
-            }}
-          >
-            {ACCENT_OPTIONS.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label>
-          Timezone
-          <select
-            value={prefs.timezone}
-            onChange={(e) => handlePrefChange('timezone', e.target.value)}
-          >
-            {[...new Set([prefs.timezone, ...TIMEZONES].filter(Boolean))].map((tz) => (
-              <option key={tz} value={tz}>
-                {tz}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label>
-          Language
-          <select
-            value={prefs.language}
-            onChange={(e) => handlePrefChange('language', e.target.value)}
-          >
-            <option value="en">English</option>
-            <option value="am">Amharic (beta)</option>
-          </select>
-        </label>
-        <label className="checkbox-label">
-          <input
-            type="checkbox"
-            checked={prefs.email_notifications}
-            onChange={(e) => handlePrefChange('email_notifications', e.target.checked)}
-          />
-          Email notifications (for future alerts)
-        </label>
-        <button type="submit" disabled={saving}>
-          {saving ? 'Saving…' : 'Save preferences'}
-        </button>
-      </form>
+      {currentTab === 'preferences' ? (
+        <article className="employee-summary-card settings-tab-card">
+          <h2 className="settings-section-title">Preferences</h2>
+          {error && <p className="error-message">{error}</p>}
+          {saved && <p className="settings-saved">Preferences saved.</p>}
+          <form className="settings-form" onSubmit={handlePrefsSubmit}>
+            <label>
+              Theme
+              <select value={prefs.theme} onChange={(e) => handlePrefChange('theme', e.target.value)}>
+                <option value="system">System</option>
+                <option value="light">Light</option>
+                <option value="dark">Dark</option>
+              </select>
+            </label>
+            <label>
+              Accent
+              <select
+                value={accent}
+                onChange={(e) => {
+                  const nextAccent = e.target.value
+                  setAccent(nextAccent)
+                  applyAccent(nextAccent)
+                  setSaved(false)
+                }}
+              >
+                {ACCENT_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              Timezone
+              <select value={prefs.timezone} onChange={(e) => handlePrefChange('timezone', e.target.value)}>
+                {[...new Set([prefs.timezone, ...TIMEZONES].filter(Boolean))].map((tz) => (
+                  <option key={tz} value={tz}>
+                    {tz}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              Language
+              <select value={prefs.language} onChange={(e) => handlePrefChange('language', e.target.value)}>
+                <option value="en">English</option>
+                <option value="am">Amharic (beta)</option>
+              </select>
+            </label>
+            <label className="checkbox-label">
+              <input
+                type="checkbox"
+                checked={prefs.email_notifications}
+                onChange={(e) => handlePrefChange('email_notifications', e.target.checked)}
+              />
+              Email notifications (for future alerts)
+            </label>
+            <button type="submit" disabled={saving}>
+              {saving ? 'Saving...' : 'Save preferences'}
+            </button>
+          </form>
+        </article>
+      ) : null}
 
-      {isSuperadmin && platformSettings && (
-        <>
+      {isSuperadmin && platformSettings && currentTab === 'platform' ? (
+        <article className="employee-summary-card settings-tab-card">
           <h2 className="settings-section-title">Security policy</h2>
           <p className="muted-text settings-section-hint">
-            Control how many wrong login attempts are allowed before the app temporarily locks
-            sign-in and sends recovery email help.
+            Control how many wrong login attempts are allowed before the app temporarily locks sign-in and sends recovery email help.
           </p>
           {platformError && <p className="error-message">{platformError}</p>}
-          {platformSaved && <p className="settings-saved">Security policy saved.</p>}
+          {platformSaved && <p className="settings-saved">Platform settings saved.</p>}
           <form className="settings-form" onSubmit={handlePlatformSubmit}>
             <label>
               Max failed attempts
@@ -384,9 +412,7 @@ export default function SettingsPage() {
                 type="number"
                 min="1"
                 value={platformSettings.login_max_failed_attempts}
-                onChange={(e) =>
-                  handlePlatformChange('login_max_failed_attempts', e.target.value)
-                }
+                onChange={(e) => handlePlatformChange('login_max_failed_attempts', e.target.value)}
                 required
               />
             </label>
@@ -396,14 +422,12 @@ export default function SettingsPage() {
                 type="number"
                 min="1"
                 value={platformSettings.login_lockout_minutes}
-                onChange={(e) =>
-                  handlePlatformChange('login_lockout_minutes', e.target.value)
-                }
+                onChange={(e) => handlePlatformChange('login_lockout_minutes', e.target.value)}
                 required
               />
             </label>
             <button type="submit" disabled={platformSaving}>
-              {platformSaving ? 'Savingâ€¦' : 'Save security policy'}
+              {platformSaving ? 'Saving...' : 'Save security policy'}
             </button>
           </form>
 
@@ -423,7 +447,7 @@ export default function SettingsPage() {
               </label>
             ))}
             <button type="submit" disabled={platformSaving}>
-              {platformSaving ? 'Savingâ€¦' : 'Save feature flags'}
+              {platformSaving ? 'Saving...' : 'Save feature flags'}
             </button>
           </form>
 
@@ -441,12 +465,8 @@ export default function SettingsPage() {
                   <label key={`${role}-${option.value}`} className="checkbox-label">
                     <input
                       type="checkbox"
-                      checked={(platformSettings.role_permissions?.[role] || []).includes(
-                        option.value
-                      )}
-                      onChange={(e) =>
-                        handleRolePermissionChange(role, option.value, e.target.checked)
-                      }
+                      checked={(platformSettings.role_permissions?.[role] || []).includes(option.value)}
+                      onChange={(e) => handleRolePermissionChange(role, option.value, e.target.checked)}
                     />
                     {option.label}
                   </label>
@@ -454,11 +474,11 @@ export default function SettingsPage() {
               </div>
             ))}
             <button type="submit" disabled={platformSaving}>
-              {platformSaving ? 'Savingâ€¦' : 'Save role permissions'}
+              {platformSaving ? 'Saving...' : 'Save role permissions'}
             </button>
           </form>
-        </>
-      )}
+        </article>
+      ) : null}
     </section>
   )
 }

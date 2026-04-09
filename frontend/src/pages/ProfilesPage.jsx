@@ -24,6 +24,14 @@ const PROFILE_TABS = [
   { id: 'agreements', label: 'Agreements' }
 ]
 
+const AGREEMENT_BOARD_FILTERS = [
+  { id: 'pending', label: 'Pending' },
+  { id: 'fully_signed', label: 'Fully signed' },
+  { id: 'active', label: 'Active' },
+  { id: 'expired', label: 'Expired' },
+  { id: 'declined', label: 'Declined' }
+]
+
 function formatDateTime(value) {
   if (!value) return '--'
   const parsed = new Date(value)
@@ -137,7 +145,45 @@ function todayDateInputValue() {
   return new Date(now.getTime() - offsetMs).toISOString().slice(0, 10)
 }
 
-function getAgreementLifecycleStatus(agreement) {
+function createAgreementFormState(todayDate, overrides = {}) {
+  return {
+    title: 'Digital Agreement',
+    agreementType: 'standard',
+    agentId: '',
+    agreementDate: todayDate,
+    expiryDate: '',
+    details: '',
+    documentIds: [],
+    linkedAgreementId: '',
+    renewalOfId: '',
+    ...overrides
+  }
+}
+
+function isAgreementFullySigned(agreement) {
+  return Boolean(agreement?.organizationSignature && agreement?.agentSignature)
+}
+
+function getAgreementLifecycleStatus(agreement, agreements = []) {
+  const today = todayDateInputValue()
+  const fullySigned = isAgreementFullySigned(agreement)
+  const linkedDiscontinuation = agreements.find((item) => {
+    return (
+      item?.agreementType === 'discontinuation' &&
+      String(item?.linkedAgreementId || '') === String(agreement?.id || '') &&
+      isAgreementFullySigned(item)
+    )
+  })
+
+  if (agreement?.agreementType !== 'discontinuation' && linkedDiscontinuation) {
+    return { label: 'Declined', tone: 'rejected' }
+  }
+  if (agreement?.expiryDate && agreement.expiryDate < today) {
+    return { label: 'Expired', tone: 'expired' }
+  }
+  if (fullySigned) {
+    return { label: 'Active', tone: 'active' }
+  }
   return { label: 'Pending', tone: 'pending' }
 }
 
@@ -146,6 +192,17 @@ function buildAgreementDocumentSelectionKey(documents = []) {
     .map((item) => `${item.source}:${item.id}`)
     .sort()
     .join('|')
+}
+
+function buildAgreementDocumentRefs(documents = []) {
+  return documents.map((item) => ({
+    source: item.source,
+    id: item.id
+  }))
+}
+
+function buildAgreementKindLabel(agreementType) {
+  return agreementType === 'discontinuation' ? 'Discontinuation' : 'Digital agreement'
 }
 
 function pickContrastingStrokeColor(backgroundColor) {
@@ -187,16 +244,10 @@ export default function ProfilesPage() {
   const [agreements, setAgreements] = useState([])
   const [agreementsSaving, setAgreementsSaving] = useState(false)
   const [agreementPickerOpen, setAgreementPickerOpen] = useState(false)
-  const [openSignedAgreements, setOpenSignedAgreements] = useState({})
+  const [openAgreementItems, setOpenAgreementItems] = useState({})
+  const [agreementBoardFilter, setAgreementBoardFilter] = useState('pending')
   const todayDate = useMemo(() => todayDateInputValue(), [])
-  const [agreementForm, setAgreementForm] = useState({
-    title: 'Digital Agreement',
-    agentId: '',
-    agreementDate: todayDate,
-    expiryDate: '',
-    details: '',
-    documentIds: []
-  })
+  const [agreementForm, setAgreementForm] = useState(() => createAgreementFormState(todayDate))
   const [signatureDrafts, setSignatureDrafts] = useState({})
   const [signerNameDrafts, setSignerNameDrafts] = useState({})
   const [previewDocument, setPreviewDocument] = useState(null)
@@ -452,7 +503,22 @@ export default function ProfilesPage() {
   }
 
   const handleAgreementFieldChange = (field, value) => {
-    setAgreementForm((current) => ({ ...current, [field]: value }))
+    setAgreementForm((current) => {
+      const next = { ...current, [field]: value }
+      if (field === 'agreementType') {
+        if (value === 'discontinuation') {
+          next.title = current.title === 'Digital Agreement' ? 'Discontinual digital agreement' : current.title
+          next.expiryDate = ''
+        } else {
+          next.title = current.title === 'Discontinual digital agreement' ? 'Digital Agreement' : current.title
+          next.linkedAgreementId = ''
+        }
+      }
+      if (field === 'agentId') {
+        next.linkedAgreementId = ''
+      }
+      return next
+    })
     setAgreementError('')
   }
 
@@ -478,6 +544,44 @@ export default function ProfilesPage() {
     setAgreementError('')
   }
 
+  const resolveAgreementDocumentIds = useCallback((agreement, targetAgent = null) => {
+    const resolvedAgent = targetAgent || agentProfiles.find((item) => String(item.id) === String(agreement?.agentId))
+    const organizationIds = new Set(
+      readCompanyDocuments(organizationScopeKey).map((item) => `org:${item.id}`)
+    )
+    const agentIds = new Set(
+      resolvedAgent
+        ? readCompanyDocuments(documentScopeKeyForUser(resolvedAgent)).map((item) => `agent:${resolvedAgent.id}:${item.id}`)
+        : []
+    )
+
+    const documentRefs = agreement?.documentRefs?.length
+      ? agreement.documentRefs
+      : (agreement?.documents || []).map((item) => ({ source: item.source, id: item.id }))
+
+    return documentRefs
+      .map((item) => {
+        if (item.source === 'organization') {
+          const selectionId = `org:${item.id}`
+          return organizationIds.has(selectionId) ? selectionId : null
+        }
+        if (!resolvedAgent) return null
+        const selectionId = `agent:${resolvedAgent.id}:${item.id}`
+        return agentIds.has(selectionId) ? selectionId : null
+      })
+      .filter(Boolean)
+  }, [agentProfiles, organizationScopeKey])
+
+  const prefillAgreementForm = useCallback((nextForm) => {
+    setCurrentTab('agreements')
+    setAgreementForm(nextForm)
+    setAgreementPickerOpen(false)
+    setAgreementError('')
+    window.setTimeout(() => {
+      agreementFormRef.current?.scrollIntoView?.({ behavior: 'smooth', block: 'start' })
+    }, 0)
+  }, [])
+
   const handleAgreementCreate = async (event) => {
     event.preventDefault()
     if (!agreementForm.title.trim()) {
@@ -500,12 +604,12 @@ export default function ProfilesPage() {
       focusAgreementField('[name="agreement_date"]')
       return
     }
-    if (!agreementForm.expiryDate) {
+    if (agreementForm.agreementType !== 'discontinuation' && !agreementForm.expiryDate) {
       setAgreementError('Enter the agreement expiry date.')
       focusAgreementField('[name="agreement_expiry_date"]')
       return
     }
-    if (agreementForm.expiryDate < agreementForm.agreementDate) {
+    if (agreementForm.agreementType !== 'discontinuation' && agreementForm.expiryDate < agreementForm.agreementDate) {
       setAgreementError('Agreement expiry date must be after the agreement date.')
       focusAgreementField('[name="agreement_expiry_date"]')
       return
@@ -513,6 +617,11 @@ export default function ProfilesPage() {
     if (agreementForm.documentIds.length === 0) {
       setAgreementError('Select at least one supporting document.')
       focusAgreementField('[data-agreement-document-trigger="true"]')
+      return
+    }
+    if (agreementForm.agreementType === 'discontinuation' && !agreementForm.linkedAgreementId) {
+      setAgreementError('Choose the agreement that will be discontinued.')
+      focusAgreementField('[name="agreement_linked"]')
       return
     }
 
@@ -550,35 +659,98 @@ export default function ProfilesPage() {
         return
       }
 
+      const documentSelectionKey = buildAgreementDocumentSelectionKey(selectedDocuments)
+      const documentRefs = buildAgreementDocumentRefs(selectedDocuments)
+      const linkedAgreement =
+        agreementForm.agreementType === 'discontinuation'
+          ? agreements.find((item) => String(item.id) === String(agreementForm.linkedAgreementId))
+          : null
+
+      if (agreementForm.agreementType === 'discontinuation') {
+        if (!linkedAgreement || linkedAgreement.agreementType === 'discontinuation') {
+          setAgreementError('Choose a valid agreement to discontinue.')
+          focusAgreementField('[name="agreement_linked"]')
+          setAgreementsSaving(false)
+          return
+        }
+        const existingDiscontinuation = agreements.find((item) => {
+          return (
+            item.agreementType === 'discontinuation' &&
+            String(item.linkedAgreementId || '') === String(linkedAgreement.id) &&
+            item.id !== agreementForm.renewalOfId
+          )
+        })
+        if (existingDiscontinuation) {
+          setAgreementError('A discontinuation agreement already exists for that agreement.')
+          focusAgreementField('[name="agreement_linked"]')
+          setAgreementsSaving(false)
+          return
+        }
+      } else {
+        const duplicateAgreement = agreements.find((item) => {
+          return (
+            item.agreementType !== 'discontinuation' &&
+            String(item.agentId) === String(targetAgent.id) &&
+            item.documentSelectionKey === documentSelectionKey &&
+            item.id !== agreementForm.renewalOfId &&
+            !item.renewedById
+          )
+        })
+
+        if (duplicateAgreement) {
+          setAgreementError(
+            agreementForm.renewalOfId
+              ? 'These documents are already bound to another live agreement.'
+              : 'An agreement for the same agent and exact document set already exists.'
+          )
+          focusAgreementField('[data-agreement-document-trigger="true"]')
+          setAgreementsSaving(false)
+          return
+        }
+      }
+
       const nextAgreement = {
         id: `agreement-${Date.now()}`,
         title: agreementForm.title.trim(),
+        agreementType: agreementForm.agreementType,
         details: agreementForm.details.trim(),
         agreementDate: agreementForm.agreementDate,
-        expiryDate: agreementForm.expiryDate,
+        expiryDate: agreementForm.agreementType === 'discontinuation' ? null : agreementForm.expiryDate,
         createdAt: new Date().toISOString(),
         createdBy: displayName,
         agentId: targetAgent.id,
         agentName: buildAgentCardName(targetAgent),
         agentUsername: targetAgent.username || '',
         agentScopeKey: documentScopeKeyForUser(targetAgent),
+        documentSelectionKey,
+        documentRefs,
+        linkedAgreementId: agreementForm.linkedAgreementId || null,
+        renewalOfId: agreementForm.renewalOfId || null,
         documents: selectedDocuments,
         organizationSignature: null,
         agentSignature: null
       }
 
-      const nextAgreements = [nextAgreement, ...agreements]
+      const nextAgreements = [
+        nextAgreement,
+        ...agreements.map((item) => {
+          if (String(item.id) === String(agreementForm.renewalOfId || '')) {
+            return { ...item, renewedById: nextAgreement.id }
+          }
+          return item
+        })
+      ]
       saveCompanyAgreements(organizationScopeKey, nextAgreements)
       setAgreements(nextAgreements)
-      setAgreementForm({
-        title: 'Digital Agreement',
-        agentId: '',
-        agreementDate: todayDate,
-        expiryDate: '',
-        details: '',
-        documentIds: []
-      })
-      showToast('Digital agreement created.', { tone: 'success' })
+      setAgreementForm(createAgreementFormState(todayDate))
+      showToast(
+        agreementForm.agreementType === 'discontinuation'
+          ? 'Discontinuation agreement prepared.'
+          : agreementForm.renewalOfId
+            ? 'Renewal agreement prepared.'
+            : 'Digital agreement created.',
+        { tone: 'success' }
+      )
     } catch (err) {
       setAgreementError(err.message || 'Could not create agreement')
     } finally {
@@ -734,11 +906,46 @@ export default function ProfilesPage() {
     }
   }, [])
 
-  const handleAgreementCancel = async (agreement) => {
+  const toggleAgreementItem = useCallback((agreementId) => {
+    setOpenAgreementItems((current) => ({
+      ...current,
+      [agreementId]: !current[agreementId]
+    }))
+  }, [])
+
+  const handleAgreementRenew = useCallback((agreement) => {
+    prefillAgreementForm(createAgreementFormState(todayDate, {
+      title: agreement.title || 'Digital Agreement',
+      agreementType: 'standard',
+      agentId: String(agreement.agentId || ''),
+      expiryDate: '',
+      details: agreement.details || '',
+      documentIds: [],
+      renewalOfId: agreement.id,
+      linkedAgreementId: ''
+    }))
+    showToast('Renewal draft prepared. Select the updated supporting documents for this renewal.', { tone: 'info' })
+  }, [prefillAgreementForm, showToast, todayDate])
+
+  const handleAgreementDiscontinuationPrepare = useCallback((agreement) => {
+    prefillAgreementForm(createAgreementFormState(todayDate, {
+      title: 'Discontinual digital agreement',
+      agreementType: 'discontinuation',
+      agentId: String(agreement.agentId || ''),
+      expiryDate: '',
+      details: `This discontinuation agreement formally records the mutual decision to discontinue "${agreement.title}".`,
+      documentIds: [],
+      linkedAgreementId: agreement.id,
+      renewalOfId: ''
+    }))
+    showToast('Discontinuation draft prepared. Add the discontinuation evidence documents before creating it.', { tone: 'info' })
+  }, [prefillAgreementForm, showToast, todayDate])
+
+  const handleAgreementCancel = useCallback(async (agreement) => {
     const approved = await confirm({
-      title: 'Cancel agreement',
-      message: 'This will withdraw the pending agreement from both sides.',
-      confirmLabel: 'Cancel agreement',
+      title: 'Cancel agreement request',
+      message: 'This will withdraw the pending agreement request from both sides.',
+      confirmLabel: 'Cancel request',
       tone: 'danger'
     })
     if (!approved) return
@@ -752,16 +959,18 @@ export default function ProfilesPage() {
       delete next[`${agreement.id}:agent`]
       return next
     })
+    setSignerNameDrafts((current) => {
+      const next = { ...current }
+      delete next[`${agreement.id}:organization`]
+      delete next[`${agreement.id}:agent`]
+      return next
+    })
     setAgreementError('')
-    showToast('Agreement cancelled.', { tone: 'success' })
-  }
+    showToast('Agreement request cancelled.', { tone: 'success' })
+  }, [agreements, confirm, organizationScopeKey, showToast])
 
-  const toggleSignedAgreement = useCallback((agreementId) => {
-    setOpenSignedAgreements((current) => ({
-      ...current,
-      [agreementId]: !current[agreementId]
-    }))
-  }, [])
+  const openSignedAgreements = openAgreementItems
+  const toggleSignedAgreement = toggleAgreementItem
 
   const handleAgreementPdfDownload = useCallback((agreement) => {
     const doc = new jsPDF({ unit: 'pt', format: 'a4' })
@@ -1146,6 +1355,48 @@ export default function ProfilesPage() {
     return availableAgreementDocuments.filter((item) => agreementForm.documentIds.includes(item.selectionId))
   }, [agreementForm.documentIds, availableAgreementDocuments])
 
+  const discontinuationAgreementOptions = useMemo(() => {
+    return agreements.filter((item) => {
+      if (item.agreementType === 'discontinuation') return false
+      if (agreementForm.agentId && String(item.agentId) !== String(agreementForm.agentId)) return false
+      const lifecycleStatus = getAgreementLifecycleStatus(item, agreements)
+      if (lifecycleStatus.tone === 'rejected' || lifecycleStatus.tone === 'expired') return false
+      return !agreements.some((candidate) => {
+        return candidate.agreementType === 'discontinuation' && String(candidate.linkedAgreementId || '') === String(item.id)
+      })
+    })
+  }, [agreementForm.agentId, agreements])
+
+  const filteredAgreements = useMemo(() => {
+    return visibleAgreements.filter((agreement) => {
+      const fullySigned = isAgreementFullySigned(agreement)
+      const lifecycleStatus = getAgreementLifecycleStatus(agreement, agreements)
+
+      if (agreementBoardFilter === 'pending') return !fullySigned
+      if (agreementBoardFilter === 'fully_signed') return fullySigned
+      if (agreementBoardFilter === 'active') return lifecycleStatus.tone === 'active'
+      if (agreementBoardFilter === 'expired') return lifecycleStatus.tone === 'expired'
+      if (agreementBoardFilter === 'declined') return lifecycleStatus.tone === 'rejected'
+      return true
+    })
+  }, [agreementBoardFilter, agreements, visibleAgreements])
+
+  const agreementBoardCounts = useMemo(() => {
+    return AGREEMENT_BOARD_FILTERS.reduce((acc, filter) => {
+      acc[filter.id] = visibleAgreements.filter((agreement) => {
+        const fullySigned = isAgreementFullySigned(agreement)
+        const lifecycleStatus = getAgreementLifecycleStatus(agreement, agreements)
+        if (filter.id === 'pending') return !fullySigned
+        if (filter.id === 'fully_signed') return fullySigned
+        if (filter.id === 'active') return lifecycleStatus.tone === 'active'
+        if (filter.id === 'expired') return lifecycleStatus.tone === 'expired'
+        if (filter.id === 'declined') return lifecycleStatus.tone === 'rejected'
+        return false
+      }).length
+      return acc
+    }, {})
+  }, [agreements, visibleAgreements])
+
   useEffect(() => {
     setAgreementForm((current) => {
       if (current.agreementDate === todayDate) return current
@@ -1321,6 +1572,10 @@ export default function ProfilesPage() {
                       agentUser.profile_image_url ||
                       ''
                     const isAdminProfile = agentUser?.role === 'admin' || agentUser?.is_superuser
+                    const managedAgentName =
+                      agentProfiles.find((agent) => belongsToSameAgentWorkspace(agent, agentUser) && agent?.role === 'customer')
+                        ? buildAgentCardName(agentProfiles.find((agent) => belongsToSameAgentWorkspace(agent, agentUser) && agent?.role === 'customer'))
+                        : agentUser?.staff_side || agentUser?.organization?.name || '--'
                     return (
                       <button
                         key={agentUser.id}
@@ -1328,13 +1583,14 @@ export default function ProfilesPage() {
                         className="profiles-side-user-item"
                         disabled
                       >
-                        <div className="profiles-agent-card-head">
+                          <div className="profiles-agent-card-head">
                           <div className="employee-card-avatar profiles-agent-avatar">
                             {photo ? <img src={photo} alt={`${buildAgentCardName(agentUser)} profile`} /> : <span>{buildAgentCardName(agentUser).charAt(0).toUpperCase()}</span>}
                           </div>
                           <div className="profiles-side-user-inline">
                             <strong>{buildAgentCardName(agentUser)}</strong>
                             <span className="muted-text">@{agentUser.slug || agentUser.username || 'slug-missing'}</span>
+                            <span className="muted-text">Managed by {managedAgentName}</span>
                             <span className="badge badge-warning profiles-admin-badge">Agent-side user</span>
                             {isAdminProfile ? <span className="badge badge-muted profiles-admin-badge">Admin</span> : null}
                           </div>
@@ -1494,6 +1750,17 @@ export default function ProfilesPage() {
                   />
                 </label>
                 <label>
+                  Agreement type
+                  <select
+                    name="agreement_type"
+                    value={agreementForm.agreementType}
+                    onChange={(event) => handleAgreementFieldChange('agreementType', event.target.value)}
+                  >
+                    <option value="standard">Standard agreement</option>
+                    <option value="discontinuation">Discontinual agreement</option>
+                  </select>
+                </label>
+                <label>
                   Agent
                   <select
                     name="agreement_agent"
@@ -1508,6 +1775,23 @@ export default function ProfilesPage() {
                     ))}
                   </select>
                 </label>
+                {agreementForm.agreementType === 'discontinuation' ? (
+                  <label>
+                    Agreement to discontinue
+                    <select
+                      name="agreement_linked"
+                      value={agreementForm.linkedAgreementId}
+                      onChange={(event) => handleAgreementFieldChange('linkedAgreementId', event.target.value)}
+                    >
+                      <option value="">Select agreement</option>
+                      {discontinuationAgreementOptions.map((item) => (
+                        <option key={item.id} value={item.id}>
+                          {item.title} - {item.agentName}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                ) : null}
                 <label>
                   Agreement date
                   <input
@@ -1525,6 +1809,7 @@ export default function ProfilesPage() {
                     type="date"
                     value={agreementForm.expiryDate}
                     onChange={(event) => handleAgreementFieldChange('expiryDate', event.target.value)}
+                    disabled={agreementForm.agreementType === 'discontinuation'}
                   />
                 </label>
                 <label>
@@ -1610,22 +1895,38 @@ export default function ProfilesPage() {
           )}
 
           <article className="employee-summary-card">
-            <h3>Agreement board</h3>
-            {visibleAgreements.length === 0 ? (
+            <h3>Agreements board</h3>
+            <div className="profiles-agreement-board-filters" role="tablist" aria-label="Agreement board filters">
+              {AGREEMENT_BOARD_FILTERS.map((filter) => (
+                <button
+                  key={filter.id}
+                  type="button"
+                  className={`employee-subtab${agreementBoardFilter === filter.id ? ' is-active' : ''}`}
+                  onClick={() => setAgreementBoardFilter(filter.id)}
+                  aria-pressed={agreementBoardFilter === filter.id}
+                >
+                  {filter.label} {agreementBoardCounts[filter.id] ?? 0}
+                </button>
+              ))}
+            </div>
+            {filteredAgreements.length === 0 ? (
               <p className="muted-text">
-                {canManageAgreements
-                  ? 'No digital agreements created for this organization yet.'
-                  : 'No digital agreements assigned to your agent workspace yet.'}
+                No agreements found under the `{AGREEMENT_BOARD_FILTERS.find((item) => item.id === agreementBoardFilter)?.label || 'selected'}` view.
               </p>
             ) : (
               <div className="profiles-agreement-list">
-                {visibleAgreements.map((agreement) => {
+                {filteredAgreements.map((agreement) => {
                   const organizationDraftKey = `${agreement.id}:organization`
                   const agentDraftKey = `${agreement.id}:agent`
                   const isAwaitingAgreement = !(agreement.organizationSignature && agreement.agentSignature)
-                  const lifecycleStatus = getAgreementLifecycleStatus(agreement)
+                  const lifecycleStatus = getAgreementLifecycleStatus(agreement, agreements)
                   const canSignOrganization = canManageAgreements && !agreement.organizationSignature
                   const canSignAgent = agentSide && user?.role === 'customer' && !agreement.agentSignature
+                  const canPrepareDiscontinuation =
+                    canManageAgreements &&
+                    !isAwaitingAgreement &&
+                    lifecycleStatus.tone === 'active' &&
+                    agreement.agreementType !== 'discontinuation'
                   if (!isAwaitingAgreement) {
                     return (
                       <article key={agreement.id} className="profiles-agreement-item profiles-agreement-item--signed commission-group">
@@ -1645,6 +1946,15 @@ export default function ProfilesPage() {
                             <span className={`badge profiles-admin-badge profiles-agreement-status profiles-agreement-status--${lifecycleStatus.tone}`}>
                               {lifecycleStatus.label}
                             </span>
+                            {canPrepareDiscontinuation ? (
+                              <button
+                                type="button"
+                                className="btn-secondary"
+                                onClick={() => handleAgreementDiscontinuationPrepare(agreement)}
+                              >
+                                Prepare discontinuation
+                              </button>
+                            ) : null}
                             <button
                               type="button"
                               className="commission-group-toggle-button"
@@ -1734,16 +2044,16 @@ export default function ProfilesPage() {
                   }
 
                   return (
-                    <article key={agreement.id} className="profiles-agreement-item">
-                      <div className="profiles-agreement-head">
+                    <article key={agreement.id} className="profiles-agreement-item commission-group">
+                      <div className="profiles-agreement-head commission-group-header">
                         <div className="profiles-agreement-head-copy">
-                          <p className="employee-modal-eyebrow">Digital agreement</p>
+                          <p className="employee-modal-eyebrow">{buildAgreementKindLabel(agreement.agreementType)}</p>
                           <h3>{agreement.title}</h3>
                           <p className="muted-text">
                             Agent: {agreement.agentName} | Created {formatDateTime(agreement.createdAt)} by {agreement.createdBy || '--'}
                           </p>
                           <p className="muted-text">
-                            Agreement date: {formatDateTime(agreement.agreementDate)} | Expiry date: {formatDateTime(agreement.expiryDate)}
+                            Agreement date: {formatDateTime(agreement.agreementDate)}{agreement.expiryDate ? ` | Expiry date: ${formatDateTime(agreement.expiryDate)}` : ''}
                           </p>
                         </div>
                         <div className="profiles-agreement-head-actions">
@@ -1759,12 +2069,25 @@ export default function ProfilesPage() {
                               className="btn-danger"
                               onClick={() => handleAgreementCancel(agreement)}
                             >
-                              Cancel agreement
+                              Cancel request
                             </button>
                           ) : null}
+                          <button
+                            type="button"
+                            className="commission-group-toggle-button"
+                            onClick={() => toggleSignedAgreement(agreement.id)}
+                            aria-label={openSignedAgreements[agreement.id] ? 'Collapse agreement' : 'Expand agreement'}
+                            aria-expanded={Boolean(openSignedAgreements[agreement.id])}
+                          >
+                            <span className={`commission-group-toggle-icon${openSignedAgreements[agreement.id] ? ' is-open' : ''}`}>
+                              ▸
+                            </span>
+                          </button>
                         </div>
                       </div>
 
+                      {openSignedAgreements[agreement.id] ? (
+                      <>
                       <div className="profiles-agreement-details">
                         <p>{agreement.details}</p>
                       </div>
@@ -1937,6 +2260,8 @@ export default function ProfilesPage() {
                           )}
                         </section>
                       </div>
+                      </>
+                      ) : null}
                     </article>
                   )
                 })}

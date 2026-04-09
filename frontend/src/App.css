@@ -780,6 +780,12 @@ button:disabled {
   gap: 12px;
 }
 
+.dashboard-nav-link.is-disabled {
+  opacity: 0.48;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
 .commission-chart-detail-filter {
   display: flex;
   align-items: end;
@@ -1374,6 +1380,144 @@ html:not([data-theme])[data-accent='orange'] .profiles-agreement-selected-remove
   margin-top: 14px;
 }
 
+.profiles-agreement-board-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.travel-page {
+  display: grid;
+  gap: 18px;
+}
+
+.travel-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.3fr) minmax(320px, 0.7fr);
+  gap: 16px;
+}
+
+.travel-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  margin: 14px 0 0;
+}
+
+.travel-summary-grid .employee-summary-card {
+  margin: 0;
+  min-height: 0;
+}
+
+.travel-summary-grid strong {
+  display: block;
+  font-size: 1.35rem;
+  margin-bottom: 6px;
+}
+
+.travel-ticket-list {
+  display: grid;
+  gap: 12px;
+  margin-top: 14px;
+}
+
+.travel-ticket-card {
+  display: flex;
+  justify-content: space-between;
+  align-items: start;
+  gap: 14px;
+  padding: 14px 16px;
+  border: 1px solid var(--color-border);
+  border-radius: 16px;
+  background: color-mix(in oklch, var(--color-card) 96%, var(--color-muted));
+}
+
+.travel-ticket-card h3,
+.travel-ticket-card p {
+  margin: 0;
+}
+
+.travel-ticket-card h3 {
+  margin-bottom: 6px;
+}
+
+.travel-ticket-actions {
+  display: grid;
+  justify-items: end;
+  gap: 8px;
+}
+
+.travel-ticket-preview {
+  display: grid;
+  gap: 8px;
+}
+
+.travel-ticket-preview p {
+  margin: 0;
+}
+
+.travel-doc-chip-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.travel-support-list {
+  display: grid;
+  gap: 12px;
+  margin-top: 14px;
+}
+
+.travel-support-item {
+  padding: 12px 14px;
+  border: 1px solid var(--color-border);
+  border-radius: 14px;
+  background: color-mix(in oklch, var(--color-card) 96%, var(--color-muted));
+}
+
+.travel-support-item strong,
+.travel-support-item p {
+  display: block;
+  margin: 0;
+}
+
+.travel-support-item p {
+  margin-top: 6px;
+}
+
+.travel-checklist {
+  margin: 14px 0 0;
+  padding-left: 18px;
+  display: grid;
+  gap: 8px;
+}
+
+@media (max-width: 960px) {
+  .travel-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .travel-summary-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .travel-ticket-card {
+    flex-direction: column;
+  }
+
+  .travel-ticket-actions {
+    width: 100%;
+    justify-items: start;
+  }
+}
+
+@media (max-width: 640px) {
+  .travel-summary-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
 .profiles-agreement-item {
   display: grid;
   gap: 14px;
@@ -1430,6 +1574,13 @@ html:not([data-theme])[data-accent='orange'] .profiles-agreement-selected-remove
 .profiles-agreement-head h3 {
   margin: 0 0 4px;
   overflow-wrap: anywhere;
+}
+
+.profiles-agreement-item .commission-group-toggle-button {
+  width: 36px;
+  height: 36px;
+  min-width: 36px;
+  min-height: 36px;
 }
 
 .profiles-agreement-item--signed .commission-group-toggle-button {
@@ -1994,7 +2145,7 @@ html:not([data-theme]) .commission-settlement-card {
 .user-create-card h2 {
   margin: 0 0 16px;
   font-size: 1.35rem;
-  color: #111827;
+  color: #ffffff;
 }
 
 .users-form-grid {
@@ -2073,14 +2224,61 @@ html:not([data-theme]) .commission-settlement-card {
 
 .users-actions-cell {
   min-width: 220px;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  justify-content: flex-start;
+  white-space: nowrap;
 }
 
 .users-actions-cell button {
   margin-right: 0 !important;
+}
+
+.users-management .users-table-wrap {
+  padding: 0;
+}
+
+.users-management .users-table-wrap > .users-filter-grid {
+  margin-bottom: 16px;
+}
+
+.users-management .users-table-wrap h2 {
+  margin: 0 0 10px;
+}
+
+.users-management .table-scroll {
+  border-radius: 12px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+}
+
+.users-management .users-table {
+  font-size: 0.88rem;
+  min-width: 1280px;
+}
+
+.users-management .users-table th,
+.users-management .users-table td {
+  padding: 10px 12px;
+  vertical-align: middle;
+}
+
+.users-management .users-table tbody td {
+  padding-top: 2px;
+  padding-bottom: 2px;
+}
+
+.users-management .users-actions-cell {
+  min-width: 200px;
+  display: table-cell;
+  vertical-align: middle;
+}
+
+.users-management .users-actions-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  justify-content: flex-end;
+  width: 100%;
 }
 
 .table-scroll {
@@ -2221,6 +2419,9 @@ html:not([data-theme]) .commission-settlement-card {
   flex-direction: column;
   gap: 16px;
   text-align: left;
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
 }
 
 .settings-form label {
@@ -2265,6 +2466,29 @@ html:not([data-theme]) .commission-settlement-card {
   color: #15803d;
   font-size: 0.9rem;
   margin: 0 0 8px;
+}
+
+.settings-tabs {
+  margin-top: 16px;
+  margin-bottom: 8px;
+}
+
+.settings-tab-card {
+  margin-top: 12px;
+}
+
+.settings-tab-card .settings-section-title:first-child {
+  margin-top: 0;
+}
+
+.settings-page .settings-form,
+html[data-accent='orange'] .settings-page .settings-form,
+.profiles-page .settings-form,
+html[data-accent='orange'] .profiles-page .settings-form {
+  background: transparent !important;
+  background-color: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
 }
 
 /* Activity log */

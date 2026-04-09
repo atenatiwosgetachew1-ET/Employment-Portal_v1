@@ -45,6 +45,9 @@ export default function DashboardLayoutSidebar() {
     ...(canManageEmployees
       ? [{ to: '/dashboard/employees', label: 'Employees', end: false }]
       : []),
+    ...(canManageEmployees
+      ? [{ to: '/dashboard/travel', label: 'Travel', end: false, disabled: true }]
+      : []),
     { to: '/dashboard/chats', label: 'Chats', end: false },
     { to: '/dashboard/compliances', label: 'Compliances', end: false },
     { to: '/dashboard/commissions', label: 'Commissions', end: false },
@@ -130,17 +133,23 @@ export default function DashboardLayoutSidebar() {
         </div>
         <div className="dashboard-brand">Employment Portal</div>
         <nav className="dashboard-nav">
-          {navItems.map(({ to, label, end }) => (
-            <NavLink
-              key={to}
-              to={to}
-              end={end}
-              className={({ isActive }) =>
-                `dashboard-nav-link${isActive ? ' is-active' : ''}`
-              }
-            >
-              {label}
-            </NavLink>
+          {navItems.map(({ to, label, end, disabled }) => (
+            disabled ? (
+              <span key={to} className="dashboard-nav-link is-disabled" aria-disabled="true">
+                {label}
+              </span>
+            ) : (
+              <NavLink
+                key={to}
+                to={to}
+                end={end}
+                className={({ isActive }) =>
+                  `dashboard-nav-link${isActive ? ' is-active' : ''}`
+                }
+              >
+                {label}
+              </NavLink>
+            )
           ))}
         </nav>
       </aside>

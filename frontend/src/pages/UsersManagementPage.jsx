@@ -233,6 +233,37 @@ export default function UsersManagementPage() {
     }
   }
 
+  const handleStaffLevelChange = async (row, newLevelLabel) => {
+    setBusy(row.id, 'role', true)
+    try {
+      const payload = {
+        staff_level_label: newLevelLabel,
+        staff_level: getStaffLevelForRole(newLevelLabel)
+      }
+      await usersService.patchUser(row.id, payload)
+      setUsersData((prev) =>
+        prev
+          ? {
+              ...prev,
+              results: prev.results.map((u) =>
+                u.id === row.id
+                  ? {
+                      ...u,
+                      staff_level: payload.staff_level,
+                      staff_level_label: payload.staff_level_label
+                    }
+                  : u
+              )
+            }
+          : prev
+      )
+    } catch (err) {
+      setError(err.message || 'Could not update level')
+    } finally {
+      setBusy(row.id, 'role', false)
+    }
+  }
+
   const handleActiveToggle = async (row, isActive) => {
     setBusy(row.id, 'active', true)
     try {
@@ -699,26 +730,24 @@ export default function UsersManagementPage() {
                           {[row.first_name, row.last_name].filter(Boolean).join(' ') || '—'}
                         </td>
                         <td>{row.phone || '—'}</td>
-                        <td>
-                          <select
-                            value={row.role}
-                            disabled={busy.role || readOnly}
-                            onChange={(e) => handleRoleChange(row, e.target.value)}
-                          >
-                            {roleSelectOptions.map((r) => (
-                              <option key={r.value} value={r.value}>
-                                {r.label}
-                              </option>
-                            ))}
-                          </select>
-                        </td>
+                        <td>{roleSelectOptions.find((r) => r.value === row.role)?.label || row.role || '—'}</td>
                         <td>
                           {row.role === 'staff' ? row.staff_side || '—' : '—'}
                         </td>
                         <td>
-                          {row.role === 'staff'
-                            ? `L${row.staff_level || 1}${row.staff_level_label ? ` - ${row.staff_level_label}` : ''}`
-                            : '—'}
+                          {row.role === 'staff' ? (
+                            <select
+                              value={row.staff_level_label || STAFF_ROLE_OPTIONS[0].label}
+                              disabled={busy.role || readOnly}
+                              onChange={(e) => handleStaffLevelChange(row, e.target.value)}
+                            >
+                              {STAFF_ROLE_OPTIONS.map((option) => (
+                                <option key={option.label} value={option.label}>
+                                  {`L${option.level} - ${option.label}`}
+                                </option>
+                              ))}
+                            </select>
+                          ) : '—'}
                         </td>
                         <td>
                           <label className="toggle-cell">
@@ -735,34 +764,36 @@ export default function UsersManagementPage() {
                         <td className="nowrap">{formatDate(row.date_joined)}</td>
                         <td className="nowrap">{formatDate(row.last_login)}</td>
                         <td className="users-actions-cell">
-                          {row.role === 'staff' && (
+                          <div className="users-actions-row">
+                            {row.role === 'staff' && (
+                              <button
+                                type="button"
+                                className="btn-secondary"
+                                disabled={busy.staffMeta || readOnly}
+                                onClick={() => handleStaffMetaUpdate(row)}
+                              >
+                                {busy.staffMeta ? 'Saving...' : 'Edit staff'}
+                              </button>
+                            )}
                             <button
                               type="button"
                               className="btn-secondary"
-                              disabled={busy.staffMeta || readOnly}
-                              onClick={() => handleStaffMetaUpdate(row)}
+                              disabled={busy.password || isSelf || readOnly}
+                              onClick={() => handlePasswordReset(row)}
+                              title={isSelf ? 'Use the forgot-password flow for your own account' : 'Reset password'}
                             >
-                              {busy.staffMeta ? 'Saving...' : 'Edit staff'}
+                              {busy.password ? 'Resetting...' : 'Reset password'}
                             </button>
-                          )}
-                          <button
-                            type="button"
-                            className="btn-secondary"
-                            disabled={busy.password || isSelf || readOnly}
-                            onClick={() => handlePasswordReset(row)}
-                            title={isSelf ? 'Use the forgot-password flow for your own account' : 'Reset password'}
-                          >
-                            {busy.password ? 'Resetting...' : 'Reset password'}
-                          </button>
-                          <button
-                            type="button"
-                            className="btn-danger"
-                            disabled={busy.delete || isSelf || readOnly}
-                            onClick={() => handleDelete(row)}
-                            title={isSelf ? 'Cannot delete yourself' : 'Remove user'}
-                          >
-                            Remove
-                          </button>
+                            <button
+                              type="button"
+                              className="btn-danger"
+                              disabled={busy.delete || isSelf || readOnly}
+                              onClick={() => handleDelete(row)}
+                              title={isSelf ? 'Cannot delete yourself' : 'Remove user'}
+                            >
+                              Remove
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     )

@@ -20,6 +20,7 @@ import CommissionsPage from './pages/CommissionsPage'
 import ReportsPage from './pages/ReportsPage'
 import SubscriptionPlansPage from './pages/SubscriptionPlansPage'
 import ProfilesPage from './pages/ProfilesPage'
+import TravelPage from './pages/TravelPage'
 import ProtectedRoute from './routes/ProtectedRoute'
 import { applyAccent, applyTheme, getStoredAccent, getStoredTheme } from './utils/theme'
 import './App.css'
@@ -53,6 +54,7 @@ function AppRoutes() {
           <Route path="chats" element={<ChatsPage />} />
           <Route path="compliances" element={<CompliancesPage />} />
           <Route path="commissions" element={<CommissionsPage />} />
+          <Route path="travel" element={<TravelPage />} />
           <Route path="reports" element={<ReportsPage />} />
           <Route path="profiles" element={<ProfilesPage />} />
           <Route path="users" element={<UsersManagementPage />} />
