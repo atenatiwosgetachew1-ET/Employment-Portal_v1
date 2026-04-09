@@ -8,11 +8,11 @@ import * as employeesService from '../services/employeesService'
 import * as usersService from '../services/usersService'
 
 const COMMISSION_VIEW_TABS = [
-  { id: 'requests', label: 'Requests' },
-  { id: 'unsettled', label: 'Unsettled commissions' },
-  { id: 'settled', label: 'Settled commissions' },
-  { id: 'collected', label: 'Collected commissions' },
-  { id: 'agents', label: 'My Agents' }
+  { id: 'requests' },
+  { id: 'unsettled' },
+  { id: 'settled' },
+  { id: 'collected' },
+  { id: 'agents' }
 ]
 const COLLECTED_RANGE_TABS = [
   { id: 'weekly', label: 'Weekly' },
@@ -20,49 +20,6 @@ const COLLECTED_RANGE_TABS = [
   { id: 'quarterly', label: 'Quarterly' },
   { id: 'yearly', label: 'Yearly' }
 ]
-const DEMO_WEEKLY_SPLIT_RATIOS = [0.22, 0.26, 0.24, 0.28]
-const DEMO_COLLECTED_MONTHLY_SERIES = {
-  2024: [3100, 3400, 3600, 3900, 4200, 4400, 4100, 4300, 4600, 4700, 5000, 5200],
-  2025: [4100, 4500, 4700, 5200, 5400, 5600, 5900, 6100, 6400, 6200, 6600, 6900],
-  2026: [5200, 5400, 5600, 5800, 5900, 6000, 6100, 5900, 5700, 5600, 5800, 7000]
-}
-const DEMO_AGENT_NAMES = ['Demo agent', 'Atlas Recruiting', 'Nile Placement']
-function splitDemoMonthlyAmount(amount) {
-  const firstThree = DEMO_WEEKLY_SPLIT_RATIOS.slice(0, 3).map((ratio) => Math.round(amount * ratio))
-  const consumed = firstThree.reduce((sum, value) => sum + value, 0)
-  return [...firstThree, amount - consumed]
-}
-const DEMO_COLLECTED_SETTLEMENTS = Object.entries(DEMO_COLLECTED_MONTHLY_SERIES).flatMap(([year, amounts]) =>
-  amounts.flatMap((amount, index) => {
-    const month = String(index + 1).padStart(2, '0')
-    const weeklyAmounts = splitDemoMonthlyAmount(amount)
-    return weeklyAmounts.map((weeklyAmount, weekIndex) => {
-      const day = String(4 + (weekIndex * 7)).padStart(2, '0')
-      const agentName = DEMO_AGENT_NAMES[(index + weekIndex) % DEMO_AGENT_NAMES.length]
-      return {
-        id: `demo-collected-${year}-${month}-w${weekIndex + 1}`,
-        agentName,
-        employeeIds: [
-          `demo-${year}-${month}-w${weekIndex + 1}-1`,
-          `demo-${year}-${month}-w${weekIndex + 1}-2`,
-          `demo-${year}-${month}-w${weekIndex + 1}-3`
-        ],
-        employees: [
-          { id: `demo-${year}-${month}-w${weekIndex + 1}-1`, full_name: `Demo Employee ${year}-${month}-W${weekIndex + 1}-1` },
-          { id: `demo-${year}-${month}-w${weekIndex + 1}-2`, full_name: `Demo Employee ${year}-${month}-W${weekIndex + 1}-2` },
-          { id: `demo-${year}-${month}-w${weekIndex + 1}-3`, full_name: `Demo Employee ${year}-${month}-W${weekIndex + 1}-3` }
-        ],
-        totalCommissionValue: weeklyAmount,
-        settledAt: `${year}-${month}-${day}`,
-        createdAt: `${year}-${month}-${day}T09:00:00.000Z`,
-        receipts: [
-          { id: `demo-receipt-${year}-${month}-w${weekIndex + 1}`, label: `Demo collection receipt ${year}-${month}-W${weekIndex + 1}.pdf` }
-        ],
-        isDemo: true
-      }
-    })
-  })
-)
 const COMMISSION_SETTLEMENT_STORAGE_KEY = 'employment-portal.commission-settlements'
 const COMMISSION_SETTLEMENT_REQUESTS_STORAGE_KEY = 'employment-portal.commission-settlement-requests'
 const TRAVEL_CONFIRMATION_CONFIRMED_STORAGE_KEY = 'employment-portal.travel-confirmation-confirmed'
@@ -97,6 +54,7 @@ function isCommissionEligibleEmployee(employee) {
 
 function isSettledCommissionEmployee(employee) {
   return Boolean(
+    employee?.settled_commission ||
     isReturnedEmployee(employee) &&
     employee?.did_travel
   )
@@ -435,6 +393,7 @@ function buildEmployeeSettlementSnapshot(employee) {
     did_travel: employee.did_travel,
     travel_status: employee.travel_status,
     return_status: employee.return_status,
+    settled_commission: true,
     return_request: employee.return_request || null,
     selection_state: employee.selection_state || null,
     documents: employee.documents || []
@@ -544,6 +503,8 @@ export default function CommissionsPage() {
   const [settlementError, setSettlementError] = useState('')
   const [selectedSettlementEmployeeIds, setSelectedSettlementEmployeeIds] = useState([])
   const [settlementDate, setSettlementDate] = useState(() => new Date().toISOString().slice(0, 10))
+  const [settlementAmount, setSettlementAmount] = useState('')
+  const [settlementAmountTouched, setSettlementAmountTouched] = useState(false)
   const [settlementReceiptFiles, setSettlementReceiptFiles] = useState([null, null, null])
   const [activeSettlementRequest, setActiveSettlementRequest] = useState(null)
   const [requestModalOpen, setRequestModalOpen] = useState(false)
@@ -558,6 +519,8 @@ export default function CommissionsPage() {
   const isAgentSideUser = isAgentSideWorkspace(user)
   const canRegisterSettlements = isAgentSideUser && user?.role === 'customer'
   const canCreateSettlementRequests = !isAgentSideUser
+  const canViewCollectedAnalytics = !isAgentSideUser
+  const canViewAgentDirectory = !isAgentSideUser
   const permissions = user?.permissions || []
   const canManageUsers =
     Boolean(user?.feature_flags?.users_management_enabled) &&
@@ -565,9 +528,35 @@ export default function CommissionsPage() {
   const ownerKey = useMemo(() => settlementOwnerKey(user), [user])
   const currentAgentDisplayName = displayActorName(user)
   const visibleTabs = useMemo(
-    () => COMMISSION_VIEW_TABS.filter((tab) => tab.id !== 'agents' || !isAgentSideUser),
-    [isAgentSideUser]
+    () => COMMISSION_VIEW_TABS
+      .filter((tab) => {
+        if (tab.id === 'collected') return canViewCollectedAnalytics
+        if (tab.id === 'agents') return canViewAgentDirectory
+        return true
+      })
+      .map((tab) => {
+        if (tab.id === 'settled') {
+          return { ...tab, label: isAgentSideUser ? 'Settled payments' : 'Collected payments' }
+        }
+        if (tab.id === 'unsettled') {
+          return { ...tab, label: isAgentSideUser ? 'Outstanding payments' : 'Pending collections' }
+        }
+        if (tab.id === 'collected') {
+          return { ...tab, label: 'Collection analytics' }
+        }
+        if (tab.id === 'agents') {
+          return { ...tab, label: 'Agents' }
+        }
+        return { ...tab, label: isAgentSideUser ? 'Payment requests' : 'Collection requests' }
+      }),
+    [canViewAgentDirectory, canViewCollectedAnalytics, isAgentSideUser]
   )
+
+  useEffect(() => {
+    if ((currentView === 'collected' && !canViewCollectedAnalytics) || (currentView === 'agents' && !canViewAgentDirectory)) {
+      setCurrentView('unsettled')
+    }
+  }, [canViewAgentDirectory, canViewCollectedAnalytics, currentView])
 
   const handleCollectedRangeChange = useCallback((nextRange) => {
     setCollectedRange(nextRange)
@@ -766,12 +755,12 @@ export default function CommissionsPage() {
   }, [isAgentSideUser, user])
 
   const settledEmployeeIds = useMemo(
-    () => new Set(settlements.flatMap((settlement) => settlement.employeeIds || [])),
+    () => new Set(settlements.flatMap((settlement) => (settlement.employeeIds || []).map((id) => String(id)))),
     [settlements]
   )
 
   const unsettledCases = useMemo(
-    () => sourceUnsettledCases.filter((employee) => !settledEmployeeIds.has(employee.id)),
+    () => sourceUnsettledCases.filter((employee) => !settledEmployeeIds.has(String(employee.id))),
     [settledEmployeeIds, sourceUnsettledCases]
   )
 
@@ -781,7 +770,7 @@ export default function CommissionsPage() {
   )
 
   const pendingSettlementRequestedEmployeeIds = useMemo(
-    () => new Set(pendingSettlementRequests.flatMap((request) => request.employeeIds || [])),
+    () => new Set(pendingSettlementRequests.flatMap((request) => (request.employeeIds || []).map((id) => String(id)))),
     [pendingSettlementRequests]
   )
 
@@ -789,7 +778,7 @@ export default function CommissionsPage() {
     if (!canRegisterSettlements) return []
 
     const settlementSource = activeSettlementRequest
-      ? unsettledCases.filter((employee) => activeSettlementRequest.employeeIds.includes(employee.id))
+      ? unsettledCases.filter((employee) => (activeSettlementRequest.employeeIds || []).map((id) => String(id)).includes(String(employee.id)))
       : unsettledCases
 
     const ownedEmployees = settlementSource.filter((employee) => employeeBelongsToAgent(employee, user))
@@ -815,8 +804,15 @@ export default function CommissionsPage() {
 
   const visibleSettlements = useMemo(() => {
     const query = search.trim().toLowerCase()
-    if (!query) return settlements
-    return settlements.filter((settlement) =>
+    const normalizedSettlements = settlements.map((settlement) => ({
+      ...settlement,
+      employees: (settlement.employees || []).map((employee) => ({
+        ...employee,
+        settled_commission: true
+      }))
+    }))
+    if (!query) return normalizedSettlements
+    return normalizedSettlements.filter((settlement) =>
       [
         settlement.agentName,
         ...(settlement.employees || []).flatMap((employee) => [
@@ -834,20 +830,8 @@ export default function CommissionsPage() {
   }, [search, settlements])
 
   const collectedSettlementSource = useMemo(() => {
-    const demoSettlements = DEMO_COLLECTED_SETTLEMENTS.filter((settlement) => {
-      const query = search.trim().toLowerCase()
-      if (!query) return true
-      return [
-        settlement.agentName,
-        ...(settlement.employees || []).map((employee) => employee.full_name),
-        ...(settlement.receipts || []).map((receipt) => receipt.label)
-      ]
-        .filter(Boolean)
-        .some((value) => String(value).toLowerCase().includes(query))
-    })
-
-    return [...visibleSettlements, ...demoSettlements]
-  }, [search, visibleSettlements])
+    return visibleSettlements
+  }, [visibleSettlements])
 
   const scopedCollectedSettlementSource = useMemo(() => {
     if (!collectedDrilldown) return collectedSettlementSource
@@ -911,7 +895,7 @@ export default function CommissionsPage() {
 
   const requestEligibleEmployees = useMemo(() => {
     if (!canCreateSettlementRequests) return []
-    return unsettledCases.filter((employee) => !pendingSettlementRequestedEmployeeIds.has(employee.id))
+    return unsettledCases.filter((employee) => !pendingSettlementRequestedEmployeeIds.has(String(employee.id)))
   }, [canCreateSettlementRequests, pendingSettlementRequestedEmployeeIds, unsettledCases])
 
   const requestEligibleGroups = useMemo(() => {
@@ -940,7 +924,7 @@ export default function CommissionsPage() {
 
   const visibleSettlementRequests = useMemo(() => {
     const query = search.trim().toLowerCase()
-    const activeRequests = settlementRequests.filter((request) => request.status !== 'cancelled')
+    const activeRequests = settlementRequests.filter((request) => request.status !== 'cancelled' && request.status !== 'acknowledged')
     if (!query) return activeRequests
     return activeRequests.filter((request) =>
       [
@@ -987,7 +971,10 @@ export default function CommissionsPage() {
     }
 
     if (currentView === 'requests') {
-      const requestedEmployees = visibleSettlementRequests.reduce((acc, request) => acc + (request.employees?.length || 0), 0)
+      const requestedEmployees = visibleSettlementRequests.reduce(
+        (acc, request) => acc + Math.max(request.employees?.length || 0, request.employeeIds?.length || 0),
+        0
+      )
       const pendingCount = visibleSettlementRequests.filter((request) => request.status === 'pending').length
       const settledCount = visibleSettlementRequests.filter((request) => request.status === 'settled').length
 
@@ -1320,6 +1307,18 @@ export default function CommissionsPage() {
     }, {})
   }, [agentRates])
 
+  const expectedSettlementAmount = useMemo(() => {
+    const fallbackRate = numericCommissionRate(user?.agent_commission || user?.profile?.agent_commission)
+    const effectiveRate = agentRateLookup[currentAgentDisplayName] ?? fallbackRate ?? null
+    return effectiveRate === null ? null : effectiveRate * selectedSettlementEmployeeIds.length
+  }, [agentRateLookup, currentAgentDisplayName, selectedSettlementEmployeeIds.length, user])
+
+  useEffect(() => {
+    if (!settlementAmountTouched) {
+      setSettlementAmount(expectedSettlementAmount === null ? '' : String(expectedSettlementAmount))
+    }
+  }, [expectedSettlementAmount, settlementAmountTouched])
+
   const agentSettlementCounts = useMemo(() => {
     return settlements.reduce((acc, settlement) => {
       const key = settlement.agentName || 'Unknown agent'
@@ -1347,6 +1346,83 @@ export default function CommissionsPage() {
     return values.length ? Math.max(...values, 1) : 1
   }, [agentSettlementMetrics])
 
+  const summaryDisplay = useMemo(() => {
+    if (currentView === 'settled') {
+      return {
+        firstLabel: isAgentSideUser ? 'Settlements made' : 'Collections received',
+        firstValue: summary.total,
+        secondLabel: isAgentSideUser ? 'Employees paid for' : 'Employees settled',
+        secondValue: summary.travelled,
+        thirdLabel: 'Receipt files',
+        thirdValue: summary.pendingReturnRequests,
+        fourthLabel: isAgentSideUser ? 'Total paid' : 'Total collected',
+        fourthValue: formatCurrency(summary.agentCount)
+      }
+    }
+
+    if (currentView === 'requests') {
+      return {
+        firstLabel: isAgentSideUser ? 'Requests received' : 'Requests sent',
+        firstValue: summary.total,
+        secondLabel: 'Employees requested',
+        secondValue: summary.travelled,
+        thirdLabel: isAgentSideUser ? 'Pending payments' : 'Pending requests',
+        thirdValue: summary.pendingReturnRequests,
+        fourthLabel: isAgentSideUser ? 'Paid requests' : 'Collected requests',
+        fourthValue: summary.agentCount
+      }
+    }
+
+    if (currentView === 'collected') {
+      return {
+        firstLabel: 'Collection windows',
+        firstValue: summary.total,
+        secondLabel: 'Employees covered',
+        secondValue: summary.travelled,
+        thirdLabel: 'Receipt files',
+        thirdValue: summary.pendingReturnRequests,
+        fourthLabel: 'Collected value',
+        fourthValue: formatCurrency(summary.agentCount)
+      }
+    }
+
+    if (currentView === 'agents') {
+      return {
+        firstLabel: 'Agent profiles',
+        firstValue: agentsSummary.totalProfiles,
+        secondLabel: 'Unsettled cases',
+        secondValue: agentsSummary.unsettledCases,
+        thirdLabel: 'Settlements logged',
+        thirdValue: agentsSummary.settlements,
+        fourthLabel: 'Active agents',
+        fourthValue: agentsSummary.activeAgents
+      }
+    }
+
+    return {
+      firstLabel: isAgentSideUser ? 'Outstanding payments' : 'Pending collections',
+      firstValue: summary.total,
+      secondLabel: isAgentSideUser ? 'Employees to pay for' : 'Employees awaiting collection',
+      secondValue: summary.travelled,
+      thirdLabel: 'Pending return requests',
+      thirdValue: summary.pendingReturnRequests,
+      fourthLabel: isAgentSideUser ? 'Paying agent' : 'Responsible agents',
+      fourthValue: isAgentSideUser ? currentAgentDisplayName : summary.agentCount
+    }
+  }, [
+    agentsSummary.activeAgents,
+    agentsSummary.settlements,
+    agentsSummary.totalProfiles,
+    agentsSummary.unsettledCases,
+    currentAgentDisplayName,
+    currentView,
+    isAgentSideUser,
+    summary.agentCount,
+    summary.pendingReturnRequests,
+    summary.total,
+    summary.travelled
+  ])
+
   const settledSettlements = useMemo(() => {
     return visibleSettlements.slice().sort((a, b) => new Date(b.settledAt || 0) - new Date(a.settledAt || 0))
   }, [visibleSettlements])
@@ -1366,6 +1442,8 @@ export default function CommissionsPage() {
   const resetSettlementForm = useCallback(() => {
     setSelectedSettlementEmployeeIds([])
     setSettlementDate(new Date().toISOString().slice(0, 10))
+    setSettlementAmount('')
+    setSettlementAmountTouched(false)
     setSettlementReceiptFiles([null, null, null])
     setSettlementError('')
     setActiveSettlementRequest(null)
@@ -1395,6 +1473,20 @@ export default function CommissionsPage() {
       prev.includes(employeeId) ? prev.filter((id) => id !== employeeId) : [...prev, employeeId]
     )
   }, [activeSettlementRequest])
+
+  const allSettlementEmployeesSelected =
+    !activeSettlementRequest &&
+    settlementEligibleEmployees.length > 0 &&
+    settlementEligibleEmployees.every((employee) => selectedSettlementEmployeeIds.includes(employee.id))
+
+  const handleToggleAllSettlementEmployees = useCallback(() => {
+    if (activeSettlementRequest) return
+    setSelectedSettlementEmployeeIds((prev) => {
+      const allIds = settlementEligibleEmployees.map((employee) => employee.id)
+      const areAllSelected = allIds.length > 0 && allIds.every((id) => prev.includes(id))
+      return areAllSelected ? [] : allIds
+    })
+  }, [activeSettlementRequest, settlementEligibleEmployees])
 
   const resetSettlementRequestForm = useCallback(() => {
     setSelectedRequestAgentName('')
@@ -1497,6 +1589,23 @@ export default function CommissionsPage() {
     showToast('Settlement request cancelled.', { tone: 'success' })
   }, [isAgentSideUser, persistSettlementRequests, settlementRequests, showToast, user])
 
+  const handleAcknowledgeSettlementRequest = useCallback((request) => {
+    const nextRequests = settlementRequests.map((item) =>
+      item.id === request.id
+        ? {
+            ...item,
+            status: 'acknowledged',
+            acknowledgedAt: new Date().toISOString(),
+            acknowledgedById: user?.id || null,
+            acknowledgedByName: displayActorName(user)
+          }
+        : item
+    )
+
+    persistSettlementRequests(nextRequests)
+    showToast('Settlement acknowledged successfully.', { tone: 'success' })
+  }, [persistSettlementRequests, settlementRequests, showToast, user])
+
   const handleRegisterSettlement = useCallback(async () => {
     if (selectedSettlementEmployeeIds.length === 0) {
       setSettlementError('Choose at least one employee for this settlement.')
@@ -1511,6 +1620,11 @@ export default function CommissionsPage() {
       const selectedEmployees = settlementEligibleEmployees.filter((employee) => selectedSettlementEmployeeIds.includes(employee.id))
       if (selectedEmployees.length === 0) {
         setSettlementError('The selected employees are no longer available for settlement.')
+        return
+      }
+      const parsedSettlementAmount = settlementAmount === '' ? null : Number(settlementAmount)
+      if (settlementAmount === '' || Number.isNaN(parsedSettlementAmount) || parsedSettlementAmount < 0) {
+        setSettlementError('Enter a valid settlement amount.')
         return
       }
 
@@ -1540,8 +1654,8 @@ export default function CommissionsPage() {
         employeeIds: selectedEmployees.map((employee) => employee.id),
         employees: selectedEmployees.map(buildEmployeeSettlementSnapshot),
         rate: effectiveRate,
-        totalCommissionValue: effectiveRate === null ? null : effectiveRate * selectedEmployees.length,
-        settledAt: settlementDate || new Date().toISOString().slice(0, 10),
+        totalCommissionValue: parsedSettlementAmount,
+        settledAt: new Date().toISOString().slice(0, 10),
         createdAt: new Date().toISOString(),
         receipts
       }
@@ -1582,6 +1696,7 @@ export default function CommissionsPage() {
     ownerKey,
     persistSettlements,
     selectedSettlementEmployeeIds,
+    settlementAmount,
     settlementDate,
     settlementReceiptFiles,
     settlements,
@@ -1607,14 +1722,20 @@ export default function CommissionsPage() {
           <h1>Commissions</h1>
           <p className="muted-text">
             {currentView === 'settled'
-              ? 'This board tracks settlements registered from the agent side, including the grouped employed employees, settled amount, and attached bank receipts.'
+              ? isAgentSideUser
+                ? 'This board tracks commission payments your agent side has already settled to the organization, together with the covered employees and receipt attachments.'
+                : 'This board tracks commission collections already received by the organization from the agent side, including the grouped employees, settled amount, and attached bank receipts.'
               : currentView === 'collected'
-              ? 'This tab evaluates already collected commission settlements across time so you can see the collection rhythm and value movement.'
+              ? 'This tab evaluates commission collections already received by the organization across time so you can see the collection rhythm and value movement.'
               : currentView === 'requests'
-              ? 'Settlement requests let the organization ask the responsible agent to settle commission for specific employed employees, then let the agent complete that request with receipts.'
+              ? isAgentSideUser
+                ? 'Payment requests tell your agent side which employee commissions the organization is asking you to pay, then let you settle that request with receipts.'
+                : 'Collection requests let the organization ask the responsible agent to settle commission for specific employed employees, then let the agent complete that request with receipts.'
               : currentView === 'agents'
-              ? 'This tab tracks configured agent commission rates together with their current unsettled exposure.'
-              : 'This board tracks currently employed employees that still carry unsettled commission responsibility from the agent side to the organization.'}
+              ? 'This tab tracks configured agent commission rates together with their current unpaid exposure to the organization.'
+              : isAgentSideUser
+                ? 'This board tracks employed employees whose commission your agent side still owes to the organization.'
+                : 'This board tracks employed employees whose commission is still outstanding from the responsible agent side to the organization.'}
           </p>
           <p className="muted-text">
             {currentView === 'collected'
@@ -1622,10 +1743,10 @@ export default function CommissionsPage() {
               : currentView === 'requests'
               ? canCreateSettlementRequests
                 ? 'Create a request from the organization side by selecting unsettled employed employees that belong to one responsible agent.'
-                : 'Review the requests assigned to your agent side and settle them directly from the request when receipts are ready.'
+                : 'Review the payment requests assigned to your agent side and settle them directly from the request when receipts are ready.'
               : canRegisterSettlements
-              ? 'Settlement registration is available only for your own employed employees with unsettled commission.'
-              : 'Settlement registration is handled from the agent-side admin workspace and appears here as an operational ledger.'}
+              ? 'Payment registration is available only for your own employed employees whose commission your agent side must pay.'
+              : 'Payment registration is handled from the payer side and appears here to the organization as a collection ledger.'}
           </p>
         </div>
       </div>
@@ -1646,33 +1767,26 @@ export default function CommissionsPage() {
 
       <div className="concept-summary-strip">
         <div className="concept-summary-pill">
-          <strong>{currentView === 'settled' ? 'Settled cases' : currentView === 'collected' ? 'Collection windows' : currentView === 'requests' ? 'Requests' : currentView === 'agents' ? 'Agent profiles' : 'Unsettled cases'}</strong>
-          <span>{currentView === 'agents' ? agentsSummary.totalProfiles : summary.total}</span>
+          <strong>{summaryDisplay.firstLabel}</strong>
+          <span>{summaryDisplay.firstValue}</span>
         </div>
         <div className="concept-summary-pill">
-          <strong>{currentView === 'settled' ? 'Employees settled' : currentView === 'collected' ? 'Employees covered' : currentView === 'requests' ? 'Employees requested' : currentView === 'agents' ? 'Unsettled cases' : 'Travel completed'}</strong>
-          <span>{currentView === 'agents' ? agentsSummary.unsettledCases : summary.travelled}</span>
+          <strong>{summaryDisplay.secondLabel}</strong>
+          <span>{summaryDisplay.secondValue}</span>
         </div>
         <div className="concept-summary-pill">
-          <strong>{currentView === 'settled' ? 'Receipt files' : currentView === 'collected' ? 'Receipt files' : currentView === 'requests' ? 'Pending requests' : currentView === 'agents' ? 'Settlements logged' : 'Pending return requests'}</strong>
-          <span>{currentView === 'agents' ? agentsSummary.settlements : summary.pendingReturnRequests}</span>
+          <strong>{summaryDisplay.thirdLabel}</strong>
+          <span>{summaryDisplay.thirdValue}</span>
         </div>
         <div className="concept-summary-pill">
-          <strong>{currentView === 'settled' ? 'Total value' : currentView === 'collected' ? 'Collected value' : currentView === 'requests' ? 'Settled requests' : currentView === 'agents' ? 'Active agents' : 'Active agents'}</strong>
-          <span>
-            {currentView === 'settled'
-              || currentView === 'collected'
-              ? formatCurrency(summary.agentCount)
-              : currentView === 'agents'
-              ? agentsSummary.activeAgents
-              : summary.agentCount}
-          </span>
+          <strong>{summaryDisplay.fourthLabel}</strong>
+          <span>{summaryDisplay.fourthValue}</span>
         </div>
       </div>
 
       <div className="commission-toolbar">
         <label className="commission-search">
-          Search {currentView === 'requests' ? 'settlement requests' : currentView === 'agents' ? 'agents' : currentView === 'collected' ? 'collections' : 'commission cases'}
+          Search {currentView === 'requests' ? (isAgentSideUser ? 'payment requests' : 'collection requests') : currentView === 'agents' ? 'agents' : currentView === 'collected' ? 'collection analytics' : 'commission cases'}
           <input
             value={search}
             onChange={(event) => setSearch(event.target.value)}
@@ -1682,12 +1796,12 @@ export default function CommissionsPage() {
         <div className="employees-header-actions">
           {currentView === 'requests' && canCreateSettlementRequests ? (
             <button type="button" className="btn-warning" onClick={openRequestModal}>
-              Request settlement
+              Create collection request
             </button>
           ) : null}
           {currentView === 'unsettled' && canRegisterSettlements ? (
             <button type="button" className="btn-warning" onClick={openSettlementModal}>
-              Register settlement
+              Register payment
             </button>
           ) : null}
           <button type="button" className="btn-secondary" onClick={loadCommissionBoard} disabled={loading}>
@@ -1808,25 +1922,28 @@ export default function CommissionsPage() {
 
       {currentView === 'requests' ? (
         <section className="concept-section">
-          <h2>Settlement request board</h2>
+          <h2>{isAgentSideUser ? 'Payment request board' : 'Collection request board'}</h2>
           {loading ? (
-            <p className="muted-text">Loading settlement requests...</p>
+            <p className="muted-text">Loading {isAgentSideUser ? 'payment' : 'collection'} requests...</p>
           ) : visibleSettlementRequests.length === 0 ? (
             <p className="muted-text">
               {canCreateSettlementRequests
-                ? 'No settlement requests have been logged yet for this organization.'
-                : 'No settlement requests are currently assigned to your agent side.'}
+                ? 'No collection requests have been logged yet for this organization.'
+                : 'No payment requests are currently assigned to your agent side.'}
             </p>
           ) : (
             <div className="commission-request-list">
               {visibleSettlementRequests.map((request) => {
                 const isPending = request.status === 'pending'
+                const isAwaitingAcknowledgement = request.status === 'settled'
                 const canSettleRequest = isPending && canRegisterSettlements && requestBelongsToAgent(request, user)
+                const canCancelRequest = isPending && canCreateSettlementRequests
+                const canAcknowledgeRequest = isAwaitingAcknowledgement && canCreateSettlementRequests
                 return (
                   <article key={request.id} className="commission-request-card">
                     <div className="commission-request-card-header">
                       <div>
-                        <p className="commission-agent-card-kicker">Settlement request</p>
+                        <p className="commission-agent-card-kicker">{isAgentSideUser ? 'Payment request' : 'Collection request'}</p>
                         <h3>{request.agentName || 'Unassigned agent'}</h3>
                         <p className="muted-text">
                           {(request.employees?.length || 0)} employee{request.employees?.length === 1 ? '' : 's'} | Requested {formatDateTime(request.requestedAt)}
@@ -1838,14 +1955,25 @@ export default function CommissionsPage() {
                       </div>
                       <div className="commission-request-card-actions">
                         <span className={`badge ${isPending ? 'badge-warning' : request.status === 'cancelled' ? 'badge-muted' : 'badge-success'}`}>
-                          {isPending ? 'Pending settlement' : request.status === 'cancelled' ? 'Cancelled' : 'Settled'}
+                          {isPending
+                            ? (isAgentSideUser ? 'Pending payment' : 'Pending collection')
+                            : request.status === 'cancelled'
+                              ? 'Cancelled'
+                              : isAgentSideUser
+                                ? 'Awaiting acknowledgment'
+                                : 'Verify settlement'}
                         </span>
                         {canSettleRequest ? (
                           <button type="button" className="btn-warning" onClick={() => openSettlementModal(request)}>
-                            Settle request
+                            Settle payment
                           </button>
                         ) : null}
-                        {isPending ? (
+                        {canAcknowledgeRequest ? (
+                          <button type="button" className="btn-warning" onClick={() => handleAcknowledgeSettlementRequest(request)}>
+                            Acknowledge settlement
+                          </button>
+                        ) : null}
+                        {canCancelRequest ? (
                           <button type="button" className="btn-secondary" onClick={() => handleCancelSettlementRequest(request)}>
                             Cancel request
                           </button>
@@ -1868,7 +1996,13 @@ export default function CommissionsPage() {
                             </span>
                           </span>
                           <span className="commission-request-employee-state">
-                            {request.status === 'settled' ? 'Settled' : 'Requested'}
+                            {request.status === 'settled'
+                              ? isAgentSideUser
+                                ? 'Paid, awaiting acknowledgment'
+                                : 'Awaiting organization verification'
+                              : isAgentSideUser
+                                ? 'Awaiting payment'
+                                : 'Requested'}
                           </span>
                         </button>
                       ))}
@@ -1876,7 +2010,9 @@ export default function CommissionsPage() {
 
                     {request.settlementId ? (
                       <p className="muted-text commission-request-card-footer">
-                        Settled on {formatDateTime(request.settledAt)} under settlement {request.settlementId}.
+                        {canCreateSettlementRequests
+                          ? `Paid on ${formatDateTime(request.settledAt)} under settlement ${request.settlementId}. Acknowledge it to close this request.`
+                          : `Paid on ${formatDateTime(request.settledAt)} under settlement ${request.settlementId}. Waiting for organization acknowledgment.`}
                       </p>
                     ) : request.status === 'cancelled' ? (
                       <p className="muted-text commission-request-card-footer">
@@ -1908,7 +2044,6 @@ export default function CommissionsPage() {
                     Each row represents one {collectedRange === 'weekly' ? 'week' : collectedRange === 'monthly' ? 'month' : collectedRange === 'quarterly' ? 'quarter' : 'year'}
                     {' '}and the total collected commission logged in that range.
                   </p>
-                  <p className="muted-text">Temporary demo data is included here to preview a `$70,000` annual collection distributed across the 2026 timeline and can be removed afterward.</p>
                 </div>
                 {collectedDrilldown ? (
                   <div className="commission-collected-breadcrumb">
@@ -2124,12 +2259,24 @@ export default function CommissionsPage() {
 
       {currentView !== 'agents' && currentView !== 'requests' && currentView !== 'collected' ? (
       <section className="concept-section">
-        <h2>{currentView === 'settled' ? 'Settled commission board' : 'Commission board'}</h2>
+        <h2>
+          {currentView === 'settled'
+            ? isAgentSideUser
+              ? 'Settled payment board'
+              : 'Collected commission board'
+            : isAgentSideUser
+              ? 'Outstanding payment board'
+              : 'Pending collection board'}
+        </h2>
         {loading ? (
           <p className="muted-text">Loading commission cases...</p>
         ) : currentView === 'settled' ? (
           settledSettlements.length === 0 ? (
-            <p className="muted-text">No settled commission cases found for this scope.</p>
+            <p className="muted-text">
+              {isAgentSideUser
+                ? 'No settled commission payments found for your agent side yet.'
+                : 'No collected commission payments have been logged for this scope yet.'}
+            </p>
           ) : (
             <div className="commission-group-list">
               {settledSettlements.map((settlement) => (
@@ -2197,7 +2344,7 @@ export default function CommissionsPage() {
                                     <strong>{employee.full_name}</strong>
                                     <p className="muted-text">{employee.profession || employee.professional_title || '--'}</p>
                                   </div>
-                                  <span className="badge badge-success">{settledCommissionStatus(employee)}</span>
+                                  <span className="badge badge-muted commission-settled-badge">{settledCommissionStatus(employee)}</span>
                                 </div>
                                 <div className="commission-case-meta">
                                   <span><strong>Travel:</strong> {prettyStatus(employee.travel_status, 'pending')}</span>
@@ -2257,7 +2404,11 @@ export default function CommissionsPage() {
             </div>
           )
         ) : casesByAgent.length === 0 ? (
-          <p className="muted-text">No unsettled commission cases found for this scope.</p>
+          <p className="muted-text">
+            {isAgentSideUser
+              ? 'No outstanding commission payments are currently due from your agent side.'
+              : 'No pending commission collections are currently outstanding for this scope.'}
+          </p>
         ) : (
           <div className="commission-group-list">
             {casesByAgent.map((group) => (
@@ -2608,38 +2759,50 @@ export default function CommissionsPage() {
                 {settlementEligibleEmployees.length === 0 ? (
                   <p className="muted-text">No unsettled employed employees are available for settlement.</p>
                 ) : (
-                  <div className="return-request-employee-list">
-                    {settlementEligibleEmployees.map((employee) => {
-                      const isSelected = selectedSettlementEmployeeIds.includes(employee.id)
-                      return activeSettlementRequest ? (
-                        <div key={employee.id} className="return-request-employee-option is-selected">
-                          <div>
-                            <strong>{employee.full_name}</strong>
-                            <span className="return-request-employee-meta">
-                              {employee.profession || employee.professional_title || '--'} | Travel {prettyStatus(employee.travel_status, 'pending')}
-                            </span>
+                  <>
+                    {!activeSettlementRequest ? (
+                      <label className="employee-selection-select-all">
+                        <input
+                          type="checkbox"
+                          checked={allSettlementEmployeesSelected}
+                          onChange={handleToggleAllSettlementEmployees}
+                        />
+                        <span>Select all employees</span>
+                      </label>
+                    ) : null}
+                    <div className="return-request-employee-list">
+                      {settlementEligibleEmployees.map((employee) => {
+                        const isSelected = selectedSettlementEmployeeIds.includes(employee.id)
+                        return activeSettlementRequest ? (
+                          <div key={employee.id} className="return-request-employee-option is-selected">
+                            <div>
+                              <strong>{employee.full_name}</strong>
+                              <span className="return-request-employee-meta">
+                                {employee.profession || employee.professional_title || '--'} | Travel {prettyStatus(employee.travel_status, 'pending')}
+                              </span>
+                            </div>
+                            <span className="return-request-employee-state">Requested</span>
                           </div>
-                          <span className="return-request-employee-state">Requested</span>
-                        </div>
-                      ) : (
-                        <button
-                          key={employee.id}
-                          type="button"
-                          className={`return-request-employee-option${isSelected ? ' is-selected' : ''}`}
-                          onClick={() => handleSettlementEmployeeToggle(employee.id)}
-                          aria-pressed={isSelected}
-                        >
-                          <div>
-                            <strong>{employee.full_name}</strong>
-                            <span className="return-request-employee-meta">
-                              {employee.profession || employee.professional_title || '--'} | Travel {prettyStatus(employee.travel_status, 'pending')}
-                            </span>
-                          </div>
-                          <span className="return-request-employee-state">{isSelected ? 'Selected' : 'Select'}</span>
-                        </button>
-                      )
-                    })}
-                  </div>
+                        ) : (
+                          <button
+                            key={employee.id}
+                            type="button"
+                            className={`return-request-employee-option${isSelected ? ' is-selected' : ''}`}
+                            onClick={() => handleSettlementEmployeeToggle(employee.id)}
+                            aria-pressed={isSelected}
+                          >
+                            <div>
+                              <strong>{employee.full_name}</strong>
+                              <span className="return-request-employee-meta">
+                                {employee.profession || employee.professional_title || '--'} | Travel {prettyStatus(employee.travel_status, 'pending')}
+                              </span>
+                            </div>
+                            <span className="return-request-employee-state">{isSelected ? 'Selected' : 'Select'}</span>
+                          </button>
+                        )
+                      })}
+                    </div>
+                  </>
                 )}
               </div>
 
@@ -2648,20 +2811,27 @@ export default function CommissionsPage() {
                 <div className="settings-form" style={{ maxWidth: 'none', marginTop: 0 }}>
                   <label>
                     Settlement date
-                    <input type="date" value={settlementDate} onChange={(event) => setSettlementDate(event.target.value)} />
+                    <input type="date" value={settlementDate} disabled readOnly />
+                  </label>
+                  <label>
+                    Settlement amount
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={settlementAmount}
+                      onChange={(event) => {
+                        setSettlementAmount(event.target.value)
+                        setSettlementAmountTouched(true)
+                      }}
+                    />
                   </label>
                 </div>
                 <p><strong>Selected employees:</strong> {selectedSettlementEmployeeIds.length}</p>
                 <p><strong>Agent side:</strong> {currentAgentDisplayName}</p>
                 <p>
                   <strong>Expected amount:</strong>{' '}
-                  {formatCurrency(
-                    (() => {
-                      const fallbackRate = numericCommissionRate(user?.agent_commission || user?.profile?.agent_commission)
-                      const effectiveRate = agentRateLookup[currentAgentDisplayName] ?? fallbackRate ?? null
-                      return effectiveRate === null ? null : effectiveRate * selectedSettlementEmployeeIds.length
-                    })()
-                  )}
+                  {formatCurrency(expectedSettlementAmount)}
                 </p>
               </div>
             </div>

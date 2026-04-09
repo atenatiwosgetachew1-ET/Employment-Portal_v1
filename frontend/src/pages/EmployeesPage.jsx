@@ -71,8 +71,8 @@ const REGISTRATION_STEPS = [
   { id: 'summary', label: 'Summary' }
 ]
 const EMPLOYEE_VIEW_TABS = [
-  { id: 'list', label: 'Employees list' },
   { id: 'register', label: 'Register employee' },
+  { id: 'list', label: 'Employees list' },
   { id: 'selected', label: 'Selected Employees' },
   { id: 'under-process', label: 'Under process Employees' },
   { id: 'employed', label: 'Employed' },
@@ -247,7 +247,7 @@ function isEmployeeReadyForEmploymentStage(employee) {
   return Boolean(
     !isEmployeeReturned(employee) &&
     employee?.selection_state?.selection?.status === 'under_process' &&
-    (employee?.progress_status?.overall_completion ?? 0) >= 100
+    employee?.progress_override_complete
   )
 }
 
@@ -377,6 +377,39 @@ function returnedEmployeesHelpText() {
   return 'Employees whose employment has already been discontinued and recorded as returned are listed here.'
 }
 
+function normalizeAgentMatchValue(value) {
+  return String(value || '').trim().toLowerCase()
+}
+
+function employeeBelongsToCurrentAgent(employee, user) {
+  const currentAgentId = user?.agent_context?.agent_id || (user?.role === 'customer' ? user?.id : null)
+  const employeeAgentId = employee?.selection_state?.selection?.agent || null
+
+  if (currentAgentId && employeeAgentId) {
+    return String(currentAgentId) === String(employeeAgentId)
+  }
+
+  const userCandidates = [
+    [user?.first_name, user?.last_name].filter(Boolean).join(' '),
+    user?.staff_side,
+    user?.username,
+    user?.email
+  ]
+    .map(normalizeAgentMatchValue)
+    .filter(Boolean)
+
+  const employeeCandidates = [
+    employee?.selection_state?.selection?.agent_name,
+    employee?.selection_state?.selection?.selected_by_username,
+    employee?.selection_state?.agent_name,
+    employee?.registered_by_username
+  ]
+    .map(normalizeAgentMatchValue)
+    .filter(Boolean)
+
+  return employeeCandidates.some((candidate) => userCandidates.includes(candidate))
+}
+
 function formatDateTime(value) {
   if (!value) return '--'
   const parsed = new Date(value)
@@ -431,8 +464,8 @@ function isAgentSideWorkspace(user) {
 
 function selectedEmployeesHelpText(user) {
   return isAgentSideWorkspace(user)
-    ? 'Employees selected by your agent side are listed here so your team can continue the remaining information and attachments.'
-    : 'Employees selected by any agent are listed here together with the selecting agent name.'
+    ? 'Employees your agent side marked for follow-up are listed here. Selection is not exclusive; ownership starts only after your agent initiates the process.'
+    : 'Employees selected by agents are listed here as market interest only. Ownership starts only after one agent initiates the process.'
 }
 
 function underProcessEmployeesHelpText(user) {
@@ -703,6 +736,7 @@ export default function EmployeesPage() {
   const canManageEmployees = Boolean(user?.feature_flags?.employees_enabled)
   const readOnly = Boolean(user?.is_read_only || user?.is_suspended)
   const isAgentSideUser = isAgentSideWorkspace(user)
+  const canEditEmployeeRecords = !isAgentSideUser
   const isMainAgentAccount = user?.role === 'customer'
   const canManageOrganizationProcesses = user?.role === 'superadmin' || user?.role === 'admin'
   const canOverrideProgress = canManageOrganizationProcesses
@@ -725,6 +759,7 @@ export default function EmployeesPage() {
     setPageError('')
     try {
       const isDeclinedById = (employee) => declinedIdsOverride.includes(employee?.id)
+      const isVisibleForCurrentAgent = (employee) => !isAgentSideUser || employeeBelongsToCurrentAgent(employee, user)
       const applyTravelOverrides = (employee) => (
         confirmedIdsOverride.includes(employee?.id)
           ? {
@@ -736,17 +771,41 @@ export default function EmployeesPage() {
       )
 
       if (viewOverride === 'under-process') {
+        const scope = isAgentSideUser ? 'mine' : 'organization'
         const baseEmployees = await fetchAllEmployeePages({
-          q: filters.q
+          q: filters.q,
+          processScope: scope
         })
         const visibleProcessEmployees = baseEmployees.map(applyTravelOverrides).filter(
           (employee) =>
+            isVisibleForCurrentAgent(employee) &&
             employee?.selection_state?.selection?.status === 'under_process' &&
             (!isEmployeeReadyForEmploymentStage(employee) || isDeclinedById(employee))
         )
         setEmployeesData({
           count: visibleProcessEmployees.length,
           results: visibleProcessEmployees,
+          next: null,
+          previous: null
+        })
+        return
+      }
+
+      if (viewOverride === 'list' && isAgentSideUser) {
+        const baseEmployees = await fetchAllEmployeePages({
+          q: filters.q
+        })
+        const visibleMarketEmployees = baseEmployees
+          .map(applyTravelOverrides)
+          .filter((employee) =>
+            !isEmployeeReturned(employee) &&
+            !isEmployeeInEmployedStage(employee) &&
+            employee?.selection_state?.selection?.status !== 'under_process' &&
+            employeeAvailability(employee, 'list') === 'Available'
+          )
+        setEmployeesData({
+          count: visibleMarketEmployees.length,
+          results: visibleMarketEmployees,
           next: null,
           previous: null
         })
@@ -772,11 +831,11 @@ export default function EmployeesPage() {
         const stageEmployees = new Map()
         baseEmployees
           .map(applyTravelOverrides)
-          .filter((employee) => isEmployeeEmployed(employee))
+          .filter((employee) => isVisibleForCurrentAgent(employee) && isEmployeeEmployed(employee))
           .forEach((employee) => stageEmployees.set(employee.id, employee))
         processEmployees
           .map(applyTravelOverrides)
-          .filter((employee) => isEmployeeTravelConfirmationPending(employee))
+          .filter((employee) => isVisibleForCurrentAgent(employee) && isEmployeeTravelConfirmationPending(employee))
           .forEach((employee) => {
             if (!stageEmployees.has(employee.id)) {
               stageEmployees.set(employee.id, employee)
@@ -788,6 +847,51 @@ export default function EmployeesPage() {
         setEmployeesData({
           count: visibleEmployedEmployees.length,
           results: visibleEmployedEmployees,
+          next: null,
+          previous: null
+        })
+        return
+      }
+
+      if (viewOverride === 'selected' && isAgentSideUser) {
+        const baseEmployees = await fetchAllEmployeePages({
+          q: filters.q
+        })
+        const visibleSelectedEmployees = baseEmployees
+          .map(applyTravelOverrides)
+          .filter((employee) => {
+            const remainsInSharedMarket =
+              !isEmployeeReturned(employee) &&
+              !isEmployeeInEmployedStage(employee) &&
+              employee?.selection_state?.selection?.status !== 'under_process'
+
+            return remainsInSharedMarket && (
+              Boolean(employee?.selection_state?.selected_by_current_agent) ||
+              (
+                Boolean(employee?.selection_state?.is_selected) &&
+                isVisibleForCurrentAgent(employee)
+              )
+            )
+          })
+        setEmployeesData({
+          count: visibleSelectedEmployees.length,
+          results: visibleSelectedEmployees,
+          next: null,
+          previous: null
+        })
+        return
+      }
+
+      if (viewOverride === 'returned' && isAgentSideUser) {
+        const baseEmployees = await fetchAllEmployeePages({
+          q: filters.q
+        })
+        const visibleReturnedEmployees = baseEmployees
+          .map(applyTravelOverrides)
+          .filter((employee) => isVisibleForCurrentAgent(employee) && isEmployeeReturned(employee))
+        setEmployeesData({
+          count: visibleReturnedEmployees.length,
+          results: visibleReturnedEmployees,
           next: null,
           previous: null
         })
@@ -828,6 +932,12 @@ export default function EmployeesPage() {
       setLoading(false)
     }
   }, [canManageEmployees, loadEmployees, loadFormOptions])
+
+  useEffect(() => {
+    if (!canEditEmployeeRecords && currentView === 'register') {
+      setCurrentView('list')
+    }
+  }, [canEditEmployeeRecords, currentView])
 
   const loadReturnRequestEmployees = useCallback(async (search = '') => {
     setReturnRequestLoading(true)
@@ -1107,6 +1217,10 @@ export default function EmployeesPage() {
   }
 
   const submitRegistration = async () => {
+    if (!canEditEmployeeRecords) {
+      setModalError('Only organization-side users can edit employee records.')
+      return
+    }
     if (ageRestrictionError) {
       setModalError(ageRestrictionError)
       setActiveStep(0)
@@ -1154,6 +1268,10 @@ export default function EmployeesPage() {
   }
 
   const handleEdit = async (employeeId) => {
+    if (!canEditEmployeeRecords) {
+      setPageError('Only organization-side users can edit employee records.')
+      return
+    }
     setBusyEmployeeId(employeeId)
     setPageError('')
     setModalError('')
@@ -1445,11 +1563,13 @@ export default function EmployeesPage() {
       if (employee.selection_state?.selected_by_current_agent) {
         await employeesService.unselectEmployee(employee.id)
         setNotice('Employee removed from Selected Employees.')
+        await loadEmployees(currentView === 'selected' ? 'selected' : currentView)
       } else {
         await employeesService.selectEmployee(employee.id)
         setNotice('Employee added to Selected Employees.')
+        setPage(1)
+        await loadEmployees(currentView)
       }
-      await loadEmployees()
     } catch (err) {
       setPageError(err.message || 'Could not update employee selection')
     } finally {
@@ -1484,7 +1604,13 @@ export default function EmployeesPage() {
       await employeesService.startEmployeeProcess(employee.id, {
         agentId: canManageOrganizationProcesses ? assignedAgentId : undefined
       })
-      setNotice('Employee moved to Under process Employees.')
+      const isReadyForNextStage = (employee?.progress_status?.overall_completion ?? 0) >= 100
+      const nextProcessNotice = employee?.did_travel
+        ? 'Employee process started and the employee is now visible in Employed.'
+        : isReadyForNextStage
+          ? 'Employee process started and the employee is now visible in Employed under Travel confirmation pending.'
+          : 'Employee moved to Under process Employees.'
+      setNotice(nextProcessNotice)
       if (currentView !== 'under-process') {
         setOpenedEmployeeId((prev) => (prev === employee.id ? null : prev))
       }
@@ -1573,9 +1699,7 @@ export default function EmployeesPage() {
             ? 'Employee travel confirmed and moved into Employed.'
             : 'Employee returned to Under process until travel is confirmed.'
         )
-        const nextView = didTravel ? 'employed' : 'under-process'
-        setCurrentView(nextView)
-        await loadEmployees(nextView, nextDeclinedIds, nextConfirmedIds)
+        await loadEmployees(currentView, nextDeclinedIds, nextConfirmedIds)
       } catch (err) {
         setPageError(err.message || 'Could not confirm employee travel')
       } finally {
@@ -1622,8 +1746,7 @@ export default function EmployeesPage() {
           ? 'Employee progress marked as 100% and travel confirmed.'
           : 'Employee progress marked as 100%. Travel remains pending.'
       )
-      setCurrentView('employed')
-      await loadEmployees('employed', nextDeclinedIds, nextConfirmedIds)
+      await loadEmployees(currentView, nextDeclinedIds, nextConfirmedIds)
     } catch (err) {
       setPageError(err.message || 'Could not mark employee progress complete')
     } finally {
@@ -1671,6 +1794,7 @@ export default function EmployeesPage() {
     : null
   const visibleTabs = EMPLOYEE_VIEW_TABS.filter((tab) => {
     if (tab.id === 'selected') return isAgentSideUser
+    if (tab.id === 'register') return canEditEmployeeRecords
     return true
   })
   const openedEmployeeProgress = buildProgressDonut(openedEmployee?.progress_status)
@@ -2446,7 +2570,8 @@ export default function EmployeesPage() {
                     <p className="muted-text">{employee.application_countries?.join(', ') || 'No destination country'} | {employee.phone || employee.mobile_number || 'No phone'}</p>
                     {selection ? (
                       <p className="muted-text">
-                        Selected by {selection.agent_name || '--'}
+                        {selection.status === 'under_process' ? 'Process owned by ' : 'Selected in market by '}
+                        {selection.agent_name || '--'}
                         {selection.selected_by_username ? ` via ${selection.selected_by_username}` : ''}
                       </p>
                     ) : null}
@@ -2502,7 +2627,7 @@ export default function EmployeesPage() {
                     </div>
                     {(!isEmployedEmployee || isTravelConfirmationPending) && !isReturnedEmployee ? (
                     <div className="employee-card-actions">
-                      {!isUnderProcess ? (
+                      {!isUnderProcess && isAvailableEmployee ? (
                         <button
                           type="button"
                           className="btn-secondary"
@@ -2510,17 +2635,14 @@ export default function EmployeesPage() {
                           disabled={
                             readOnly ||
                             !isAgentSideUser ||
-                            actionBusyId === employee.id ||
-                            (isSelected && !isSelectedByCurrentAgent)
+                            actionBusyId === employee.id
                           }
                         >
                           {actionBusyId === employee.id
                             ? 'Saving...'
                             : isSelectedByCurrentAgent
                               ? 'Unselect employee'
-                              : isSelected
-                                ? 'Selected elsewhere'
-                                : 'Select employee'}
+                              : 'Select employee'}
                         </button>
                       ) : null}
                       {isMainAgentAccount && !isUnderProcess ? (
@@ -2624,9 +2746,11 @@ export default function EmployeesPage() {
                       ) : null}
                       <button type="button" className="btn-danger" onClick={(event) => { event.stopPropagation(); handleAvailabilityAction(employee, 'rejected', 'Rejected') }} disabled={actionBusyId === employee.id || readOnly || isAgentSideUser || isUnderProcess || employee.status === 'rejected'}>Reject</button>
                       <button type="button" className="btn-warning" onClick={(event) => { event.stopPropagation(); handleAvailabilityAction(employee, 'suspended', 'Suspended') }} disabled={actionBusyId === employee.id || readOnly || isAgentSideUser || isUnderProcess || employee.status === 'suspended'}>Suspend</button>
-                      <button type="button" className="btn-secondary" onClick={(event) => { event.stopPropagation(); handleEdit(employee.id) }} disabled={busyEmployeeId === employee.id || readOnly || (isAgentSideUser && !isSelectedByCurrentAgent)}>
+                      {canEditEmployeeRecords ? (
+                        <button type="button" className="btn-secondary" onClick={(event) => { event.stopPropagation(); handleEdit(employee.id) }} disabled={busyEmployeeId === employee.id || readOnly}>
                         {busyEmployeeId === employee.id ? 'Loading...' : 'Edit'}
-                      </button>
+                        </button>
+                      ) : null}
                       <button type="button" className="btn-danger" onClick={(event) => { event.stopPropagation(); handleDelete(employee) }} disabled={readOnly || isAgentSideUser || isUnderProcess}>Delete</button>
                     </div>
                     ) : null}
@@ -2854,7 +2978,10 @@ export default function EmployeesPage() {
                     <p><strong>Email:</strong> {openedEmployee.email || '--'}</p>
                     <p><strong>Registered by:</strong> {openedEmployee.registered_by_username || '--'}</p>
                     {openedEmployee.selection_state?.selection ? (
-                      <p><strong>Selected by:</strong> {openedEmployee.selection_state.selection.agent_name || '--'}</p>
+                      <p>
+                        <strong>{openedEmployee.selection_state.selection.status === 'under_process' ? 'Process owner:' : 'Selected in market by:'}</strong>{' '}
+                        {openedEmployee.selection_state.selection.agent_name || '--'}
+                      </p>
                     ) : null}
                   </div>
                   <div className="employee-summary-card">

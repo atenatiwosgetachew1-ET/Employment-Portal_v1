@@ -115,6 +115,13 @@ function belongsToSameAgentWorkspace(owner, candidate) {
   return candidateCandidates.some((value) => ownerCandidates.includes(value))
 }
 
+function resolveManagedAgentName(agentProfiles, profile) {
+  const matchedAgent = agentProfiles.find((agent) => belongsToSameAgentWorkspace(agent, profile) && agent?.role === 'customer')
+  return matchedAgent
+    ? buildAgentCardName(matchedAgent)
+    : profile?.staff_side || profile?.organization?.name || '--'
+}
+
 function readFileAsDataUrl(file) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader()
@@ -225,6 +232,7 @@ export default function ProfilesPage() {
   const [profileError, setProfileError] = useState('')
   const [documentError, setDocumentError] = useState('')
   const [agreementError, setAgreementError] = useState('')
+  const [organizationUsers, setOrganizationUsers] = useState([])
   const [agentProfiles, setAgentProfiles] = useState([])
   const [agentSideUsers, setAgentSideUsers] = useState([])
   const [ownedAgentStaff, setOwnedAgentStaff] = useState([])
@@ -312,10 +320,10 @@ export default function ProfilesPage() {
   }, [organizationScopeKey])
 
   useEffect(() => {
-    if (!canViewAgents) {
+    if (!(canViewAgents || (agentSide && user?.role === 'customer'))) {
+      setOrganizationUsers([])
       setAgentProfiles([])
       setAgentSideUsers([])
-      setOwnedAgentStaff([])
       return
     }
     let cancelled = false
@@ -324,25 +332,29 @@ export default function ProfilesPage() {
     fetchAllUsers({})
       .then((rows) => {
         if (cancelled) return
+        const nextOrganizationUsers = rows
+          .filter((item) => !isAgentSideWorkspace(item))
+          .map((item) => applyStoredProfileOverride(item))
         const nextAgentProfiles = rows
-          .filter((item) => item.id !== user?.id)
           .filter((item) => item.role === 'customer')
+          .filter((item) => item.id !== user?.id)
+          .filter((item) => isAgentSideWorkspace(item))
           .map((item) => applyStoredProfileOverride(item))
         const nextAgentSideUsers = rows
           .filter((item) => item.id !== user?.id)
           .filter((item) => item.role !== 'customer')
           .filter((item) => isAgentSideWorkspace(item))
           .map((item) => applyStoredProfileOverride(item))
+        setOrganizationUsers(nextOrganizationUsers)
         setAgentProfiles(nextAgentProfiles)
         setAgentSideUsers(nextAgentSideUsers)
-        setOwnedAgentStaff([])
       })
       .catch((err) => {
         if (cancelled) return
         setError(err.message || 'Could not load agent profiles')
+        setOrganizationUsers([])
         setAgentProfiles([])
         setAgentSideUsers([])
-        setOwnedAgentStaff([])
       })
       .finally(() => {
         if (!cancelled) setLoadingAgents(false)
@@ -351,7 +363,7 @@ export default function ProfilesPage() {
     return () => {
       cancelled = true
     }
-  }, [canViewAgents, user?.id])
+  }, [agentSide, canViewAgents, user?.id, user?.role])
 
   useEffect(() => {
     if (!(agentSide && user?.role === 'customer')) {
@@ -1163,6 +1175,30 @@ export default function ProfilesPage() {
     setPreviewDragging(false)
   }, [])
 
+  const openProfilePhotoPreview = useCallback((profile, subtitle) => {
+    const photoUrl =
+      profile?.profile_photo_url ||
+      profile?.avatar_url ||
+      profile?.profile_image_url ||
+      profile?.profilePhotoUrl ||
+      ''
+    if (!photoUrl) return
+
+    setPreviewDocument({
+      label: `${buildAgentCardName(profile)} profile`,
+      subtitle,
+      url: photoUrl,
+      fileName: `${profile?.username || 'profile-photo'}.png`,
+      isImage: true,
+      isPdf: false,
+      hideActions: true,
+      disableContextMenu: true
+    })
+    setPreviewZoom(1)
+    setPreviewOffset({ x: 0, y: 0 })
+    setPreviewDragging(false)
+  }, [])
+
   const closeDocumentPreview = useCallback(() => {
     setPreviewDocument(null)
     setPreviewZoom(1)
@@ -1397,6 +1433,28 @@ export default function ProfilesPage() {
     }, {})
   }, [agreements, visibleAgreements])
 
+  const groupedAgentSideUsers = useMemo(() => {
+    const groups = new Map()
+    agentSideUsers.forEach((profile) => {
+      const managedAgentName = resolveManagedAgentName(agentProfiles, profile)
+      const existing = groups.get(managedAgentName) || []
+      existing.push(profile)
+      groups.set(managedAgentName, existing)
+    })
+    return Array.from(groups.entries())
+      .map(([agentName, members]) => ({
+        agentName,
+        members: [...members].sort((left, right) => buildAgentCardName(left).localeCompare(buildAgentCardName(right)))
+      }))
+      .sort((left, right) => left.agentName.localeCompare(right.agentName))
+  }, [agentProfiles, agentSideUsers])
+
+  const visibleOrganizationUsers = useMemo(() => {
+    if (canViewAgents) return organizationUsers
+    if (agentSide && user?.role === 'customer') return organizationUsers
+    return []
+  }, [agentSide, canViewAgents, organizationUsers, user?.role])
+
   useEffect(() => {
     setAgreementForm((current) => {
       if (current.agreementDate === todayDate) return current
@@ -1450,8 +1508,9 @@ export default function ProfilesPage() {
       {error ? <p className="error-message">{error}</p> : null}
 
       {currentTab === 'profile' ? (
-        <div className="profiles-layout">
-          <article className="employee-summary-card profiles-profile-card">
+        <div className="profiles-page-stack">
+          <div className="profiles-layout">
+            <article className="employee-summary-card profiles-profile-card">
             <div className="profiles-profile-head">
               <div className="employee-card-avatar profiles-profile-avatar">
                 {profileImage ? <img src={profileImage} alt={`${displayName} profile`} /> : <span>{displayName.charAt(0).toUpperCase()}</span>}
@@ -1503,142 +1562,219 @@ export default function ProfilesPage() {
                 {profileSaving ? 'Saving...' : 'Save profile'}
               </button>
             </form>
-          </article>
-
-          {canViewAgents ? (
-            <div className="profiles-side-panels">
-            <article className="employee-summary-card">
-              <h3>Agents</h3>
-              {loadingAgents ? (
-                <p className="muted-text">Loading agent profiles...</p>
-              ) : agentProfiles.length === 0 ? (
-                <p className="muted-text">No agent profiles found for this organization scope.</p>
-              ) : (
-                <div className="profiles-agent-grid">
-                  {agentProfiles.map((agent) => {
-                    const scopeKey = documentScopeKeyForUser(agent)
-                    const docCount = readCompanyDocuments(scopeKey).length
-                    const isAdminProfile = agent?.role === 'admin' || agent?.is_superuser
-                    const isAgentProfile = agent?.role === 'customer'
-                    const photo =
-                      agent.profile_photo_url ||
-                      agent.avatar_url ||
-                      agent.profile_image_url ||
-                      ''
-                    return (
-                      <button
-                        key={agent.id}
-                        type="button"
-                        className={`profiles-agent-card${isAgentProfile ? '' : ' is-disabled'}`}
-                        onClick={() => {
-                          if (!isAgentProfile) return
-                          setOpenedAgentProfile(agent)
-                        }}
-                        disabled={!isAgentProfile}
-                      >
-                        <div className="profiles-agent-card-head">
-                          <div className="employee-card-avatar profiles-agent-avatar">
-                            {photo ? <img src={photo} alt={`${buildAgentCardName(agent)} profile`} /> : <span>{buildAgentCardName(agent).charAt(0).toUpperCase()}</span>}
-                          </div>
-                          <div>
-                            <strong>
-                              {buildAgentCardName(agent)}
-                            </strong>
-                            <p className="muted-text">@{agent.slug || agent.username || 'slug-missing'}</p>
-                            {isAgentProfile ? <span className="badge badge-warning profiles-admin-badge">Agent</span> : null}
-                            {isAdminProfile ? <span className="badge badge-muted profiles-admin-badge">Admin</span> : null}
-                          </div>
-                        </div>
-                        <p className="muted-text">{agent.email || 'No email recorded'}</p>
-                        <p className="muted-text">Documents: {docCount}</p>
-                      </button>
-                    )
-                  })}
-                </div>
-              )}
             </article>
-            <article className="employee-summary-card">
-              <h3>Agent-side users</h3>
-              {loadingAgents ? (
-                <p className="muted-text">Loading agent-side users...</p>
-              ) : agentSideUsers.length === 0 ? (
-                <p className="muted-text">No additional agent-side staff or admin users found.</p>
-              ) : (
-                <div className="profiles-side-user-list">
-                  {agentSideUsers.map((agentUser) => {
-                    const photo =
-                      agentUser.profile_photo_url ||
-                      agentUser.avatar_url ||
-                      agentUser.profile_image_url ||
-                      ''
-                    const isAdminProfile = agentUser?.role === 'admin' || agentUser?.is_superuser
-                    const managedAgentName =
-                      agentProfiles.find((agent) => belongsToSameAgentWorkspace(agent, agentUser) && agent?.role === 'customer')
-                        ? buildAgentCardName(agentProfiles.find((agent) => belongsToSameAgentWorkspace(agent, agentUser) && agent?.role === 'customer'))
-                        : agentUser?.staff_side || agentUser?.organization?.name || '--'
-                    return (
-                      <button
-                        key={agentUser.id}
-                        type="button"
-                        className="profiles-side-user-item"
-                        disabled
-                      >
-                          <div className="profiles-agent-card-head">
-                          <div className="employee-card-avatar profiles-agent-avatar">
-                            {photo ? <img src={photo} alt={`${buildAgentCardName(agentUser)} profile`} /> : <span>{buildAgentCardName(agentUser).charAt(0).toUpperCase()}</span>}
-                          </div>
-                          <div className="profiles-side-user-inline">
-                            <strong>{buildAgentCardName(agentUser)}</strong>
-                            <span className="muted-text">@{agentUser.slug || agentUser.username || 'slug-missing'}</span>
-                            <span className="muted-text">Managed by {managedAgentName}</span>
-                            <span className="badge badge-warning profiles-admin-badge">Agent-side user</span>
-                            {isAdminProfile ? <span className="badge badge-muted profiles-admin-badge">Admin</span> : null}
-                          </div>
-                        </div>
-                      </button>
-                    )
-                  })}
-                </div>
-              )}
-            </article>
-            </div>
-          ) : null}
 
-          {agentSide && user?.role === 'customer' ? (
-            <article className="employee-summary-card">
-              <h3>My side staff</h3>
-              {loadingAgents ? (
-                <p className="muted-text">Loading your side staff...</p>
-              ) : ownedAgentStaff.length === 0 ? (
-                <p className="muted-text">No side staff profiles found for your agent workspace.</p>
-              ) : (
-                <div className="profiles-agent-grid">
-                  {ownedAgentStaff.map((member) => {
-                    const photo =
-                      member.profile_photo_url ||
-                      member.avatar_url ||
-                      member.profile_image_url ||
-                      ''
-                    const isAdminProfile = member?.role === 'admin' || member?.is_superuser
-                    return (
-                      <article key={member.id} className="profiles-agent-card is-disabled">
-                        <div className="profiles-agent-card-head">
-                          <div className="employee-card-avatar profiles-agent-avatar">
-                            {photo ? <img src={photo} alt={`${buildAgentCardName(member)} profile`} /> : <span>{buildAgentCardName(member).charAt(0).toUpperCase()}</span>}
-                          </div>
-                          <div>
-                            <strong>{buildAgentCardName(member)}</strong>
-                            <p className="muted-text">@{member.slug || member.username || 'slug-missing'}</p>
-                            <span className="badge badge-warning profiles-admin-badge">Agent-side user</span>
-                            {isAdminProfile ? <span className="badge badge-muted profiles-admin-badge">Admin</span> : null}
-                          </div>
-                        </div>
-                        <p className="muted-text">{member.email || 'No email recorded'}</p>
-                      </article>
-                    )
-                  })}
-                </div>
-              )}
+            {(canViewAgents || (agentSide && user?.role === 'customer')) ? (
+              <div className="profiles-side-panels">
+              {canViewAgents ? (
+                <article className="employee-summary-card">
+                  <h3>Agents</h3>
+                  {loadingAgents ? (
+                    <p className="muted-text">Loading agent profiles...</p>
+                  ) : agentProfiles.length === 0 ? (
+                    <p className="muted-text">No agent profiles found for this organization scope.</p>
+                  ) : (
+                    <div className="profiles-agent-grid">
+                      {agentProfiles.map((agent) => {
+                        const scopeKey = documentScopeKeyForUser(agent)
+                        const docCount = readCompanyDocuments(scopeKey).length
+                        const isAdminProfile = agent?.role === 'admin' || agent?.is_superuser
+                        const photo =
+                          agent.profile_photo_url ||
+                          agent.avatar_url ||
+                          agent.profile_image_url ||
+                          ''
+                        return (
+                          <article key={agent.id} className="profiles-agent-card">
+                            <div className="profiles-agent-card-head">
+                              <button
+                                type="button"
+                                className="employee-card-avatar profiles-agent-avatar profiles-avatar-button"
+                                onClick={(event) => {
+                                  event.stopPropagation()
+                                  openProfilePhotoPreview(agent, 'Agent profile photo')
+                                }}
+                                onContextMenu={(event) => event.preventDefault()}
+                                title={photo ? 'Open profile photo' : 'No profile photo'}
+                                disabled={!photo}
+                              >
+                                {photo ? <img src={photo} alt={`${buildAgentCardName(agent)} profile`} /> : <span>{buildAgentCardName(agent).charAt(0).toUpperCase()}</span>}
+                              </button>
+                              <div>
+                                <strong>{buildAgentCardName(agent)}</strong>
+                                <p className="muted-text">@{agent.slug || agent.username || 'slug-missing'}</p>
+                                <span className="badge badge-warning profiles-admin-badge">Agent</span>
+                                {isAdminProfile ? <span className="badge badge-muted profiles-admin-badge">Admin</span> : null}
+                              </div>
+                            </div>
+                            <p className="muted-text">{agent.email || 'No email recorded'}</p>
+                            <p className="muted-text">Documents: {docCount}</p>
+                            <button type="button" className="btn-secondary" onClick={() => setOpenedAgentProfile(agent)}>
+                              Open documents
+                            </button>
+                          </article>
+                        )
+                      })}
+                    </div>
+                  )}
+                </article>
+              ) : null}
+              </div>
+            ) : null}
+          </div>
+
+          {(canViewAgents || (agentSide && user?.role === 'customer')) ? (
+            <article className="employee-summary-card profiles-users-board">
+              <div className="profiles-users-board-sections">
+                <section className="profiles-users-board-section">
+                  <h3>Organization-side users</h3>
+                  {loadingAgents ? (
+                    <p className="muted-text">Loading organization-side users...</p>
+                  ) : visibleOrganizationUsers.length === 0 ? (
+                    <p className="muted-text">No organization-side users found.</p>
+                  ) : (
+                    <div className="profiles-agent-grid">
+                      {visibleOrganizationUsers.map((member) => {
+                        const photo =
+                          member.profile_photo_url ||
+                          member.avatar_url ||
+                          member.profile_image_url ||
+                          ''
+                        const isAdminProfile = member?.role === 'admin' || member?.is_superuser
+                        const isSuperadminProfile = member?.role === 'superadmin' || member?.is_superuser
+                        return (
+                          <article key={member.id} className="profiles-agent-card is-disabled">
+                            <div className="profiles-agent-card-head">
+                              <button
+                                type="button"
+                                className="employee-card-avatar profiles-agent-avatar profiles-avatar-button"
+                                onClick={() => openProfilePhotoPreview(member, 'Organization-side profile photo')}
+                                onContextMenu={(event) => event.preventDefault()}
+                                title={photo ? 'Open profile photo' : 'No profile photo'}
+                                disabled={!photo}
+                              >
+                                {photo ? <img src={photo} alt={`${buildAgentCardName(member)} profile`} /> : <span>{buildAgentCardName(member).charAt(0).toUpperCase()}</span>}
+                              </button>
+                              <div>
+                                <strong>{buildAgentCardName(member)}</strong>
+                                <p className="muted-text">@{member.slug || member.username || 'slug-missing'}</p>
+                                <span className="badge badge-warning profiles-admin-badge">Organization</span>
+                                {isAdminProfile ? <span className="badge badge-muted profiles-admin-badge">Admin</span> : null}
+                                {isSuperadminProfile ? <span className="badge badge-super profiles-admin-badge">Superadmin</span> : null}
+                              </div>
+                            </div>
+                            <p className="muted-text">{member.email || 'No email recorded'}</p>
+                          </article>
+                        )
+                      })}
+                    </div>
+                  )}
+                </section>
+
+                {canViewAgents ? (
+                  <section className="profiles-users-board-section">
+                    <h3>Agent-side users</h3>
+                    {loadingAgents ? (
+                      <p className="muted-text">Loading agent-side users...</p>
+                    ) : groupedAgentSideUsers.length === 0 ? (
+                      <p className="muted-text">No additional agent-side staff or admin users found.</p>
+                    ) : (
+                      <div className="profiles-grouped-user-sections">
+                        {groupedAgentSideUsers.map((group) => (
+                          <section key={group.agentName} className="profiles-user-group-card">
+                            <div className="profiles-user-group-header">
+                              <h4>{group.agentName}</h4>
+                              <span className="muted-text">{group.members.length} users</span>
+                            </div>
+                            <div className="profiles-agent-grid profiles-agent-grid--compact">
+                              {group.members.map((agentUser) => {
+                                const photo =
+                                  agentUser.profile_photo_url ||
+                                  agentUser.avatar_url ||
+                                  agentUser.profile_image_url ||
+                                  ''
+                                const isAdminProfile = agentUser?.role === 'admin' || agentUser?.is_superuser
+                                const isSuperadminProfile = agentUser?.role === 'superadmin' || agentUser?.is_superuser
+                                return (
+                                  <article key={agentUser.id} className="profiles-agent-card is-disabled">
+                                    <div className="profiles-agent-card-head">
+                                      <button
+                                        type="button"
+                                        className="employee-card-avatar profiles-agent-avatar profiles-avatar-button"
+                                        onClick={() => openProfilePhotoPreview(agentUser, `${group.agentName} workspace profile photo`)}
+                                        onContextMenu={(event) => event.preventDefault()}
+                                        title={photo ? 'Open profile photo' : 'No profile photo'}
+                                        disabled={!photo}
+                                      >
+                                        {photo ? <img src={photo} alt={`${buildAgentCardName(agentUser)} profile`} /> : <span>{buildAgentCardName(agentUser).charAt(0).toUpperCase()}</span>}
+                                      </button>
+                                      <div>
+                                        <strong>{buildAgentCardName(agentUser)}</strong>
+                                        <p className="muted-text">@{agentUser.slug || agentUser.username || 'slug-missing'}</p>
+                                        <span className="badge badge-warning profiles-admin-badge">Agent-side user</span>
+                                        {isAdminProfile ? <span className="badge badge-muted profiles-admin-badge">Admin</span> : null}
+                                        {isSuperadminProfile ? <span className="badge badge-super profiles-admin-badge">Superadmin</span> : null}
+                                      </div>
+                                    </div>
+                                    <p className="muted-text">{agentUser.email || 'No email recorded'}</p>
+                                  </article>
+                                )
+                              })}
+                            </div>
+                          </section>
+                        ))}
+                      </div>
+                    )}
+                  </section>
+                ) : null}
+
+                {agentSide && user?.role === 'customer' ? (
+                  <section className="profiles-users-board-section">
+                    <h3>My side users</h3>
+                    {loadingAgents ? (
+                      <p className="muted-text">Loading your side users...</p>
+                    ) : ownedAgentStaff.length === 0 ? (
+                      <p className="muted-text">No staff, admin, or superadmin profiles found for your agent workspace.</p>
+                    ) : (
+                      <div className="profiles-agent-grid">
+                        {ownedAgentStaff.map((member) => {
+                          const photo =
+                            member.profile_photo_url ||
+                            member.avatar_url ||
+                            member.profile_image_url ||
+                            ''
+                          const isAdminProfile = member?.role === 'admin' || member?.is_superuser
+                          const isSuperadminProfile = member?.role === 'superadmin' || member?.is_superuser
+                          return (
+                            <article key={member.id} className="profiles-agent-card is-disabled">
+                              <div className="profiles-agent-card-head">
+                                <button
+                                  type="button"
+                                  className="employee-card-avatar profiles-agent-avatar profiles-avatar-button"
+                                  onClick={() => openProfilePhotoPreview(member, 'Agent-side profile photo')}
+                                  onContextMenu={(event) => event.preventDefault()}
+                                  title={photo ? 'Open profile photo' : 'No profile photo'}
+                                  disabled={!photo}
+                                >
+                                  {photo ? <img src={photo} alt={`${buildAgentCardName(member)} profile`} /> : <span>{buildAgentCardName(member).charAt(0).toUpperCase()}</span>}
+                                </button>
+                                <div>
+                                  <strong>{buildAgentCardName(member)}</strong>
+                                  <p className="muted-text">@{member.slug || member.username || 'slug-missing'}</p>
+                                  <span className="badge badge-warning profiles-admin-badge">Agent-side user</span>
+                                  {isAdminProfile ? <span className="badge badge-muted profiles-admin-badge">Admin</span> : null}
+                                  {isSuperadminProfile ? <span className="badge badge-super profiles-admin-badge">Superadmin</span> : null}
+                                </div>
+                              </div>
+                              <p className="muted-text">{member.email || 'No email recorded'}</p>
+                            </article>
+                          )
+                        })}
+                      </div>
+                    )}
+                  </section>
+                ) : null}
+              </div>
             </article>
           ) : null}
         </div>
@@ -2411,6 +2547,7 @@ export default function ProfilesPage() {
             aria-modal="true"
             aria-labelledby="profile-doc-preview-title"
             onClick={(event) => event.stopPropagation()}
+            onContextMenu={previewDocument.disableContextMenu ? (event) => event.preventDefault() : undefined}
           >
             <div className="employee-review-header">
               <div>
@@ -2419,34 +2556,38 @@ export default function ProfilesPage() {
                 <p className="muted-text">{previewDocument.subtitle}</p>
               </div>
               <div className="document-preview-actions">
-                <button
-                  type="button"
-                  className="btn-secondary document-preview-download"
-                  onClick={handlePreviewDownload}
-                >
-                  Download
-                </button>
-                <button type="button" className="btn-secondary" onClick={handlePreviewPrint}>
-                  Print
-                </button>
-                {previewDocument.isImage ? (
+                {previewDocument.hideActions ? null : (
                   <>
-                    <button type="button" className="btn-secondary" onClick={handlePreviewZoomOut} disabled={previewZoom <= 1}>
-                      Zoom out
-                    </button>
-                    <button type="button" className="btn-secondary" onClick={handlePreviewZoomIn} disabled={previewZoom >= 4}>
-                      Zoom in
-                    </button>
                     <button
                       type="button"
-                      className="btn-secondary"
-                      onClick={handlePreviewReset}
-                      disabled={previewZoom === 1 && previewOffset.x === 0 && previewOffset.y === 0}
+                      className="btn-secondary document-preview-download"
+                      onClick={handlePreviewDownload}
                     >
-                      Reset
+                      Download
                     </button>
+                    <button type="button" className="btn-secondary" onClick={handlePreviewPrint}>
+                      Print
+                    </button>
+                    {previewDocument.isImage ? (
+                      <>
+                        <button type="button" className="btn-secondary" onClick={handlePreviewZoomOut} disabled={previewZoom <= 1}>
+                          Zoom out
+                        </button>
+                        <button type="button" className="btn-secondary" onClick={handlePreviewZoomIn} disabled={previewZoom >= 4}>
+                          Zoom in
+                        </button>
+                        <button
+                          type="button"
+                          className="btn-secondary"
+                          onClick={handlePreviewReset}
+                          disabled={previewZoom === 1 && previewOffset.x === 0 && previewOffset.y === 0}
+                        >
+                          Reset
+                        </button>
+                      </>
+                    ) : null}
                   </>
-                ) : null}
+                )}
                 <button type="button" className="btn-secondary" onClick={closeDocumentPreview}>
                   Close
                 </button>
@@ -2462,6 +2603,7 @@ export default function ProfilesPage() {
                   src={previewDocument.url}
                   alt={previewDocument.label}
                   draggable={false}
+                  onContextMenu={previewDocument.disableContextMenu ? (event) => event.preventDefault() : undefined}
                   style={{ transform: `translate(${previewOffset.x}px, ${previewOffset.y}px) scale(${previewZoom})` }}
                 />
               ) : previewDocument.isPdf ? (

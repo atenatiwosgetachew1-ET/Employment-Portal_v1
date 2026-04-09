@@ -18,6 +18,7 @@ from .models import (
     EmployeeDocument,
     EmployeeReturnRequest,
     EmployeeSelection,
+    EmployeeSelectionInterest,
     Profile,
 )
 from .platform_views import UserPagination
@@ -50,18 +51,21 @@ def can_manage_employee_registration(user, organization):
 
 def can_update_employee(user, employee):
     organization = employee.organization
-    scope, context = get_employee_user_scope(user, organization)
-    if scope == "organization":
-        return True
-    selection = getattr(employee, "selection", None)
-    return bool(selection and context["agent_id"] and selection.agent_id == context["agent_id"])
+    scope, _ = get_employee_user_scope(user, organization)
+    return scope == "organization"
 
 
 def can_initiate_employee_process(user, employee):
     if getattr(user.profile, "role", "") != Profile.ROLE_CUSTOMER:
         return False
     selection = getattr(employee, "selection", None)
-    return bool(selection and selection.agent_id == user.id)
+    if selection and selection.status == EmployeeSelection.STATUS_UNDER_PROCESS:
+        return bool(selection.agent_id == user.id)
+    return EmployeeSelectionInterest.objects.filter(
+        organization=employee.organization,
+        employee=employee,
+        agent_id=user.id,
+    ).exists()
 
 
 def can_manage_process_for_organization(user, organization):
@@ -171,7 +175,7 @@ class EmployeeListCreateView(generics.ListCreateAPIView):
             "return_request",
             "return_request__requested_by",
             "return_request__approved_by",
-        ).prefetch_related("documents")
+        ).prefetch_related("documents", "selection_interests__agent", "selection_interests__selected_by")
         if organization:
             queryset = queryset.filter(organization=organization)
         else:
@@ -221,24 +225,31 @@ class EmployeeListCreateView(generics.ListCreateAPIView):
                 )
         elif selected_scope == "organization":
             queryset = queryset.filter(
-                selection__isnull=False,
-                selection__status=EmployeeSelection.STATUS_SELECTED,
-            )
+                selection_interests__isnull=False,
+                returned_from_employment=False,
+            ).exclude(selection__status=EmployeeSelection.STATUS_UNDER_PROCESS)
         elif selected_scope == "mine":
             if user_scope != "agent" or not agent_context["agent_id"]:
                 return queryset.none()
             queryset = queryset.filter(
-                selection__agent_id=agent_context["agent_id"],
-                selection__status=EmployeeSelection.STATUS_SELECTED,
-            )
+                selection_interests__agent_id=agent_context["agent_id"],
+                returned_from_employment=False,
+            ).exclude(selection__status=EmployeeSelection.STATUS_UNDER_PROCESS)
         else:
             if user_scope == "organization":
                 return queryset
             queryset = queryset.filter(
                 Q(selection__status=EmployeeSelection.STATUS_UNDER_PROCESS, selection__agent_id=agent_context["agent_id"])
-                | (~Q(selection__status=EmployeeSelection.STATUS_UNDER_PROCESS) & Q(returned_from_employment=False))
+                | (
+                    Q(selection__isnull=True)
+                    & Q(returned_from_employment=False)
+                )
+                | (
+                    ~Q(selection__status=EmployeeSelection.STATUS_UNDER_PROCESS)
+                    & Q(returned_from_employment=False)
+                )
             )
-        return queryset
+        return queryset.distinct()
 
     def list(self, request, *args, **kwargs):
         queryset = self.filter_queryset(self.get_queryset())
@@ -353,7 +364,7 @@ class EmployeeRetrieveUpdateDestroyView(generics.RetrieveUpdateDestroyAPIView):
         employee = self.get_object()
         if not can_update_employee(request.user, employee):
             return Response(
-                {"detail": "You can only update employees selected by your agent side."},
+                {"detail": "Only organization-side users can update employee records."},
                 status=status.HTTP_403_FORBIDDEN,
             )
         return super().update(request, *args, **kwargs)
@@ -365,13 +376,7 @@ class EmployeeRetrieveUpdateDestroyView(generics.RetrieveUpdateDestroyAPIView):
         employee = self.get_object()
         if not can_update_employee(request.user, employee):
             return Response(
-                {"detail": "You can only update employees selected by your agent side."},
-                status=status.HTTP_403_FORBIDDEN,
-            )
-        scope, _ = get_employee_user_scope(request.user, employee.organization)
-        if scope == "agent" and any(field in request.data for field in {"status", "is_active", "returned_from_employment"}):
-            return Response(
-                {"detail": "Agent-side users cannot change employee approval or return status."},
+                {"detail": "Only organization-side users can update employee records."},
                 status=status.HTTP_403_FORBIDDEN,
             )
         if "progress_override_complete" in request.data and not can_override_employee_progress(
@@ -451,7 +456,7 @@ class EmployeeDocumentUploadView(APIView):
             return Response({"detail": "Employee not found."}, status=status.HTTP_404_NOT_FOUND)
         if not can_update_employee(request.user, employee):
             return Response(
-                {"detail": "You can only upload documents for employees selected by your agent side."},
+                {"detail": "Only organization-side users can upload employee documents."},
                 status=status.HTTP_403_FORBIDDEN,
             )
 
@@ -555,7 +560,7 @@ class EmployeeDocumentDeleteView(generics.DestroyAPIView):
         document = self.get_object()
         if not can_update_employee(request.user, document.employee):
             return Response(
-                {"detail": "You can only remove documents for employees selected by your agent side."},
+                {"detail": "Only organization-side users can remove employee documents."},
                 status=status.HTTP_403_FORBIDDEN,
             )
         return super().destroy(request, *args, **kwargs)
@@ -575,6 +580,7 @@ class EmployeeSelectionView(APIView):
                 "selection__agent",
                 "selection__selected_by",
             )
+            .prefetch_related("selection_interests__agent", "selection_interests__selected_by")
             .filter(pk=employee_pk, organization=organization)
             .first()
         )
@@ -589,22 +595,21 @@ class EmployeeSelectionView(APIView):
             )
 
         selection = getattr(employee, "selection", None)
-        if selection and selection.agent_id != agent.id:
+        if selection and selection.status == EmployeeSelection.STATUS_UNDER_PROCESS and selection.agent_id != agent.id:
             return Response(
-                {"detail": "This employee has already been selected by another agent."},
+                {"detail": "This employee is already under process by another agent."},
                 status=status.HTTP_409_CONFLICT,
             )
 
-        if selection and selection.agent_id == agent.id:
-            selection.selected_by = request.user
-            selection.save(update_fields=["selected_by", "updated_at"])
-        else:
-            selection = EmployeeSelection.objects.create(
-                organization=organization,
-                employee=employee,
-                agent=agent,
-                selected_by=request.user,
-            )
+        interest, created = EmployeeSelectionInterest.objects.get_or_create(
+            organization=organization,
+            employee=employee,
+            agent=agent,
+            defaults={"selected_by": request.user},
+        )
+        if not created:
+            interest.selected_by = request.user
+            interest.save(update_fields=["selected_by", "updated_at"])
 
         log_audit(
             request.user,
@@ -636,25 +641,31 @@ class EmployeeSelectionView(APIView):
                 "selection__agent",
                 "selection__selected_by",
             )
+            .prefetch_related("selection_interests__agent", "selection_interests__selected_by")
             .filter(pk=employee_pk, organization=organization)
             .first()
         )
         if not employee:
             return Response({"detail": "Employee not found."}, status=status.HTTP_404_NOT_FOUND)
 
-        selection = getattr(employee, "selection", None)
-        if not selection:
-            return Response(status=status.HTTP_204_NO_CONTENT)
-
         agent = get_selection_agent_for_user(request.user, organization=organization)
-        can_clear = can_manage_employee_registration(request.user, organization) or (
-            agent and selection.agent_id == agent.id
-        )
-        if not can_clear:
+        if not agent:
             return Response(
-                {"detail": "You can only remove selections for your own agent side."},
+                {"detail": "Only agent-side users can remove employee selections."},
                 status=status.HTTP_403_FORBIDDEN,
             )
+
+        interest = (
+            EmployeeSelectionInterest.objects.filter(
+                organization=organization,
+                employee=employee,
+                agent=agent,
+            )
+            .select_related("agent")
+            .first()
+        )
+        if not interest:
+            return Response(status=status.HTTP_204_NO_CONTENT)
 
         log_audit(
             request.user,
@@ -665,11 +676,11 @@ class EmployeeSelectionView(APIView):
             metadata={
                 "employee_name": employee.full_name,
                 "organization_id": organization.id if organization else None,
-                "agent_id": selection.agent_id,
-                "agent_username": selection.agent.username,
+                "agent_id": interest.agent_id,
+                "agent_username": interest.agent.username,
             },
         )
-        selection.delete()
+        interest.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
 
 
@@ -689,6 +700,7 @@ class EmployeeProcessStartView(APIView):
                 "selection__selected_by",
                 "selection__process_initiated_by",
             )
+            .prefetch_related("selection_interests__agent", "selection_interests__selected_by")
             .filter(pk=employee_pk, organization=organization)
             .first()
         )
@@ -718,6 +730,12 @@ class EmployeeProcessStartView(APIView):
                     {"detail": "This employee is already under process."},
                     status=status.HTTP_409_CONFLICT,
                 )
+            EmployeeSelectionInterest.objects.get_or_create(
+                organization=organization,
+                employee=employee,
+                agent=target_agent,
+                defaults={"selected_by": request.user},
+            )
             if selection:
                 selection.agent = target_agent
                 selection.selected_by = request.user
@@ -750,22 +768,47 @@ class EmployeeProcessStartView(APIView):
                     {"detail": "Only the main agent account for this selected employee can initiate a process."},
                     status=status.HTTP_403_FORBIDDEN,
                 )
-            if not selection:
-                return Response(
-                    {"detail": "Employee must be selected before starting a process."},
-                    status=status.HTTP_400_BAD_REQUEST,
-                )
-
-            if selection.status == EmployeeSelection.STATUS_UNDER_PROCESS:
+            if selection and selection.status == EmployeeSelection.STATUS_UNDER_PROCESS:
                 return Response(
                     {"detail": "This employee is already under process."},
                     status=status.HTTP_409_CONFLICT,
                 )
+            if not EmployeeSelectionInterest.objects.filter(
+                organization=organization,
+                employee=employee,
+                agent=request.user,
+            ).exists():
+                return Response(
+                    {"detail": "Employee must be selected by your agent before starting a process."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
 
-            selection.status = EmployeeSelection.STATUS_UNDER_PROCESS
-            selection.process_initiated_by = request.user
-            selection.process_started_at = timezone.now()
-            selection.save(update_fields=["status", "process_initiated_by", "process_started_at", "updated_at"])
+            if selection:
+                selection.agent = request.user
+                selection.selected_by = request.user
+                selection.status = EmployeeSelection.STATUS_UNDER_PROCESS
+                selection.process_initiated_by = request.user
+                selection.process_started_at = timezone.now()
+                selection.save(
+                    update_fields=[
+                        "agent",
+                        "selected_by",
+                        "status",
+                        "process_initiated_by",
+                        "process_started_at",
+                        "updated_at",
+                    ]
+                )
+            else:
+                selection = EmployeeSelection.objects.create(
+                    organization=organization,
+                    employee=employee,
+                    agent=request.user,
+                    selected_by=request.user,
+                    status=EmployeeSelection.STATUS_UNDER_PROCESS,
+                    process_initiated_by=request.user,
+                    process_started_at=timezone.now(),
+                )
 
         log_audit(
             request.user,
@@ -785,6 +828,76 @@ class EmployeeProcessStartView(APIView):
             EmployeeSerializer(employee, context={"request": request}).data,
             status=status.HTTP_200_OK,
         )
+
+    def delete(self, request, employee_pk):
+        restriction = get_access_restriction(request.user, write=True)
+        if restriction:
+            return Response({"detail": restriction}, status=status.HTTP_403_FORBIDDEN)
+
+        organization = get_user_organization(request.user)
+        employee = (
+            Employee.objects.select_related(
+                "organization",
+                "selection__agent",
+                "selection__selected_by",
+                "selection__process_initiated_by",
+            )
+            .prefetch_related("selection_interests__agent", "selection_interests__selected_by")
+            .filter(pk=employee_pk, organization=organization)
+            .first()
+        )
+        if not employee:
+            return Response({"detail": "Employee not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        if not (
+            can_initiate_employee_process(request.user, employee)
+            or can_manage_process_for_organization(request.user, organization)
+        ):
+            return Response(
+                {"detail": "Only the main agent account or an admin/superadmin can decline a process."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        selection = getattr(employee, "selection", None)
+        if not selection or selection.status != EmployeeSelection.STATUS_UNDER_PROCESS:
+            return Response(
+                {"detail": "This employee is not currently under process."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        EmployeeSelectionInterest.objects.get_or_create(
+            organization=organization,
+            employee=employee,
+            agent=selection.agent,
+            defaults={"selected_by": request.user},
+        )
+        selection.delete()
+
+        log_audit(
+            request.user,
+            "employee.process_decline",
+            resource_type="employee",
+            resource_id=employee.pk,
+            summary=f"Declined processing for employee {employee.full_name}",
+            metadata={
+                "employee_name": employee.full_name,
+                "organization_id": organization.id if organization else None,
+                "agent_id": selection.agent_id,
+                "agent_username": selection.agent.username,
+            },
+        )
+        employee.refresh_from_db()
+        return Response(
+            EmployeeSerializer(employee, context={"request": request}).data,
+            status=status.HTTP_200_OK,
+        )
+
+
+class EmployeeProcessDeclineView(EmployeeProcessStartView):
+    permission_classes = [IsAuthenticated, EmployeesEnabled]
+
+    def post(self, request, employee_pk):
+        return super().delete(request, employee_pk)
 
 
 class EmployeeReturnRequestView(APIView):
@@ -969,62 +1082,3 @@ class EmployeeReturnRequestApproveView(EmployeeReturnRequestDecisionView):
 
 class EmployeeReturnRequestRefuseView(EmployeeReturnRequestDecisionView):
     decision_status = EmployeeReturnRequest.STATUS_REFUSED
-
-    def delete(self, request, employee_pk):
-        restriction = get_access_restriction(request.user, write=True)
-        if restriction:
-            return Response({"detail": restriction}, status=status.HTTP_403_FORBIDDEN)
-
-        organization = get_user_organization(request.user)
-        employee = (
-            Employee.objects.select_related(
-                "organization",
-                "selection__agent",
-                "selection__selected_by",
-                "selection__process_initiated_by",
-            )
-            .filter(pk=employee_pk, organization=organization)
-            .first()
-        )
-        if not employee:
-            return Response({"detail": "Employee not found."}, status=status.HTTP_404_NOT_FOUND)
-
-        if not (
-            can_initiate_employee_process(request.user, employee)
-            or can_manage_process_for_organization(request.user, organization)
-        ):
-            return Response(
-                {"detail": "Only the main agent account or an admin/superadmin can decline a process."},
-                status=status.HTTP_403_FORBIDDEN,
-            )
-
-        selection = getattr(employee, "selection", None)
-        if not selection or selection.status != EmployeeSelection.STATUS_UNDER_PROCESS:
-            return Response(
-                {"detail": "This employee is not currently under process."},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
-        selection.status = EmployeeSelection.STATUS_SELECTED
-        selection.process_initiated_by = None
-        selection.process_started_at = None
-        selection.save(update_fields=["status", "process_initiated_by", "process_started_at", "updated_at"])
-
-        log_audit(
-            request.user,
-            "employee.process_decline",
-            resource_type="employee",
-            resource_id=employee.pk,
-            summary=f"Declined processing for employee {employee.full_name}",
-            metadata={
-                "employee_name": employee.full_name,
-                "organization_id": organization.id if organization else None,
-                "agent_id": selection.agent_id,
-                "agent_username": selection.agent.username,
-            },
-        )
-        employee.refresh_from_db()
-        return Response(
-            EmployeeSerializer(employee, context={"request": request}).data,
-            status=status.HTTP_200_OK,
-        )

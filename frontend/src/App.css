@@ -986,11 +986,16 @@ button:disabled {
   color: var(--color-muted-foreground);
 }
 
+.profiles-page-stack {
+  display: grid;
+  gap: 20px;
+  margin-top: 18px;
+}
+
 .profiles-layout {
   display: grid;
   grid-template-columns: minmax(320px, 420px) minmax(0, 1fr);
   gap: 20px;
-  margin-top: 18px;
   align-items: start;
 }
 
@@ -1023,6 +1028,55 @@ button:disabled {
 .profiles-side-panels {
   display: grid;
   gap: 20px;
+}
+
+.profiles-users-board {
+  margin-top: 0;
+}
+
+.profiles-users-board-sections {
+  display: grid;
+  gap: 20px;
+}
+
+.profiles-users-board-section {
+  display: grid;
+  gap: 14px;
+}
+
+.profiles-users-board-section h3 {
+  margin: 0;
+}
+
+.profiles-grouped-user-sections {
+  display: grid;
+  gap: 14px;
+  margin-top: 14px;
+}
+
+.profiles-user-group-card {
+  display: grid;
+  gap: 14px;
+  padding: 14px;
+  border: 1px solid var(--color-border);
+  border-radius: 14px;
+  background: color-mix(in oklch, var(--color-card) 96%, var(--color-muted));
+}
+
+.profiles-user-group-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.profiles-user-group-header h4 {
+  margin: 0;
+  color: var(--color-foreground);
+}
+
+.profiles-agent-grid--compact {
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
 }
 
 .profiles-side-user-list {
@@ -1119,6 +1173,28 @@ button:disabled {
   display: flex;
   align-items: center;
   gap: 12px;
+}
+
+.profiles-avatar-button {
+  padding: 0 !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  background: transparent !important;
+  overflow: hidden;
+  cursor: pointer;
+}
+
+.profiles-avatar-button:hover,
+.profiles-avatar-button:focus-visible,
+.profiles-avatar-button:active {
+  transform: none !important;
+  box-shadow: none !important;
+  border-color: var(--color-border) !important;
+}
+
+.profiles-avatar-button:disabled {
+  cursor: default;
+  opacity: 1;
 }
 
 .profiles-admin-badge {
@@ -1927,6 +2003,23 @@ html:not([data-theme])[data-accent='orange'] .profiles-agreement-selected-remove
 .commission-settlement-employees {
   display: grid;
   gap: 12px;
+}
+
+.employee-selection-select-all {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+  color: var(--color-foreground);
+  font-weight: 600;
+}
+
+.employee-selection-select-all input {
+  margin: 0;
+}
+
+.commission-settled-badge {
+  opacity: 0.68;
 }
 
 .commission-settlement-employees-toggle {

@@ -29,7 +29,68 @@ function getStaffLevelForRole(roleLabel) {
   return STAFF_ROLE_OPTIONS.find((option) => option.label === roleLabel)?.level || 1
 }
 
+function isAgentSideWorkspace(user) {
+  if (user?.agent_context?.is_agent_side) return true
+  if (user?.role === 'customer') return true
+  if (user?.role !== 'staff') return false
+  const staffSide = (user?.staff_side || '').trim()
+  const organizationName = (user?.organization?.name || '').trim()
+  return Boolean(staffSide) && staffSide !== organizationName
+}
+
+function normalizeScopeValue(value) {
+  return String(value || '').trim().toLowerCase()
+}
+
+function displayActorName(user) {
+  return [user?.first_name, user?.last_name].filter(Boolean).join(' ') || user?.username || 'Unknown user'
+}
+
+function belongsToSameAgentWorkspace(owner, candidate) {
+  const ownerAgentId = owner?.agent_context?.agent_id || (owner?.role === 'customer' ? owner?.id : null)
+  const candidateAgentId = candidate?.agent_context?.agent_id || (candidate?.role === 'customer' ? candidate?.id : null)
+  if (ownerAgentId && candidateAgentId) {
+    return String(ownerAgentId) === String(candidateAgentId)
+  }
+
+  const ownerCandidates = [
+    owner?.staff_side,
+    displayActorName(owner),
+    owner?.username,
+    owner?.email
+  ]
+    .map(normalizeScopeValue)
+    .filter(Boolean)
+
+  const candidateCandidates = [
+    candidate?.staff_side,
+    displayActorName(candidate),
+    candidate?.username,
+    candidate?.email
+  ]
+    .map(normalizeScopeValue)
+    .filter(Boolean)
+
+  return candidateCandidates.some((value) => ownerCandidates.includes(value))
+}
+
+async function fetchAllUsers(params = {}) {
+  let page = 1
+  const results = []
+  let hasNext = true
+
+  while (hasNext) {
+    const response = await usersService.fetchUsers({ page, ...params })
+    results.push(...(response.results || []))
+    hasNext = Boolean(response.next)
+    page += 1
+  }
+
+  return results
+}
+
 function rolesForManager(currentUser) {
+  if (isAgentSideWorkspace(currentUser)) return ROLE_OPTIONS.filter((r) => r.value === 'staff')
   if (currentUser?.role === 'superadmin') return ROLE_OPTIONS
   return ROLE_OPTIONS.filter((r) => ['staff', 'customer'].includes(r.value))
 }
@@ -83,20 +144,89 @@ export default function UsersManagementPage() {
   const [filters, setFilters] = useState({ q: '', role: '', isActive: '' })
   const [staffSideOptions, setStaffSideOptions] = useState([])
   const [currentView, setCurrentView] = useState('list')
+  const isAgentSideUser = isAgentSideWorkspace(currentUser)
+  const currentAgentSideName = currentUser?.role === 'customer'
+    ? displayActorName(currentUser)
+    : currentUser?.staff_side || displayActorName(currentUser)
+  const emptyManagedForm = {
+    ...emptyForm,
+    role: isAgentSideUser ? 'staff' : 'customer',
+    staff_side: isAgentSideUser ? currentAgentSideName : '',
+    staff_level_label: isAgentSideUser ? STAFF_ROLE_OPTIONS[0].label : ''
+  }
+
+  useEffect(() => {
+    if (!isAgentSideUser) return
+    setForm((prev) => {
+      if (prev.role === 'staff' && prev.staff_side === currentAgentSideName && prev.staff_level_label) return prev
+      return {
+        ...prev,
+        role: 'staff',
+        staff_side: currentAgentSideName,
+        staff_level_label: prev.staff_level_label || STAFF_ROLE_OPTIONS[0].label,
+        agent_country: '',
+        agent_commission: '',
+        agent_salary: ''
+      }
+    })
+  }, [currentAgentSideName, isAgentSideUser])
 
   const loadStaffSideOptions = useCallback(async () => {
+    if (isAgentSideUser) {
+      setStaffSideOptions(currentAgentSideName ? [currentAgentSideName] : [])
+      return
+    }
     try {
       const options = await usersService.fetchStaffSideOptions()
       setStaffSideOptions(options)
     } catch {
       setStaffSideOptions([])
     }
-  }, [])
+  }, [currentAgentSideName, isAgentSideUser])
 
   const loadUsers = useCallback(async () => {
     setLoading(true)
     setError('')
     try {
+      if (isAgentSideUser) {
+        const allUsers = await fetchAllUsers({})
+        const filteredUsers = allUsers
+          .filter((row) => row.role !== 'customer' ? belongsToSameAgentWorkspace(currentUser, row) : belongsToSameAgentWorkspace(currentUser, row))
+          .filter((row) => {
+            if (!filters.role) return true
+            return row.role === filters.role
+          })
+          .filter((row) => {
+            if (!filters.isActive) return true
+            return String(Boolean(row.is_active)) === filters.isActive
+          })
+          .filter((row) => {
+            if (!filters.q.trim()) return true
+            const query = normalizeScopeValue(filters.q)
+            const haystack = [
+              row.username,
+              row.email,
+              row.first_name,
+              row.last_name,
+              row.phone,
+              row.staff_side
+            ]
+              .map(normalizeScopeValue)
+              .join(' ')
+            return haystack.includes(query)
+          })
+        const pageSize = 10
+        const start = (page - 1) * pageSize
+        const pagedUsers = filteredUsers.slice(start, start + pageSize)
+        setUsersData({
+          count: filteredUsers.length,
+          results: pagedUsers,
+          next: start + pageSize < filteredUsers.length ? true : null,
+          previous: page > 1 ? true : null
+        })
+        return
+      }
+
       const data = await usersService.fetchUsers({
         page,
         q: filters.q,
@@ -110,7 +240,7 @@ export default function UsersManagementPage() {
     } finally {
       setLoading(false)
     }
-  }, [filters, page])
+  }, [currentUser, filters, isAgentSideUser, page])
 
   useEffect(() => {
     if (canManageUsers(currentUser)) {
@@ -157,7 +287,7 @@ export default function UsersManagementPage() {
           form.role === 'customer' && form.agent_salary !== ''
             ? form.agent_salary
             : null,
-        staff_side: form.role === 'staff' ? form.staff_side.trim() : '',
+        staff_side: form.role === 'staff' ? (isAgentSideUser ? currentAgentSideName : form.staff_side.trim()) : '',
         staff_level: form.role === 'staff' ? getStaffLevelForRole(form.staff_level_label) : 1,
         staff_level_label: form.role === 'staff' ? form.staff_level_label.trim() : '',
         role: form.role,
@@ -179,7 +309,7 @@ export default function UsersManagementPage() {
             staff_level_label: payload.staff_level_label
           })
         : await usersService.createUser(payload)
-      setForm(emptyForm)
+      setForm(emptyManagedForm)
       setEditingUserId(null)
       if (result.warning) {
         setNotice(result.warning)
@@ -357,7 +487,7 @@ export default function UsersManagementPage() {
           : String(row.agent_commission),
       agent_salary:
         row.agent_salary === null || row.agent_salary === undefined ? '' : String(row.agent_salary),
-      staff_side: row.staff_side || currentUser?.organization?.name || '',
+      staff_side: isAgentSideUser ? currentAgentSideName : row.staff_side || currentUser?.organization?.name || '',
       staff_level_label: row.staff_level_label || STAFF_ROLE_OPTIONS[0].label,
       role: row.role || 'staff',
       is_active: Boolean(row.is_active)
@@ -441,7 +571,7 @@ export default function UsersManagementPage() {
             onClick={() => {
               setEditingUserId(null)
               setCurrentView('list')
-              setForm(emptyForm)
+              setForm(emptyManagedForm)
               setError('')
               setNotice('')
             }}

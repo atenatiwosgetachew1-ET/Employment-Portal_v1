@@ -156,7 +156,7 @@ export async function startEmployeeProcess(id, { agentId } = {}) {
 }
 
 export async function declineEmployeeProcess(id) {
-  const response = await apiFetch(`/api/employees/${id}/process/`, { method: 'DELETE' })
+  const response = await apiFetch(`/api/employees/${id}/process/decline/`, { method: 'POST' })
   const data = await response.json().catch(() => ({}))
   if (!response.ok) {
     throw new Error(responseError(data, 'Failed to decline employee process'))

@@ -675,6 +675,45 @@ class EmployeeSelection(models.Model):
         return f"{self.employee.full_name} -> {self.agent.username}"
 
 
+class EmployeeSelectionInterest(models.Model):
+    organization = models.ForeignKey(
+        Organization,
+        on_delete=models.CASCADE,
+        related_name="employee_selection_interests",
+    )
+    employee = models.ForeignKey(
+        Employee,
+        on_delete=models.CASCADE,
+        related_name="selection_interests",
+    )
+    agent = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name="employee_selection_interests",
+    )
+    selected_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="employee_selection_interests_made",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-updated_at"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["organization", "employee", "agent"],
+                name="unique_employee_selection_interest_per_agent",
+            )
+        ]
+
+    def __str__(self):
+        return f"{self.employee.full_name} interested by {self.agent.username}"
+
+
 def employee_return_request_upload_to(instance, filename):
     employee_id = instance.employee_id or "unassigned"
     return f"employees/{employee_id}/return-requests/{filename}"

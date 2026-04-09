@@ -19,6 +19,7 @@ from .models import (
     EmployeeDocument,
     EmployeeReturnRequest,
     EmployeeSelection,
+    EmployeeSelectionInterest,
     LicenseEvent,
     Notification,
     Organization,
@@ -979,6 +980,46 @@ class EmployeeSelectionSerializer(serializers.ModelSerializer):
         return agent_display_name(obj.agent)
 
 
+class EmployeeSelectionInterestSerializer(serializers.ModelSerializer):
+    agent_name = serializers.SerializerMethodField()
+    selected_by_username = serializers.CharField(source="selected_by.username", read_only=True)
+    status = serializers.SerializerMethodField()
+    process_initiated_by = serializers.SerializerMethodField()
+    process_initiated_by_username = serializers.SerializerMethodField()
+    process_started_at = serializers.SerializerMethodField()
+
+    class Meta:
+        model = EmployeeSelectionInterest
+        fields = (
+            "agent",
+            "agent_name",
+            "selected_by",
+            "selected_by_username",
+            "status",
+            "process_initiated_by",
+            "process_initiated_by_username",
+            "process_started_at",
+            "created_at",
+            "updated_at",
+        )
+        read_only_fields = fields
+
+    def get_agent_name(self, obj):
+        return agent_display_name(obj.agent)
+
+    def get_status(self, obj):
+        return EmployeeSelection.STATUS_SELECTED
+
+    def get_process_initiated_by(self, obj):
+        return None
+
+    def get_process_initiated_by_username(self, obj):
+        return None
+
+    def get_process_started_at(self, obj):
+        return None
+
+
 class EmployeeReturnRequestSerializer(serializers.ModelSerializer):
     requested_by_username = serializers.CharField(
         source="requested_by.username",
@@ -1030,19 +1071,34 @@ class EmployeeReturnRequestSerializer(serializers.ModelSerializer):
 
 
 def build_employee_selection_payload(employee, request):
-    selection = getattr(employee, "selection", None)
+    process_selection = getattr(employee, "selection", None)
+    interests = list(getattr(employee, "selection_interests", []).all()) if hasattr(getattr(employee, "selection_interests", None), "all") else []
     current_agent = None
     if request and request.user.is_authenticated:
         current_agent = get_selection_agent_for_user(
             request.user,
             organization=employee.organization,
         )
+    current_interest = None
+    if current_agent:
+        current_interest = next(
+            (item for item in interests if item.agent_id == current_agent.id),
+            None,
+        )
+    primary_interest = current_interest or (interests[0] if interests else None)
+    selection_payload = None
+    if process_selection:
+        selection_payload = EmployeeSelectionSerializer(process_selection).data
+    elif primary_interest:
+        selection_payload = EmployeeSelectionInterestSerializer(primary_interest).data
     return {
-        "is_selected": bool(selection),
+        "is_selected": bool(process_selection or interests),
         "selected_by_current_agent": bool(
-            selection and current_agent and selection.agent_id == current_agent.id
+            (process_selection and current_agent and process_selection.agent_id == current_agent.id)
+            or current_interest
         ),
-        "selection": EmployeeSelectionSerializer(selection).data if selection else None,
+        "selection": selection_payload,
+        "selection_count": len(interests),
     }
 
 
