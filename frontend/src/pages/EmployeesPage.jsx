@@ -2531,7 +2531,7 @@ export default function EmployeesPage() {
                       aria-label={travelPendingOpen ? 'Collapse travel confirmation pending' : 'Expand travel confirmation pending'}
                       aria-expanded={travelPendingOpen}
                     >
-                      <span className={`commission-group-toggle-icon${travelPendingOpen ? ' is-open' : ''}`}>â–¸</span>
+                      <span className={`commission-group-toggle-icon${travelPendingOpen ? ' is-open' : ''}`}>▸</span>
                     </button>
                   </div>
                   {travelPendingOpen ? (

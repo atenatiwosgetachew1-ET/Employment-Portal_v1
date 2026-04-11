@@ -14,7 +14,7 @@ export function AuthProvider({ children }) {
   useEffect(() => {
     const onUnauthorized = () => {
       setUser(null)
-      applyTheme('system')
+      applyTheme('dark')
     }
     window.addEventListener('auth:unauthorized', onUnauthorized)
     return () => window.removeEventListener('auth:unauthorized', onUnauthorized)
@@ -35,14 +35,14 @@ export function AuthProvider({ children }) {
         setUser(applyStoredProfileOverride(u))
         try {
           const prefs = await preferencesService.fetchPreferences()
-          applyTheme(prefs.theme)
+          applyTheme('dark')
         } catch {
-          applyTheme('system')
+          applyTheme('dark')
         }
       })
       .catch(() => {
         setUser(null)
-        applyTheme('system')
+        applyTheme('dark')
       })
       .finally(() => setBootstrapping(false))
   }, [])
@@ -53,10 +53,10 @@ export function AuthProvider({ children }) {
       const loggedInUser = applyStoredProfileOverride(await authService.login({ username, password }))
       setUser(loggedInUser)
       try {
-        const prefs = await preferencesService.fetchPreferences()
-        applyTheme(prefs.theme)
+        await preferencesService.fetchPreferences()
+        applyTheme('dark')
       } catch {
-        applyTheme('system')
+        applyTheme('dark')
       }
       return loggedInUser
     } finally {
@@ -70,10 +70,10 @@ export function AuthProvider({ children }) {
       const loggedInUser = applyStoredProfileOverride(await authService.loginWithGoogle(credential))
       setUser(loggedInUser)
       try {
-        const prefs = await preferencesService.fetchPreferences()
-        applyTheme(prefs.theme)
+        await preferencesService.fetchPreferences()
+        applyTheme('dark')
       } catch {
-        applyTheme('system')
+        applyTheme('dark')
       }
       return loggedInUser
     } finally {
@@ -86,7 +86,7 @@ export function AuthProvider({ children }) {
       await authService.logout()
     } finally {
       setUser(null)
-      applyTheme('system')
+      applyTheme('dark')
     }
   }
 

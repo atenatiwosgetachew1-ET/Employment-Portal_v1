@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import * as platformSettingsService from '../services/platformSettingsService'
 import * as preferencesService from '../services/preferencesService'
 import { useAuth } from '../context/AuthContext'
-import { applyAccent, applyTheme, getStoredAccent, storeAccent } from '../utils/theme'
+import { applyAccent, applyTheme, storeAccent } from '../utils/theme'
 
 const TIMEZONES = [
   'UTC',
@@ -12,19 +12,8 @@ const TIMEZONES = [
   'Asia/Tokyo'
 ]
 
-const ACCENT_OPTIONS = [
-  { value: 'natural', label: 'Natural' },
-  { value: 'orange', label: 'Orange' },
-  { value: 'blue', label: 'Blue' },
-  { value: 'emerald', label: 'Emerald' },
-  { value: 'slate', label: 'Slate' },
-  { value: 'lemon', label: 'Lemon' },
-  { value: 'yellow', label: 'Yellow' },
-  { value: 'red', label: 'Red' },
-  { value: 'pink', label: 'Pink' },
-  { value: 'cyan', label: 'Cyan' },
-  { value: 'brown', label: 'Brown' }
-]
+const LOCKED_THEME = 'dark'
+const LOCKED_ACCENT = 'natural'
 const SETTINGS_TABS = [
   { id: 'organization', label: 'Organization' },
   { id: 'preferences', label: 'Preferences' },
@@ -44,7 +33,7 @@ export default function SettingsPage() {
   const [saved, setSaved] = useState(false)
   const [platformSaved, setPlatformSaved] = useState(false)
   const [platformSettings, setPlatformSettings] = useState(null)
-  const [accent, setAccent] = useState(() => getStoredAccent())
+  const [accent] = useState(LOCKED_ACCENT)
   const [currentTab, setCurrentTab] = useState(organization ? 'organization' : 'preferences')
   const isSuperadmin = user?.role === 'superadmin'
   const permissionOptions = [
@@ -65,10 +54,10 @@ export default function SettingsPage() {
           ? platformSettingsService.fetchPlatformSettings()
           : Promise.resolve(null)
       ])
-      setPrefs(prefsData)
+      setPrefs({ ...prefsData, theme: LOCKED_THEME })
       setPlatformSettings(platformData)
-      applyTheme(prefsData.theme)
-      applyAccent(accent)
+      applyTheme(LOCKED_THEME)
+      applyAccent(LOCKED_ACCENT)
     } catch (e) {
       setError(e.message || 'Could not load settings')
     } finally {
@@ -137,15 +126,15 @@ export default function SettingsPage() {
     setSaved(false)
     try {
       const updated = await preferencesService.patchPreferences({
-        theme: prefs.theme,
+        theme: LOCKED_THEME,
         timezone: prefs.timezone,
         language: prefs.language,
         email_notifications: prefs.email_notifications
       })
-      setPrefs(updated)
-      applyTheme(updated.theme)
-      storeAccent(accent)
-      applyAccent(accent)
+      setPrefs({ ...updated, theme: LOCKED_THEME })
+      applyTheme(LOCKED_THEME)
+      storeAccent(LOCKED_ACCENT)
+      applyAccent(LOCKED_ACCENT)
       setSaved(true)
     } catch (err) {
       setError(err.message || 'Could not save')
@@ -249,30 +238,11 @@ export default function SettingsPage() {
           <form className="settings-form" onSubmit={handlePrefsSubmit}>
             <label>
               Theme
-              <select value={prefs.theme} onChange={(e) => handlePrefChange('theme', e.target.value)}>
-                <option value="system">System</option>
-                <option value="light">Light</option>
-                <option value="dark">Dark</option>
-              </select>
+              <input type="text" value="Dark" readOnly disabled className="settings-readonly" />
             </label>
             <label>
               Accent
-              <select
-                value={accent}
-                onChange={(e) => {
-                  const nextAccent = e.target.value
-                  setAccent(nextAccent)
-                  storeAccent(nextAccent)
-                  applyAccent(nextAccent)
-                  setSaved(false)
-                }}
-              >
-                {ACCENT_OPTIONS.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
+              <input type="text" value="Natural" readOnly disabled className="settings-readonly" />
             </label>
             <label>
               Timezone

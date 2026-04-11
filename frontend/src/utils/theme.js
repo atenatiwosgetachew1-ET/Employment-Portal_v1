@@ -1,24 +1,23 @@
 const THEME_STORAGE_KEY = 'employment-portal.theme'
 const ACCENT_STORAGE_KEY = 'employment-portal.accent'
 
-export const DEFAULT_THEME = 'system'
+export const DEFAULT_THEME = 'dark'
 export const DEFAULT_ACCENT = 'natural'
-export const ACCENT_VALUES = ['natural', 'orange', 'blue', 'emerald', 'slate', 'lemon', 'yellow', 'red', 'pink', 'cyan', 'brown']
+export const ACCENT_VALUES = ['natural']
 
 let systemThemeMedia = null
 let detachSystemThemeListener = null
 
 function normalizeTheme(theme) {
-  return theme === 'light' || theme === 'dark' || theme === 'system' ? theme : DEFAULT_THEME
+  return 'dark'
 }
 
 function normalizeAccent(accent) {
-  return ACCENT_VALUES.includes(accent) ? accent : DEFAULT_ACCENT
+  return 'natural'
 }
 
 function resolveSystemTheme() {
-  if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return 'light'
-  return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
+  return 'dark'
 }
 
 function setResolvedThemeAttributes(theme) {
@@ -53,9 +52,8 @@ function bindSystemThemeListener() {
 }
 
 export function applyTheme(theme) {
-  const normalizedTheme = normalizeTheme(theme)
+  const normalizedTheme = 'dark'
   setResolvedThemeAttributes(normalizedTheme)
-  bindSystemThemeListener()
 
   try {
     window.localStorage.setItem(THEME_STORAGE_KEY, normalizedTheme)
@@ -65,16 +63,12 @@ export function applyTheme(theme) {
 }
 
 export function getStoredTheme() {
-  try {
-    return normalizeTheme(window.localStorage.getItem(THEME_STORAGE_KEY) || DEFAULT_THEME)
-  } catch {
-    return DEFAULT_THEME
-  }
+  return 'dark'
 }
 
 export function applyAccent(accent) {
   const root = document.documentElement
-  root.setAttribute('data-accent', normalizeAccent(accent))
+  root.setAttribute('data-accent', 'natural')
 }
 
 export function storeAccent(accent) {
@@ -86,9 +80,5 @@ export function storeAccent(accent) {
 }
 
 export function getStoredAccent() {
-  try {
-    return normalizeAccent(window.localStorage.getItem(ACCENT_STORAGE_KEY))
-  } catch {
-    return DEFAULT_ACCENT
-  }
+  return 'natural'
 }
