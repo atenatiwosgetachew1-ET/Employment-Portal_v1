@@ -5349,8 +5349,8 @@ html:not([data-theme]) .badge-super {
   width: 100%;
   left: 0;
   top: 0;
-  border: none;
-  margin: 0;
+    border: none;
+    margin: 0;
 }
 
 .dashboard-profile-menu {

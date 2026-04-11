@@ -1,18 +1,16 @@
-import { useEffect, useRef, useState } from 'react'
+import { useRef } from 'react'
 import { NavLink, Outlet, useNavigate } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
 import { isAgentSideWorkspace } from '../../utils/profileStore'
 
 export default function DashboardLayoutSidebar() {
-  const { user, signOut } = useAuth()
+  const { user } = useAuth()
   const navigate = useNavigate()
-  const [profileOpen, setProfileOpen] = useState(false)
   const profileRef = useRef(null)
 
   const permissions = user?.permissions || []
   const features = user?.feature_flags || {}
   const organization = user?.organization
-  const subscription = user?.subscription
   const canManageUsers =
     features.users_management_enabled &&
     (permissions.includes('users.manage_all') || permissions.includes('users.manage_limited'))
@@ -24,6 +22,7 @@ export default function DashboardLayoutSidebar() {
     [user?.first_name, user?.last_name].filter(Boolean).join(' ') ||
     user?.username ||
     'User'
+  const brandName = organization?.name || 'Employment Portal'
   const profileImage =
     user?.profile_photo_url ||
     user?.avatar_url ||
@@ -65,20 +64,8 @@ export default function DashboardLayoutSidebar() {
       : [])
   ]
 
-  useEffect(() => {
-    function onDocClick(event) {
-      if (!profileRef.current?.contains(event.target)) {
-        setProfileOpen(false)
-      }
-    }
-
-    document.addEventListener('mousedown', onDocClick)
-    return () => document.removeEventListener('mousedown', onDocClick)
-  }, [])
-
-  const handleLogout = async () => {
-    await signOut()
-    navigate('/login', { replace: true })
+  const handleProfileNavigate = () => {
+    navigate('/dashboard/profiles?tab=profile')
   }
 
   return (
@@ -86,13 +73,21 @@ export default function DashboardLayoutSidebar() {
       <aside className="dashboard-sidebar" aria-label="Main navigation">
         <div className="dashboard-sidebar-top">
           <div className="dashboard-profile-menu" ref={profileRef}>
-            <button
-              type="button"
-              className={`dashboard-profile-trigger${profileOpen ? ' is-open' : ''}${profileImage ? ' has-image' : ''}`}
-              aria-expanded={profileOpen}
-              onClick={() => setProfileOpen((open) => !open)}
+            <div
+              className={`dashboard-profile-trigger${profileImage ? ' has-image' : ''}`}
+              role="button"
+              tabIndex={0}
+              aria-label="Open profiles page"
+              onClick={handleProfileNavigate}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter' || event.key === ' ') {
+                  event.preventDefault()
+                  handleProfileNavigate()
+                }
+              }}
               style={profileImage ? { '--profile-trigger-image': `url("${profileImage}")` } : undefined}
             >
+              {profileImage ? <span className="dashboard-profile-trigger-bg" aria-hidden="true" /> : null}
               <span className="dashboard-profile-avatar">
                 {profileImage ? (
                   <img src={profileImage} alt={`${displayName} profile`} />
@@ -101,37 +96,13 @@ export default function DashboardLayoutSidebar() {
                 )}
               </span>
               <span className="dashboard-profile-copy">
-                <strong>{displayName}</strong>
-                {organization?.name && <span>{organization.name}</span>}
+                <strong title={displayName}>{displayName}</strong>
+                {organization?.name && <span title={organization.name}>{organization.name}</span>}
               </span>
-            </button>
-            {profileOpen && (
-              <div className="dashboard-profile-dropdown" role="menu" aria-label="Profile menu">
-                <p className="dashboard-profile-dropdown-name">{displayName}</p>
-                {user?.username && (
-                  <p className="dashboard-profile-dropdown-meta">@{user.username}</p>
-                )}
-                {user?.slug && (
-                  <p className="dashboard-profile-dropdown-meta">/{user.slug}</p>
-                )}
-                {subscription?.plan_name && (
-                  <p className="dashboard-profile-dropdown-meta">{subscription.plan_name}</p>
-                )}
-                {subscription?.status && (
-                  <p className="dashboard-profile-dropdown-meta">{subscription.status}</p>
-                )}
-                <button
-                  type="button"
-                  className="dashboard-profile-logout"
-                  onClick={handleLogout}
-                >
-                  Logout
-                </button>
-              </div>
-            )}
+            </div>
           </div>
         </div>
-        <div className="dashboard-brand">Employment Portal</div>
+        <div className="dashboard-brand" title={brandName}>{brandName}</div>
         <nav className="dashboard-nav">
           {navItems.map(({ to, label, end, disabled }) => (
             disabled ? (

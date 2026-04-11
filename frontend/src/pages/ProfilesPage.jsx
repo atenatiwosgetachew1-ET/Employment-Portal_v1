@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { jsPDF } from 'jspdf'
 import autoTable from 'jspdf-autotable'
+import { useSearchParams } from 'react-router-dom'
 import * as authService from '../services/authService'
 import * as usersService from '../services/usersService'
 import { useAuth } from '../context/AuthContext'
@@ -224,7 +225,10 @@ function pickContrastingStrokeColor(backgroundColor) {
 export default function ProfilesPage() {
   const { user, refreshUser } = useAuth()
   const { showToast, confirm } = useUiFeedback()
-  const [currentTab, setCurrentTab] = useState('profile')
+  const [searchParams, setSearchParams] = useSearchParams()
+  const requestedTab = searchParams.get('tab')
+  const allowedTabIds = useMemo(() => new Set(PROFILE_TABS.map((tab) => tab.id)), [])
+  const currentTab = requestedTab && allowedTabIds.has(requestedTab) ? requestedTab : 'profile'
   const [loadingAgents, setLoadingAgents] = useState(false)
   const [profileSaving, setProfileSaving] = useState(false)
   const [documentsSaving, setDocumentsSaving] = useState(false)
@@ -299,6 +303,17 @@ export default function ProfilesPage() {
     user?.avatar_url ||
     user?.profile_image_url ||
     ''
+
+  const handleTabChange = useCallback((nextTab) => {
+    const normalizedTab = allowedTabIds.has(nextTab) ? nextTab : 'profile'
+    const nextParams = new URLSearchParams(searchParams)
+    if (normalizedTab === 'profile') {
+      nextParams.delete('tab')
+    } else {
+      nextParams.set('tab', normalizedTab)
+    }
+    setSearchParams(nextParams, { replace: true })
+  }, [allowedTabIds, searchParams, setSearchParams])
 
   useEffect(() => {
     if (!user) return
@@ -585,7 +600,7 @@ export default function ProfilesPage() {
   }, [agentProfiles, organizationScopeKey])
 
   const prefillAgreementForm = useCallback((nextForm) => {
-    setCurrentTab('agreements')
+    handleTabChange('agreements')
     setAgreementForm(nextForm)
     setAgreementPickerOpen(false)
     setAgreementError('')
@@ -1191,7 +1206,8 @@ export default function ProfilesPage() {
       fileName: `${profile?.username || 'profile-photo'}.png`,
       isImage: true,
       isPdf: false,
-      hideActions: true,
+      isProfilePhoto: true,
+      hidePrimaryActions: true,
       disableContextMenu: true
     })
     setPreviewZoom(1)
@@ -1497,7 +1513,7 @@ export default function ProfilesPage() {
             key={tab.id}
             type="button"
             className={`employee-subtab${currentTab === tab.id ? ' is-active' : ''}`}
-            onClick={() => setCurrentTab(tab.id)}
+            onClick={() => handleTabChange(tab.id)}
             aria-pressed={currentTab === tab.id}
           >
             {tab.label}
@@ -1512,7 +1528,44 @@ export default function ProfilesPage() {
           <div className="profiles-layout">
             <article className="employee-summary-card profiles-profile-card">
             <div className="profiles-profile-head">
-              <div className="employee-card-avatar profiles-profile-avatar">
+              <div
+                className={`employee-card-avatar profiles-profile-avatar${profileImage ? ' profiles-avatar-button' : ''}`}
+                role={profileImage ? 'button' : undefined}
+                tabIndex={profileImage ? 0 : undefined}
+                aria-label={profileImage ? 'Preview profile picture' : undefined}
+                onClick={
+                  profileImage
+                    ? () =>
+                        openProfilePhotoPreview(
+                          {
+                            first_name: profileForm.first_name || user?.first_name,
+                            last_name: profileForm.last_name || user?.last_name,
+                            username: user?.username,
+                            profilePhotoUrl: profileImage
+                          },
+                          'Current profile picture'
+                        )
+                    : undefined
+                }
+                onKeyDown={
+                  profileImage
+                    ? (event) => {
+                        if (event.key === 'Enter' || event.key === ' ') {
+                          event.preventDefault()
+                          openProfilePhotoPreview(
+                            {
+                              first_name: profileForm.first_name || user?.first_name,
+                              last_name: profileForm.last_name || user?.last_name,
+                              username: user?.username,
+                              profilePhotoUrl: profileImage
+                            },
+                            'Current profile picture'
+                          )
+                        }
+                      }
+                    : undefined
+                }
+              >
                 {profileImage ? <img src={profileImage} alt={`${displayName} profile`} /> : <span>{displayName.charAt(0).toUpperCase()}</span>}
               </div>
               <div>
@@ -2556,7 +2609,7 @@ export default function ProfilesPage() {
                 <p className="muted-text">{previewDocument.subtitle}</p>
               </div>
               <div className="document-preview-actions">
-                {previewDocument.hideActions ? null : (
+                {previewDocument.hidePrimaryActions ? null : (
                   <>
                     <button
                       type="button"
@@ -2568,33 +2621,33 @@ export default function ProfilesPage() {
                     <button type="button" className="btn-secondary" onClick={handlePreviewPrint}>
                       Print
                     </button>
-                    {previewDocument.isImage ? (
-                      <>
-                        <button type="button" className="btn-secondary" onClick={handlePreviewZoomOut} disabled={previewZoom <= 1}>
-                          Zoom out
-                        </button>
-                        <button type="button" className="btn-secondary" onClick={handlePreviewZoomIn} disabled={previewZoom >= 4}>
-                          Zoom in
-                        </button>
-                        <button
-                          type="button"
-                          className="btn-secondary"
-                          onClick={handlePreviewReset}
-                          disabled={previewZoom === 1 && previewOffset.x === 0 && previewOffset.y === 0}
-                        >
-                          Reset
-                        </button>
-                      </>
-                    ) : null}
                   </>
                 )}
+                {previewDocument.isImage ? (
+                  <>
+                    <button type="button" className="btn-secondary" onClick={handlePreviewZoomOut} disabled={previewZoom <= 1}>
+                      Zoom out
+                    </button>
+                    <button type="button" className="btn-secondary" onClick={handlePreviewZoomIn} disabled={previewZoom >= 4}>
+                      Zoom in
+                    </button>
+                    <button
+                      type="button"
+                      className="btn-secondary"
+                      onClick={handlePreviewReset}
+                      disabled={previewZoom === 1 && previewOffset.x === 0 && previewOffset.y === 0}
+                    >
+                      Reset
+                    </button>
+                  </>
+                ) : null}
                 <button type="button" className="btn-secondary" onClick={closeDocumentPreview}>
                   Close
                 </button>
               </div>
             </div>
             <div
-              className={`document-preview-canvas${previewZoom > 1 ? ' is-zoomed' : ''}${previewDragging ? ' is-dragging' : ''}`}
+              className={`document-preview-canvas${previewDocument.isProfilePhoto ? ' profile-photo-preview' : ''}${previewZoom > 1 ? ' is-zoomed' : ''}${previewDragging ? ' is-dragging' : ''}`}
               onWheel={handlePreviewWheel}
               onMouseDown={handlePreviewPointerDown}
             >
@@ -2604,7 +2657,16 @@ export default function ProfilesPage() {
                   alt={previewDocument.label}
                   draggable={false}
                   onContextMenu={previewDocument.disableContextMenu ? (event) => event.preventDefault() : undefined}
-                  style={{ transform: `translate(${previewOffset.x}px, ${previewOffset.y}px) scale(${previewZoom})` }}
+                  style={{
+                    transform: `translate(${previewOffset.x}px, ${previewOffset.y}px) scale(${previewZoom})`,
+                    objectFit: 'contain',
+                    objectPosition: 'center center',
+                    display: 'block',
+                    maxWidth: '100%',
+                    maxHeight: '100%',
+                    width: previewDocument.isProfilePhoto ? 'auto' : undefined,
+                    height: previewDocument.isProfilePhoto ? 'auto' : undefined
+                  }}
                 />
               ) : previewDocument.isPdf ? (
                 <iframe

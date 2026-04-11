@@ -1,4 +1,4 @@
-/* Final visual overrides
+﻿/* Final visual overrides
    Keep recent cross-workspace normalizations in one place instead of
    appending more late-stage fixes to App.css. */
 
@@ -951,10 +951,10 @@ html[data-accent='natural'] .badge.profiles-admin-badge.profiles-agreement-statu
   display: flex !important;
   flex-direction: column !important;
   justify-content: flex-start !important;
-  gap: 12px !important;
+  gap: 0px !important;
   width: 248px !important;
   min-width: 248px !important;
-  padding: 12px !important;
+  padding: 0 !important;
   overflow-x: hidden !important;
   overflow-y: auto !important;
 }
@@ -964,14 +964,28 @@ html[data-accent='natural'] .badge.profiles-admin-badge.profiles-agreement-statu
   top: auto !important;
   left: auto !important;
   width: 100% !important;
+  display: flex !important;
+  align-items: stretch !important;
   margin: 0 !important;
   padding: 0 !important;
   border: 0 !important;
   border-radius: 0 !important;
+  border-bottom: 0 !important;
+  min-height: 156px !important;
+}
+
+.dashboard-sidebar-top:hover {
+  background: transparent !important;
+  border: 0 !important;
+  border-color: transparent !important;
+  box-shadow: none !important;
 }
 
 .dashboard-profile-menu {
+  display: flex !important;
+  align-items: stretch !important;
   width: 100% !important;
+  min-height: 100% !important;
   margin: 0 !important;
   padding: 0 !important;
   background: linear-gradient(
@@ -981,48 +995,192 @@ html[data-accent='natural'] .badge.profiles-admin-badge.profiles-agreement-statu
   ) !important;
   box-shadow: none !important;
   border: 0 !important;
+  border-color: transparent !important;
   border-radius: 0 !important;
 }
 
 .dashboard-profile-trigger {
-  align-items: center !important;
+  position: relative !important;
+  display: flex !important;
+  align-items: flex-end !important;
+  align-self: stretch !important;
   gap: 12px !important;
+  cursor: default !important;
+  user-select: none !important;
+  width: 100% !important;
+  min-width: 100% !important;
+  min-height: 100% !important;
+  height: 100% !important;
   padding: 18px 14px !important;
-  min-height: 108px !important;
   margin: 0 !important;
   border-radius: 0 !important;
   background: transparent !important;
   border: 0 !important;
+  border-color: transparent !important;
+  box-shadow: none !important;
+  outline: none !important;
+  overflow: hidden !important;
+}
+
+.dashboard-profile-trigger:hover,
+.dashboard-profile-trigger.is-open {
+  background: transparent !important;
+  border: 0 !important;
+  border-color: transparent !important;
+  box-shadow: none !important;
+  filter: none !important;
+  transform: none !important;
+  opacity: 1 !important;
+}
+
+.dashboard-profile-trigger:focus,
+.dashboard-profile-trigger:focus-visible,
+.dashboard-profile-trigger:focus-within,
+.dashboard-profile-trigger.is-open:focus,
+.dashboard-profile-trigger.is-open:focus-visible {
+  outline: none !important;
+  border: 0 !important;
+  border-color: transparent !important;
+  box-shadow: none !important;
+}
+
+html[data-theme='dark'][data-accent] .dashboard-profile-trigger,
+html[data-theme='dark'][data-accent] .dashboard-profile-trigger.has-image,
+html[data-theme='light'][data-accent] .dashboard-profile-trigger,
+html[data-theme='light'][data-accent] .dashboard-profile-trigger.has-image {
+  border: 0 !important;
+  border-color: transparent !important;
+  box-shadow: none !important;
+}
+
+html[data-theme='dark'][data-accent] .dashboard-profile-trigger:hover,
+html[data-theme='dark'][data-accent] .dashboard-profile-trigger:focus,
+html[data-theme='dark'][data-accent] .dashboard-profile-trigger:focus-visible,
+html[data-theme='dark'][data-accent] .dashboard-profile-trigger.is-open,
+html[data-theme='light'][data-accent] .dashboard-profile-trigger:hover,
+html[data-theme='light'][data-accent] .dashboard-profile-trigger:focus,
+html[data-theme='light'][data-accent] .dashboard-profile-trigger:focus-visible,
+html[data-theme='light'][data-accent] .dashboard-profile-trigger.is-open {
+  border: 0 !important;
+  border-color: transparent !important;
+  box-shadow: none !important;
+  outline: none !important;
+}
+
+.dashboard-profile-trigger-bg {
+  position: absolute !important;
+  inset: 0 !important;
+  display: block !important;
+  pointer-events: none !important;
+  z-index: 0 !important;
+}
+
+html[data-theme='dark'][data-accent] .dashboard-profile-trigger.has-image .dashboard-profile-trigger-bg,
+html[data-theme='light'][data-accent] .dashboard-profile-trigger.has-image .dashboard-profile-trigger-bg {
+  background:
+    linear-gradient(180deg, rgb(16 14 14 / 0.22) 0%, rgb(14 12 12 / 0.46) 38%, rgb(6 5 5 / 0.96) 100%),
+    linear-gradient(135deg, rgb(var(--accent-surface-strong) / 0.18) 0%, rgb(var(--accent-active-border) / 0.14) 100%),
+    var(--profile-trigger-image) center / cover no-repeat !important;
+  filter: saturate(0.5) contrast(1.06) brightness(0.94) blur(0.8px) !important;
+}
+
+html[data-theme='dark'][data-accent] .dashboard-profile-trigger.has-image:hover .dashboard-profile-trigger-bg,
+html[data-theme='dark'][data-accent] .dashboard-profile-trigger.has-image.is-open .dashboard-profile-trigger-bg,
+html[data-theme='light'][data-accent] .dashboard-profile-trigger.has-image:hover .dashboard-profile-trigger-bg,
+html[data-theme='light'][data-accent] .dashboard-profile-trigger.has-image.is-open .dashboard-profile-trigger-bg {
+  background:
+    linear-gradient(180deg, rgb(16 14 14 / 0.14) 0%, rgb(14 12 12 / 0.32) 38%, rgb(10 9 9 / 0.86) 100%),
+    linear-gradient(135deg, rgb(var(--accent-surface-strong) / 0.16) 0%, rgb(var(--accent-active-border) / 0.12) 100%),
+    var(--profile-trigger-image) center / cover no-repeat !important;
+  filter: saturate(0.5) contrast(1.08) brightness(0.98) blur(0.6px) !important;
+}
+
+.dashboard-profile-trigger:active {
+  transform: none !important;
+  filter: none !important;
+  opacity: 1 !important;
+}
+
+html[data-theme='dark'][data-accent] .dashboard-profile-trigger.has-image:active .dashboard-profile-trigger-bg,
+html[data-theme='light'][data-accent] .dashboard-profile-trigger.has-image:active .dashboard-profile-trigger-bg {
+  background:
+    linear-gradient(180deg, rgb(22 18 16 / 0.78) 0%, rgb(18 16 15 / 0.9) 100%),
+    linear-gradient(135deg, rgb(var(--accent-surface-strong) / 0.22) 0%, rgb(22 18 16 / 0.18) 100%),
+    var(--profile-trigger-image) center / cover no-repeat !important;
 }
 
 .dashboard-profile-avatar {
+  position: relative !important;
+  z-index: 1 !important;
   width: 44px !important;
   height: 44px !important;
   min-width: 44px !important;
-  border-radius: 12px !important;
+  border-radius: 5px !important;
+  opacity: 0.82 !important;
+  transition: opacity 0.18s ease, transform 0.22s ease !important;
 }
 
 .dashboard-profile-copy {
+  position: relative !important;
+  z-index: 1 !important;
   gap: 2px !important;
+  min-width: 0 !important;
+  overflow: hidden !important;
+  opacity: 0.84 !important;
+  transition: opacity 0.18s ease, transform 0.22s ease !important;
 }
 
 .dashboard-profile-copy strong {
   font-size: 1rem !important;
+  display: block !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
 }
 
 .dashboard-profile-copy span {
   font-size: 0.82rem !important;
+  display: block !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+}
+
+.dashboard-profile-trigger:hover .dashboard-profile-avatar,
+.dashboard-profile-trigger:hover .dashboard-profile-copy,
+.dashboard-profile-trigger.is-open .dashboard-profile-avatar,
+.dashboard-profile-trigger.is-open .dashboard-profile-copy {
+  transform: translateY(-3px) !important;
+  opacity: 1 !important;
+}
+
+.dashboard-profile-trigger:active .dashboard-profile-avatar,
+.dashboard-profile-trigger:active .dashboard-profile-copy {
+  transform: translateY(-1px) !important;
+  opacity: 1 !important;
 }
 
 .dashboard-brand {
-  margin: 0 0 4px !important;
+  display: flex !important;
+  align-items: center !important;
+  min-height: 48px !important;
+  margin: 0 !important;
+  padding: 12px 14px 10px !important;
+  font-size: 0.72rem !important;
+  background: #000000 !important;
+  border-top: 0 !important;
+  border-bottom: 0 !important;
+  font-weight: 600 !important;
+  letter-spacing: 0.04em !important;
+  text-transform: uppercase !important;
+  color: color-mix(in oklch, var(--color-sidebar-foreground) 86%, rgb(var(--accent-active) / 0.14)) !important;
 }
 
 .dashboard-nav {
   display: flex !important;
   flex-direction: column !important;
   gap: 6px !important;
-  padding: 0 !important;
+  padding: 12px !important;
 }
 
 .dashboard-nav-link,
@@ -1031,3 +1189,33 @@ html[data-accent='natural'] .badge.profiles-admin-badge.profiles-agreement-statu
   width: 100% !important;
   text-align: left !important;
 }
+
+@media (max-width: 900px) {
+  .dashboard-sidebar {
+    width: 100% !important;
+    min-width: 100% !important;
+    flex-direction: row !important;
+    flex-wrap: wrap !important;
+    align-items: center !important;
+  }
+
+  .dashboard-brand {
+    width: 100% !important;
+      background-color: #000000;
+
+  }
+
+  .dashboard-nav {
+    flex-direction: row !important;
+    flex-wrap: wrap !important;
+    width: 100% !important;
+  }
+
+  .dashboard-nav-link,
+  .dashboard-nav-trigger {
+    flex: 1 1 auto !important;
+    justify-content: center !important;
+    text-align: center !important;
+  }
+}
+
