@@ -914,9 +914,15 @@ export default function ReportsPage() {
     const pageHeight = doc.internal.pageSize.getHeight()
     const left = 42
     const right = pageWidth - 42
+    const currentAccent = typeof document !== 'undefined'
+      ? document.documentElement.getAttribute('data-accent') || 'natural'
+      : 'natural'
+    const isNaturalAccent = currentAccent === 'natural'
     const accent = readAccentRgbTriplet()
     const dark = [28, 28, 28]
     const muted = [99, 107, 122]
+    const reportHeadingText = isNaturalAccent ? dark : accent
+    const reportTableHeadText = isNaturalAccent ? dark : [255, 255, 255]
     const sectionGap = 18
     let currentY = 44
 
@@ -944,7 +950,7 @@ export default function ReportsPage() {
 
     const addSectionTitle = (title, note = '') => {
       addPageIfNeeded(64)
-      doc.setTextColor(...accent)
+      doc.setTextColor(...reportHeadingText)
       doc.setFont('helvetica', 'bold')
       doc.setFontSize(12)
       doc.text(title, left, currentY)
@@ -979,7 +985,7 @@ export default function ReportsPage() {
         body: items.map((item) => [item.label, String(item.value)]),
         theme: 'grid',
         styles: { fontSize: 9, cellPadding: 7, textColor: dark },
-        headStyles: { fillColor: accent, textColor: 255, fontStyle: 'bold' },
+        headStyles: { fillColor: accent, textColor: reportTableHeadText, fontStyle: 'bold' },
         alternateRowStyles: { fillColor: [248, 244, 239] }
       })
       currentY = getAutoTableEnd() + sectionGap
@@ -995,7 +1001,7 @@ export default function ReportsPage() {
         body: rows,
         theme: 'grid',
         styles: { fontSize: 8.5, cellPadding: 6, textColor: dark, overflow: 'linebreak' },
-        headStyles: { fillColor: accent, textColor: 255, fontStyle: 'bold' },
+        headStyles: { fillColor: accent, textColor: reportTableHeadText, fontStyle: 'bold' },
         alternateRowStyles: { fillColor: [248, 244, 239] }
       })
       currentY = getAutoTableEnd() + sectionGap

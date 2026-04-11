@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import * as platformSettingsService from '../services/platformSettingsService'
 import * as preferencesService from '../services/preferencesService'
 import { useAuth } from '../context/AuthContext'
-import { applyAccent, applyTheme, storeAccent } from '../utils/theme'
+import { ACCENT_VALUES, applyAccent, applyTheme, getStoredAccent, storeAccent } from '../utils/theme'
 
 const TIMEZONES = [
   'UTC',
@@ -13,7 +13,10 @@ const TIMEZONES = [
 ]
 
 const LOCKED_THEME = 'dark'
-const LOCKED_ACCENT = 'natural'
+const ACCENT_LABELS = {
+  natural: 'Natural',
+  orange: 'Orange'
+}
 const SETTINGS_TABS = [
   { id: 'organization', label: 'Organization' },
   { id: 'preferences', label: 'Preferences' },
@@ -33,7 +36,7 @@ export default function SettingsPage() {
   const [saved, setSaved] = useState(false)
   const [platformSaved, setPlatformSaved] = useState(false)
   const [platformSettings, setPlatformSettings] = useState(null)
-  const [accent] = useState(LOCKED_ACCENT)
+  const [accent, setAccent] = useState(getStoredAccent())
   const [currentTab, setCurrentTab] = useState(organization ? 'organization' : 'preferences')
   const isSuperadmin = user?.role === 'superadmin'
   const permissionOptions = [
@@ -57,7 +60,7 @@ export default function SettingsPage() {
       setPrefs({ ...prefsData, theme: LOCKED_THEME })
       setPlatformSettings(platformData)
       applyTheme(LOCKED_THEME)
-      applyAccent(LOCKED_ACCENT)
+      applyAccent(accent)
     } catch (e) {
       setError(e.message || 'Could not load settings')
     } finally {
@@ -133,8 +136,8 @@ export default function SettingsPage() {
       })
       setPrefs({ ...updated, theme: LOCKED_THEME })
       applyTheme(LOCKED_THEME)
-      storeAccent(LOCKED_ACCENT)
-      applyAccent(LOCKED_ACCENT)
+      storeAccent(accent)
+      applyAccent(accent)
       setSaved(true)
     } catch (err) {
       setError(err.message || 'Could not save')
@@ -242,7 +245,13 @@ export default function SettingsPage() {
             </label>
             <label>
               Accent
-              <input type="text" value="Natural" readOnly disabled className="settings-readonly" />
+              <select value={accent} onChange={(e) => setAccent(e.target.value)}>
+                {ACCENT_VALUES.map((value) => (
+                  <option key={value} value={value}>
+                    {ACCENT_LABELS[value] || value}
+                  </option>
+                ))}
+              </select>
             </label>
             <label>
               Timezone

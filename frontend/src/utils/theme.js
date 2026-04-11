@@ -3,7 +3,7 @@ const ACCENT_STORAGE_KEY = 'employment-portal.accent'
 
 export const DEFAULT_THEME = 'dark'
 export const DEFAULT_ACCENT = 'natural'
-export const ACCENT_VALUES = ['natural']
+export const ACCENT_VALUES = ['natural', 'orange']
 
 let systemThemeMedia = null
 let detachSystemThemeListener = null
@@ -13,7 +13,7 @@ function normalizeTheme(theme) {
 }
 
 function normalizeAccent(accent) {
-  return 'natural'
+  return ACCENT_VALUES.includes(accent) ? accent : DEFAULT_ACCENT
 }
 
 function resolveSystemTheme() {
@@ -68,7 +68,7 @@ export function getStoredTheme() {
 
 export function applyAccent(accent) {
   const root = document.documentElement
-  root.setAttribute('data-accent', 'natural')
+  root.setAttribute('data-accent', normalizeAccent(accent))
 }
 
 export function storeAccent(accent) {
@@ -80,5 +80,9 @@ export function storeAccent(accent) {
 }
 
 export function getStoredAccent() {
-  return 'natural'
+  try {
+    return normalizeAccent(window.localStorage.getItem(ACCENT_STORAGE_KEY))
+  } catch {
+    return DEFAULT_ACCENT
+  }
 }

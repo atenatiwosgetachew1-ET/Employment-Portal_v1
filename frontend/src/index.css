@@ -87,6 +87,32 @@ html[data-theme='dark'][data-accent='natural'] {
   --accent-surface-strong: 188 188 188;
 }
 
+html[data-accent='orange'] {
+  --accent-bg-start: 247 247 245;
+  --accent-bg-end: 241 239 234;
+  --accent-glow-1: 243 231 216;
+  --accent-glow-2: 236 223 208;
+  --accent-active: 178 103 35;
+  --accent-active-border: 145 80 25;
+  --accent-tile-muted: 251 239 224;
+  --accent-tile-hover: 245 225 202;
+  --accent-border: 233 208 180;
+  --accent-surface-strong: 112 69 32;
+}
+
+html[data-theme='dark'][data-accent='orange'] {
+  --accent-bg-start: 17 17 17;
+  --accent-bg-end: 17 17 17;
+  --accent-glow-1: 72 43 20;
+  --accent-glow-2: 56 33 17;
+  --accent-active: 194 117 45;
+  --accent-active-border: 158 94 34;
+  --accent-tile-muted: 42 30 22;
+  --accent-tile-hover: 58 39 26;
+  --accent-border: 86 54 31;
+  --accent-surface-strong: 101 61 29;
+}
+
 *,
 *::before,
 *::after {

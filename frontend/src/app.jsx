@@ -22,13 +22,13 @@ import SubscriptionPlansPage from './pages/SubscriptionPlansPage'
 import ProfilesPage from './pages/ProfilesPage'
 import TravelPage from './pages/TravelPage'
 import ProtectedRoute from './routes/ProtectedRoute'
-import { applyAccent, applyTheme } from './utils/theme'
+import { applyAccent, applyTheme, getStoredAccent } from './utils/theme'
 import './App.css'
 
 function AppRoutes() {
   useEffect(() => {
     applyTheme('dark')
-    applyAccent('natural')
+    applyAccent(getStoredAccent())
   }, [])
 
   return (
