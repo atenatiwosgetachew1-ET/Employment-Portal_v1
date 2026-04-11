@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useState } from 'react'
-import * as authService from '../services/authService'
 import * as platformSettingsService from '../services/platformSettingsService'
 import * as preferencesService from '../services/preferencesService'
 import { useAuth } from '../context/AuthContext'
@@ -13,38 +12,40 @@ const TIMEZONES = [
   'Asia/Tokyo'
 ]
 
-const ACCENT_OPTIONS = [{ value: 'orange', label: 'Orange' }]
+const ACCENT_OPTIONS = [
+  { value: 'natural', label: 'Natural' },
+  { value: 'orange', label: 'Orange' },
+  { value: 'blue', label: 'Blue' },
+  { value: 'emerald', label: 'Emerald' },
+  { value: 'slate', label: 'Slate' },
+  { value: 'lemon', label: 'Lemon' },
+  { value: 'yellow', label: 'Yellow' },
+  { value: 'red', label: 'Red' },
+  { value: 'pink', label: 'Pink' },
+  { value: 'cyan', label: 'Cyan' },
+  { value: 'brown', label: 'Brown' }
+]
 const SETTINGS_TABS = [
   { id: 'organization', label: 'Organization' },
-  { id: 'profile', label: 'Profile' },
   { id: 'preferences', label: 'Preferences' },
   { id: 'platform', label: 'Platform' }
 ]
 
 export default function SettingsPage() {
-  const { user, refreshUser } = useAuth()
+  const { user } = useAuth()
   const organization = user?.organization
   const subscription = user?.subscription
   const [prefs, setPrefs] = useState(null)
-  const [profile, setProfile] = useState({
-    username: '',
-    first_name: '',
-    last_name: '',
-    phone: ''
-  })
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
-  const [profileSaving, setProfileSaving] = useState(false)
   const [platformSaving, setPlatformSaving] = useState(false)
   const [error, setError] = useState('')
-  const [profileError, setProfileError] = useState('')
   const [platformError, setPlatformError] = useState('')
   const [saved, setSaved] = useState(false)
-  const [profileSaved, setProfileSaved] = useState(false)
   const [platformSaved, setPlatformSaved] = useState(false)
   const [platformSettings, setPlatformSettings] = useState(null)
   const [accent, setAccent] = useState(() => getStoredAccent())
-  const [currentTab, setCurrentTab] = useState(organization ? 'organization' : 'profile')
+  const [currentTab, setCurrentTab] = useState(organization ? 'organization' : 'preferences')
   const isSuperadmin = user?.role === 'superadmin'
   const permissionOptions = [
     { value: 'users.manage_all', label: 'Manage all users' },
@@ -80,30 +81,15 @@ export default function SettingsPage() {
   }, [load])
 
   useEffect(() => {
-    if (!user) return
-    setProfile({
-      username: user.username || '',
-      first_name: user.first_name || '',
-      last_name: user.last_name || '',
-      phone: user.phone || ''
-    })
-  }, [user])
-
-  useEffect(() => {
     if (currentTab !== 'platform') return
     if (!isSuperadmin) {
-      setCurrentTab(organization ? 'organization' : 'profile')
+      setCurrentTab(organization ? 'organization' : 'preferences')
     }
   }, [currentTab, isSuperadmin, organization])
 
   const handlePrefChange = (field, value) => {
     setPrefs((p) => (p ? { ...p, [field]: value } : p))
     setSaved(false)
-  }
-
-  const handleProfileChange = (field, value) => {
-    setProfile((p) => ({ ...p, [field]: value }))
-    setProfileSaved(false)
   }
 
   const handlePlatformChange = (field, value) => {
@@ -141,27 +127,6 @@ export default function SettingsPage() {
       }
     })
     setPlatformSaved(false)
-  }
-
-  const handleProfileSubmit = async (e) => {
-    e.preventDefault()
-    setProfileSaving(true)
-    setProfileError('')
-    setProfileSaved(false)
-    try {
-      await authService.patchProfile({
-        username: profile.username.trim(),
-        first_name: profile.first_name,
-        last_name: profile.last_name,
-        phone: profile.phone
-      })
-      await refreshUser()
-      setProfileSaved(true)
-    } catch (err) {
-      setProfileError(err.message || 'Could not save profile')
-    } finally {
-      setProfileSaving(false)
-    }
   }
 
   const handlePrefsSubmit = async (e) => {
@@ -276,63 +241,6 @@ export default function SettingsPage() {
         </article>
       ) : null}
 
-      {currentTab === 'profile' ? (
-        <article className="employee-summary-card settings-tab-card">
-          <h2 className="settings-section-title">Profile</h2>
-          <p className="muted-text settings-section-hint">
-            How you appear in the app. New Google accounts use your email and name automatically; you can refine them here.
-          </p>
-          {profileError && <p className="error-message">{profileError}</p>}
-          {profileSaved && <p className="settings-saved">Profile saved.</p>}
-          <form className="settings-form" onSubmit={handleProfileSubmit}>
-            <label>
-              Email
-              <input type="text" value={user?.email || ''} readOnly disabled className="settings-readonly" />
-            </label>
-            <label>
-              Username
-              <input
-                type="text"
-                value={profile.username}
-                onChange={(e) => handleProfileChange('username', e.target.value)}
-                autoComplete="username"
-                required
-              />
-            </label>
-            <label>
-              First name
-              <input
-                type="text"
-                value={profile.first_name}
-                onChange={(e) => handleProfileChange('first_name', e.target.value)}
-                autoComplete="given-name"
-              />
-            </label>
-            <label>
-              Last name
-              <input
-                type="text"
-                value={profile.last_name}
-                onChange={(e) => handleProfileChange('last_name', e.target.value)}
-                autoComplete="family-name"
-              />
-            </label>
-            <label>
-              Phone
-              <input
-                type="text"
-                value={profile.phone}
-                onChange={(e) => handleProfileChange('phone', e.target.value)}
-                autoComplete="tel"
-              />
-            </label>
-            <button type="submit" disabled={profileSaving}>
-              {profileSaving ? 'Saving...' : 'Save profile'}
-            </button>
-          </form>
-        </article>
-      ) : null}
-
       {currentTab === 'preferences' ? (
         <article className="employee-summary-card settings-tab-card">
           <h2 className="settings-section-title">Preferences</h2>
@@ -354,6 +262,7 @@ export default function SettingsPage() {
                 onChange={(e) => {
                   const nextAccent = e.target.value
                   setAccent(nextAccent)
+                  storeAccent(nextAccent)
                   applyAccent(nextAccent)
                   setSaved(false)
                 }}

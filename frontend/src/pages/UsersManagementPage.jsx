@@ -830,12 +830,18 @@ export default function UsersManagementPage() {
               <table className="users-table">
                 <thead>
                   <tr>
+                    <th>ID</th>
                     <th>User</th>
                     <th>Email</th>
-                    <th>Name</th>
+                    <th>First name</th>
+                    <th>Last name</th>
                     <th>Phone</th>
                     <th>Role</th>
+                    <th>Country</th>
+                    <th>Commission</th>
+                    <th>Salary</th>
                     <th>Side</th>
+                    <th>Staff role</th>
                     <th>Level</th>
                     <th>Active</th>
                     <th>Joined</th>
@@ -849,6 +855,7 @@ export default function UsersManagementPage() {
                     const isSelf = row.id === currentUser?.id
                     return (
                       <tr key={row.id}>
+                        <td>{row.id ?? '—'}</td>
                         <td>
                           <strong>{row.username}</strong>
                           {row.is_superuser && (
@@ -856,14 +863,17 @@ export default function UsersManagementPage() {
                           )}
                         </td>
                         <td>{row.email || '—'}</td>
-                        <td>
-                          {[row.first_name, row.last_name].filter(Boolean).join(' ') || '—'}
-                        </td>
+                        <td>{row.first_name || '—'}</td>
+                        <td>{row.last_name || '—'}</td>
                         <td>{row.phone || '—'}</td>
                         <td>{roleSelectOptions.find((r) => r.value === row.role)?.label || row.role || '—'}</td>
+                        <td>{row.role === 'customer' ? row.agent_country || '—' : '—'}</td>
+                        <td>{row.role === 'customer' ? (row.agent_commission ?? '—') : '—'}</td>
+                        <td>{row.role === 'customer' ? (row.agent_salary ?? '—') : '—'}</td>
                         <td>
                           {row.role === 'staff' ? row.staff_side || '—' : '—'}
                         </td>
+                        <td>{row.role === 'staff' ? row.staff_level_label || '—' : '—'}</td>
                         <td>
                           {row.role === 'staff' ? (
                             <select

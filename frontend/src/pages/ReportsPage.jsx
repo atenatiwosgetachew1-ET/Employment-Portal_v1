@@ -15,6 +15,33 @@ const REPORT_TABS = [
 ]
 const COMMISSION_SETTLEMENT_STORAGE_KEY = 'employment-portal.commission-settlements'
 
+function readAccentRgbTriplet() {
+  if (typeof window === 'undefined') return [159, 106, 59]
+  const root = document.documentElement
+  const raw = getComputedStyle(root).getPropertyValue('--accent-active').trim()
+  if (!raw) return [159, 106, 59]
+  const values = raw
+    .split(/\s+/)
+    .map((part) => Number.parseInt(part, 10))
+    .filter((part) => Number.isFinite(part))
+    .slice(0, 3)
+  return values.length === 3 ? values : [159, 106, 59]
+}
+
+function accentRgb(alpha = 1) {
+  const [r, g, b] = readAccentRgbTriplet()
+  return `rgb(${r} ${g} ${b} / ${alpha})`
+}
+
+function createAccentPalette(count) {
+  const total = Math.max(count, 1)
+  return Array.from({ length: total }, (_, index) => {
+    const ratio = total === 1 ? 0.6 : index / Math.max(total - 1, 1)
+    const alpha = 0.96 - ratio * 0.42
+    return accentRgb(Math.max(0.34, alpha))
+  })
+}
+
 function formatPercent(value) {
   if (!Number.isFinite(value)) return '--'
   return `${Math.round(value)}%`
@@ -145,7 +172,7 @@ async function fetchAllAuditLogs() {
   return results
 }
 
-function D3HorizontalBarChart({ data, title, subtitle, color = '#c97f3d', formatter = (value) => value, compact = false }) {
+function D3HorizontalBarChart({ data, title, subtitle, color, formatter = (value) => value, compact = false }) {
   const chartData = Array.isArray(data) ? data.filter((item) => Number.isFinite(Number(item?.value))) : []
 
   if (!chartData.length) {
@@ -176,6 +203,7 @@ function D3HorizontalBarChart({ data, title, subtitle, color = '#c97f3d', format
     .range([margin.top, margin.top + innerHeight])
     .padding(0.28)
   const ticks = xScale.ticks(4)
+  const resolvedColor = color || accentRgb(0.88)
 
   return (
     <article className={`reports-chart-card${compact ? ' is-compact' : ''}`}>
@@ -225,7 +253,7 @@ function D3HorizontalBarChart({ data, title, subtitle, color = '#c97f3d', format
                   width={barWidth}
                   height={barHeight}
                   rx="8"
-                  fill={color}
+                  fill={resolvedColor}
                   className="reports-chart-bar"
                 />
                 <text
@@ -342,7 +370,7 @@ function D3DonutChart({ data, title, subtitle, formatter = (value) => value }) {
   const radius = 78
   const centerX = 158
   const centerY = 128
-  const colors = ['#c97f3d', '#8f5d34', '#6d452b', '#d89b62', '#4d3325', '#a66937']
+  const colors = createAccentPalette(chartData.length)
   const pie = d3.pie().value((item) => Number(item.value)).sort(null)(chartData)
   const arc = d3.arc().innerRadius(radius * 0.58).outerRadius(radius)
   const total = d3.sum(chartData, (item) => Number(item.value))
@@ -886,7 +914,7 @@ export default function ReportsPage() {
     const pageHeight = doc.internal.pageSize.getHeight()
     const left = 42
     const right = pageWidth - 42
-    const accent = [159, 106, 59]
+    const accent = readAccentRgbTriplet()
     const dark = [28, 28, 28]
     const muted = [99, 107, 122]
     const sectionGap = 18
@@ -1170,7 +1198,6 @@ export default function ReportsPage() {
               title="Under-process age buckets"
               subtitle="Active under-process employees grouped by how long they have been sitting in process."
               data={employeeReport.processAgeChart}
-              color="#8f5d34"
               formatter={(value) => `${value} employees`}
             />
           </div>
@@ -1215,7 +1242,6 @@ export default function ReportsPage() {
               title="Settled cases by agent"
               subtitle="How many employee commission cases each top agent has already settled."
               data={commissionReport.settlementCasesChart}
-              color="#8f5d34"
               formatter={(value) => `${value} cases`}
             />
           </div>
@@ -1255,7 +1281,6 @@ export default function ReportsPage() {
               title="Registration leaderboard"
               subtitle="Users with the strongest employee registration volume."
               data={userReport.registrarChart}
-              color="#8f5d34"
               formatter={(value) => `${value} registrations`}
             />
           </div>
@@ -1264,14 +1289,12 @@ export default function ReportsPage() {
               title="Document attachment activity"
               subtitle="Proxy volume of uploaded employee documents by registrar."
               data={userReport.attachmentChart}
-              color="#7e5230"
               formatter={(value) => `${value} documents`}
             />
             <D3HorizontalBarChart
               title="Agent favourites"
               subtitle="Organization-side users whose employees are picked most often by agents."
               data={userReport.favoriteChart}
-              color="#9f6a3b"
               formatter={(value) => `${value} selections`}
             />
           </div>
@@ -1313,7 +1336,6 @@ export default function ReportsPage() {
               title="Heavy loading areas"
               subtitle="Operational areas currently carrying the most system load."
               data={systemReport.heavyChart}
-              color="#8f5d34"
               formatter={(value) => `${value}`}
             />
           </div>

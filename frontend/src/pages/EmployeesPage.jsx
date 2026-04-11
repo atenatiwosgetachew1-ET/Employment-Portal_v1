@@ -36,6 +36,11 @@ const ALLOWED_ATTACHMENT_EXTENSIONS = ['.pdf', '.jpg', '.jpeg', '.png']
 const REGISTRATION_TEMPLATE_STORAGE_KEY = 'employment-portal.employee-registration-template'
 const TRAVEL_CONFIRMATION_DECLINED_STORAGE_KEY = 'employment-portal.travel-confirmation-declined'
 const TRAVEL_CONFIRMATION_CONFIRMED_STORAGE_KEY = 'employment-portal.travel-confirmation-confirmed'
+const COMMISSION_SETTLEMENT_STORAGE_KEY = 'employment-portal.commission-settlements'
+const COMMISSION_STORAGE_DB_NAME = 'employment-portal-storage'
+const COMMISSION_STORAGE_DB_VERSION = 1
+const COMMISSION_STORAGE_SETTLEMENT_STORE = 'commission-settlements'
+const COMMISSION_STORAGE_PRIMARY_KEY = 'primary'
 const TEMPLATE_FORM_FIELDS = [
   'application_countries',
   'profession',
@@ -418,7 +423,51 @@ function formatDateTime(value) {
 }
 
 function employedCommissionLabel(employee) {
+  if (employee?.settled_commission) return 'Settled commission'
   return employee?.did_travel ? 'Unsettled commission' : 'Commission pending travel'
+}
+
+function openCommissionStorageDb() {
+  if (typeof window === 'undefined' || !window.indexedDB) return Promise.resolve(null)
+  return new Promise((resolve, reject) => {
+    const request = window.indexedDB.open(COMMISSION_STORAGE_DB_NAME, COMMISSION_STORAGE_DB_VERSION)
+    request.onupgradeneeded = () => {
+      const db = request.result
+      if (!db.objectStoreNames.contains(COMMISSION_STORAGE_SETTLEMENT_STORE)) {
+        db.createObjectStore(COMMISSION_STORAGE_SETTLEMENT_STORE)
+      }
+    }
+    request.onsuccess = () => resolve(request.result)
+    request.onerror = () => reject(request.error || new Error('Could not open browser storage'))
+  })
+}
+
+async function readStoredSettlements() {
+  if (typeof window === 'undefined') return []
+  try {
+    const db = await openCommissionStorageDb()
+    if (db) {
+      const settlements = await new Promise((resolve, reject) => {
+        const transaction = db.transaction(COMMISSION_STORAGE_SETTLEMENT_STORE, 'readonly')
+        const store = transaction.objectStore(COMMISSION_STORAGE_SETTLEMENT_STORE)
+        const request = store.get(COMMISSION_STORAGE_PRIMARY_KEY)
+        request.onsuccess = () => resolve(Array.isArray(request.result) ? request.result : [])
+        request.onerror = () => reject(request.error || new Error('Could not read settlements'))
+      })
+      db.close()
+      if (settlements.length > 0) return settlements
+    }
+  } catch {
+    // fall through to legacy localStorage
+  }
+
+  try {
+    const raw = window.localStorage.getItem(COMMISSION_SETTLEMENT_STORAGE_KEY)
+    const parsed = raw ? JSON.parse(raw) : []
+    return Array.isArray(parsed) ? parsed : []
+  } catch {
+    return []
+  }
 }
 
 function progressTone(progress) {
@@ -727,6 +776,7 @@ export default function EmployeesPage() {
   const [previewDragging, setPreviewDragging] = useState(false)
   const [travelConfirmationDeclinedIds, setTravelConfirmationDeclinedIds] = useState(() => readTravelConfirmationDeclinedIds())
   const [travelConfirmationConfirmedIds, setTravelConfirmationConfirmedIds] = useState(() => readTravelConfirmationConfirmedIds())
+  const [settledCommissionIds, setSettledCommissionIds] = useState([])
   const [travelPendingOpen, setTravelPendingOpen] = useState(false)
   const [currentView, setCurrentView] = useState('list')
   const [activeStep, setActiveStep] = useState(0)
@@ -1106,6 +1156,20 @@ export default function EmployeesPage() {
     }, 40)
     return () => window.clearTimeout(timer)
   }, [activeStep, currentView, modalError])
+
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      const settlements = await readStoredSettlements()
+      if (cancelled) return
+      setSettledCommissionIds(
+        settlements.flatMap((settlement) => (settlement.employeeIds || []).map((id) => String(id)))
+      )
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   const availableSkillOptions = useMemo(() => PROFESSION_SKILLS[form.profession] || [], [form.profession])
   const salaryOptions = useMemo(() => {
@@ -1778,7 +1842,10 @@ export default function EmployeesPage() {
   if (!canManageEmployees) return <Navigate to="/dashboard" replace />
 
   const employees = employeesData?.results ?? []
-  const visibleEmployees = employees
+  const visibleEmployees = employees.map((employee) => ({
+    ...employee,
+    settled_commission: employee?.settled_commission || settledCommissionIds.includes(String(employee.id))
+  }))
   const travelConfirmationPendingEmployees = currentView === 'employed'
     ? visibleEmployees.filter((employee) => isEmployeeTravelConfirmationPending(employee))
     : []
@@ -2562,7 +2629,7 @@ export default function EmployeesPage() {
                         </div>
                       </div>
                       <div className="employee-card-header-meta">
-                        {currentView === 'selected' && isSelected ? <span className="badge badge-success">Selected</span> : null}
+                        {isAgentSideUser && isSelectedByCurrentAgent ? <span className="badge badge-success">Selected</span> : null}
                         {employee.return_request?.status === 'pending' ? <span className="badge badge-warning">Return requested</span> : null}
                         <span className={`badge employee-card-status-badge ${employeeStatusBadgeClass(employee, currentView)} ${employeeStatusBadgeVariantClass(employee, currentView)}`.trim()}>{employeeStatusLabel(employee, currentView)}</span>
                       </div>
@@ -2592,7 +2659,9 @@ export default function EmployeesPage() {
                       <div className="employee-employed-summary">
                         <div className="employee-employed-block">
                           <strong>Commission</strong>
-                          <span className="badge badge-warning">{employedCommissionLabel(employee)}</span>
+                          <span className={`badge ${employee?.settled_commission ? 'badge-muted commission-settled-badge' : 'badge-warning'}`.trim()}>
+                            {employedCommissionLabel(employee)}
+                          </span>
                           <p className="muted-text">Collection from the agent side to the organization is a future settlement concept.</p>
                         </div>
                       </div>
@@ -2696,16 +2765,6 @@ export default function EmployeesPage() {
                               : 'Initiate process'}
                           </button>
                         </>
-                      ) : null}
-                      {isMainAgentAccount && isUnderProcess ? (
-                        <button
-                          type="button"
-                          className="btn-danger"
-                          onClick={(event) => { event.stopPropagation(); handleDeclineProcess(employee) }}
-                          disabled={readOnly || actionBusyId === employee.id || !isSelectedByCurrentAgent}
-                        >
-                          {actionBusyId === employee.id ? 'Saving...' : 'Decline process'}
-                        </button>
                       ) : null}
                       {canManageOrganizationProcesses && isUnderProcess ? (
                         <button

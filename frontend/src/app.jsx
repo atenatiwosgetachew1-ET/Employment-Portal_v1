@@ -24,6 +24,7 @@ import TravelPage from './pages/TravelPage'
 import ProtectedRoute from './routes/ProtectedRoute'
 import { applyAccent, applyTheme, getStoredAccent, getStoredTheme } from './utils/theme'
 import './App.css'
+import './styles/overrides.css'
 
 function AppRoutes() {
   useEffect(() => {

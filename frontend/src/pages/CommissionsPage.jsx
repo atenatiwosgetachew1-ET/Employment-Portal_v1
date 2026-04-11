@@ -23,6 +23,26 @@ const COLLECTED_RANGE_TABS = [
 const COMMISSION_SETTLEMENT_STORAGE_KEY = 'employment-portal.commission-settlements'
 const COMMISSION_SETTLEMENT_REQUESTS_STORAGE_KEY = 'employment-portal.commission-settlement-requests'
 const TRAVEL_CONFIRMATION_CONFIRMED_STORAGE_KEY = 'employment-portal.travel-confirmation-confirmed'
+const COMMISSION_STORAGE_DB_NAME = 'employment-portal-storage'
+const COMMISSION_STORAGE_DB_VERSION = 1
+const COMMISSION_STORAGE_SETTLEMENT_STORE = 'commission-settlements'
+const COMMISSION_STORAGE_PRIMARY_KEY = 'primary'
+const MAX_SETTLEMENT_RECEIPT_FILE_BYTES = 5 * 1024 * 1024
+const MAX_SETTLEMENT_RECEIPT_TOTAL_BYTES = 15 * 1024 * 1024
+const MAX_SETTLEMENT_STORAGE_CHARS = 4_500_000
+
+function readAccentRgbTriplet() {
+  if (typeof window === 'undefined') return [159, 106, 59]
+  const root = document.documentElement
+  const raw = getComputedStyle(root).getPropertyValue('--accent-active').trim()
+  if (!raw) return [159, 106, 59]
+  const values = raw
+    .split(/\s+/)
+    .map((part) => Number.parseInt(part, 10))
+    .filter((part) => Number.isFinite(part))
+    .slice(0, 3)
+  return values.length === 3 ? values : [159, 106, 59]
+}
 
 function isAgentSideWorkspace(user) {
   if (user?.agent_context?.is_agent_side) return true
@@ -61,6 +81,7 @@ function isSettledCommissionEmployee(employee) {
 }
 
 function commissionStatus(employee) {
+  if (employee?.settled_commission) return 'Settled commission'
   return isCommissionEligibleEmployee(employee) ? 'Unsettled commission' : 'Not commission-eligible'
 }
 
@@ -97,6 +118,8 @@ function employeeBelongsToAgent(employee, user) {
   const userCandidates = [
     displayActorName(user),
     displayAgentName(user),
+    user?.agent_context?.agent_name,
+    user?.staff_side,
     user?.username,
     user?.email
   ]
@@ -342,8 +365,43 @@ function settlementOwnerKey(user) {
   return `workspace:${(user?.staff_side || user?.organization?.name || 'default').trim().toLowerCase()}`
 }
 
-function readStoredSettlements() {
+function openCommissionStorageDb() {
+  if (typeof window === 'undefined' || !window.indexedDB) return Promise.resolve(null)
+  return new Promise((resolve, reject) => {
+    const request = window.indexedDB.open(COMMISSION_STORAGE_DB_NAME, COMMISSION_STORAGE_DB_VERSION)
+    request.onupgradeneeded = () => {
+      const db = request.result
+      if (!db.objectStoreNames.contains(COMMISSION_STORAGE_SETTLEMENT_STORE)) {
+        db.createObjectStore(COMMISSION_STORAGE_SETTLEMENT_STORE)
+      }
+    }
+    request.onsuccess = () => resolve(request.result)
+    request.onerror = () => reject(request.error || new Error('Could not open browser storage'))
+  })
+}
+
+async function readStoredSettlements() {
   if (typeof window === 'undefined') return []
+  try {
+    const db = await openCommissionStorageDb()
+    if (db) {
+      const settlements = await new Promise((resolve, reject) => {
+        const transaction = db.transaction(COMMISSION_STORAGE_SETTLEMENT_STORE, 'readonly')
+        const store = transaction.objectStore(COMMISSION_STORAGE_SETTLEMENT_STORE)
+        const request = store.get(COMMISSION_STORAGE_PRIMARY_KEY)
+        request.onsuccess = () => {
+          const value = request.result
+          resolve(Array.isArray(value) ? value : [])
+        }
+        request.onerror = () => reject(request.error || new Error('Could not read settlement storage'))
+      })
+      db.close()
+      if (settlements.length > 0) return settlements
+    }
+  } catch {
+    // fall back to legacy localStorage below
+  }
+
   try {
     const raw = window.localStorage.getItem(COMMISSION_SETTLEMENT_STORAGE_KEY)
     const parsed = raw ? JSON.parse(raw) : []
@@ -353,9 +411,44 @@ function readStoredSettlements() {
   }
 }
 
-function writeStoredSettlements(settlements) {
+async function writeStoredSettlements(settlements) {
   if (typeof window === 'undefined') return
-  window.localStorage.setItem(COMMISSION_SETTLEMENT_STORAGE_KEY, JSON.stringify(settlements))
+  try {
+    const db = await openCommissionStorageDb()
+    if (db) {
+      await new Promise((resolve, reject) => {
+        const transaction = db.transaction(COMMISSION_STORAGE_SETTLEMENT_STORE, 'readwrite')
+        const store = transaction.objectStore(COMMISSION_STORAGE_SETTLEMENT_STORE)
+        store.put(settlements, COMMISSION_STORAGE_PRIMARY_KEY)
+        transaction.oncomplete = () => resolve()
+        transaction.onerror = () => reject(transaction.error || new Error('Could not save payment receipts in browser storage'))
+      })
+      db.close()
+      try {
+        window.localStorage.removeItem(COMMISSION_SETTLEMENT_STORAGE_KEY)
+      } catch {
+        // ignore cleanup failure
+      }
+      return
+    }
+  } catch (error) {
+    if (error?.name === 'QuotaExceededError') {
+      throw new Error('Receipt files are too large to save in the browser. Try smaller image/PDF files.')
+    }
+  }
+
+  const serialized = JSON.stringify(settlements)
+  if (serialized.length > MAX_SETTLEMENT_STORAGE_CHARS) {
+    throw new Error('Receipt files are too large to save in the browser. Try smaller image/PDF files.')
+  }
+  try {
+    window.localStorage.setItem(COMMISSION_SETTLEMENT_STORAGE_KEY, serialized)
+  } catch (error) {
+    if (error?.name === 'QuotaExceededError') {
+      throw new Error('Receipt files are too large to save in the browser. Try smaller image/PDF files.')
+    }
+    throw error
+  }
 }
 
 function readStoredSettlementRequests() {
@@ -504,6 +597,8 @@ export default function CommissionsPage() {
   const [selectedSettlementEmployeeIds, setSelectedSettlementEmployeeIds] = useState([])
   const [settlementDate, setSettlementDate] = useState(() => new Date().toISOString().slice(0, 10))
   const [settlementAmount, setSettlementAmount] = useState('')
+  const [editingSettlementRecord, setEditingSettlementRecord] = useState(null)
+  const [settlementAmountEditable, setSettlementAmountEditable] = useState(false)
   const [settlementAmountTouched, setSettlementAmountTouched] = useState(false)
   const [settlementReceiptFiles, setSettlementReceiptFiles] = useState([null, null, null])
   const [activeSettlementRequest, setActiveSettlementRequest] = useState(null)
@@ -517,7 +612,7 @@ export default function CommissionsPage() {
 
   const canManageEmployees = Boolean(user?.feature_flags?.employees_enabled)
   const isAgentSideUser = isAgentSideWorkspace(user)
-  const canRegisterSettlements = isAgentSideUser && user?.role === 'customer'
+  const canRegisterSettlements = isAgentSideUser
   const canCreateSettlementRequests = !isAgentSideUser
   const canViewCollectedAnalytics = !isAgentSideUser
   const canViewAgentDirectory = !isAgentSideUser
@@ -656,9 +751,10 @@ export default function CommissionsPage() {
 
     try {
       const scope = isAgentSideUser ? 'mine' : 'organization'
-      const [baseEmployees, processEmployees] = await Promise.all([
+      const [baseEmployees, processEmployees, employedEmployees] = await Promise.all([
         fetchAllEmployeePages({}),
-        fetchAllEmployeePages({ processScope: scope })
+        fetchAllEmployeePages({ processScope: scope }),
+        fetchAllEmployeePages({ employedScope: scope })
       ])
       const applyTravelOverrides = (employee) => (
         travelConfirmationConfirmedIds.includes(employee?.id)
@@ -679,6 +775,15 @@ export default function CommissionsPage() {
         }
       })
       processEmployees.map(applyTravelOverrides).forEach((employee) => {
+        if (
+          isCommissionEligibleEmployee(employee) &&
+          (!isAgentSideUser || employeeBelongsToAgent(employee, user)) &&
+          !uniqueUnsettledEmployees.has(employee.id)
+        ) {
+          uniqueUnsettledEmployees.set(employee.id, employee)
+        }
+      })
+      employedEmployees.map(applyTravelOverrides).forEach((employee) => {
         if (
           isCommissionEligibleEmployee(employee) &&
           (!isAgentSideUser || employeeBelongsToAgent(employee, user)) &&
@@ -716,12 +821,19 @@ export default function CommissionsPage() {
   }, [canManageEmployees, loadCommissionBoard])
 
   useEffect(() => {
-    const allSettlements = readStoredSettlements()
-    setSettlements(
-      isAgentSideUser
-        ? allSettlements.filter((item) => item.ownerKey === ownerKey)
-        : allSettlements
-    )
+    let cancelled = false
+    ;(async () => {
+      const allSettlements = await readStoredSettlements()
+      if (cancelled) return
+      setSettlements(
+        isAgentSideUser
+          ? allSettlements.filter((item) => item.ownerKey === ownerKey)
+          : allSettlements
+      )
+    })()
+    return () => {
+      cancelled = true
+    }
   }, [isAgentSideUser, ownerKey])
 
   useEffect(() => {
@@ -733,11 +845,11 @@ export default function CommissionsPage() {
     )
   }, [isAgentSideUser, user])
 
-  const persistSettlements = useCallback((nextOwnedSettlements) => {
-    const allSettlements = readStoredSettlements()
+  const persistSettlements = useCallback(async (nextOwnedSettlements) => {
+    const allSettlements = await readStoredSettlements()
     const otherSettlements = allSettlements.filter((item) => item.ownerKey !== ownerKey)
     const nextAllSettlements = [...otherSettlements, ...nextOwnedSettlements]
-    writeStoredSettlements(nextAllSettlements)
+    await writeStoredSettlements(nextAllSettlements)
     setSettlements(isAgentSideUser ? nextOwnedSettlements : nextAllSettlements)
   }, [isAgentSideUser, ownerKey])
 
@@ -777,13 +889,23 @@ export default function CommissionsPage() {
   const settlementEligibleEmployees = useMemo(() => {
     if (!canRegisterSettlements) return []
 
-    const settlementSource = activeSettlementRequest
-      ? unsettledCases.filter((employee) => (activeSettlementRequest.employeeIds || []).map((id) => String(id)).includes(String(employee.id)))
-      : unsettledCases
+    if (activeSettlementRequest) {
+      const requestedEmployeeIds = [
+        ...(activeSettlementRequest.employeeIds || []),
+        ...((activeSettlementRequest.employees || []).map((employee) => employee.id))
+      ].map((id) => String(id))
 
-    const ownedEmployees = settlementSource.filter((employee) => employeeBelongsToAgent(employee, user))
-    return ownedEmployees.length > 0 ? ownedEmployees : settlementSource
-  }, [activeSettlementRequest, canRegisterSettlements, unsettledCases, user])
+      const matchingLiveEmployees = unsettledCases.filter((employee) => requestedEmployeeIds.includes(String(employee.id)))
+      if (matchingLiveEmployees.length > 0) return matchingLiveEmployees
+
+      return (activeSettlementRequest.employees || []).map((employee) => ({
+        ...employee,
+        settled_commission: false
+      }))
+    }
+
+    return unsettledCases
+  }, [activeSettlementRequest, canRegisterSettlements, unsettledCases])
 
   const unsettledVisibleCases = useMemo(() => {
     const query = search.trim().toLowerCase()
@@ -1080,7 +1202,7 @@ export default function CommissionsPage() {
     const pageHeight = doc.internal.pageSize.getHeight()
     const left = 42
     const right = pageWidth - 42
-    const accent = [159, 106, 59]
+    const accent = readAccentRgbTriplet()
     const dark = [28, 28, 28]
     const muted = [99, 107, 122]
     let currentY = 46
@@ -1314,10 +1436,10 @@ export default function CommissionsPage() {
   }, [agentRateLookup, currentAgentDisplayName, selectedSettlementEmployeeIds.length, user])
 
   useEffect(() => {
-    if (!settlementAmountTouched) {
+    if (!settlementAmountEditable) {
       setSettlementAmount(expectedSettlementAmount === null ? '' : String(expectedSettlementAmount))
     }
-  }, [expectedSettlementAmount, settlementAmountTouched])
+  }, [expectedSettlementAmount, settlementAmountEditable])
 
   const agentSettlementCounts = useMemo(() => {
     return settlements.reduce((acc, settlement) => {
@@ -1443,6 +1565,8 @@ export default function CommissionsPage() {
     setSelectedSettlementEmployeeIds([])
     setSettlementDate(new Date().toISOString().slice(0, 10))
     setSettlementAmount('')
+    setEditingSettlementRecord(null)
+    setSettlementAmountEditable(false)
     setSettlementAmountTouched(false)
     setSettlementReceiptFiles([null, null, null])
     setSettlementError('')
@@ -1450,13 +1574,29 @@ export default function CommissionsPage() {
   }, [])
 
   const openSettlementModal = useCallback((request = null) => {
+    const normalizedRequest = request && typeof request === 'object' && !('nativeEvent' in request) ? request : null
     resetSettlementForm()
-    setActiveSettlementRequest(request)
-    if (request?.employeeIds?.length) {
-      setSelectedSettlementEmployeeIds(request.employeeIds)
+    setActiveSettlementRequest(normalizedRequest)
+    const requestEmployeeIds = normalizedRequest
+      ? [
+          ...(normalizedRequest.employeeIds || []),
+          ...((normalizedRequest.employees || []).map((employee) => employee.id))
+        ]
+      : []
+    if (requestEmployeeIds.length) {
+      setSelectedSettlementEmployeeIds(Array.from(new Set(requestEmployeeIds)))
+    }
+    const linkedSettlement = normalizedRequest?.settlementId
+      ? settlements.find((item) => String(item.id) === String(normalizedRequest.settlementId)) || null
+      : null
+    if (linkedSettlement) {
+      setEditingSettlementRecord(linkedSettlement)
+      setSettlementAmount(linkedSettlement.totalCommissionValue === null || linkedSettlement.totalCommissionValue === undefined ? '' : String(linkedSettlement.totalCommissionValue))
+      setSettlementAmountTouched(true)
+      setSettlementAmountEditable(true)
     }
     setSettlementModalOpen(true)
-  }, [resetSettlementForm])
+  }, [resetSettlementForm, settlements])
 
   const closeSettlementModal = useCallback(() => {
     setSettlementModalOpen(false)
@@ -1464,8 +1604,21 @@ export default function CommissionsPage() {
   }, [resetSettlementForm])
 
   const handleSettlementReceiptPick = useCallback((index, file) => {
+    if (file && file.size > MAX_SETTLEMENT_RECEIPT_FILE_BYTES) {
+      setSettlementError(`Receipt "${file.name}" is too large. Keep each receipt under ${Math.round(MAX_SETTLEMENT_RECEIPT_FILE_BYTES / 1024)} KB.`)
+      return
+    }
+
+    const nextFiles = settlementReceiptFiles.map((item, itemIndex) => (itemIndex === index ? file || null : item))
+    const totalBytes = nextFiles.reduce((sum, item) => sum + (item?.size || 0), 0)
+    if (totalBytes > MAX_SETTLEMENT_RECEIPT_TOTAL_BYTES) {
+      setSettlementError(`Receipt files are too large together. Keep the total under ${Math.round(MAX_SETTLEMENT_RECEIPT_TOTAL_BYTES / 1024)} KB.`)
+      return
+    }
+
+    setSettlementError('')
     setSettlementReceiptFiles((prev) => prev.map((item, itemIndex) => (itemIndex === index ? file || null : item)))
-  }, [])
+  }, [settlementReceiptFiles])
 
   const handleSettlementEmployeeToggle = useCallback((employeeId) => {
     if (activeSettlementRequest) return
@@ -1608,23 +1761,23 @@ export default function CommissionsPage() {
 
   const handleRegisterSettlement = useCallback(async () => {
     if (selectedSettlementEmployeeIds.length === 0) {
-      setSettlementError('Choose at least one employee for this settlement.')
+      setSettlementError('Select at least one employee to register this payment.')
       return
     }
 
-    if (!settlementReceiptFiles.some(Boolean)) {
-      setSettlementError('Attach at least one bank receipt for this settlement.')
+    if (!settlementReceiptFiles.some(Boolean) && !(editingSettlementRecord?.receipts || []).length) {
+      setSettlementError('Attach at least one bank receipt before submitting this payment.')
       return
     }
 
       const selectedEmployees = settlementEligibleEmployees.filter((employee) => selectedSettlementEmployeeIds.includes(employee.id))
       if (selectedEmployees.length === 0) {
-        setSettlementError('The selected employees are no longer available for settlement.')
+        setSettlementError('No eligible employees are currently available for this payment.')
         return
       }
       const parsedSettlementAmount = settlementAmount === '' ? null : Number(settlementAmount)
       if (settlementAmount === '' || Number.isNaN(parsedSettlementAmount) || parsedSettlementAmount < 0) {
-        setSettlementError('Enter a valid settlement amount.')
+        setSettlementError('Enter a valid settlement amount before submitting this payment.')
         return
       }
 
@@ -1634,21 +1787,22 @@ export default function CommissionsPage() {
       const fallbackRate = numericCommissionRate(user?.agent_commission || user?.profile?.agent_commission)
       const agentName = selectedEmployees[0] ? agentNameForEmployee(selectedEmployees[0]) : currentAgentDisplayName
       const effectiveRate = agentRateLookup[agentName] ?? fallbackRate ?? null
-      const receipts = await Promise.all(
-        settlementReceiptFiles
-          .filter(Boolean)
-          .map(async (file, index) => ({
-            id: `${Date.now()}-receipt-${index}`,
-            label: file.name,
-            note: 'Bank receipt attachment',
-            name: file.name,
-            mimeType: file.type || '',
-            dataUrl: await readFileAsDataUrl(file)
-          }))
-      )
+      const pickedReceiptFiles = settlementReceiptFiles.filter(Boolean)
+      const receipts = pickedReceiptFiles.length > 0
+        ? await Promise.all(
+            pickedReceiptFiles.map(async (file, index) => ({
+              id: `${Date.now()}-receipt-${index}`,
+              label: file.name,
+              note: 'Bank receipt attachment',
+              name: file.name,
+              mimeType: file.type || '',
+              dataUrl: await readFileAsDataUrl(file)
+            }))
+          )
+        : (editingSettlementRecord?.receipts || [])
 
       const settlementRecord = {
-        id: `settlement-${Date.now()}`,
+        id: editingSettlementRecord?.id || `settlement-${Date.now()}`,
         ownerKey,
         agentName,
         employeeIds: selectedEmployees.map((employee) => employee.id),
@@ -1656,11 +1810,15 @@ export default function CommissionsPage() {
         rate: effectiveRate,
         totalCommissionValue: parsedSettlementAmount,
         settledAt: new Date().toISOString().slice(0, 10),
-        createdAt: new Date().toISOString(),
+        createdAt: editingSettlementRecord?.createdAt || new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
         receipts
       }
 
-      persistSettlements([...settlements, settlementRecord])
+      const nextSettlements = editingSettlementRecord
+        ? settlements.map((item) => (item.id === editingSettlementRecord.id ? settlementRecord : item))
+        : [...settlements, settlementRecord]
+      persistSettlements(nextSettlements)
       if (activeSettlementRequest) {
         const nextRequests = settlementRequests.map((request) =>
           request.id === activeSettlementRequest.id
@@ -1668,7 +1826,11 @@ export default function CommissionsPage() {
                 ...request,
                 status: 'settled',
                 settledAt: settlementRecord.settledAt,
-                settlementId: settlementRecord.id
+                settlementId: settlementRecord.id,
+                employees: (request.employees || []).map((employee) => ({
+                  ...employee,
+                  settled_commission: true
+                }))
               }
             : request
         )
@@ -1682,14 +1844,23 @@ export default function CommissionsPage() {
       setOpenSettledGroups((prev) => ({ ...prev, [settlementRecord.id]: true }))
       setOpenSettlementEmployees((prev) => ({ ...prev, [settlementRecord.id]: false }))
       closeSettlementModal()
-      showToast(activeSettlementRequest ? 'Settlement request settled successfully.' : 'Settlement registered successfully.', { tone: 'success' })
+      showToast(
+        editingSettlementRecord
+          ? 'Payment updated successfully.'
+          : activeSettlementRequest
+            ? 'Payment request settled successfully.'
+            : 'Payment registered successfully.',
+        { tone: 'success' }
+      )
     } catch (err) {
-      setSettlementError(err.message || 'Could not register settlement')
-      showToast(err.message || 'Could not register settlement', { tone: 'danger', title: 'Action failed' })
+      const message = err.message || 'Could not save this payment'
+      setSettlementError(message)
+      showToast(message, { tone: 'danger', title: 'Action failed' })
     } finally {
       setSettlementSaving(false)
     }
   }, [
+    editingSettlementRecord,
     agentRateLookup,
     closeSettlementModal,
     currentAgentDisplayName,
@@ -1800,7 +1971,7 @@ export default function CommissionsPage() {
             </button>
           ) : null}
           {currentView === 'unsettled' && canRegisterSettlements ? (
-            <button type="button" className="btn-warning" onClick={openSettlementModal}>
+            <button type="button" className="btn-warning" onClick={() => openSettlementModal()}>
               Register payment
             </button>
           ) : null}
@@ -1939,6 +2110,7 @@ export default function CommissionsPage() {
                 const canSettleRequest = isPending && canRegisterSettlements && requestBelongsToAgent(request, user)
                 const canCancelRequest = isPending && canCreateSettlementRequests
                 const canAcknowledgeRequest = isAwaitingAcknowledgement && canCreateSettlementRequests
+                const canModifySettledRequest = isAwaitingAcknowledgement && canRegisterSettlements && requestBelongsToAgent(request, user)
                 return (
                   <article key={request.id} className="commission-request-card">
                     <div className="commission-request-card-header">
@@ -1966,6 +2138,11 @@ export default function CommissionsPage() {
                         {canSettleRequest ? (
                           <button type="button" className="btn-warning" onClick={() => openSettlementModal(request)}>
                             Settle payment
+                          </button>
+                        ) : null}
+                        {canModifySettledRequest ? (
+                          <button type="button" className="btn-secondary" onClick={() => openSettlementModal(request)}>
+                            Modify payment
                           </button>
                         ) : null}
                         {canAcknowledgeRequest ? (
@@ -2443,7 +2620,7 @@ export default function CommissionsPage() {
                           <strong>{employee.full_name}</strong>
                           <p className="muted-text">{employee.profession || employee.professional_title || '--'}</p>
                         </div>
-                        <span className="badge badge-warning">
+                        <span className={`badge ${employee?.settled_commission ? 'badge-muted commission-settled-badge' : 'badge-warning'}`.trim()}>
                           {commissionStatus(employee)}
                         </span>
                       </div>
@@ -2738,12 +2915,16 @@ export default function CommissionsPage() {
           >
             <div className="employee-review-header">
               <div>
-                <p className="employee-modal-eyebrow">{activeSettlementRequest ? 'Settlement request' : 'Settled commissions'}</p>
-                <h2 id="register-settlement-title">{activeSettlementRequest ? 'Settle request' : 'Register settlement'}</h2>
+                <p className="employee-modal-eyebrow">{activeSettlementRequest ? 'Payment request' : 'Outstanding payments'}</p>
+                <h2 id="register-settlement-title">
+                  {editingSettlementRecord ? 'Modify payment' : activeSettlementRequest ? 'Settle payment request' : 'Register payment'}
+                </h2>
                 <p className="muted-text">
-                  {activeSettlementRequest
-                    ? 'Attach the bank receipts and complete this settlement request for the selected employees.'
-                    : 'Select from your employed employees with unsettled commission and attach the bank receipts for the settlement record.'}
+                  {editingSettlementRecord
+                    ? 'Adjust the payment details before the organization acknowledges this settlement.'
+                    : activeSettlementRequest
+                      ? 'Enter the settlement amount and attach the bank receipts to complete this payment request for the selected employees.'
+                      : 'Select from your employed employees with unsettled commission, confirm the payment amount, and attach the bank receipts for the payment record.'}
                 </p>
               </div>
               <button type="button" className="btn-secondary" onClick={closeSettlementModal}>
@@ -2813,19 +2994,37 @@ export default function CommissionsPage() {
                     Settlement date
                     <input type="date" value={settlementDate} disabled readOnly />
                   </label>
-                  <label>
-                    Settlement amount
+                  <div>
+                    <div className="settlement-amount-row">
+                      <span className="settings-form-label">Settlement amount</span>
+                      <label className="settlement-amount-toggle">
+                        <input
+                          type="checkbox"
+                          checked={settlementAmountEditable}
+                          onChange={(event) => {
+                            const nextEditable = event.target.checked
+                            setSettlementAmountEditable(nextEditable)
+                            if (!nextEditable) {
+                              setSettlementAmountTouched(false)
+                              setSettlementAmount(expectedSettlementAmount === null ? '' : String(expectedSettlementAmount))
+                            }
+                          }}
+                        />
+                        <span>Edit amount</span>
+                      </label>
+                    </div>
                     <input
                       type="number"
                       min="0"
                       step="0.01"
                       value={settlementAmount}
+                      disabled={!settlementAmountEditable}
                       onChange={(event) => {
                         setSettlementAmount(event.target.value)
                         setSettlementAmountTouched(true)
                       }}
                     />
-                  </label>
+                  </div>
                 </div>
                 <p><strong>Selected employees:</strong> {selectedSettlementEmployeeIds.length}</p>
                 <p><strong>Agent side:</strong> {currentAgentDisplayName}</p>
@@ -2867,7 +3066,7 @@ export default function CommissionsPage() {
                 Cancel
               </button>
               <button type="button" className="btn-warning" onClick={handleRegisterSettlement} disabled={settlementSaving || settlementEligibleEmployees.length === 0}>
-                {settlementSaving ? 'Saving...' : activeSettlementRequest ? 'Settle request' : 'Register settlement'}
+                {settlementSaving ? 'Saving...' : editingSettlementRecord ? 'Update payment' : activeSettlementRequest ? 'Settle payment' : 'Register payment'}
               </button>
             </div>
           </div>

@@ -731,15 +731,15 @@ button:disabled {
 
 .commission-chart-line {
   fill: none;
-  stroke: rgb(134 78 24);
+  stroke: rgb(var(--accent-active-border));
   stroke-width: 0.5;
   stroke-linecap: round;
   stroke-linejoin: round;
 }
 
 .commission-chart-point {
-  fill: rgb(201 133 60);
-  stroke: #3c281a;
+  fill: rgb(var(--accent-active));
+  stroke: rgb(var(--accent-active-border));
   stroke-width: 2;
   opacity: 0.75;
   transition: opacity 140ms ease, transform 140ms ease;
@@ -874,11 +874,11 @@ button:disabled {
 }
 
 .reports-stage-bar {
-  fill: #b67237;
+  fill: rgb(var(--accent-active));
 }
 
 .reports-stage-link {
-  stroke: color-mix(in oklch, var(--color-border) 58%, #c97f3d);
+  stroke: color-mix(in oklch, var(--color-border) 58%, rgb(var(--accent-active)));
   stroke-width: 2.5;
   stroke-linecap: round;
 }
@@ -902,21 +902,21 @@ button:disabled {
 
 .reports-line-path {
   fill: none;
-  stroke: #9f6a3b;
+  stroke: rgb(var(--accent-active-border));
   stroke-width: 2.5;
   stroke-linejoin: round;
   stroke-linecap: round;
 }
 
 .reports-line-point {
-  fill: #d89b62;
-  stroke: #5a3a22;
+  fill: rgb(var(--accent-active));
+  stroke: rgb(var(--accent-active-border));
   stroke-width: 1.5;
 }
 
 .reports-scatter-point {
-  fill: rgb(201 127 61 / 0.62);
-  stroke: #5a3a22;
+  fill: rgb(var(--accent-active) / 0.62);
+  stroke: rgb(var(--accent-active-border));
   stroke-width: 1.5;
 }
 
@@ -1394,9 +1394,9 @@ button:disabled {
   box-shadow: 0 2px 4px rgb(0 0 0 / 0.18);
 }
 
-html[data-accent='orange'] .profiles-agreement-selected-remove,
-html[data-theme='dark'][data-accent='orange'] .profiles-agreement-selected-remove,
-html:not([data-theme])[data-accent='orange'] .profiles-agreement-selected-remove {
+html[data-accent] .profiles-agreement-selected-remove,
+html[data-theme='dark'][data-accent] .profiles-agreement-selected-remove,
+html[data-theme='light'][data-accent] .profiles-agreement-selected-remove {
   width: 20px !important;
   height: 20px !important;
   min-width: 20px !important;
@@ -1410,9 +1410,9 @@ html:not([data-theme])[data-accent='orange'] .profiles-agreement-selected-remove
   border-color: #d8d8d8 !important;
 }
 
-html[data-accent='orange'] .profiles-agreement-selected-remove:hover:not(:disabled),
-html[data-theme='dark'][data-accent='orange'] .profiles-agreement-selected-remove:hover:not(:disabled),
-html:not([data-theme])[data-accent='orange'] .profiles-agreement-selected-remove:hover:not(:disabled) {
+html[data-accent] .profiles-agreement-selected-remove:hover:not(:disabled),
+html[data-theme='dark'][data-accent] .profiles-agreement-selected-remove:hover:not(:disabled),
+html[data-theme='light'][data-accent] .profiles-agreement-selected-remove:hover:not(:disabled) {
   background: #f4f4f4 !important;
   color: #111 !important;
   border-color: #cfcfcf !important;
@@ -2018,6 +2018,66 @@ html:not([data-theme])[data-accent='orange'] .profiles-agreement-selected-remove
   margin: 0;
 }
 
+.settlement-amount-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+  background: transparent !important;
+}
+
+.settlement-amount-row .settings-form-label {
+  margin: 0;
+  display: inline-block;
+}
+
+.settlement-amount-toggle {
+  display: inline-flex;
+  align-items: center;
+  flex-direction: row !important;
+  gap: 8px;
+  margin: 0;
+  color: var(--color-foreground);
+  font-weight: 600;
+  cursor: default;
+  white-space: nowrap;
+  width: auto !important;
+  background: transparent !important;
+}
+
+.settlement-amount-toggle input {
+  margin: 0;
+  cursor: pointer;
+  flex: 0 0 auto;
+  display: inline-block;
+}
+
+.settlement-amount-toggle span {
+  cursor: pointer;
+  display: inline-block;
+  line-height: 1.1;
+  margin: 0;
+}
+
+.commissions-page .employee-review-modal .settings-form input[type='date'],
+.commissions-page .employee-review-modal .settings-form input[type='number'] {
+  border: 1px solid #2b2b2b;
+  border-radius: 8px;
+  box-shadow: none;
+}
+
+.commissions-page .employee-review-modal .settings-form,
+.commissions-page .employee-review-modal .settings-form > div,
+.commissions-page .employee-review-modal .settings-form label,
+html[data-accent='orange'] .commissions-page .employee-review-modal .settings-form,
+html[data-accent='orange'] .commissions-page .employee-review-modal .settings-form > div,
+html[data-accent='orange'] .commissions-page .employee-review-modal .settings-form label {
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+}
+
 .commission-settled-badge {
   opacity: 0.68;
 }
@@ -2338,14 +2398,18 @@ html:not([data-theme]) .commission-settlement-card {
 
 .users-management .table-scroll {
   border-radius: 12px;
-  overflow-x: auto;
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  overflow-x: auto !important;
   overflow-y: hidden;
   -webkit-overflow-scrolling: touch;
 }
 
 .users-management .users-table {
   font-size: 0.88rem;
-  min-width: 1280px;
+  width: max-content;
+  min-width: 1720px;
 }
 
 .users-management .users-table th,
@@ -2527,11 +2591,15 @@ html:not([data-theme]) .commission-settlement-card {
 }
 
 .settings-form select,
-.settings-form input[type='text'] {
+.settings-form input[type='text'],
+.settings-form input[type='date'],
+.settings-form input[type='number'] {
   padding: 8px 10px;
   border-radius: 8px;
   border: 1px solid #d1d5db;
   font-size: 0.95rem;
+  background: transparent;
+  color: inherit;
 }
 
 .settings-form input.settings-readonly {
@@ -5095,6 +5163,40 @@ html:not([data-theme]) body {
     linear-gradient(180deg, rgb(var(--accent-bg-start) / 0.96), rgb(var(--accent-bg-end) / 0.98)) !important;
 }
 
+.commissions-page .employee-review-modal .settings-form input[type='date'],
+.commissions-page .employee-review-modal .settings-form input[type='number'],
+html[data-accent='orange'] .commissions-page .employee-review-modal .settings-form input[type='date'],
+html[data-accent='orange'] .commissions-page .employee-review-modal .settings-form input[type='number'],
+html[data-theme='light'] .commissions-page .employee-review-modal .settings-form input[type='date'],
+html[data-theme='light'] .commissions-page .employee-review-modal .settings-form input[type='number'],
+html:not([data-theme]) .commissions-page .employee-review-modal .settings-form input[type='date'],
+html:not([data-theme]) .commissions-page .employee-review-modal .settings-form input[type='number'] {
+  border: 1px solid #2b2b2b !important;
+  border-color: #2b2b2b !important;
+}
+
+.commissions-page .employee-review-modal .settings-form input[type='number'] {
+  margin-bottom: 4px;
+}
+
+.commission-settled-badge,
+.employee-employed-summary .commission-settled-badge,
+.commissions-page .commission-settled-badge,
+html[data-accent='orange'] .commission-settled-badge,
+html[data-accent='orange'] .employee-employed-summary .commission-settled-badge,
+html[data-accent='orange'] .commissions-page .commission-settled-badge,
+html[data-theme='light'] .commission-settled-badge,
+html[data-theme='light'] .employee-employed-summary .commission-settled-badge,
+html[data-theme='light'] .commissions-page .commission-settled-badge,
+html:not([data-theme]) .commission-settled-badge,
+html:not([data-theme]) .employee-employed-summary .commission-settled-badge,
+html:not([data-theme]) .commissions-page .commission-settled-badge {
+  background: rgb(255 255 255 / 0.06) !important;
+  border-color: rgb(255 255 255 / 0.1) !important;
+  color: var(--color-muted-foreground) !important;
+  opacity: 0.78 !important;
+}
+
 html[data-theme='light'] .dashboard-shell,
 html[data-theme='light'] .dashboard-panel,
 html[data-theme='light'] .users-table-wrap,
@@ -5241,9 +5343,14 @@ html:not([data-theme]) .badge-super {
 }
 
 .dashboard-sidebar-top {
-  position: relative;
+  position: absolute;
   margin-bottom: 10px;
-  padding: 2px 2px 10px;
+  /* padding: 2px 2px 10px; */
+  width: 100%;
+  left: 0;
+  top: 0;
+  border: none;
+  margin: 0;
 }
 
 .dashboard-profile-menu {
@@ -6036,18 +6143,18 @@ button,
   overflow: hidden !important;
 }
 
-/* Orange accent polish */
+/* Accent polish */
 
-html[data-accent='orange'] body {
+html[data-theme='dark'][data-accent] body {
   background:
     linear-gradient(90deg, rgb(18 18 18) 0%, rgb(20 20 20) 28%, rgb(15 15 15) 100%) !important;
 }
 
-html[data-accent='orange'] .dashboard-sidebar {
+html[data-theme='dark'][data-accent] .dashboard-sidebar {
   background: linear-gradient(180deg, rgb(24 24 24) 0%, rgb(20 20 20) 100%) !important;
 }
 
-html[data-accent='orange'] .dashboard-profile-trigger {
+html[data-theme='dark'][data-accent] .dashboard-profile-trigger {
   background: linear-gradient(
     180deg,
     rgb(31 24 20 / 0.96) 0%,
@@ -6060,15 +6167,15 @@ html[data-accent='orange'] .dashboard-profile-trigger {
     0 6px 18px rgb(0 0 0 / 0.14) !important;
 }
 
-html[data-accent='orange'] .dashboard-profile-trigger.has-image {
+html[data-theme='dark'][data-accent] .dashboard-profile-trigger.has-image {
   background:
     linear-gradient(180deg, rgb(22 18 16 / 0.78) 0%, rgb(18 16 15 / 0.9) 100%),
     linear-gradient(135deg, rgb(var(--accent-surface-strong) / 0.22) 0%, rgb(22 18 16 / 0.18) 100%),
     var(--profile-trigger-image) center / cover no-repeat !important;
 }
 
-html[data-accent='orange'] .dashboard-profile-trigger:hover,
-html[data-accent='orange'] .dashboard-profile-trigger.is-open {
+html[data-theme='dark'][data-accent] .dashboard-profile-trigger:hover,
+html[data-theme='dark'][data-accent] .dashboard-profile-trigger.is-open {
   background: linear-gradient(
     180deg,
     rgb(38 28 22 / 0.98) 0%,
@@ -6080,15 +6187,15 @@ html[data-accent='orange'] .dashboard-profile-trigger.is-open {
     0 8px 22px rgb(0 0 0 / 0.16) !important;
 }
 
-html[data-accent='orange'] .dashboard-profile-trigger.has-image:hover,
-html[data-accent='orange'] .dashboard-profile-trigger.has-image.is-open {
+html[data-theme='dark'][data-accent] .dashboard-profile-trigger.has-image:hover,
+html[data-theme='dark'][data-accent] .dashboard-profile-trigger.has-image.is-open {
   background:
     linear-gradient(180deg, rgb(28 21 18 / 0.74) 0%, rgb(20 17 15 / 0.86) 100%),
     linear-gradient(135deg, rgb(var(--accent-surface-strong) / 0.24) 0%, rgb(24 19 16 / 0.2) 100%),
     var(--profile-trigger-image) center / cover no-repeat !important;
 }
 
-html[data-accent='orange'] .dashboard-profile-avatar {
+html[data-theme='dark'][data-accent] .dashboard-profile-avatar {
   background: linear-gradient(
     135deg,
     rgb(var(--accent-surface-strong) / 0.7) 0%,
@@ -6097,60 +6204,60 @@ html[data-accent='orange'] .dashboard-profile-avatar {
   color: #ffffff !important;
 }
 
-html[data-accent='orange'] .dashboard-profile-copy strong {
+html[data-theme='dark'][data-accent] .dashboard-profile-copy strong {
   color: #f5ede6 !important;
 }
 
-html[data-accent='orange'] .dashboard-profile-copy span {
+html[data-theme='dark'][data-accent] .dashboard-profile-copy span {
   color: rgb(220 197 180 / 0.72) !important;
 }
 
-html[data-accent='orange'] .dashboard-profile-dropdown {
+html[data-theme='dark'][data-accent] .dashboard-profile-dropdown {
   border-color: rgb(var(--accent-border) / 0.3) !important;
   background: rgb(var(--accent-surface-strong) / 0.26) !important;
   box-shadow: 0 14px 28px rgb(0 0 0 / 0.2), 0 6px 14px rgb(var(--accent-surface-strong) / 0.12) !important;
   filter: drop-shadow(0 8px 16px rgb(var(--accent-surface-strong) / 0.1)) !important;
 }
 
-html[data-accent='orange'] .dashboard-profile-dropdown::before {
+html[data-theme='dark'][data-accent] .dashboard-profile-dropdown::before {
   background: linear-gradient(
     180deg,
-    rgb(34 24 17 / 0.96) 0%,
-    rgb(24 18 13 / 0.96) 100%
+    color-mix(in oklch, var(--color-card) 92%, rgb(var(--accent-tile-muted) / 0.42)) 0%,
+    color-mix(in oklch, var(--color-card) 82%, rgb(var(--accent-tile-muted) / 0.16)) 100%
   ) !important;
 }
 
-html[data-accent='orange'] .dashboard-profile-dropdown-name {
-  color: #f5ebe3 !important;
+html[data-theme='dark'][data-accent] .dashboard-profile-dropdown-name {
+  color: var(--color-foreground) !important;
 }
 
-html[data-accent='orange'] .dashboard-profile-dropdown-meta {
-  color: rgb(223 197 174 / 0.82) !important;
+html[data-theme='dark'][data-accent] .dashboard-profile-dropdown-meta {
+  color: color-mix(in oklch, var(--color-muted-foreground) 84%, rgb(var(--accent-active) / 0.22)) !important;
 }
 
-html[data-accent='orange'] .dashboard-profile-logout {
-  background: rgb(255 255 255 / 0.11) !important;
-  color: #ffffff !important;
-  border: 1px solid rgb(255 255 255 / 0.12) !important;
+html[data-theme='dark'][data-accent] .dashboard-profile-logout {
+  background: rgb(var(--accent-active) / 0.12) !important;
+  color: var(--color-foreground) !important;
+  border: 1px solid rgb(var(--accent-active-border) / 0.32) !important;
   box-shadow: none !important;
 }
 
-html[data-accent='orange'] .dashboard-profile-logout:hover:not(:disabled) {
-  background: rgb(255 255 255 / 0.16) !important;
-  border-color: rgb(255 255 255 / 0.18) !important;
-  color: #ffffff !important;
+html[data-theme='dark'][data-accent] .dashboard-profile-logout:hover:not(:disabled) {
+  background: rgb(var(--accent-active) / 0.2) !important;
+  border-color: rgb(var(--accent-active-border) / 0.5) !important;
+  color: var(--color-foreground) !important;
 }
 
-html[data-accent='orange'] .dashboard-panel,
-html[data-accent='orange'] .employees-page,
-html[data-accent='orange'] .employee-card,
-html[data-accent='orange'] .employee-summary-card,
-html[data-accent='orange'] .employee-modal,
-html[data-accent='orange'] .returned-list-surface,
-html[data-accent='orange'] .returned-request-surface,
-html[data-accent='orange'] .returned-request-item,
-html[data-accent='orange'] .return-request-employee-option,
-html[data-accent='orange'] .notification-dropdown {
+html[data-theme='dark'][data-accent] .dashboard-panel,
+html[data-theme='dark'][data-accent] .employees-page,
+html[data-theme='dark'][data-accent] .employee-card,
+html[data-theme='dark'][data-accent] .employee-summary-card,
+html[data-theme='dark'][data-accent] .employee-modal,
+html[data-theme='dark'][data-accent] .returned-list-surface,
+html[data-theme='dark'][data-accent] .returned-request-surface,
+html[data-theme='dark'][data-accent] .returned-request-item,
+html[data-theme='dark'][data-accent] .return-request-employee-option,
+html[data-theme='dark'][data-accent] .notification-dropdown {
   background: rgb(24 24 24) !important;
   border-color: rgb(var(--accent-border) / 0.18) !important;
 }
@@ -6592,10 +6699,12 @@ html[data-theme='light'] {
   color-scheme: light;
 }
 
-html[data-theme='dark'],
-html[data-accent='orange'],
-html:not([data-theme]) {
+html[data-theme='dark'] {
   color-scheme: dark;
+}
+
+html:not([data-theme]) {
+  color-scheme: light;
 }
 
 * {
@@ -6884,227 +6993,3 @@ html[data-accent='orange'] .employee-modal-document-tile,
 html[data-accent='orange'] .employee-attachment-preview-file,
 html[data-accent='orange'] .employee-attachment-preview-image,
 html[data-accent='orange'] .return-request-employee-state,
-html[data-accent='orange'] .employee-template-bar,
-html[data-accent='orange'] .employee-step-tab,
-html[data-accent='orange'] .employee-subtab,
-html[data-accent='orange'] .activity-code {
-  background: color-mix(in oklch, var(--color-muted) 40%, transparent) !important;
-  border-color: color-mix(in oklch, var(--color-border) 48%, transparent) !important;
-  color: var(--color-foreground) !important;
-}
-
-html[data-accent='orange'] .employee-card:hover,
-html[data-accent='orange'] .employee-summary-card:hover,
-html[data-accent='orange'] .return-request-employee-option:hover,
-html[data-accent='orange'] .returned-request-item:hover {
-  background: var(--color-card) !important;
-  border-color: color-mix(in srgb, var(--color-border) 72%, #9a9a9a 28%) !important;
-  box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.08), 0 2px 4px -2px rgb(0 0 0 / 0.08) !important;
-}
-
-html[data-accent='orange'] .employee-card h3,
-html[data-accent='orange'] .employee-card p,
-html[data-accent='orange'] .employee-doc-preview strong,
-html[data-accent='orange'] .employee-modal-header h2,
-html[data-accent='orange'] .employee-review-header h2,
-html[data-accent='orange'] .employee-modal-eyebrow {
-  color: inherit !important;
-}
-
-/* Full app cross-workspace normalization
-   Keep orange-accent accounts on the same core page-surface language as the organization-side admin. */
-
-html[data-accent='orange'] .dashboard-panel,
-html[data-accent='orange'] .employees-page,
-html[data-accent='orange'] .commissions-page,
-html[data-accent='orange'] .concept-page,
-html[data-accent='orange'] .notifications-page,
-html[data-accent='orange'] .settings-form,
-html[data-accent='orange'] .concept-card,
-html[data-accent='orange'] .concept-summary-pill,
-html[data-accent='orange'] .commission-group,
-html[data-accent='orange'] .commission-case-card,
-html[data-accent='orange'] .commission-settlement-card,
-html[data-accent='orange'] .commission-receipt-item,
-html[data-accent='orange'] .notification-dropdown,
-html[data-accent='orange'] .notifications-page-list,
-html[data-accent='orange'] .notification-item,
-html[data-accent='orange'] .notification-item.is-unread,
-html[data-accent='orange'] .attachment-box,
-html[data-accent='orange'] .attachment-file-name,
-html[data-accent='orange'] .checkbox-pill,
-html[data-accent='orange'] .input-suffix span,
-html[data-accent='orange'] .activity-code,
-html[data-accent='orange'] .employee-doc-preview-popover,
-html[data-accent='orange'] .oauth-block,
-html[data-accent='orange'] .oauth-error,
-html[data-accent='orange'] .demo-box,
-html[data-accent='orange'] .placeholder-card {
-  background: var(--color-card) !important;
-  border-color: var(--color-border) !important;
-  color: var(--color-card-foreground) !important;
-  backdrop-filter: none !important;
-  -webkit-backdrop-filter: none !important;
-}
-
-html[data-accent='orange'] .dashboard-header,
-html[data-accent='orange'] .notification-dropdown-header,
-html[data-accent='orange'] .users-table th,
-html[data-accent='orange'] .card-header {
-  background: color-mix(in oklch, var(--color-card) 94%, var(--color-muted)) !important;
-  border-color: var(--color-border) !important;
-  color: var(--color-foreground) !important;
-  backdrop-filter: none !important;
-  -webkit-backdrop-filter: none !important;
-}
-
-html[data-accent='orange'] .notification-item:hover,
-html[data-accent='orange'] .notifications-page-item:hover,
-html[data-accent='orange'] .commission-case-card:hover,
-html[data-accent='orange'] .concept-card:hover,
-html[data-accent='orange'] .users-table tbody tr:hover,
-html[data-accent='orange'] .activity-log-table tbody tr:hover {
-  background: color-mix(in oklch, var(--color-muted) 32%, transparent) !important;
-  border-color: var(--color-border) !important;
-  box-shadow: var(--shadow-md) !important;
-}
-
-html[data-accent='orange'] .muted-text,
-html[data-accent='orange'] .notification-item-body,
-html[data-accent='orange'] .notification-item-time,
-html[data-accent='orange'] .commission-case-meta,
-html[data-accent='orange'] .card-description,
-html[data-accent='orange'] .form-help,
-html[data-accent='orange'] .settings-section-hint {
-  color: var(--color-muted-foreground) !important;
-}
-
-/* Organization-side admin reference normalization across all major pages */
-
-html[data-accent='orange'] .auth-form,
-html[data-accent='orange'] .card,
-html[data-accent='orange'] .dashboard-panel,
-html[data-accent='orange'] .users-table-wrap,
-html[data-accent='orange'] .user-create-card,
-html[data-accent='orange'] .table-scroll,
-html[data-accent='orange'] .employee-modal,
-html[data-accent='orange'] .employee-review-modal,
-html[data-accent='orange'] .document-preview-modal,
-html[data-accent='orange'] .employee-card,
-html[data-accent='orange'] .employee-summary-card,
-html[data-accent='orange'] .employee-employed-block,
-html[data-accent='orange'] .employee-attachment-preview-card,
-html[data-accent='orange'] .employees-page,
-html[data-accent='orange'] .commissions-page,
-html[data-accent='orange'] .concept-page,
-html[data-accent='orange'] .notifications-page,
-html[data-accent='orange'] .settings-form,
-html[data-accent='orange'] .concept-card,
-html[data-accent='orange'] .concept-summary-pill,
-html[data-accent='orange'] .commission-group,
-html[data-accent='orange'] .commission-case-card,
-html[data-accent='orange'] .commission-settlement-card,
-html[data-accent='orange'] .commission-receipt-item,
-html[data-accent='orange'] .notification-dropdown,
-html[data-accent='orange'] .notifications-page-list,
-html[data-accent='orange'] .notification-item,
-html[data-accent='orange'] .notification-item.is-unread,
-html[data-accent='orange'] .returned-list-surface,
-html[data-accent='orange'] .returned-request-surface,
-html[data-accent='orange'] .returned-request-item,
-html[data-accent='orange'] .return-request-employee-option,
-html[data-accent='orange'] .attachment-box,
-html[data-accent='orange'] .attachment-file-name,
-html[data-accent='orange'] .checkbox-pill,
-html[data-accent='orange'] .input-suffix span,
-html[data-accent='orange'] .employee-doc-preview-popover,
-html[data-accent='orange'] .placeholder-card,
-html[data-accent='orange'] .demo-box,
-html[data-accent='orange'] .oauth-block,
-html[data-accent='orange'] .oauth-error {
-  background: var(--color-card) !important;
-  color: var(--color-card-foreground) !important;
-  border-color: var(--color-border) !important;
-  backdrop-filter: none !important;
-  -webkit-backdrop-filter: none !important;
-}
-
-html[data-accent='orange'] .employee-card-avatar,
-html[data-accent='orange'] .employee-doc-preview-tile,
-html[data-accent='orange'] .employee-modal-document-tile,
-html[data-accent='orange'] .employee-attachment-preview-file,
-html[data-accent='orange'] .employee-attachment-preview-image,
-html[data-accent='orange'] .return-request-employee-state,
-html[data-accent='orange'] .employee-template-bar,
-html[data-accent='orange'] .employee-step-tab,
-html[data-accent='orange'] .employee-subtab,
-html[data-accent='orange'] .activity-code,
-html[data-accent='orange'] .commission-group-toggle-button,
-html[data-accent='orange'] .commission-rate-popover,
-html[data-accent='orange'] .commission-rate-graph-bar,
-html[data-accent='orange'] .settings-form input.settings-readonly {
-  background: color-mix(in oklch, var(--color-muted) 40%, transparent) !important;
-  color: var(--color-foreground) !important;
-  border-color: color-mix(in oklch, var(--color-border) 48%, transparent) !important;
-  box-shadow: none !important;
-}
-
-html[data-accent='orange'] .dashboard-header,
-html[data-accent='orange'] .employee-modal-header,
-html[data-accent='orange'] .employee-review-header,
-html[data-accent='orange'] .document-preview-toolbar,
-html[data-accent='orange'] .notification-dropdown-header,
-html[data-accent='orange'] .users-table th,
-html[data-accent='orange'] .activity-log-table thead th,
-html[data-accent='orange'] .card-header {
-  background: color-mix(in oklch, var(--color-card) 94%, var(--color-muted)) !important;
-  color: var(--color-foreground) !important;
-  border-color: var(--color-border) !important;
-  backdrop-filter: none !important;
-  -webkit-backdrop-filter: none !important;
-}
-
-html[data-accent='orange'] .employee-card:hover,
-html[data-accent='orange'] .employee-summary-card:hover,
-html[data-accent='orange'] .return-request-employee-option:hover,
-html[data-accent='orange'] .returned-request-item:hover,
-html[data-accent='orange'] .notification-item:hover,
-html[data-accent='orange'] .notifications-page-item:hover,
-html[data-accent='orange'] .commission-case-card:hover,
-html[data-accent='orange'] .concept-card:hover,
-html[data-accent='orange'] .users-table tbody tr:hover,
-html[data-accent='orange'] .activity-log-table tbody tr:hover {
-  background: color-mix(in oklch, var(--color-muted) 32%, transparent) !important;
-  border-color: color-mix(in srgb, var(--color-border) 72%, #9a9a9a 28%) !important;
-  box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.08), 0 2px 4px -2px rgb(0 0 0 / 0.08) !important;
-}
-
-html[data-accent='orange'] .dashboard-panel h1,
-html[data-accent='orange'] .users-table-wrap h2,
-html[data-accent='orange'] .employee-card h3,
-html[data-accent='orange'] .employee-summary-card h3,
-html[data-accent='orange'] .employee-modal-header h2,
-html[data-accent='orange'] .employee-review-header h2,
-html[data-accent='orange'] .concept-card h3,
-html[data-accent='orange'] .concept-section h2,
-html[data-accent='orange'] .commission-group-header h3,
-html[data-accent='orange'] .notification-item-title {
-  color: var(--color-foreground) !important;
-}
-
-html[data-accent='orange'] .muted-text,
-html[data-accent='orange'] .dashboard-header-user,
-html[data-accent='orange'] .employee-card p,
-html[data-accent='orange'] .employee-doc-preview strong,
-html[data-accent='orange'] .notification-item-body,
-html[data-accent='orange'] .notification-item-time,
-html[data-accent='orange'] .commission-case-meta,
-html[data-accent='orange'] .concept-eyebrow,
-html[data-accent='orange'] .concept-card-kicker,
-html[data-accent='orange'] .settings-section-hint,
-html[data-accent='orange'] .activity-log-meta,
-html[data-accent='orange'] .card-description,
-html[data-accent='orange'] .form-help {
-  color: var(--color-muted-foreground) !important;
-}
-

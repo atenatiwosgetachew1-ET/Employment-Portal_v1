@@ -1,0 +1,1033 @@
+/* Final visual overrides
+   Keep recent cross-workspace normalizations in one place instead of
+   appending more late-stage fixes to App.css. */
+
+html[data-accent] .dashboard-panel,
+html[data-accent] .employees-page,
+html[data-accent] .commissions-page,
+html[data-accent] .concept-page,
+html[data-accent] .notifications-page,
+html[data-accent] .auth-form,
+html[data-accent] .card,
+html[data-accent] .users-table-wrap,
+html[data-accent] .user-create-card,
+html[data-accent] .table-scroll,
+html[data-accent] .employee-modal,
+html[data-accent] .employee-review-modal,
+html[data-accent] .document-preview-modal,
+html[data-accent] .employee-card,
+html[data-accent] .employee-summary-card,
+html[data-accent] .employee-employed-block,
+html[data-accent] .employee-attachment-preview-card,
+html[data-accent] .concept-card,
+html[data-accent] .concept-summary-pill,
+html[data-accent] .commission-group,
+html[data-accent] .commission-case-card,
+html[data-accent] .commission-settlement-card,
+html[data-accent] .commission-receipt-item,
+html[data-accent] .notification-dropdown,
+html[data-accent] .notifications-page-list,
+html[data-accent] .notification-item,
+html[data-accent] .notification-item.is-unread,
+html[data-accent] .returned-list-surface,
+html[data-accent] .returned-request-surface,
+html[data-accent] .returned-request-item,
+html[data-accent] .return-request-employee-option,
+html[data-accent] .attachment-box,
+html[data-accent] .attachment-file-name,
+html[data-accent] .checkbox-pill,
+html[data-accent] .input-suffix span,
+html[data-accent] .employee-doc-preview-popover,
+html[data-accent] .placeholder-card,
+html[data-accent] .demo-box,
+html[data-accent] .oauth-block,
+html[data-accent] .oauth-error {
+  background: var(--color-card) !important;
+  color: var(--color-card-foreground) !important;
+  border-color: var(--color-border) !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+html[data-accent] .employee-card-avatar,
+html[data-accent] .employee-doc-preview-tile,
+html[data-accent] .employee-modal-document-tile,
+html[data-accent] .employee-attachment-preview-file,
+html[data-accent] .employee-attachment-preview-image,
+html[data-accent] .return-request-employee-state,
+html[data-accent] .employee-template-bar,
+html[data-accent] .employee-step-tab,
+html[data-accent] .employee-subtab,
+html[data-accent] .activity-code,
+html[data-accent] .commission-group-toggle-button,
+html[data-accent] .commission-rate-popover,
+html[data-accent] .commission-rate-graph-bar,
+html[data-accent] .settings-form input.settings-readonly {
+  background: color-mix(in oklch, var(--color-muted) 40%, transparent) !important;
+  color: var(--color-foreground) !important;
+  border-color: color-mix(in oklch, var(--color-border) 48%, transparent) !important;
+  box-shadow: none !important;
+}
+
+html[data-accent] .dashboard-header,
+html[data-accent] .employee-modal-header,
+html[data-accent] .employee-review-header,
+html[data-accent] .document-preview-toolbar,
+html[data-accent] .notification-dropdown-header,
+html[data-accent] .users-table th,
+html[data-accent] .activity-log-table thead th,
+html[data-accent] .card-header {
+  background: color-mix(in oklch, var(--color-card) 94%, var(--color-muted)) !important;
+  color: var(--color-foreground) !important;
+  border-color: var(--color-border) !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+html[data-accent] .employee-card:hover,
+html[data-accent] .employee-summary-card:hover,
+html[data-accent] .return-request-employee-option:hover,
+html[data-accent] .returned-request-item:hover,
+html[data-accent] .notification-item:hover,
+html[data-accent] .notifications-page-item:hover,
+html[data-accent] .commission-case-card:hover,
+html[data-accent] .concept-card:hover,
+html[data-accent] .users-table tbody tr:hover,
+html[data-accent] .activity-log-table tbody tr:hover {
+  background: color-mix(in oklch, var(--color-muted) 32%, transparent) !important;
+  border-color: color-mix(in srgb, var(--color-border) 72%, #9a9a9a 28%) !important;
+  box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.08), 0 2px 4px -2px rgb(0 0 0 / 0.08) !important;
+}
+
+html[data-accent] .dashboard-panel h1,
+html[data-accent] .users-table-wrap h2,
+html[data-accent] .employee-card h3,
+html[data-accent] .employee-summary-card h3,
+html[data-accent] .employee-modal-header h2,
+html[data-accent] .employee-review-header h2,
+html[data-accent] .concept-card h3,
+html[data-accent] .concept-section h2,
+html[data-accent] .commission-group-header h3,
+html[data-accent] .notification-item-title {
+  color: var(--color-foreground) !important;
+}
+
+html[data-accent] .muted-text,
+html[data-accent] .dashboard-header-user,
+html[data-accent] .employee-card p,
+html[data-accent] .employee-doc-preview strong,
+html[data-accent] .notification-item-body,
+html[data-accent] .notification-item-time,
+html[data-accent] .commission-case-meta,
+html[data-accent] .concept-eyebrow,
+html[data-accent] .concept-card-kicker,
+html[data-accent] .settings-section-hint,
+html[data-accent] .activity-log-meta,
+html[data-accent] .card-description,
+html[data-accent] .form-help,
+html[data-accent] .employee-modal-eyebrow {
+  color: var(--color-muted-foreground) !important;
+}
+
+/* Light theme interaction cleanup */
+
+html[data-theme='light'] .dashboard-nav-link:hover,
+html[data-theme='light'] .dashboard-nav-link:not(.is-active):hover,
+html[data-theme='light'][data-accent] .dashboard-nav-link:hover,
+html[data-theme='light'][data-accent] .dashboard-nav-link:not(.is-active):hover,
+html[data-theme='light'][data-accent] button.employee-subtab:hover:not(.is-active):not(:disabled),
+html[data-theme='light'][data-accent] button.employee-step-tab:hover:not(.is-active):not(:disabled) {
+  color: var(--color-foreground) !important;
+}
+
+html[data-theme='light'][data-accent] .btn-secondary:hover:not(:disabled),
+html[data-theme='light'][data-accent] .attachment-file-trigger:hover:not(:disabled),
+html[data-theme='light'][data-accent] .dashboard-profile-logout:hover:not(:disabled),
+html[data-theme='light'][data-accent] .dashboard-logout:hover:not(:disabled),
+html[data-theme='light'][data-accent] .btn-outline:hover:not(:disabled),
+html[data-theme='light'][data-accent] .btn-ghost:hover:not(:disabled) {
+  color: var(--color-foreground) !important;
+  opacity: 1 !important;
+}
+
+html[data-theme='light'] button:hover:not(:disabled),
+html[data-theme='light'] .btn-secondary:hover:not(:disabled),
+html[data-theme='light'] .btn-danger:hover:not(:disabled),
+html[data-theme='light'] .btn-success:hover:not(:disabled),
+html[data-theme='light'] .btn-info:hover:not(:disabled),
+html[data-theme='light'] .btn-warning:hover:not(:disabled),
+html[data-theme='light'] .btn-muted-action:hover:not(:disabled) {
+  opacity: 1 !important;
+}
+
+html[data-theme='light'] button:disabled,
+html[data-theme='light'] .btn-danger:disabled,
+html[data-theme='light'] .btn-secondary:disabled,
+html[data-theme='light'] .btn-success:disabled,
+html[data-theme='light'] .btn-info:disabled,
+html[data-theme='light'] .btn-warning:disabled,
+html[data-theme='light'] .btn-muted-action:disabled {
+  opacity: 0.38 !important;
+}
+
+/* Light theme visibility and compatibility */
+
+html[data-theme='light'] body {
+  background:
+    radial-gradient(circle at top left, rgb(var(--accent-glow-1) / 0.2), transparent 32%),
+    radial-gradient(circle at top right, rgb(var(--accent-glow-2) / 0.14), transparent 28%),
+    linear-gradient(180deg, rgb(var(--accent-bg-start) / 0.98), rgb(var(--accent-bg-end) / 0.98)) !important;
+  color: var(--color-foreground) !important;
+}
+
+html[data-accent='natural'] body,
+html[data-theme='light'][data-accent='natural'] body,
+html[data-theme='dark'][data-accent='natural'] body {
+  background: var(--color-background) !important;
+}
+
+html[data-theme='light'] .dashboard-shell,
+html[data-theme='light'] .dashboard-panel,
+html[data-theme='light'] .users-table-wrap,
+html[data-theme='light'] .auth-form,
+html[data-theme='light'] .card,
+html[data-theme='light'] .user-create-card,
+html[data-theme='light'] .employee-card,
+html[data-theme='light'] .employee-summary-card,
+html[data-theme='light'] .employee-modal,
+html[data-theme='light'] .employee-review-modal,
+html[data-theme='light'] .document-preview-modal,
+html[data-theme='light'] .notification-dropdown,
+html[data-theme='light'] .concept-card,
+html[data-theme='light'] .concept-summary-pill,
+html[data-theme='light'] .commission-group,
+html[data-theme='light'] .commission-case-card,
+html[data-theme='light'] .commission-settlement-card,
+html[data-theme='light'] .commission-receipt-item,
+html[data-theme='light'] .attachment-box,
+html[data-theme='light'] .employee-attachment-preview-card,
+html[data-theme='light'] .employee-doc-preview-popover,
+html[data-theme='light'] .returned-request-item,
+html[data-theme='light'] .return-request-employee-option,
+html[data-theme='light'] .table-scroll,
+html[data-theme='light'] .notifications-page-list {
+  background: var(--color-card) !important;
+  color: var(--color-card-foreground) !important;
+  border-color: var(--color-border) !important;
+  box-shadow: 0 10px 28px rgb(15 23 42 / 0.04), 0 2px 6px rgb(15 23 42 / 0.03) !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+html[data-theme='light'] .dashboard-header,
+html[data-theme='light'] .employee-modal-header,
+html[data-theme='light'] .employee-review-header,
+html[data-theme='light'] .document-preview-toolbar,
+html[data-theme='light'] .notification-dropdown-header,
+html[data-theme='light'] .users-table th,
+html[data-theme='light'] .activity-log-table thead th,
+html[data-theme='light'] .card-header {
+  background: color-mix(in oklch, var(--color-card) 90%, var(--color-muted)) !important;
+  color: var(--color-foreground) !important;
+  border-color: var(--color-border) !important;
+}
+
+html[data-theme='light'] input,
+html[data-theme='light'] select,
+html[data-theme='light'] textarea,
+html[data-theme='light'] .form-group input,
+html[data-theme='light'] .form-grid input,
+html[data-theme='light'] .form-grid select,
+html[data-theme='light'] .settings-form select,
+html[data-theme='light'] .settings-form input[type='text'],
+html[data-theme='light'] .settings-form input[type='date'],
+html[data-theme='light'] .settings-form input[type='number'],
+html[data-theme='light'] .employees-page .user-create-card textarea,
+html[data-theme='light'] .employee-modal-form input,
+html[data-theme='light'] .employee-modal-form select,
+html[data-theme='light'] .employee-modal-form textarea,
+html[data-theme='light'] .users-table select,
+html[data-theme='light'] .commission-search input {
+  background: #ffffff !important;
+  color: var(--color-foreground) !important;
+  border-color: color-mix(in oklch, var(--color-border) 82%, #cfd4dc) !important;
+  box-shadow: none !important;
+}
+
+html[data-theme='light'] input::placeholder,
+html[data-theme='light'] textarea::placeholder,
+html[data-theme='light'] .commission-search input::placeholder {
+  color: color-mix(in oklch, var(--color-muted-foreground) 82%, white) !important;
+}
+
+html[data-theme='light'] .badge,
+html[data-theme='light'] .badge-muted,
+html[data-theme='light'] .badge-warning,
+html[data-theme='light'] .badge-success,
+html[data-theme='light'] .badge-danger,
+html[data-theme='light'] .badge-super,
+html[data-theme='light'] .checkbox-pill,
+html[data-theme='light'] .attachment-file-name,
+html[data-theme='light'] .input-suffix span,
+html[data-theme='light'] .return-request-employee-state,
+html[data-theme='light'] .employee-template-bar,
+html[data-theme='light'] .employee-step-tab,
+html[data-theme='light'] .employee-subtab,
+html[data-theme='light'] .employee-card-avatar,
+html[data-theme='light'] .employee-doc-preview-tile,
+html[data-theme='light'] .employee-modal-document-tile,
+html[data-theme='light'] .employee-attachment-preview-file,
+html[data-theme='light'] .employee-attachment-preview-image,
+html[data-theme='light'] .notification-item,
+html[data-theme='light'] .notification-item.is-unread {
+  background: color-mix(in oklch, var(--color-card) 84%, var(--color-muted)) !important;
+  color: var(--color-foreground) !important;
+  border-color: color-mix(in oklch, var(--color-border) 78%, transparent) !important;
+}
+
+html[data-theme='light'] .muted-text,
+html[data-theme='light'] .card-description,
+html[data-theme='light'] .form-help,
+html[data-theme='light'] .settings-section-hint,
+html[data-theme='light'] .notification-item-body,
+html[data-theme='light'] .notification-item-time,
+html[data-theme='light'] .commission-case-meta,
+html[data-theme='light'] .dashboard-header-user,
+html[data-theme='light'] .employee-card p,
+html[data-theme='light'] .employee-modal-eyebrow {
+  color: var(--color-muted-foreground) !important;
+}
+
+html[data-theme='light'] .dashboard-profile-menu {
+  background: var(--color-card) !important;
+  border-color: var(--color-border) !important;
+  box-shadow: 0 18px 38px rgb(15 23 42 / 0.12), 0 6px 16px rgb(15 23 42 / 0.08) !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+html[data-theme='light'] .dashboard-profile-trigger {
+  background: color-mix(in oklch, var(--color-sidebar) 84%, white) !important;
+  border-color: color-mix(in oklch, var(--color-sidebar-border) 78%, transparent) !important;
+  color: var(--color-sidebar-foreground) !important;
+  box-shadow: none !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+html[data-theme='light'] .dashboard-profile-trigger:hover,
+html[data-theme='light'] .dashboard-profile-trigger.is-open {
+  background: color-mix(in oklch, var(--color-sidebar) 70%, white) !important;
+  border-color: color-mix(in oklch, var(--color-border) 86%, rgb(var(--accent-active) / 0.18)) !important;
+}
+
+html[data-accent] .settings-form,
+html[data-accent] .settings-form > div,
+html[data-accent] .settings-form > *:not(button),
+html[data-accent] .settings-form label,
+html[data-accent] .settings-form .form-group,
+html[data-accent] .settings-form .form-grid,
+html[data-accent] .commissions-page .employee-review-modal .settings-form,
+html[data-accent] .commissions-page .employee-review-modal .settings-form > div,
+html[data-accent] .commissions-page .employee-review-modal .settings-form > *:not(button),
+html[data-accent] .commissions-page .employee-review-modal .settings-form label {
+  background: transparent !important;
+  background-color: transparent !important;
+  background-image: none !important;
+  border-color: transparent !important;
+  box-shadow: none !important;
+}
+
+html[data-theme='light'] .commissions-page .employee-review-modal .settings-form input[type='date'],
+html[data-theme='light'] .commissions-page .employee-review-modal .settings-form input[type='number'] {
+  border-color: color-mix(in oklch, var(--color-border) 82%, #cfd4dc) !important;
+}
+
+/* Generic accent layer
+   Make non-orange accents visibly affect interactive states too. */
+
+html[data-accent] .employee-template-bar,
+html[data-accent] .employee-card-avatar,
+html[data-accent] .employee-doc-preview-tile,
+html[data-accent] .employee-modal-document-tile,
+html[data-accent] .return-request-employee-state {
+  background: rgb(var(--accent-surface-strong) / 0.11) !important;
+  border-color: rgb(var(--accent-active-border) / 0.29) !important;
+}
+
+html[data-accent] .employee-subtabs .employee-subtab,
+html[data-accent] .employee-step-tabs .employee-step-tab,
+html[data-accent] .settings-tabs .employee-subtab,
+html[data-accent] .commission-range-tabs .employee-subtab {
+  color: var(--color-foreground) !important;
+  background: color-mix(in oklch, var(--color-card) 88%, var(--color-muted)) !important;
+  border: 1px solid color-mix(in oklch, var(--color-border) 78%, transparent) !important;
+  box-shadow: none !important;
+}
+
+html[data-accent] .employee-subtabs .employee-subtab:hover,
+html[data-accent] .employee-step-tabs .employee-step-tab:hover,
+html[data-accent] .settings-tabs .employee-subtab:hover,
+html[data-accent] .commission-range-tabs .employee-subtab:hover,
+html[data-accent] .return-request-employee-option:hover .return-request-employee-state {
+  background: rgb(var(--accent-active) / 0.16) !important;
+  border-color: rgb(var(--accent-active-border) / 0.42) !important;
+}
+
+html[data-accent] .employee-subtabs .employee-subtab:hover:not(.is-active):not(:disabled),
+html[data-accent] .employee-step-tabs .employee-step-tab:hover:not(.is-active):not(:disabled),
+html[data-accent] .settings-tabs .employee-subtab:hover:not(.is-active):not(:disabled),
+html[data-accent] .commission-range-tabs .employee-subtab:hover:not(.is-active):not(:disabled),
+html[data-accent] .profiles-agreement-board-filters .employee-subtab:hover:not(.is-active):not(:disabled) {
+  color: color-mix(in oklch, var(--color-foreground) 92%, white 8%) !important;
+  box-shadow: inset 0 0 0 1px rgb(var(--accent-active) / 0.08) !important;
+}
+
+html[data-accent] .employee-subtabs .employee-subtab.is-active,
+html[data-accent] .employee-step-tabs .employee-step-tab.is-active,
+html[data-accent] .settings-tabs .employee-subtab.is-active,
+html[data-accent] .commission-range-tabs .employee-subtab.is-active,
+html[data-accent] .profiles-agreement-board-filters .employee-subtab.is-active,
+html[data-accent] .return-request-employee-option.is-selected,
+html[data-accent] .return-request-employee-option.is-selected .return-request-employee-state,
+html[data-accent] .returned-list-add-button,
+html[data-accent] .dashboard-nav-link.is-active {
+  background: linear-gradient(
+    25deg,
+    rgb(var(--accent-active)) 0%,
+    rgb(var(--accent-active-border)) 100%
+  ) !important;
+  border-color: rgb(var(--accent-active-border) / 0.92) !important;
+  color: #fff !important;
+}
+
+html[data-accent='natural'] .employee-subtabs .employee-subtab.is-active,
+html[data-accent='natural'] .employee-step-tabs .employee-step-tab.is-active,
+html[data-accent='natural'] .settings-tabs .employee-subtab.is-active,
+html[data-accent='natural'] .commission-range-tabs .employee-subtab.is-active,
+html[data-accent='natural'] .profiles-agreement-board-filters .employee-subtab.is-active,
+html[data-accent='natural'] .return-request-employee-option.is-selected,
+html[data-accent='natural'] .return-request-employee-option.is-selected .return-request-employee-state,
+html[data-accent='natural'] .returned-list-add-button,
+html[data-accent='natural'] .dashboard-nav-link.is-active,
+html[data-accent='natural'] .btn-primary,
+html[data-accent='natural'] .btn-warning,
+html[data-accent='natural'] .badge-warning {
+  color: #111111 !important;
+}
+
+html[data-accent] .employee-step-tabs .employee-step-tab.is-active span,
+html[data-accent] .employee-subtabs .employee-subtab.is-active,
+html[data-accent] .settings-tabs .employee-subtab.is-active,
+html[data-accent] .commission-range-tabs .employee-subtab.is-active,
+html[data-accent] .profiles-agreement-board-filters .employee-subtab.is-active {
+  color: #fff !important;
+}
+
+html[data-accent] .profiles-agreement-board-filters .employee-subtab.is-active,
+html[data-accent] .profiles-agreement-board-filters .employee-subtab.is-active:hover:not(:disabled) {
+  color: #111111 !important;
+}
+
+html[data-accent] .employee-step-tabs .employee-step-tab.is-active span {
+  background: rgb(255 255 255 / 0.2) !important;
+  color: #fff !important;
+}
+
+html[data-accent='natural'] .employee-subtabs .employee-subtab.is-active,
+html[data-accent='natural'] .employee-step-tabs .employee-step-tab.is-active,
+html[data-accent='natural'] .settings-tabs .employee-subtab.is-active,
+html[data-accent='natural'] .commission-range-tabs .employee-subtab.is-active {
+  color: #111111 !important;
+}
+
+html[data-accent='natural'] .employee-step-tabs .employee-step-tab.is-active span {
+  background: rgb(0 0 0 / 0.12) !important;
+  color: #111111 !important;
+}
+
+html[data-accent='natural'] .btn-warning,
+html[data-accent='natural'] .badge-warning {
+  background: linear-gradient(
+    25deg,
+    rgb(var(--accent-active)) 0%,
+    rgb(var(--accent-active-border)) 100%
+  ) !important;
+  border-color: rgb(var(--accent-active-border) / 0.92) !important;
+}
+
+html[data-accent] .badge:not(.badge-muted):not(.badge-warning):not(.badge-success):not(.badge-danger):not(.badge-info):not(.commission-settled-badge):not(.profiles-agreement-status),
+html[data-accent] .badge-super,
+html[data-accent] .notification-bell-badge,
+html[data-accent] .employee-alert-list .badge {
+  background: rgb(var(--accent-active)) !important;
+  border-color: rgb(var(--accent-active)) !important;
+  color: #fff !important;
+}
+
+html[data-accent] .employee-card-status-badge.badge-success,
+html[data-accent] .employee-card-status-badge.badge-info,
+html[data-accent] .employee-card-status-badge.badge-warning,
+html[data-accent] .employee-card-status-badge.badge-danger,
+html[data-accent] .employee-card-status-badge.badge-muted {
+  box-shadow: 0 4px 10px rgb(0 0 0 / 0.12) !important;
+}
+
+html[data-accent] .employee-card .employee-card-status-badge.badge-success.employee-card-status-badge--employed,
+html[data-accent] .employee-summary-card .employee-card-status-badge.badge-success.employee-card-status-badge--employed,
+html[data-accent] .employee-card-status-badge.badge-success.employee-card-status-badge--employed {
+  background: #255d38 !important;
+  border-color: #34794a !important;
+  color: #eefbf2 !important;
+}
+
+html[data-accent] .employee-card-status-badge.badge-muted,
+html[data-accent] .employee-card .employee-card-status-badge.badge-muted,
+html[data-accent] .employee-summary-card .employee-card-status-badge.badge-muted {
+  color: #f9fafb !important;
+}
+
+html[data-accent] .btn-outline,
+html[data-accent] .btn-ghost,
+html[data-accent] .attachment-file-trigger,
+html[data-accent] .dashboard-profile-logout,
+html[data-accent] .dashboard-logout,
+html[data-accent] button:not(.employee-subtab):not(.employee-step-tab):not(.btn-secondary):not(.btn-success):not(.btn-info):not(.btn-warning):not(.btn-danger):not(.btn-muted-action):not(.btn-primary):not(.btn-outline):not(.btn-ghost) {
+  color: var(--color-foreground) !important;
+  border-color: rgb(var(--accent-border) / 0.46) !important;
+}
+
+html[data-accent] .btn-ghost {
+  background: transparent !important;
+  border: 1px solid rgb(var(--accent-border) / 0.62) !important;
+  border-color: rgb(var(--accent-border) / 0.62) !important;
+  border-radius: 3px !important;
+  box-shadow: none !important;
+}
+
+html[data-accent] .btn-secondary {
+  background: color-mix(in oklch, var(--color-card) 82%, rgb(var(--accent-tile-muted) / 0.62)) !important;
+  color: var(--color-foreground) !important;
+  border: 1px solid rgb(var(--accent-active-border) / 0.38) !important;
+  box-shadow: none !important;
+}
+
+html[data-accent] .btn-secondary:hover:not(:disabled),
+html[data-accent] .btn-outline:hover:not(:disabled),
+html[data-accent] .btn-ghost:hover:not(:disabled),
+html[data-accent] .attachment-file-trigger:hover:not(:disabled),
+html[data-accent] .dashboard-profile-logout:hover:not(:disabled),
+html[data-accent] .dashboard-logout:hover:not(:disabled),
+html[data-accent] button:not(.employee-subtab):not(.employee-step-tab):not(.btn-secondary):hover:not(:disabled) {
+  background: color-mix(in oklch, var(--color-card) 72%, rgb(var(--accent-tile-hover) / 0.82)) !important;
+  border-color: rgb(var(--accent-active-border) / 0.46) !important;
+  color: var(--color-foreground) !important;
+}
+
+html[data-accent] .btn-ghost:hover:not(:disabled) {
+  background: rgb(var(--accent-active) / 0.16) !important;
+  border-color: rgb(var(--accent-active-border) / 0.42) !important;
+  color: color-mix(in oklch, var(--color-foreground) 92%, white 8%) !important;
+  box-shadow: inset 0 0 0 1px rgb(var(--accent-active) / 0.08) !important;
+}
+
+html[data-accent] .btn-secondary:hover:not(:disabled) {
+  background: color-mix(in oklch, var(--color-card) 68%, rgb(var(--accent-tile-hover) / 0.9)) !important;
+  border-color: rgb(var(--accent-active-border) / 0.5) !important;
+  color: var(--color-foreground) !important;
+  box-shadow: none !important;
+}
+
+html[data-accent] .employee-modal .btn-secondary,
+html[data-accent] .employee-review-modal .btn-secondary,
+html[data-accent] .document-preview-modal .btn-secondary,
+html[data-accent] .commission-toolbar .btn-secondary,
+html[data-accent] .employee-filters-grid button,
+html[data-accent] .employees-filter-grid button,
+html[data-accent] .users-filter-grid button,
+html[data-accent] .returned-list-actions button,
+html[data-accent] .returned-request-actions button {
+  background: color-mix(in oklch, var(--color-card) 82%, rgb(var(--accent-tile-muted) / 0.62)) !important;
+  border-color: rgb(var(--accent-active-border) / 0.34) !important;
+  color: var(--color-foreground) !important;
+}
+
+html[data-accent] .employee-modal .btn-secondary:hover:not(:disabled),
+html[data-accent] .employee-review-modal .btn-secondary:hover:not(:disabled),
+html[data-accent] .document-preview-modal .btn-secondary:hover:not(:disabled),
+html[data-accent] .commission-toolbar .btn-secondary:hover:not(:disabled),
+html[data-accent] .employee-filters-grid button:hover:not(:disabled),
+html[data-accent] .employees-filter-grid button:hover:not(:disabled),
+html[data-accent] .users-filter-grid button:hover:not(:disabled),
+html[data-accent] .returned-list-actions button:hover:not(:disabled),
+html[data-accent] .returned-request-actions button:hover:not(:disabled) {
+  background: color-mix(in oklch, var(--color-card) 68%, rgb(var(--accent-tile-hover) / 0.9)) !important;
+  border-color: rgb(var(--accent-active-border) / 0.5) !important;
+  color: var(--color-foreground) !important;
+}
+
+html[data-accent] .btn-primary {
+  background: linear-gradient(25deg, rgb(var(--accent-active)) 0%, rgb(var(--accent-active-border)) 100%) !important;
+  color: #fff !important;
+  border-color: rgb(var(--accent-active-border) / 0.95) !important;
+}
+
+html[data-accent] .settings-form > button[type='submit'],
+html[data-accent] .settings-tab-card .settings-form > button[type='submit'],
+html[data-accent] .profiles-page .settings-form > button[type='submit'] {
+  align-self: flex-start !important;
+  min-width: 170px !important;
+  min-height: 42px !important;
+  padding: 10px 16px !important;
+  border-radius: 3px !important;
+  background: color-mix(in oklch, var(--color-card) 88%, var(--color-muted)) !important;
+  color: var(--color-foreground) !important;
+  border: 1px solid color-mix(in oklch, var(--color-border) 78%, transparent) !important;
+  box-shadow: none !important;
+}
+
+html[data-accent] .btn-primary:hover:not(:disabled) {
+  background: linear-gradient(25deg, rgb(var(--accent-active) / 0.9) 0%, rgb(var(--accent-active-border)) 100%) !important;
+  border-color: rgb(var(--accent-active-border)) !important;
+}
+
+html[data-accent] .settings-form > button[type='submit']:hover:not(:disabled),
+html[data-accent] .settings-tab-card .settings-form > button[type='submit']:hover:not(:disabled),
+html[data-accent] .profiles-page .settings-form > button[type='submit']:hover:not(:disabled) {
+  background: rgb(var(--accent-active) / 0.16) !important;
+  border-color: rgb(var(--accent-active-border) / 0.42) !important;
+  color: color-mix(in oklch, var(--color-foreground) 92%, white 8%) !important;
+  box-shadow: inset 0 0 0 1px rgb(var(--accent-active) / 0.08) !important;
+}
+
+html[data-accent='natural'] .settings-form > button[type='submit'],
+html[data-accent='natural'] .settings-tab-card .settings-form > button[type='submit'],
+html[data-accent='natural'] .profiles-page .settings-form > button[type='submit'] {
+  color: #111111 !important;
+}
+
+html[data-accent='natural'] .settings-form > button[type='submit']:hover:not(:disabled),
+html[data-accent='natural'] .settings-tab-card .settings-form > button[type='submit']:hover:not(:disabled),
+html[data-accent='natural'] .profiles-page .settings-form > button[type='submit']:hover:not(:disabled) {
+  color: #111111 !important;
+}
+
+html[data-accent] .btn-success {
+  background: linear-gradient(25deg, #1d7a49 0%, #14532d 100%) !important;
+  color: #f7fff9 !important;
+  border-color: #1f8a53 !important;
+}
+
+html[data-accent] .btn-info {
+  background: linear-gradient(25deg, #2d65d9 0%, #1e3a8a 100%) !important;
+  color: #f8fbff !important;
+  border-color: #3c79f0 !important;
+}
+
+html[data-accent] .btn-warning {
+  background: linear-gradient(
+    25deg,
+    rgb(var(--accent-active) / 0.72) 0%,
+    rgb(var(--accent-active-border) / 0.78) 100%
+  ) !important;
+  color: #fff !important;
+  border-color: rgb(var(--accent-active-border) / 0.44) !important;
+}
+
+html[data-accent='natural'] .btn-warning {
+  background: linear-gradient(
+    25deg,
+    rgb(var(--accent-active)) 0%,
+    rgb(var(--accent-active-border)) 100%
+  ) !important;
+  color: #111111 !important;
+  border-color: rgb(var(--accent-active-border) / 0.92) !important;
+}
+
+html[data-accent='natural'] .badge-muted,
+html[data-accent='natural'] .badge-super,
+html[data-accent='natural'] .commission-settled-badge,
+html[data-accent='natural'] .badge-warning {
+  color: #111111 !important;
+}
+
+html[data-theme='dark'] .commission-settled-badge,
+html[data-theme='dark'] .employee-employed-summary .commission-settled-badge,
+html[data-theme='dark'] .commissions-page .commission-settled-badge {
+  color: #f9fafb !important;
+}
+
+html[data-accent] .profiles-agreement-status.profiles-agreement-status--signed {
+  background: #166534 !important;
+  border-color: #166534 !important;
+  color: #effdf5 !important;
+}
+
+html[data-accent] .profiles-agreement-status.profiles-agreement-status--active {
+  background: #15803d !important;
+  border-color: #15803d !important;
+  color: #f0fdf4 !important;
+}
+
+html[data-accent] .profiles-agreement-status.profiles-agreement-status--pending {
+  background: #ca8a04 !important;
+  border-color: #ca8a04 !important;
+  color: #fffbea !important;
+}
+
+html[data-accent] .badge.badge-warning,
+html[data-theme='light'][data-accent] .badge.badge-warning,
+html[data-theme='dark'][data-accent] .badge.badge-warning {
+  color: #111111 !important;
+}
+
+html[data-accent] .profiles-agreement-status.profiles-agreement-status--rejected {
+  background: #b91c1c !important;
+  border-color: #b91c1c !important;
+  color: #fef2f2 !important;
+}
+
+html[data-accent] .profiles-agreement-status.profiles-agreement-status--expired {
+  background: #6b7280 !important;
+  border-color: #6b7280 !important;
+  color: #f9fafb !important;
+}
+
+html[data-accent] .commissions-page .badge.badge-warning,
+html[data-accent] .commission-request-card-actions .badge.badge-warning,
+html[data-accent] .commission-case-card .badge.badge-warning,
+html[data-accent] .commission-request-employee-state {
+  background: linear-gradient(25deg, #ca8a04 0%, #b45309 100%) !important;
+  border-color: #d97706 !important;
+  color: #fff7ed !important;
+}
+
+html[data-accent] .btn-muted-action {
+  background: rgb(var(--accent-surface-strong) / 0.12) !important;
+  color: var(--color-foreground) !important;
+  border-color: rgb(var(--accent-border) / 0.22) !important;
+}
+
+html[data-accent] .btn-danger {
+  background: linear-gradient(25deg, #b84040 0%, #7f1d1d 100%) !important;
+  border-color: #cf5b5b !important;
+  color: #fff6f6 !important;
+}
+
+html[data-accent] .concept-card-kicker,
+html[data-accent] .commission-group-toggle,
+html[data-accent] .employee-modal-eyebrow,
+html[data-accent] .concept-eyebrow {
+  color: rgb(var(--accent-active) / 0.92) !important;
+}
+
+html[data-accent] .users-table th,
+html[data-accent] .users-table-wrap thead th,
+html[data-accent] .activity-log-table thead th {
+  background: rgb(var(--accent-surface-strong) / 0.12) !important;
+  border-bottom-color: rgb(var(--accent-border) / 0.3) !important;
+}
+
+html[data-accent] .dashboard-profile-dropdown {
+  border-color: rgb(var(--accent-border) / 0.28) !important;
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in oklch, var(--color-card) 96%, rgb(var(--accent-tile-muted) / 0.34)) 0%,
+      color-mix(in oklch, var(--color-card) 90%, rgb(var(--accent-tile-muted) / 0.18)) 100%
+    ) !important;
+  box-shadow:
+    0 18px 38px rgb(15 23 42 / 0.14),
+    0 6px 16px rgb(var(--accent-surface-strong) / 0.1) !important;
+}
+
+html[data-accent] .dashboard-profile-dropdown::before {
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in oklch, var(--color-card) 96%, rgb(var(--accent-tile-muted) / 0.34)) 0%,
+      color-mix(in oklch, var(--color-card) 90%, rgb(var(--accent-tile-muted) / 0.18)) 100%
+    ) !important;
+}
+
+html[data-accent] .dashboard-profile-dropdown-name {
+  color: var(--color-foreground) !important;
+}
+
+html[data-accent] .dashboard-profile-dropdown-meta {
+  color: color-mix(in oklch, var(--color-muted-foreground) 88%, rgb(var(--accent-active) / 0.2)) !important;
+}
+
+html[data-accent] .employee-subtabs .employee-subtab.is-active:hover:not(:disabled),
+html[data-accent] .employee-step-tabs .employee-step-tab.is-active:hover:not(:disabled),
+html[data-accent] .settings-tabs .employee-subtab.is-active:hover:not(:disabled),
+html[data-accent] .commission-range-tabs .employee-subtab.is-active:hover:not(:disabled),
+html[data-accent] .dashboard-nav-link.is-active:hover,
+html[data-accent] .returned-list-add-button:hover:not(:disabled),
+html[data-accent] .return-request-employee-option.is-selected:hover,
+html[data-accent] .return-request-employee-option.is-selected:hover .return-request-employee-state,
+html[data-accent] .btn-primary:hover:not(:disabled) {
+  background: linear-gradient(
+    25deg,
+    rgb(var(--accent-active)) 0%,
+    rgb(var(--accent-active-border)) 100%
+  ) !important;
+  border-color: rgb(var(--accent-active-border) / 0.92) !important;
+  box-shadow: none !important;
+}
+
+html[data-accent] .employee-subtabs .employee-subtab.is-active:hover:not(:disabled),
+html[data-accent] .employee-step-tabs .employee-step-tab.is-active:hover:not(:disabled),
+html[data-accent] .settings-tabs .employee-subtab.is-active:hover:not(:disabled),
+html[data-accent] .commission-range-tabs .employee-subtab.is-active:hover:not(:disabled),
+html[data-accent] .dashboard-nav-link.is-active:hover,
+html[data-accent] .returned-list-add-button:hover:not(:disabled),
+html[data-accent] .return-request-employee-option.is-selected:hover,
+html[data-accent] .return-request-employee-option.is-selected:hover .return-request-employee-state,
+html[data-accent] .btn-primary:hover:not(:disabled) {
+  color: #ffffff !important;
+}
+
+html[data-accent='natural'] .employee-subtabs .employee-subtab.is-active:hover:not(:disabled),
+html[data-accent='natural'] .employee-step-tabs .employee-step-tab.is-active:hover:not(:disabled),
+html[data-accent='natural'] .settings-tabs .employee-subtab.is-active:hover:not(:disabled),
+html[data-accent='natural'] .commission-range-tabs .employee-subtab.is-active:hover:not(:disabled),
+html[data-accent='natural'] .dashboard-nav-link.is-active:hover,
+html[data-accent='natural'] .returned-list-add-button:hover:not(:disabled),
+html[data-accent='natural'] .return-request-employee-option.is-selected:hover,
+html[data-accent='natural'] .return-request-employee-option.is-selected:hover .return-request-employee-state,
+html[data-accent='natural'] .btn-primary:hover:not(:disabled),
+html[data-accent='natural'] .btn-warning:hover:not(:disabled) {
+  color: #111111 !important;
+  background: linear-gradient(
+    25deg,
+    rgb(var(--accent-active)) 0%,
+    rgb(var(--accent-active-border)) 100%
+  ) !important;
+  border-color: rgb(var(--accent-active-border) / 0.92) !important;
+  box-shadow: none !important;
+  filter: none !important;
+  transform: none !important;
+}
+
+html[data-accent] input,
+html[data-accent] select,
+html[data-accent] textarea,
+html[data-accent] .form-group input,
+html[data-accent] .form-grid input,
+html[data-accent] .form-grid select,
+html[data-accent] .settings-form select,
+html[data-accent] .settings-form input[type='text'],
+html[data-accent] .settings-form input[type='date'],
+html[data-accent] .settings-form input[type='number'],
+html[data-accent] .employees-page .user-create-card textarea,
+html[data-accent] .employee-modal-form input,
+html[data-accent] .employee-modal-form select,
+html[data-accent] .employee-modal-form textarea,
+html[data-accent] .users-table select,
+html[data-accent] .commission-search input {
+  border-color: color-mix(in oklch, var(--color-border) 72%, rgb(var(--accent-border) / 0.74)) !important;
+}
+
+html[data-accent] input:hover,
+html[data-accent] select:hover,
+html[data-accent] textarea:hover,
+html[data-accent] .form-group input:hover,
+html[data-accent] .form-grid input:hover,
+html[data-accent] .form-grid select:hover,
+html[data-accent] .settings-form select:hover,
+html[data-accent] .settings-form input[type='text']:hover,
+html[data-accent] .settings-form input[type='date']:hover,
+html[data-accent] .settings-form input[type='number']:hover,
+html[data-accent] .employees-page .user-create-card textarea:hover,
+html[data-accent] .employee-modal-form input:hover,
+html[data-accent] .employee-modal-form select:hover,
+html[data-accent] .employee-modal-form textarea:hover,
+html[data-accent] .users-table select:hover,
+html[data-accent] .commission-search input:hover {
+  border-color: rgb(var(--accent-active-border) / 0.42) !important;
+}
+
+html[data-theme='light'] .dashboard-nav-link:hover:not(.is-active),
+html[data-theme='light'][data-accent] .dashboard-nav-link:hover:not(.is-active) {
+  color: var(--color-foreground) !important;
+}
+
+html[data-theme='light'] .dashboard-nav-link.is-active:hover,
+html[data-theme='light'][data-accent] .dashboard-nav-link.is-active:hover,
+html[data-accent] .dashboard-nav-link.is-active:hover {
+  background: linear-gradient(
+    25deg,
+    rgb(var(--accent-active)) 0%,
+    rgb(var(--accent-active-border)) 100%
+  ) !important;
+  border-color: rgb(var(--accent-active-border) / 0.92) !important;
+  color: #ffffff !important;
+  box-shadow: none !important;
+  filter: none !important;
+  transform: none !important;
+}
+
+html[data-accent] .users-table tbody tr:hover,
+html[data-accent] .activity-log-table tbody tr:hover,
+html[data-accent] .employee-card:hover,
+html[data-accent] .returned-request-item:hover,
+html[data-accent] .return-request-employee-option:hover,
+html[data-accent] .notification-item:hover,
+html[data-accent] .notifications-page-item:hover,
+html[data-accent] .commission-case-card:hover,
+html[data-accent] .concept-card:hover,
+html[data-accent] .employee-summary-card:hover {
+  background: rgb(var(--accent-tile-hover) / 0.14) !important;
+  border-color: rgb(var(--accent-border) / 0.5) !important;
+}
+
+html[data-accent] .table-scroll,
+html[data-accent] .activity-code {
+  border-color: rgb(var(--accent-border) / 0.24) !important;
+}
+
+html[data-accent] .activity-code {
+  background: rgb(var(--accent-surface-strong) / 0.12) !important;
+}
+
+html[data-accent] input:focus,
+html[data-accent] select:focus,
+html[data-accent] textarea:focus,
+html[data-accent] .form-group input:focus,
+html[data-accent] .form-grid input:focus,
+html[data-accent] .form-grid select:focus,
+html[data-accent] .settings-form select:focus,
+html[data-accent] .settings-form input[type='text']:focus,
+html[data-accent] .employees-page .user-create-card textarea:focus,
+html[data-accent] .employee-modal-form input:focus,
+html[data-accent] .employee-modal-form select:focus,
+html[data-accent] .employee-modal-form textarea:focus,
+html[data-accent] .users-table select:focus,
+html[data-accent] .commission-search input:focus {
+  border-color: rgb(var(--accent-active-border) / 0.9) !important;
+  box-shadow: 0 0 0 3px rgb(var(--accent-active) / 0.16) !important;
+}
+
+html[data-accent] .dashboard-nav-link.is-active:hover,
+html[data-theme='light'][data-accent] .dashboard-nav-link.is-active:hover,
+html[data-theme='dark'][data-accent] .dashboard-nav-link.is-active:hover {
+  background: linear-gradient(
+    25deg,
+    rgb(var(--accent-active)) 0%,
+    rgb(var(--accent-active-border)) 100%
+  ) !important;
+  border-color: rgb(var(--accent-active-border) / 0.92) !important;
+  box-shadow: none !important;
+  filter: none !important;
+  transform: none !important;
+}
+
+html[data-accent] .dashboard-nav-link.is-active:hover {
+  color: #ffffff !important;
+}
+
+html[data-accent='natural'] .dashboard-nav-link.is-active:hover {
+  color: #111111 !important;
+}
+
+html[data-accent] .badge.profiles-admin-badge.profiles-agreement-status.profiles-agreement-status--active,
+html[data-theme='light'][data-accent] .badge.profiles-admin-badge.profiles-agreement-status.profiles-agreement-status--active,
+html[data-theme='dark'][data-accent] .badge.profiles-admin-badge.profiles-agreement-status.profiles-agreement-status--active,
+html[data-accent='natural'] .badge.profiles-admin-badge.profiles-agreement-status.profiles-agreement-status--active {
+  background: #15803d !important;
+  border-color: #15803d !important;
+  color: #f0fdf4 !important;
+}
+
+/* Final sidebar layout normalization */
+
+.dashboard-shell {
+  align-items: stretch;
+}
+
+.dashboard-sidebar {
+  position: relative !important;
+  display: flex !important;
+  flex-direction: column !important;
+  justify-content: flex-start !important;
+  gap: 12px !important;
+  width: 248px !important;
+  min-width: 248px !important;
+  padding: 12px !important;
+  overflow-x: hidden !important;
+  overflow-y: auto !important;
+}
+
+.dashboard-sidebar-top {
+  position: relative !important;
+  top: auto !important;
+  left: auto !important;
+  width: 100% !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+}
+
+.dashboard-profile-menu {
+  width: 100% !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  background: linear-gradient(
+    25deg,
+    rgb(var(--accent-active) / 0.18) 0%,
+    rgb(var(--accent-active-border) / 0.22) 100%
+  ) !important;
+  box-shadow: none !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+}
+
+.dashboard-profile-trigger {
+  align-items: center !important;
+  gap: 12px !important;
+  padding: 18px 14px !important;
+  min-height: 108px !important;
+  margin: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  border: 0 !important;
+}
+
+.dashboard-profile-avatar {
+  width: 44px !important;
+  height: 44px !important;
+  min-width: 44px !important;
+  border-radius: 12px !important;
+}
+
+.dashboard-profile-copy {
+  gap: 2px !important;
+}
+
+.dashboard-profile-copy strong {
+  font-size: 1rem !important;
+}
+
+.dashboard-profile-copy span {
+  font-size: 0.82rem !important;
+}
+
+.dashboard-brand {
+  margin: 0 0 4px !important;
+}
+
+.dashboard-nav {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 6px !important;
+  padding: 0 !important;
+}
+
+.dashboard-nav-link,
+.dashboard-nav-trigger {
+  justify-content: flex-start !important;
+  width: 100% !important;
+  text-align: left !important;
+}
