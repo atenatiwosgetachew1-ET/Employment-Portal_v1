@@ -9,7 +9,7 @@ let systemThemeMedia = null
 let detachSystemThemeListener = null
 
 function normalizeTheme(theme) {
-  return 'dark'
+  return theme === 'light' ? 'light' : DEFAULT_THEME
 }
 
 function normalizeAccent(accent) {
@@ -17,7 +17,7 @@ function normalizeAccent(accent) {
 }
 
 function resolveSystemTheme() {
-  return 'dark'
+  return DEFAULT_THEME
 }
 
 function setResolvedThemeAttributes(theme) {
@@ -52,7 +52,7 @@ function bindSystemThemeListener() {
 }
 
 export function applyTheme(theme) {
-  const normalizedTheme = 'dark'
+  const normalizedTheme = normalizeTheme(theme)
   setResolvedThemeAttributes(normalizedTheme)
 
   try {
@@ -63,7 +63,11 @@ export function applyTheme(theme) {
 }
 
 export function getStoredTheme() {
-  return 'dark'
+  try {
+    return normalizeTheme(window.localStorage.getItem(THEME_STORAGE_KEY))
+  } catch {
+    return DEFAULT_THEME
+  }
 }
 
 export function applyAccent(accent) {

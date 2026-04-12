@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import * as platformSettingsService from '../services/platformSettingsService'
 import * as preferencesService from '../services/preferencesService'
 import { useAuth } from '../context/AuthContext'
-import { ACCENT_VALUES, applyAccent, applyTheme, getStoredAccent, storeAccent } from '../utils/theme'
+import { ACCENT_VALUES, applyAccent, applyTheme, getStoredAccent, getStoredTheme, storeAccent } from '../utils/theme'
 
 const TIMEZONES = [
   'UTC',
@@ -12,7 +12,11 @@ const TIMEZONES = [
   'Asia/Tokyo'
 ]
 
-const LOCKED_THEME = 'dark'
+const THEME_VALUES = ['dark', 'light']
+const THEME_LABELS = {
+  dark: 'Dark',
+  light: 'Light'
+}
 const ACCENT_LABELS = {
   natural: 'Natural',
   orange: 'Orange'
@@ -36,6 +40,7 @@ export default function SettingsPage() {
   const [saved, setSaved] = useState(false)
   const [platformSaved, setPlatformSaved] = useState(false)
   const [platformSettings, setPlatformSettings] = useState(null)
+  const [theme, setTheme] = useState(getStoredTheme())
   const [accent, setAccent] = useState(getStoredAccent())
   const [currentTab, setCurrentTab] = useState(organization ? 'organization' : 'preferences')
   const isSuperadmin = user?.role === 'superadmin'
@@ -57,9 +62,11 @@ export default function SettingsPage() {
           ? platformSettingsService.fetchPlatformSettings()
           : Promise.resolve(null)
       ])
-      setPrefs({ ...prefsData, theme: LOCKED_THEME })
+      const nextTheme = prefsData?.theme === 'light' ? 'light' : getStoredTheme()
+      setPrefs({ ...prefsData, theme: nextTheme })
       setPlatformSettings(platformData)
-      applyTheme(LOCKED_THEME)
+      setTheme(nextTheme)
+      applyTheme(nextTheme)
       applyAccent(accent)
     } catch (e) {
       setError(e.message || 'Could not load settings')
@@ -129,13 +136,13 @@ export default function SettingsPage() {
     setSaved(false)
     try {
       const updated = await preferencesService.patchPreferences({
-        theme: LOCKED_THEME,
+        theme,
         timezone: prefs.timezone,
         language: prefs.language,
         email_notifications: prefs.email_notifications
       })
-      setPrefs({ ...updated, theme: LOCKED_THEME })
-      applyTheme(LOCKED_THEME)
+      setPrefs({ ...updated, theme })
+      applyTheme(theme)
       storeAccent(accent)
       applyAccent(accent)
       setSaved(true)
@@ -241,7 +248,13 @@ export default function SettingsPage() {
           <form className="settings-form" onSubmit={handlePrefsSubmit}>
             <label>
               Theme
-              <input type="text" value="Dark" readOnly disabled className="settings-readonly" />
+              <select value={theme} onChange={(e) => setTheme(e.target.value)}>
+                {THEME_VALUES.map((value) => (
+                  <option key={value} value={value}>
+                    {THEME_LABELS[value] || value}
+                  </option>
+                ))}
+              </select>
             </label>
             <label>
               Accent

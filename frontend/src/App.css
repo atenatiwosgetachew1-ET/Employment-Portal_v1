@@ -3636,7 +3636,7 @@ html[data-theme='dark'][data-accent] .profiles-agreement-selected-remove:hover:n
 .employee-progress-donut-label strong {
   font-size: 1.6rem;
   line-height: 1;
-  color: #ffffff;
+  color: #111111;
 }
 
 .employee-progress-donut-label span {
@@ -3677,7 +3677,7 @@ html[data-theme='dark'][data-accent] .profiles-agreement-selected-remove:hover:n
 
 .employee-employed-summary {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: minmax(0, 1fr);
   gap: 12px;
   margin: 14px 0;
 }
@@ -3685,11 +3685,14 @@ html[data-theme='dark'][data-accent] .profiles-agreement-selected-remove:hover:n
 .employee-employed-block {
   display: flex;
   flex-direction: column;
+  width: 100%;
+  min-width: 0;
   gap: 8px;
   padding: 12px;
   border: 1px solid #e5e7eb;
   border-radius: 12px;
   background: #00000091;
+  box-sizing: border-box;
 }
 
 .employee-employed-block p {
@@ -6004,7 +6007,7 @@ html[data-theme='dark'][data-accent] .notification-dropdown {
 /* Global scrollbar skin */
 
 html {
-  color-scheme: dark;
+  color-scheme: light;
   background: var(--color-background);
   scrollbar-width: thin;
   scrollbar-color: rgb(var(--accent-active-border) / 0.65) rgb(var(--accent-surface-strong) / 0.16);
@@ -6047,7 +6050,7 @@ body::-webkit-scrollbar-thumb,
     rgb(var(--accent-active) / 0.7) 0%,
     rgb(var(--accent-active-border) / 0.82) 100%
   );
-  border: 2px solid rgb(20 20 20 / 0.72);
+  border: 2px solid color-mix(in oklch, var(--color-background) 88%, transparent);
   border-radius: 999px;
 }
 
@@ -6239,6 +6242,46 @@ html[data-accent='natural'] body,
 html[data-theme='dark'][data-accent='natural'] body {
   background: var(--color-background) !important;
 }
+
+html[data-theme='light'] body {
+  background:
+    radial-gradient(circle at top left, rgb(var(--accent-glow-1) / 0.28) 0%, transparent 32%),
+    radial-gradient(circle at top right, rgb(var(--accent-glow-2) / 0.22) 0%, transparent 28%),
+    linear-gradient(
+      180deg,
+      color-mix(in oklch, var(--color-background) 90%, white 10%) 0%,
+      var(--color-background) 100%
+    ) !important;
+}
+
+html[data-theme='light'][data-accent] .dashboard-panel,
+html[data-theme='light'][data-accent] .employee-summary-card,
+html[data-theme='light'][data-accent] .employee-card,
+html[data-theme='light'][data-accent] .employee-modal,
+html[data-theme='light'][data-accent] .document-preview-modal,
+html[data-theme='light'][data-accent] .users-table-wrap,
+html[data-theme='light'][data-accent] .user-create-card,
+html[data-theme='light'][data-accent] .notification-dropdown,
+html[data-theme='light'][data-accent] .commission-group,
+html[data-theme='light'][data-accent] .commission-case-card,
+html[data-theme='light'][data-accent] .returned-list-surface,
+html[data-theme='light'][data-accent] .returned-request-surface,
+html[data-theme='light'][data-accent] .returned-request-item {
+  background: color-mix(in oklch, var(--color-card) 94%, white 6%) !important;
+  border-color: color-mix(in oklch, var(--color-border) 86%, white 14%) !important;
+  box-shadow:
+    0 10px 24px rgb(85 63 36 / 0.06),
+    0 2px 6px rgb(85 63 36 / 0.04) !important;
+}
+
+html[data-theme='light'][data-accent] .dashboard-header,
+html[data-theme='light'][data-accent] .employee-modal-header,
+html[data-theme='light'][data-accent] .document-preview-toolbar,
+html[data-theme='light'][data-accent] .notification-dropdown-header,
+html[data-theme='light'][data-accent] .users-table th,
+html[data-theme='light'][data-accent] .activity-log-table thead th {
+  background: color-mix(in oklch, var(--color-card) 82%, var(--color-muted)) !important;
+}
 html[data-accent] .settings-form,
 html[data-accent] .settings-form > div,
 html[data-accent] .settings-form > *:not(button),
@@ -6311,22 +6354,6 @@ html[data-accent] .dashboard-nav-link.is-active {
     rgb(var(--accent-active-border)) 100%
   ) !important;
   border-color: rgb(var(--accent-active-border) / 0.92) !important;
-  color: #fff !important;
-}
-
-html[data-accent='natural'] .employee-subtabs .employee-subtab.is-active,
-html[data-accent='natural'] .employee-step-tabs .employee-step-tab.is-active,
-html[data-accent='natural'] .settings-tabs .employee-subtab.is-active,
-html[data-accent='natural'] .commission-range-tabs .employee-subtab.is-active,
-html[data-accent='natural'] .profiles-agreement-board-filters .employee-subtab.is-active,
-html[data-accent='natural'] .return-request-employee-option.is-selected,
-html[data-accent='natural'] .return-request-employee-option.is-selected .return-request-employee-state,
-html[data-accent='natural'] .returned-list-add-button,
-html[data-accent='natural'] .dashboard-nav-link.is-active,
-html[data-accent='natural'] .btn-primary,
-html[data-accent='natural'] .btn-warning,
-html[data-accent='natural'] .badge-warning {
-  color: #111111 !important;
 }
 
 html[data-accent] .employee-step-tabs .employee-step-tab.is-active span,
@@ -6334,7 +6361,7 @@ html[data-accent] .employee-subtabs .employee-subtab.is-active,
 html[data-accent] .settings-tabs .employee-subtab.is-active,
 html[data-accent] .commission-range-tabs .employee-subtab.is-active,
 html[data-accent] .profiles-agreement-board-filters .employee-subtab.is-active {
-  color: #fff !important;
+  color: inherit !important;
 }
 
 html[data-accent] .profiles-agreement-board-filters .employee-subtab.is-active,
@@ -6344,29 +6371,7 @@ html[data-accent] .profiles-agreement-board-filters .employee-subtab.is-active:h
 
 html[data-accent] .employee-step-tabs .employee-step-tab.is-active span {
   background: rgb(255 255 255 / 0.2) !important;
-  color: #fff !important;
-}
-
-html[data-accent='natural'] .employee-subtabs .employee-subtab.is-active,
-html[data-accent='natural'] .employee-step-tabs .employee-step-tab.is-active,
-html[data-accent='natural'] .settings-tabs .employee-subtab.is-active,
-html[data-accent='natural'] .commission-range-tabs .employee-subtab.is-active {
-  color: #111111 !important;
-}
-
-html[data-accent='natural'] .employee-step-tabs .employee-step-tab.is-active span {
-  background: rgb(0 0 0 / 0.12) !important;
-  color: #111111 !important;
-}
-
-html[data-accent='natural'] .btn-warning,
-html[data-accent='natural'] .badge-warning {
-  background: linear-gradient(
-    25deg,
-    rgb(var(--accent-active)) 0%,
-    rgb(var(--accent-active-border)) 100%
-  ) !important;
-  border-color: rgb(var(--accent-active-border) / 0.92) !important;
+  color: inherit !important;
 }
 
 html[data-accent] .badge:not(.badge-muted):not(.badge-warning):not(.badge-success):not(.badge-danger):not(.badge-info):not(.commission-settled-badge):not(.profiles-agreement-status),
@@ -6375,7 +6380,6 @@ html[data-accent] .notification-bell-badge,
 html[data-accent] .employee-alert-list .badge {
   background: rgb(var(--accent-active)) !important;
   border-color: rgb(var(--accent-active)) !important;
-  color: #fff !important;
 }
 
 html[data-accent] .employee-card-status-badge.badge-success,
@@ -6519,15 +6523,13 @@ html[data-accent] .user-create-card > button[type='submit']:hover:not(:disabled)
 
 html[data-accent='natural'] .settings-form > button[type='submit'],
 html[data-accent='natural'] .settings-tab-card .settings-form > button[type='submit'],
-html[data-accent='natural'] .profiles-page .settings-form > button[type='submit'],
-html[data-accent='natural'] .user-create-card > button[type='submit'] {
+html[data-accent='natural'] .profiles-page .settings-form > button[type='submit'] {
   color: #111111 !important;
 }
 
 html[data-accent='natural'] .settings-form > button[type='submit']:hover:not(:disabled),
 html[data-accent='natural'] .settings-tab-card .settings-form > button[type='submit']:hover:not(:disabled),
-html[data-accent='natural'] .profiles-page .settings-form > button[type='submit']:hover:not(:disabled),
-html[data-accent='natural'] .user-create-card > button[type='submit']:hover:not(:disabled) {
+html[data-accent='natural'] .profiles-page .settings-form > button[type='submit']:hover:not(:disabled) {
   color: #111111 !important;
 }
 
@@ -6596,7 +6598,7 @@ html[data-accent] .profiles-agreement-status.profiles-agreement-status--pending 
 
 html[data-accent] .badge.badge-warning,
 html[data-theme='dark'][data-accent] .badge.badge-warning {
-  color: #111111 !important;
+  color: inherit !important;
 }
 
 html[data-accent] .profiles-agreement-status.profiles-agreement-status--rejected {
@@ -6617,7 +6619,7 @@ html[data-accent] .commission-case-card .badge.badge-warning,
 html[data-accent] .commission-request-employee-state {
   background: linear-gradient(25deg, #ca8a04 0%, #b45309 100%) !important;
   border-color: #d97706 !important;
-  color: #111111 !important;
+  color: inherit !important;
 }
 
 html[data-accent] .btn-muted-action {
@@ -6693,28 +6695,6 @@ html[data-accent] .btn-primary:hover:not(:disabled) {
   border-color: rgb(var(--accent-active-border) / 0.92) !important;
   box-shadow: none !important;
   color: #111111 !important;
-}
-
-html[data-accent='natural'] .employee-subtabs .employee-subtab.is-active:hover:not(:disabled),
-html[data-accent='natural'] .employee-step-tabs .employee-step-tab.is-active:hover:not(:disabled),
-html[data-accent='natural'] .settings-tabs .employee-subtab.is-active:hover:not(:disabled),
-html[data-accent='natural'] .commission-range-tabs .employee-subtab.is-active:hover:not(:disabled),
-html[data-accent='natural'] .dashboard-nav-link.is-active:hover,
-html[data-accent='natural'] .returned-list-add-button:hover:not(:disabled),
-html[data-accent='natural'] .return-request-employee-option.is-selected:hover,
-html[data-accent='natural'] .return-request-employee-option.is-selected:hover .return-request-employee-state,
-html[data-accent='natural'] .btn-primary:hover:not(:disabled),
-html[data-accent='natural'] .btn-warning:hover:not(:disabled) {
-  color: #111111 !important;
-  background: linear-gradient(
-    25deg,
-    rgb(var(--accent-active)) 0%,
-    rgb(var(--accent-active-border)) 100%
-  ) !important;
-  border-color: rgb(var(--accent-active-border) / 0.92) !important;
-  box-shadow: none !important;
-  filter: none !important;
-  transform: none !important;
 }
 
 html[data-accent] input,
@@ -6796,49 +6776,10 @@ html[data-accent] .commission-search input:focus {
   box-shadow: 0 0 0 3px rgb(var(--accent-active) / 0.16) !important;
 }
 
-html[data-accent] .badge.profiles-admin-badge.profiles-agreement-status.profiles-agreement-status--active,
-html[data-theme='dark'][data-accent] .badge.profiles-admin-badge.profiles-agreement-status.profiles-agreement-status--active,
-html[data-accent='natural'] .badge.profiles-admin-badge.profiles-agreement-status.profiles-agreement-status--active {
+html[data-accent] .badge.profiles-admin-badge.profiles-agreement-status.profiles-agreement-status--active {
   background: #15803d !important;
   border-color: #15803d !important;
   color: #111111 !important;
-}
-
-html[data-accent='orange'] .btn-primary,
-html[data-accent='orange'] .btn-primary:hover:not(:disabled),
-html[data-accent='orange'] .btn-warning,
-html[data-accent='orange'] .btn-warning:hover:not(:disabled),
-html[data-accent='orange'] .employee-subtabs .employee-subtab.is-active,
-html[data-accent='orange'] .employee-subtabs .employee-subtab.is-active:hover:not(:disabled),
-html[data-accent='orange'] .employee-step-tabs .employee-step-tab.is-active,
-html[data-accent='orange'] .employee-step-tabs .employee-step-tab.is-active:hover:not(:disabled),
-html[data-accent='orange'] .settings-tabs .employee-subtab.is-active,
-html[data-accent='orange'] .settings-tabs .employee-subtab.is-active:hover:not(:disabled),
-html[data-accent='orange'] .commission-range-tabs .employee-subtab.is-active,
-html[data-accent='orange'] .commission-range-tabs .employee-subtab.is-active:hover:not(:disabled),
-html[data-accent='orange'] .profiles-agreement-board-filters .employee-subtab.is-active,
-html[data-accent='orange'] .profiles-agreement-board-filters .employee-subtab.is-active:hover:not(:disabled),
-html[data-accent='orange'] .dashboard-nav-link.is-active,
-html[data-accent='orange'] .dashboard-nav-link.is-active:hover,
-html[data-accent='orange'] .returned-list-add-button,
-html[data-accent='orange'] .returned-list-add-button:hover:not(:disabled),
-html[data-accent='orange'] .return-request-employee-option.is-selected,
-html[data-accent='orange'] .return-request-employee-option.is-selected:hover,
-html[data-accent='orange'] .return-request-employee-option.is-selected .return-request-employee-state,
-html[data-accent='orange'] .return-request-employee-option.is-selected:hover .return-request-employee-state,
-html[data-accent='orange'] .badge.badge-warning,
-html[data-accent='orange'] .badge.badge-warning.profiles-admin-badge,
-html[data-accent='orange'] .commissions-page .badge.badge-warning,
-html[data-accent='orange'] .commission-request-card-actions .badge.badge-warning,
-html[data-accent='orange'] .commission-case-card .badge.badge-warning,
-html[data-accent='orange'] .commission-request-employee-state,
-html[data-accent='orange'] .profiles-agreement-status.profiles-agreement-status--pending {
-  color: #ffffff !important;
-}
-
-html[data-accent='orange'] .employee-step-tabs .employee-step-tab.is-active span,
-html[data-accent='orange'] .employee-step-tabs .employee-step-tab.is-active:hover:not(:disabled) span {
-  color: #ffffff !important;
 }
 
 /* Final sidebar layout normalization */
@@ -7020,6 +6961,249 @@ html[data-theme='dark'][data-accent] .dashboard-profile-trigger.has-image:active
     var(--profile-trigger-image) center / cover no-repeat !important;
 }
 
+html[data-theme='light'][data-accent] .dashboard-profile-menu {
+  background: linear-gradient(
+    25deg,
+    rgb(var(--accent-active) / 0.08) 0%,
+    rgb(var(--accent-active-border) / 0.12) 100%
+  ) !important;
+}
+
+html[data-theme='light'][data-accent] .dashboard-profile-trigger,
+html[data-theme='light'][data-accent] .dashboard-profile-trigger.has-image {
+  border: 0 !important;
+  border-color: transparent !important;
+  box-shadow: none !important;
+}
+
+html[data-theme='light'][data-accent] .dashboard-profile-trigger:hover,
+html[data-theme='light'][data-accent] .dashboard-profile-trigger:focus,
+html[data-theme='light'][data-accent] .dashboard-profile-trigger:focus-visible,
+html[data-theme='light'][data-accent] .dashboard-profile-trigger.is-open {
+  border: 0 !important;
+  border-color: transparent !important;
+  box-shadow: none !important;
+  outline: none !important;
+}
+
+html[data-theme='light'][data-accent] .dashboard-profile-trigger.has-image .dashboard-profile-trigger-bg {
+  background:
+    linear-gradient(
+      180deg,
+      rgb(255 255 255 / 0.24) 0%,
+      rgb(255 255 255 / 0.1) 34%,
+      color-mix(in oklch, white 42%, rgb(var(--accent-active-border) / 0.08)) 100%
+    ),
+    linear-gradient(
+      135deg,
+      rgb(var(--accent-surface-strong) / 0.08) 0%,
+      rgb(var(--accent-active-border) / 0.06) 100%
+    ),
+    var(--profile-trigger-image) center / cover no-repeat !important;
+  filter: saturate(0.72) contrast(1.03) brightness(1.02) blur(0.7px) !important;
+}
+
+html[data-theme='light'][data-accent] .dashboard-profile-trigger.has-image:hover .dashboard-profile-trigger-bg,
+html[data-theme='light'][data-accent] .dashboard-profile-trigger.has-image.is-open .dashboard-profile-trigger-bg {
+  background:
+    linear-gradient(
+      180deg,
+      rgb(255 255 255 / 0.18) 0%,
+      rgb(255 255 255 / 0.08) 34%,
+      color-mix(in oklch, white 34%, rgb(var(--accent-active-border) / 0.08)) 100%
+    ),
+    linear-gradient(
+      135deg,
+      rgb(var(--accent-surface-strong) / 0.06) 0%,
+      rgb(var(--accent-active-border) / 0.04) 100%
+    ),
+    var(--profile-trigger-image) center / cover no-repeat !important;
+  filter: saturate(0.76) contrast(1.04) brightness(1.04) blur(0.55px) !important;
+}
+
+html[data-theme='light'][data-accent] .dashboard-profile-trigger.has-image:active .dashboard-profile-trigger-bg {
+  background:
+    linear-gradient(
+      180deg,
+      rgb(255 255 255 / 0.22) 0%,
+      rgb(255 255 255 / 0.08) 100%
+    ),
+    linear-gradient(
+      135deg,
+      rgb(var(--accent-surface-strong) / 0.08) 0%,
+      rgb(var(--accent-active-border) / 0.06) 100%
+    ),
+    var(--profile-trigger-image) center / cover no-repeat !important;
+}
+
+html[data-theme='light'][data-accent] .dashboard-profile-avatar {
+  background: linear-gradient(
+    135deg,
+    color-mix(in oklch, var(--color-card) 76%, white 24%) 0%,
+    color-mix(in oklch, var(--color-card) 78%, rgb(var(--accent-tile-muted) / 0.28)) 100%
+  ) !important;
+  color: var(--color-foreground) !important;
+  box-shadow: 0 4px 16px rgb(15 23 42 / 0.08) !important;
+}
+
+html[data-theme='light'][data-accent] .dashboard-profile-copy strong {
+  color: color-mix(in oklch, var(--color-foreground) 94%, black 6%) !important;
+}
+
+html[data-theme='light'][data-accent] .dashboard-profile-copy span {
+  color: color-mix(in oklch, var(--color-muted-foreground) 92%, var(--color-foreground) 8%) !important;
+}
+
+html[data-theme='light'][data-accent] .dashboard-brand {
+  background: color-mix(in oklch, white 96%, rgb(var(--accent-active-border) / 0.08)) !important;
+  color: color-mix(in oklch, var(--color-foreground) 92%, rgb(var(--accent-active-border) / 0.14)) !important;
+}
+
+html[data-theme='light'][data-accent] .dashboard-nav-link:hover:not(.is-active),
+html[data-theme='light'][data-accent] .dashboard-nav-trigger:hover:not(.is-active) {
+  color: color-mix(in oklch, var(--color-foreground) 82%, var(--color-muted-foreground) 18%) !important;
+}
+
+html[data-theme='light'][data-accent='natural'] .dashboard-profile-menu {
+  background: linear-gradient(
+    25deg,
+    rgb(var(--accent-active) / 0.06) 0%,
+    rgb(var(--accent-active-border) / 0.08) 100%
+  ) !important;
+}
+
+html[data-theme='light'][data-accent='natural'] .dashboard-profile-trigger.has-image .dashboard-profile-trigger-bg {
+  background:
+    linear-gradient(
+      180deg,
+      rgb(255 255 255 / 0.05) 0%,
+      rgb(255 255 255 / 0.025) 38%,
+      color-mix(in oklch, white 96%, rgb(var(--accent-active-border) / 0.06)) 100%
+    ),
+    linear-gradient(
+      135deg,
+      rgb(var(--accent-surface-strong) / 0.06) 0%,
+      rgb(var(--accent-active-border) / 0.04) 100%
+    ),
+    var(--profile-trigger-image) center / cover no-repeat !important;
+  filter: saturate(0.58) contrast(1.03) brightness(1.02) blur(0.7px) !important;
+}
+
+html[data-theme='light'][data-accent='natural'] .dashboard-profile-trigger.has-image:hover .dashboard-profile-trigger-bg,
+html[data-theme='light'][data-accent='natural'] .dashboard-profile-trigger.has-image.is-open .dashboard-profile-trigger-bg {
+  background:
+    linear-gradient(
+      180deg,
+      rgb(255 255 255 / 0.035) 0%,
+      rgb(255 255 255 / 0.015) 38%,
+      color-mix(in oklch, white 92%, rgb(var(--accent-active-border) / 0.06)) 100%
+    ),
+    linear-gradient(
+      135deg,
+      rgb(var(--accent-surface-strong) / 0.05) 0%,
+      rgb(var(--accent-active-border) / 0.03) 100%
+    ),
+    var(--profile-trigger-image) center / cover no-repeat !important;
+  filter: saturate(0.62) contrast(1.04) brightness(1.04) blur(0.55px) !important;
+}
+
+html[data-theme='light'][data-accent='natural'] .dashboard-profile-avatar {
+  background: linear-gradient(
+    135deg,
+    color-mix(in oklch, var(--color-card) 78%, white 22%) 0%,
+    color-mix(in oklch, var(--color-card) 84%, rgb(var(--accent-tile-muted) / 0.18)) 100%
+  ) !important;
+  box-shadow: 0 4px 14px rgb(15 23 42 / 0.06) !important;
+}
+
+html[data-theme='light'][data-accent='natural'] .dashboard-profile-copy strong {
+  color: color-mix(in oklch, var(--color-foreground) 98%, black 2%) !important;
+}
+
+html[data-theme='light'][data-accent='natural'] .dashboard-profile-copy span {
+  color: color-mix(in oklch, var(--color-muted-foreground) 96%, var(--color-foreground) 4%) !important;
+}
+
+html[data-theme='light'][data-accent='natural'] .dashboard-brand {
+  background: color-mix(in oklch, white 95%, rgb(var(--accent-active-border) / 0.05)) !important;
+  color: color-mix(in oklch, var(--color-foreground) 94%, rgb(var(--accent-active-border) / 0.06)) !important;
+}
+
+html[data-theme='light'][data-accent='natural'] .dashboard-nav-link,
+html[data-theme='light'][data-accent='natural'] .dashboard-nav-trigger {
+  color: color-mix(in oklch, var(--color-sidebar-foreground) 92%, var(--color-muted-foreground) 8%) !important;
+}
+
+html[data-theme='light'][data-accent='natural'] .dashboard-nav-link:hover:not(.is-active),
+html[data-theme='light'][data-accent='natural'] .dashboard-nav-trigger:hover:not(.is-active) {
+  color: color-mix(in oklch, var(--color-sidebar-foreground) 98%, black 2%) !important;
+}
+
+html[data-theme='light'][data-accent='natural'] .employee-progress-donut-label strong {
+  color: var(--color-foreground) !important;
+}
+
+html[data-theme='light'][data-accent='natural'] .employee-progress-donut-label span {
+  color: var(--color-muted-foreground) !important;
+}
+
+html[data-theme='light'][data-accent='natural'] .employee-summary-card p {
+  color: color-mix(in oklch, var(--color-muted-foreground) 92%, var(--color-foreground) 8%) !important;
+}
+
+html[data-theme='light'][data-accent='natural'] .employee-summary-card p strong,
+html[data-theme='light'][data-accent='natural'] .employee-progress-metrics p strong {
+  color: var(--color-foreground) !important;
+}
+
+html[data-theme='dark'][data-accent='natural'] .dashboard-profile-menu {
+  background: linear-gradient(
+    25deg,
+    rgb(var(--accent-active) / 0.14) 0%,
+    rgb(var(--accent-active-border) / 0.18) 100%
+  ) !important;
+}
+
+html[data-theme='dark'][data-accent='natural'] .dashboard-profile-trigger.has-image .dashboard-profile-trigger-bg {
+  background:
+    linear-gradient(
+      180deg,
+      rgb(0 0 0 / 0.64) 0%,
+      rgb(0 0 0 / 0.74) 38%,
+      color-mix(in oklch, black 96%, rgb(var(--accent-active-border) / 0.06)) 100%
+    ),
+    linear-gradient(
+      135deg,
+      rgb(var(--accent-surface-strong) / 0.14) 0%,
+      rgb(var(--accent-active-border) / 0.08) 100%
+    ),
+    var(--profile-trigger-image) center / cover no-repeat !important;
+  filter: saturate(0.44) contrast(1.05) brightness(0.94) blur(0.8px) !important;
+}
+
+html[data-theme='dark'][data-accent='natural'] .dashboard-profile-trigger.has-image:hover .dashboard-profile-trigger-bg,
+html[data-theme='dark'][data-accent='natural'] .dashboard-profile-trigger.has-image.is-open .dashboard-profile-trigger-bg {
+  background:
+    linear-gradient(
+      180deg,
+      rgb(0 0 0 / 0.58) 0%,
+      rgb(0 0 0 / 0.68) 38%,
+      color-mix(in oklch, black 92%, rgb(var(--accent-active-border) / 0.06)) 100%
+    ),
+    linear-gradient(
+      135deg,
+      rgb(var(--accent-surface-strong) / 0.12) 0%,
+      rgb(var(--accent-active-border) / 0.07) 100%
+    ),
+    var(--profile-trigger-image) center / cover no-repeat !important;
+  filter: saturate(0.48) contrast(1.06) brightness(0.98) blur(0.6px) !important;
+}
+
+html[data-theme='dark'][data-accent='natural'] .dashboard-brand {
+  background: color-mix(in oklch, black 95%, rgb(var(--accent-active-border) / 0.05)) !important;
+  color: color-mix(in oklch, var(--color-sidebar-foreground) 90%, rgb(var(--accent-active) / 0.05)) !important;
+}
+
 .dashboard-profile-avatar {
   display: inline-flex !important;
   align-items: center !important;
@@ -7194,58 +7378,536 @@ html[data-theme='dark'][data-accent] .badge.badge-warning.profiles-admin-badge {
   color: #111111 !important;
 }
 
-html[data-accent='orange'] .btn-warning,
-html[data-accent='orange'] .btn-warning:hover:not(:disabled),
-html[data-accent='orange'] .badge.badge-warning,
-html[data-accent='orange'] .badge.badge-warning.profiles-admin-badge,
-html[data-accent='orange'] .commissions-page .badge.badge-warning,
-html[data-accent='orange'] .commission-request-card-actions .badge.badge-warning,
-html[data-accent='orange'] .commission-case-card .badge.badge-warning,
-html[data-accent='orange'] .commission-request-employee-state {
-  color: #ffffff !important;
+html[data-theme='light'][data-accent='orange'] body {
+  background:
+    radial-gradient(circle at top left, rgb(var(--accent-glow-1) / 0.34) 0%, transparent 34%),
+    radial-gradient(circle at top right, rgb(var(--accent-glow-2) / 0.22) 0%, transparent 28%),
+    linear-gradient(
+      180deg,
+      color-mix(in oklch, var(--color-background) 82%, white 18%) 0%,
+      color-mix(in oklch, var(--color-background) 94%, white 6%) 100%
+    ) !important;
 }
 
-html[data-theme='dark'][data-accent='orange'] .profiles-page .badge.badge-warning.profiles-admin-badge,
-html[data-theme='dark'][data-accent='orange'] .profiles-agent-card .badge.badge-warning.profiles-admin-badge,
-html[data-theme='dark'][data-accent='orange'] .profiles-side-user-inline .badge.badge-warning.profiles-admin-badge {
-  color: #ffffff !important;
+html[data-theme='light'][data-accent='orange'] .dashboard-profile-menu {
+  background: linear-gradient(
+    25deg,
+    rgb(var(--accent-active) / 0.1) 0%,
+    rgb(var(--accent-active-border) / 0.14) 100%
+  ) !important;
 }
+
+html[data-theme='light'][data-accent='orange'] .dashboard-profile-trigger.has-image .dashboard-profile-trigger-bg {
+  background:
+    linear-gradient(
+      180deg,
+      rgb(255 255 255 / 0.05) 0%,
+      rgb(255 255 255 / 0.025) 38%,
+      color-mix(in oklch, white 96%, rgb(var(--accent-active-border) / 0.06)) 100%
+    ),
+    linear-gradient(
+      135deg,
+      rgb(var(--accent-surface-strong) / 0.08) 0%,
+      rgb(var(--accent-active-border) / 0.06) 100%
+    ),
+    var(--profile-trigger-image) center / cover no-repeat !important;
+  filter: saturate(0.82) contrast(1.04) brightness(1.03) blur(0.7px) !important;
+}
+
+html[data-theme='dark'][data-accent='orange'] .dashboard-profile-trigger.has-image .dashboard-profile-trigger-bg {
+  background:
+    linear-gradient(
+      180deg,
+      rgb(0 0 0 / 0.64) 0%,
+      rgb(0 0 0 / 0.74) 38%,
+      color-mix(in oklch, black 96%, rgb(var(--accent-active-border) / 0.06)) 100%
+    ),
+    linear-gradient(
+      135deg,
+      rgb(var(--accent-surface-strong) / 0.14) 0%,
+      rgb(var(--accent-active-border) / 0.08) 100%
+    ),
+    var(--profile-trigger-image) center / cover no-repeat !important;
+  filter: saturate(0.72) contrast(1.05) brightness(0.95) blur(0.8px) !important;
+}
+
+html[data-theme='dark'][data-accent='orange'] .dashboard-profile-trigger.has-image:hover .dashboard-profile-trigger-bg,
+html[data-theme='dark'][data-accent='orange'] .dashboard-profile-trigger.has-image.is-open .dashboard-profile-trigger-bg {
+  background:
+    linear-gradient(
+      180deg,
+      rgb(0 0 0 / 0.58) 0%,
+      rgb(0 0 0 / 0.68) 38%,
+      color-mix(in oklch, black 92%, rgb(var(--accent-active-border) / 0.06)) 100%
+    ),
+    linear-gradient(
+      135deg,
+      rgb(var(--accent-surface-strong) / 0.12) 0%,
+      rgb(var(--accent-active-border) / 0.07) 100%
+    ),
+    var(--profile-trigger-image) center / cover no-repeat !important;
+  filter: saturate(0.76) contrast(1.06) brightness(0.99) blur(0.6px) !important;
+}
+
+html[data-theme='light'][data-accent='orange'] .dashboard-profile-trigger.has-image:hover .dashboard-profile-trigger-bg,
+html[data-theme='light'][data-accent='orange'] .dashboard-profile-trigger.has-image.is-open .dashboard-profile-trigger-bg {
+  background:
+    linear-gradient(
+      180deg,
+      rgb(255 255 255 / 0.035) 0%,
+      rgb(255 255 255 / 0.015) 38%,
+      color-mix(in oklch, white 92%, rgb(var(--accent-active-border) / 0.06)) 100%
+    ),
+    linear-gradient(
+      135deg,
+      rgb(var(--accent-surface-strong) / 0.06) 0%,
+      rgb(var(--accent-active-border) / 0.05) 100%
+    ),
+    var(--profile-trigger-image) center / cover no-repeat !important;
+  filter: saturate(0.88) contrast(1.05) brightness(1.05) blur(0.55px) !important;
+}
+
+html[data-theme='light'][data-accent='orange'] .dashboard-profile-avatar {
+  background: linear-gradient(
+    135deg,
+    color-mix(in oklch, var(--color-card) 76%, white 24%) 0%,
+    color-mix(in oklch, var(--color-card) 74%, rgb(var(--accent-tile-muted) / 0.36)) 100%
+  ) !important;
+  box-shadow: 0 6px 18px rgb(88 56 28 / 0.08) !important;
+}
+
+html[data-theme='light'][data-accent='orange'] .dashboard-brand {
+  background: color-mix(in oklch, white 95%, rgb(var(--accent-active-border) / 0.05)) !important;
+  color: color-mix(in oklch, var(--color-foreground) 86%, rgb(var(--accent-active-border) / 0.2)) !important;
+}
+
+html[data-theme='light'][data-accent='orange'] .dashboard-panel,
+html[data-theme='light'][data-accent='orange'] .employee-summary-card,
+html[data-theme='light'][data-accent='orange'] .employee-card,
+html[data-theme='light'][data-accent='orange'] .employee-modal,
+html[data-theme='light'][data-accent='orange'] .document-preview-modal,
+html[data-theme='light'][data-accent='orange'] .users-table-wrap,
+html[data-theme='light'][data-accent='orange'] .user-create-card,
+html[data-theme='light'][data-accent='orange'] .notification-dropdown,
+html[data-theme='light'][data-accent='orange'] .commission-group,
+html[data-theme='light'][data-accent='orange'] .commission-case-card,
+html[data-theme='light'][data-accent='orange'] .returned-list-surface,
+html[data-theme='light'][data-accent='orange'] .returned-request-surface,
+html[data-theme='light'][data-accent='orange'] .returned-request-item {
+  background: color-mix(in oklch, var(--color-card) 92%, white 8%) !important;
+  border-color: color-mix(in oklch, var(--color-border) 82%, rgb(var(--accent-border) / 0.16)) !important;
+  box-shadow:
+    0 12px 28px rgb(88 56 28 / 0.05),
+    0 3px 8px rgb(88 56 28 / 0.04) !important;
+}
+
+html[data-theme='light'][data-accent='orange'] .dashboard-header,
+html[data-theme='light'][data-accent='orange'] .employee-modal-header,
+html[data-theme='light'][data-accent='orange'] .document-preview-toolbar,
+html[data-theme='light'][data-accent='orange'] .notification-dropdown-header,
+html[data-theme='light'][data-accent='orange'] .users-table th,
+html[data-theme='light'][data-accent='orange'] .activity-log-table thead th {
+  background: color-mix(in oklch, var(--color-card) 74%, var(--color-muted) 26%) !important;
+}
+
+html[data-theme='light'][data-accent='orange'] input,
+html[data-theme='light'][data-accent='orange'] select,
+html[data-theme='light'][data-accent='orange'] textarea,
+html[data-theme='light'][data-accent='orange'] .form-group input,
+html[data-theme='light'][data-accent='orange'] .form-grid input,
+html[data-theme='light'][data-accent='orange'] .form-grid select,
+html[data-theme='light'][data-accent='orange'] .settings-form select,
+html[data-theme='light'][data-accent='orange'] .settings-form input[type='text'],
+html[data-theme='light'][data-accent='orange'] .settings-form input[type='date'],
+html[data-theme='light'][data-accent='orange'] .settings-form input[type='number'],
+html[data-theme='light'][data-accent='orange'] .employees-page .user-create-card textarea,
+html[data-theme='light'][data-accent='orange'] .employee-modal-form input,
+html[data-theme='light'][data-accent='orange'] .employee-modal-form select,
+html[data-theme='light'][data-accent='orange'] .employee-modal-form textarea,
+html[data-theme='light'][data-accent='orange'] .users-table select,
+html[data-theme='light'][data-accent='orange'] .commission-search input {
+  background: color-mix(in oklch, white 78%, var(--color-muted) 22%) !important;
+  border-color: color-mix(in oklch, var(--color-border) 78%, rgb(var(--accent-border) / 0.18)) !important;
+}
+
+html[data-theme='light'][data-accent='orange'] .dashboard-nav-link:hover:not(.is-active),
+html[data-theme='light'][data-accent='orange'] .dashboard-nav-trigger:hover:not(.is-active) {
+  color: color-mix(in oklch, var(--color-foreground) 80%, rgb(var(--accent-active-border) / 0.2)) !important;
+}
+
+html[data-theme='light'][data-accent='orange'] .dashboard-nav {
+  gap: 8px !important;
+  padding: 10px 12px 14px !important;
+}
+
+html[data-theme='light'][data-accent='orange'] .dashboard-nav-link,
+html[data-theme='light'][data-accent='orange'] .dashboard-nav-trigger {
+  color: color-mix(in oklch, var(--color-foreground) 84%, rgb(var(--accent-active-border) / 0.16)) !important;
+  border-color: transparent !important;
+  background: transparent !important;
+}
+
+html[data-theme='light'][data-accent='orange'] .dashboard-nav-link:hover:not(.is-active),
+html[data-theme='light'][data-accent='orange'] .dashboard-nav-trigger:hover:not(.is-active) {
+  background: color-mix(in oklch, var(--color-card) 64%, var(--color-muted) 36%) !important;
+  border-color: color-mix(in oklch, var(--color-border) 70%, rgb(var(--accent-border) / 0.14)) !important;
+}
+
+html[data-theme='light'][data-accent='orange'] .dashboard-nav-link.is-active,
+html[data-theme='light'][data-accent='orange'] .dashboard-nav-link.is-active:hover {
+  background: linear-gradient(
+    180deg,
+    color-mix(in oklch, rgb(var(--accent-active)) 86%, white 14%) 0%,
+    rgb(var(--accent-active-border)) 100%
+  ) !important;
+  border-color: rgb(var(--accent-active-border) / 0.78) !important;
+  color: #ffffff !important;
+  box-shadow: 0 8px 20px rgb(var(--accent-active-border) / 0.16) !important;
+}
+
+html[data-theme='light'][data-accent='orange'] .employee-card,
+html[data-theme='light'][data-accent='orange'] .employee-summary-card {
+  background: linear-gradient(
+    180deg,
+    color-mix(in oklch, var(--color-card) 94%, white 6%) 0%,
+    color-mix(in oklch, var(--color-card) 88%, var(--color-muted) 12%) 100%
+  ) !important;
+  border-color: color-mix(in oklch, var(--color-border) 80%, rgb(var(--accent-border) / 0.14)) !important;
+  box-shadow:
+    0 14px 30px rgb(88 56 28 / 0.05),
+    0 4px 10px rgb(88 56 28 / 0.04) !important;
+}
+
+html[data-theme='light'][data-accent='orange'] .employee-card:hover,
+html[data-theme='light'][data-accent='orange'] .employee-summary-card:hover {
+  background: linear-gradient(
+    180deg,
+    color-mix(in oklch, var(--color-card) 90%, white 10%) 0%,
+    color-mix(in oklch, var(--color-card) 82%, var(--color-muted) 18%) 100%
+  ) !important;
+  border-color: color-mix(in oklch, var(--color-border) 72%, rgb(var(--accent-border) / 0.2)) !important;
+  box-shadow:
+    0 18px 34px rgb(88 56 28 / 0.07),
+    0 6px 14px rgb(88 56 28 / 0.05) !important;
+}
+
+html[data-theme='light'][data-accent='orange'] .employee-card-avatar {
+  background: linear-gradient(
+    180deg,
+    color-mix(in oklch, white 72%, var(--color-muted) 28%) 0%,
+    color-mix(in oklch, var(--color-card) 78%, var(--color-muted) 22%) 100%
+  ) !important;
+  border: 1px solid color-mix(in oklch, var(--color-border) 76%, rgb(var(--accent-border) / 0.14)) !important;
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.7) !important;
+}
+
+html[data-theme='light'][data-accent='orange'] .employees-filter-grid,
+html[data-theme='light'][data-accent='orange'] .commission-toolbar {
+  gap: 14px 16px !important;
+}
+
+html[data-theme='light'][data-accent='orange'] .commission-search input,
+html[data-theme='light'][data-accent='orange'] .employees-page .user-create-card textarea,
+html[data-theme='light'][data-accent='orange'] .employees-filter-grid input,
+html[data-theme='light'][data-accent='orange'] .employees-filter-grid select {
+  background: color-mix(in oklch, white 74%, var(--color-muted) 26%) !important;
+  border-color: color-mix(in oklch, var(--color-border) 78%, rgb(var(--accent-border) / 0.16)) !important;
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.72) !important;
+}
+
+html[data-theme='light'][data-accent='orange'] .employee-filters-grid button,
+html[data-theme='light'][data-accent='orange'] .employees-filter-grid button,
+html[data-theme='light'][data-accent='orange'] .commission-toolbar .btn-secondary {
+  background: color-mix(in oklch, var(--color-card) 70%, var(--color-muted) 30%) !important;
+  border-color: color-mix(in oklch, var(--color-border) 74%, rgb(var(--accent-border) / 0.16)) !important;
+  color: color-mix(in oklch, var(--color-foreground) 88%, rgb(var(--accent-active-border) / 0.12)) !important;
+}
+
+html[data-theme='light'][data-accent='orange'] .employee-filters-grid button:hover:not(:disabled),
+html[data-theme='light'][data-accent='orange'] .employees-filter-grid button:hover:not(:disabled),
+html[data-theme='light'][data-accent='orange'] .commission-toolbar .btn-secondary:hover:not(:disabled) {
+  background: color-mix(in oklch, var(--color-card) 58%, var(--color-muted) 42%) !important;
+  border-color: color-mix(in oklch, var(--color-border) 66%, rgb(var(--accent-border) / 0.22)) !important;
+}
+
+/* Final Natural accent contract
+   Dark + natural: every active accent surface uses dark text.
+   Light + natural: every active accent surface uses white text.
+   Hovering an already active/selected surface should not visually change it. */
+
+/* Protected dark accent contract: dark + natural
+   Keep these visuals stable unless we intentionally redesign this pair. */
 
 html[data-theme='dark'][data-accent='natural'] .btn-primary,
-html[data-theme='dark'][data-accent='natural'] .btn-primary:hover:not(:disabled),
 html[data-theme='dark'][data-accent='natural'] .btn-warning,
-html[data-theme='dark'][data-accent='natural'] .btn-warning:hover:not(:disabled),
-html[data-theme='dark'][data-accent='natural'] .badge-warning,
-html[data-theme='dark'][data-accent='natural'] .badge.badge-warning,
-html[data-theme='dark'][data-accent='natural'] .employee-subtabs .employee-subtab.is-active,
-html[data-theme='dark'][data-accent='natural'] .employee-subtabs .employee-subtab.is-active:hover:not(:disabled),
-html[data-theme='dark'][data-accent='natural'] .employee-step-tabs .employee-step-tab.is-active,
-html[data-theme='dark'][data-accent='natural'] .employee-step-tabs .employee-step-tab.is-active:hover:not(:disabled),
-html[data-theme='dark'][data-accent='natural'] .settings-tabs .employee-subtab.is-active,
-html[data-theme='dark'][data-accent='natural'] .settings-tabs .employee-subtab.is-active:hover:not(:disabled),
-html[data-theme='dark'][data-accent='natural'] .commission-range-tabs .employee-subtab.is-active,
-html[data-theme='dark'][data-accent='natural'] .commission-range-tabs .employee-subtab.is-active:hover:not(:disabled),
-html[data-theme='dark'][data-accent='natural'] .profiles-agreement-board-filters .employee-subtab.is-active,
-html[data-theme='dark'][data-accent='natural'] .profiles-agreement-board-filters .employee-subtab.is-active:hover:not(:disabled),
+html[data-theme='dark'][data-accent='natural'] .employee-subtab.is-active,
+html[data-theme='dark'][data-accent='natural'] .employee-step-tab.is-active,
 html[data-theme='dark'][data-accent='natural'] .dashboard-nav-link.is-active,
-html[data-theme='dark'][data-accent='natural'] .dashboard-nav-link.is-active:hover,
 html[data-theme='dark'][data-accent='natural'] .returned-list-add-button,
-html[data-theme='dark'][data-accent='natural'] .returned-list-add-button:hover:not(:disabled),
 html[data-theme='dark'][data-accent='natural'] .return-request-employee-option.is-selected,
-html[data-theme='dark'][data-accent='natural'] .return-request-employee-option.is-selected:hover,
-html[data-theme='dark'][data-accent='natural'] .return-request-employee-option.is-selected .return-request-employee-state,
-html[data-theme='dark'][data-accent='natural'] .return-request-employee-option.is-selected:hover .return-request-employee-state,
-html[data-theme='dark'][data-accent='natural'] .badge.badge-warning.profiles-admin-badge,
-html[data-theme='dark'][data-accent='natural'] .commissions-page .badge.badge-warning,
-html[data-theme='dark'][data-accent='natural'] .commission-request-card-actions .badge.badge-warning,
-html[data-theme='dark'][data-accent='natural'] .commission-case-card .badge.badge-warning,
-html[data-theme='dark'][data-accent='natural'] .commission-request-employee-state {
+html[data-theme='dark'][data-accent='natural'] .return-request-employee-option.is-selected .return-request-employee-state {
   color: #111111 !important;
 }
 
-html[data-theme='dark'][data-accent='natural'] .employee-step-tabs .employee-step-tab.is-active span,
-html[data-theme='dark'][data-accent='natural'] .employee-step-tabs .employee-step-tab.is-active:hover:not(:disabled) span {
+html[data-theme='dark'][data-accent='natural'] .badge.badge-warning,
+html[data-theme='dark'][data-accent='natural'] .commissions-page .badge.badge-warning,
+html[data-theme='dark'][data-accent='natural'] .commission-request-card-actions .badge.badge-warning,
+html[data-theme='dark'][data-accent='natural'] .commission-case-card .badge.badge-warning {
   color: #111111 !important;
+}
+
+html[data-theme='dark'][data-accent='natural'] .employee-step-tab.is-active span {
+  color: #111111 !important;
+  background: rgb(0 0 0 / 0.12) !important;
+}
+
+html[data-theme='dark'][data-accent='natural'] .btn-primary:hover:not(:disabled),
+html[data-theme='dark'][data-accent='natural'] .btn-warning:hover:not(:disabled),
+html[data-theme='dark'][data-accent='natural'] .employee-subtab.is-active:hover:not(:disabled),
+html[data-theme='dark'][data-accent='natural'] .employee-step-tab.is-active:hover:not(:disabled),
+html[data-theme='dark'][data-accent='natural'] .dashboard-nav-link.is-active:hover,
+html[data-theme='dark'][data-accent='natural'] .returned-list-add-button:hover:not(:disabled),
+html[data-theme='dark'][data-accent='natural'] .return-request-employee-option.is-selected:hover,
+html[data-theme='dark'][data-accent='natural'] .return-request-employee-option.is-selected:hover .return-request-employee-state {
+  background: linear-gradient(
+    25deg,
+    rgb(var(--accent-active)) 0%,
+    rgb(var(--accent-active-border)) 100%
+  ) !important;
+  border-color: rgb(var(--accent-active-border) / 0.92) !important;
+  color: #111111 !important;
+  box-shadow: none !important;
+  filter: none !important;
+  transform: none !important;
+  opacity: 1 !important;
+}
+
+html[data-theme='dark'][data-accent='natural'] .employee-step-tab.is-active:hover:not(:disabled) span {
+  color: #111111 !important;
+  background: rgb(0 0 0 / 0.12) !important;
+}
+
+html[data-theme='light'][data-accent='natural'] .btn-primary,
+html[data-theme='light'][data-accent='natural'] .btn-warning,
+html[data-theme='light'][data-accent='natural'] .employee-subtab.is-active,
+html[data-theme='light'][data-accent='natural'] .employee-step-tab.is-active,
+html[data-theme='light'][data-accent='natural'] .dashboard-nav-link.is-active,
+html[data-theme='light'][data-accent='natural'] .returned-list-add-button,
+html[data-theme='light'][data-accent='natural'] .return-request-employee-option.is-selected,
+html[data-theme='light'][data-accent='natural'] .return-request-employee-option.is-selected .return-request-employee-state {
+  color: #ffffff !important;
+}
+
+html[data-theme='light'][data-accent='natural'] .employee-step-tab.is-active span {
+  color: #ffffff !important;
+  background: rgb(255 255 255 / 0.2) !important;
+}
+
+html[data-theme='light'][data-accent='natural'] .btn-primary:hover:not(:disabled),
+html[data-theme='light'][data-accent='natural'] .btn-warning:hover:not(:disabled),
+html[data-theme='light'][data-accent='natural'] .employee-subtab.is-active:hover:not(:disabled),
+html[data-theme='light'][data-accent='natural'] .employee-step-tab.is-active:hover:not(:disabled),
+html[data-theme='light'][data-accent='natural'] .dashboard-nav-link.is-active:hover,
+html[data-theme='light'][data-accent='natural'] .returned-list-add-button:hover:not(:disabled),
+html[data-theme='light'][data-accent='natural'] .return-request-employee-option.is-selected:hover,
+html[data-theme='light'][data-accent='natural'] .return-request-employee-option.is-selected:hover .return-request-employee-state {
+  background: linear-gradient(
+    25deg,
+    rgb(var(--accent-active)) 0%,
+    rgb(var(--accent-active-border)) 100%
+  ) !important;
+  border-color: rgb(var(--accent-active-border) / 0.92) !important;
+  color: #ffffff !important;
+  box-shadow: none !important;
+  filter: none !important;
+  transform: none !important;
+  opacity: 1 !important;
+}
+
+html[data-theme='light'][data-accent='natural'] .employee-step-tab.is-active:hover:not(:disabled) span {
+  color: #ffffff !important;
+  background: rgb(255 255 255 / 0.2) !important;
+}
+
+/* Final accent-backed tag contract
+   If a tag/chip is using the accent background, keep its text dark for contrast consistency. */
+
+html[data-accent] .badge:not(.badge-muted):not(.badge-warning):not(.badge-success):not(.badge-danger):not(.badge-info):not(.commission-settled-badge):not(.profiles-agreement-status),
+html[data-accent] .badge-super,
+html[data-accent] .notification-bell-badge,
+html[data-accent] .employee-alert-list .badge,
+html[data-accent] .badge.badge-warning,
+html[data-accent] .badge.badge-warning.profiles-admin-badge,
+html[data-accent] .commissions-page .badge.badge-warning,
+html[data-accent] .commission-request-card-actions .badge.badge-warning,
+html[data-accent] .commission-case-card .badge.badge-warning,
+html[data-accent] .commission-request-employee-state {
+  background: linear-gradient(
+    25deg,
+    rgb(var(--accent-active)) 0%,
+    rgb(var(--accent-active-border)) 100%
+  ) !important;
+  border-color: rgb(var(--accent-active-border) / 0.92) !important;
+  box-shadow: 0 4px 10px rgb(0 0 0 / 0.12) !important;
+  color: #111111 !important;
+}
+
+/* Final dark-surface readability guard
+   Any intentionally dark/near-black surface should keep light text in dark mode. */
+
+html[data-theme='dark'] .btn-secondary,
+html[data-theme='dark'] .btn-secondary:hover:not(:disabled),
+html[data-theme='dark'] .btn-muted-action,
+html[data-theme='dark'] .btn-muted-action:hover:not(:disabled),
+html[data-theme='dark'] .btn-danger,
+html[data-theme='dark'] .btn-danger:hover:not(:disabled),
+html[data-theme='dark'] .document-preview-modal,
+html[data-theme='dark'] .employee-card-status-badge.badge-warning,
+html[data-theme='dark'] .employee-card-status-badge.badge-success,
+html[data-theme='dark'] .employee-card-status-badge.badge-info,
+html[data-theme='dark'] .employee-card-status-badge.badge-danger,
+html[data-theme='dark'] .employee-card-status-badge.badge-muted,
+html[data-theme='dark'] .commission-settled-badge,
+html[data-theme='dark'] .profiles-agreement-status,
+html[data-theme='dark'] .notification-bell-badge,
+html[data-theme='dark'] .employee-alert-list .badge {
+  color: #f8fafc !important;
+}
+
+html[data-theme='dark'] .employee-progress-donut-label strong {
+  color: #f8fafc !important;
+}
+
+html[data-theme='dark'] .employee-progress-donut-label span {
+  color: rgb(241 245 249 / 0.9) !important;
+}
+
+html[data-theme='dark'] .employee-summary-card p {
+  color: rgb(226 232 240 / 0.84) !important;
+}
+
+html[data-theme='dark'] .employee-summary-card p strong,
+html[data-theme='dark'] .employee-progress-metrics p strong {
+  color: #f8fafc !important;
+}
+
+/* Final generic accent text contract
+   Shared accent defaults only.
+   Pair-specific theme/contrast decisions must be made in the protected
+   theme + accent contracts below, not by editing this block. */
+
+html[data-accent] .btn-primary,
+html[data-accent] .btn-primary:hover:not(:disabled),
+html[data-accent] .btn-warning,
+html[data-accent] .btn-warning:hover:not(:disabled),
+html[data-accent] .employee-subtab.is-active,
+html[data-accent] .employee-subtab.is-active:hover:not(:disabled),
+html[data-accent] .employee-step-tab.is-active,
+html[data-accent] .employee-step-tab.is-active:hover:not(:disabled),
+html[data-accent] .dashboard-nav-link.is-active,
+html[data-accent] .dashboard-nav-link.is-active:hover,
+html[data-accent] .returned-list-add-button,
+html[data-accent] .returned-list-add-button:hover:not(:disabled),
+html[data-accent] .return-request-employee-option.is-selected,
+html[data-accent] .return-request-employee-option.is-selected:hover,
+html[data-accent] .return-request-employee-option.is-selected .return-request-employee-state,
+html[data-accent] .return-request-employee-option.is-selected:hover .return-request-employee-state,
+html[data-accent] .badge:not(.badge-muted):not(.badge-warning):not(.badge-success):not(.badge-danger):not(.badge-info):not(.commission-settled-badge):not(.profiles-agreement-status),
+html[data-accent] .badge-super,
+html[data-accent] .notification-bell-badge,
+html[data-accent] .employee-alert-list .badge,
+html[data-accent] .badge.badge-warning.profiles-admin-badge,
+html[data-accent] .commission-request-employee-state {
+  color: #ffffff !important;
+}
+
+html[data-accent] .employee-step-tab.is-active span,
+html[data-accent] .employee-step-tab.is-active:hover:not(:disabled) span {
+  color: #ffffff !important;
+}
+
+/* Protected light accent contract: light + natural
+   Keep these visuals stable unless we intentionally redesign this pair. */
+
+html[data-theme='light'][data-accent='natural'] .btn-primary,
+html[data-theme='light'][data-accent='natural'] .btn-primary:hover:not(:disabled),
+html[data-theme='light'][data-accent='natural'] .btn-warning,
+html[data-theme='light'][data-accent='natural'] .btn-warning:hover:not(:disabled),
+html[data-theme='light'][data-accent='natural'] .employee-subtab.is-active,
+html[data-theme='light'][data-accent='natural'] .employee-subtab.is-active:hover:not(:disabled),
+html[data-theme='light'][data-accent='natural'] .employee-step-tab.is-active,
+html[data-theme='light'][data-accent='natural'] .employee-step-tab.is-active:hover:not(:disabled),
+html[data-theme='light'][data-accent='natural'] .dashboard-nav-link.is-active,
+html[data-theme='light'][data-accent='natural'] .dashboard-nav-link.is-active:hover,
+html[data-theme='light'][data-accent='natural'] .returned-list-add-button,
+html[data-theme='light'][data-accent='natural'] .returned-list-add-button:hover:not(:disabled),
+html[data-theme='light'][data-accent='natural'] .return-request-employee-option.is-selected,
+html[data-theme='light'][data-accent='natural'] .return-request-employee-option.is-selected:hover,
+html[data-theme='light'][data-accent='natural'] .return-request-employee-option.is-selected .return-request-employee-state,
+html[data-theme='light'][data-accent='natural'] .return-request-employee-option.is-selected:hover .return-request-employee-state,
+html[data-theme='light'][data-accent='natural'] .badge:not(.badge-muted):not(.badge-warning):not(.badge-success):not(.badge-danger):not(.badge-info):not(.commission-settled-badge):not(.profiles-agreement-status),
+html[data-theme='light'][data-accent='natural'] .badge-super,
+html[data-theme='light'][data-accent='natural'] .notification-bell-badge,
+html[data-theme='light'][data-accent='natural'] .employee-alert-list .badge,
+html[data-theme='light'][data-accent='natural'] .badge.badge-warning,
+html[data-theme='light'][data-accent='natural'] .badge.badge-warning.profiles-admin-badge,
+html[data-theme='light'][data-accent='natural'] .commissions-page .badge.badge-warning,
+html[data-theme='light'][data-accent='natural'] .commission-request-card-actions .badge.badge-warning,
+html[data-theme='light'][data-accent='natural'] .commission-case-card .badge.badge-warning,
+html[data-theme='light'][data-accent='natural'] .commission-request-employee-state {
+  background: linear-gradient(25deg, #333333 0%, #111111 100%) !important;
+  border-color: #111111 !important;
+  box-shadow: none !important;
+  color: #ffffff !important;
+}
+
+html[data-theme='light'][data-accent='natural'] .employee-step-tab.is-active span,
+html[data-theme='light'][data-accent='natural'] .employee-step-tab.is-active:hover:not(:disabled) span {
+  color: #ffffff !important;
+}
+
+/* Protected dark accent contract: dark + orange
+   Keep these visuals stable unless we intentionally redesign this pair. */
+
+html[data-theme='dark'][data-accent='orange'] .btn-primary,
+html[data-theme='dark'][data-accent='orange'] .btn-primary:hover:not(:disabled),
+html[data-theme='dark'][data-accent='orange'] .btn-warning,
+html[data-theme='dark'][data-accent='orange'] .btn-warning:hover:not(:disabled),
+html[data-theme='dark'][data-accent='orange'] .employee-subtab.is-active,
+html[data-theme='dark'][data-accent='orange'] .employee-subtab.is-active:hover:not(:disabled),
+html[data-theme='dark'][data-accent='orange'] .employee-step-tab.is-active,
+html[data-theme='dark'][data-accent='orange'] .employee-step-tab.is-active:hover:not(:disabled),
+html[data-theme='dark'][data-accent='orange'] .dashboard-nav-link.is-active,
+html[data-theme='dark'][data-accent='orange'] .dashboard-nav-link.is-active:hover,
+html[data-theme='dark'][data-accent='orange'] .returned-list-add-button,
+html[data-theme='dark'][data-accent='orange'] .returned-list-add-button:hover:not(:disabled),
+html[data-theme='dark'][data-accent='orange'] .return-request-employee-option.is-selected,
+html[data-theme='dark'][data-accent='orange'] .return-request-employee-option.is-selected:hover,
+html[data-theme='dark'][data-accent='orange'] .return-request-employee-option.is-selected .return-request-employee-state,
+html[data-theme='dark'][data-accent='orange'] .return-request-employee-option.is-selected:hover .return-request-employee-state,
+html[data-theme='dark'][data-accent='orange'] .badge:not(.badge-muted):not(.badge-warning):not(.badge-success):not(.badge-danger):not(.badge-info):not(.commission-settled-badge):not(.profiles-agreement-status),
+html[data-theme='dark'][data-accent='orange'] .badge-super,
+html[data-theme='dark'][data-accent='orange'] .notification-bell-badge,
+html[data-theme='dark'][data-accent='orange'] .employee-alert-list .badge,
+html[data-theme='dark'][data-accent='orange'] .badge.badge-warning,
+html[data-theme='dark'][data-accent='orange'] .badge.badge-warning.profiles-admin-badge,
+html[data-theme='dark'][data-accent='orange'] .commissions-page .badge.badge-warning,
+html[data-theme='dark'][data-accent='orange'] .commission-request-card-actions .badge.badge-warning,
+html[data-theme='dark'][data-accent='orange'] .commission-case-card .badge.badge-warning,
+html[data-theme='dark'][data-accent='orange'] .commission-request-employee-state,
+html[data-theme='dark'][data-accent='orange'] .profiles-agreement-status.profiles-agreement-status--pending {
+  color: #ffffff !important;
+}
+
+html[data-theme='dark'][data-accent='orange'] .employee-step-tab.is-active span,
+html[data-theme='dark'][data-accent='orange'] .employee-step-tab.is-active:hover:not(:disabled) span {
+  color: #ffffff !important;
+}
+
+html[data-accent] .badge.profiles-admin-badge.profiles-agreement-status.profiles-agreement-status--active,
+html[data-theme='dark'][data-accent] .badge.profiles-admin-badge.profiles-agreement-status.profiles-agreement-status--active,
+html[data-theme='light'][data-accent] .badge.profiles-admin-badge.profiles-agreement-status.profiles-agreement-status--active {
+  color: #ffffff !important;
 }
 
 

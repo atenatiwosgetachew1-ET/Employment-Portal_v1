@@ -8,30 +8,30 @@
   -moz-osx-font-smoothing: grayscale;
   color-scheme: light;
   --radius-lg: 8px;
-  --color-background: #f7f7f5;
-  --color-foreground: #171717;
-  --color-card: #fcfcfa;
-  --color-card-foreground: #111111;
-  --color-muted: #f0efea;
-  --color-muted-foreground: #6d6a64;
-  --color-border: #e2dfd7;
-  --color-sidebar: #f4f2ed;
-  --color-sidebar-foreground: #171717;
-  --color-sidebar-border: #e2dfd7;
+  --color-background: #efefef;
+  --color-foreground: #1b1b1b;
+  --color-card: #fafafa;
+  --color-card-foreground: #171717;
+  --color-muted: #e5e5e5;
+  --color-muted-foreground: #6a6a6a;
+  --color-border: #d7d7d7;
+  --color-sidebar: #efefef;
+  --color-sidebar-foreground: #1b1b1b;
+  --color-sidebar-border: #d7d7d7;
   --color-sidebar-accent: rgb(var(--accent-active) / 0.18);
-  --color-sidebar-accent-foreground: #171717;
-  --color-secondary: #efede6;
-  --color-secondary-foreground: #171717;
+  --color-sidebar-accent-foreground: #1b1b1b;
+  --color-secondary: #e2e2e2;
+  --color-secondary-foreground: #1b1b1b;
   --color-ring: rgb(var(--accent-active));
-  --accent-bg-start: 247 247 245;
-  --accent-bg-end: 241 241 239;
-  --accent-glow-1: 232 232 228;
-  --accent-glow-2: 220 220 214;
+  --accent-bg-start: 241 241 241;
+  --accent-bg-end: 235 235 235;
+  --accent-glow-1: 227 227 227;
+  --accent-glow-2: 214 214 214;
   --accent-active: 108 108 108;
   --accent-active-border: 52 52 52;
-  --accent-tile-muted: 239 239 235;
-  --accent-tile-hover: 228 228 223;
-  --accent-border: 205 205 198;
+  --accent-tile-muted: 236 236 236;
+  --accent-tile-hover: 225 225 225;
+  --accent-border: 197 197 197;
   --accent-surface-strong: 88 88 88;
 }
 
@@ -61,43 +61,56 @@ html[data-theme='dark'] {
   --accent-surface-strong: 196 196 196;
 }
 
+/* Accent family tokens only.
+   Do not place theme-specific foreground/background tokens here. */
 html[data-accent='natural'] {
   --accent-bg-start: 247 247 245;
   --accent-bg-end: 239 239 237;
-  --accent-glow-1: 225 225 225;
-  --accent-glow-2: 210 210 210;
-  --accent-active: 122 122 122;
-  --accent-active-border: 38 38 38;
-  --accent-tile-muted: 236 236 236;
-  --accent-tile-hover: 224 224 224;
-  --accent-border: 194 194 194;
-  --accent-surface-strong: 96 96 96;
+  --accent-glow-1: 229 229 226;
+  --accent-glow-2: 214 214 209;
+  --accent-active: 128 128 125;
+  --accent-active-border: 56 56 54;
+  --accent-tile-muted: 237 237 233;
+  --accent-tile-hover: 226 226 220;
+  --accent-border: 198 198 191;
+  --accent-surface-strong: 84 84 82;
+}
+
+/* Pair-specific token refinements must live under theme + accent selectors. */
+html[data-theme='light'][data-accent='natural'] {
+  --color-foreground: #161616;
+  --color-card-foreground: #141414;
+  --color-muted-foreground: #565656;
+  --color-sidebar-foreground: #181818;
+  --color-secondary-foreground: #181818;
 }
 
 html[data-theme='dark'][data-accent='natural'] {
   --accent-bg-start: 17 17 17;
   --accent-bg-end: 17 17 17;
-  --accent-glow-1: 66 66 66;
-  --accent-glow-2: 52 52 52;
-  --accent-active: 224 224 224;
-  --accent-active-border: 164 164 164;
-  --accent-tile-muted: 46 46 46;
-  --accent-tile-hover: 61 61 61;
-  --accent-border: 102 102 102;
-  --accent-surface-strong: 188 188 188;
+  --accent-glow-1: 64 64 62;
+  --accent-glow-2: 50 50 48;
+  --accent-active: 226 226 222;
+  --accent-active-border: 170 170 164;
+  --accent-tile-muted: 47 47 45;
+  --accent-tile-hover: 61 61 58;
+  --accent-border: 106 106 101;
+  --accent-surface-strong: 190 190 184;
 }
 
+/* Accent family tokens only.
+   Do not place theme-specific foreground/background tokens here. */
 html[data-accent='orange'] {
-  --accent-bg-start: 247 247 245;
-  --accent-bg-end: 241 239 234;
-  --accent-glow-1: 243 231 216;
-  --accent-glow-2: 236 223 208;
-  --accent-active: 178 103 35;
-  --accent-active-border: 145 80 25;
-  --accent-tile-muted: 251 239 224;
-  --accent-tile-hover: 245 225 202;
-  --accent-border: 233 208 180;
-  --accent-surface-strong: 112 69 32;
+  --accent-bg-start: 246 238 227;
+  --accent-bg-end: 240 231 219;
+  --accent-glow-1: 241 226 206;
+  --accent-glow-2: 232 214 191;
+  --accent-active: 181 108 44;
+  --accent-active-border: 150 88 33;
+  --accent-tile-muted: 246 234 217;
+  --accent-tile-hover: 238 222 200;
+  --accent-border: 226 200 171;
+  --accent-surface-strong: 118 74 36;
 }
 
 html[data-theme='dark'][data-accent='orange'] {

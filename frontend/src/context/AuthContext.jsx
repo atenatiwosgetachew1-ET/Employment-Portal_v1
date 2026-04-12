@@ -1,7 +1,7 @@
 import { createContext, useContext, useEffect, useMemo, useState } from 'react'
 import * as authService from '../services/authService'
 import * as preferencesService from '../services/preferencesService'
-import { applyTheme } from '../utils/theme'
+import { applyTheme, getStoredTheme } from '../utils/theme'
 import { applyStoredProfileOverride } from '../utils/profileStore'
 
 const AuthContext = createContext(null)
@@ -14,7 +14,7 @@ export function AuthProvider({ children }) {
   useEffect(() => {
     const onUnauthorized = () => {
       setUser(null)
-      applyTheme('dark')
+      applyTheme(getStoredTheme())
     }
     window.addEventListener('auth:unauthorized', onUnauthorized)
     return () => window.removeEventListener('auth:unauthorized', onUnauthorized)
@@ -35,14 +35,14 @@ export function AuthProvider({ children }) {
         setUser(applyStoredProfileOverride(u))
         try {
           const prefs = await preferencesService.fetchPreferences()
-          applyTheme('dark')
+          applyTheme(prefs?.theme || getStoredTheme())
         } catch {
-          applyTheme('dark')
+          applyTheme(getStoredTheme())
         }
       })
       .catch(() => {
         setUser(null)
-        applyTheme('dark')
+        applyTheme(getStoredTheme())
       })
       .finally(() => setBootstrapping(false))
   }, [])
@@ -53,10 +53,10 @@ export function AuthProvider({ children }) {
       const loggedInUser = applyStoredProfileOverride(await authService.login({ username, password }))
       setUser(loggedInUser)
       try {
-        await preferencesService.fetchPreferences()
-        applyTheme('dark')
+        const prefs = await preferencesService.fetchPreferences()
+        applyTheme(prefs?.theme || getStoredTheme())
       } catch {
-        applyTheme('dark')
+        applyTheme(getStoredTheme())
       }
       return loggedInUser
     } finally {
@@ -70,10 +70,10 @@ export function AuthProvider({ children }) {
       const loggedInUser = applyStoredProfileOverride(await authService.loginWithGoogle(credential))
       setUser(loggedInUser)
       try {
-        await preferencesService.fetchPreferences()
-        applyTheme('dark')
+        const prefs = await preferencesService.fetchPreferences()
+        applyTheme(prefs?.theme || getStoredTheme())
       } catch {
-        applyTheme('dark')
+        applyTheme(getStoredTheme())
       }
       return loggedInUser
     } finally {
@@ -86,7 +86,7 @@ export function AuthProvider({ children }) {
       await authService.logout()
     } finally {
       setUser(null)
-      applyTheme('dark')
+      applyTheme(getStoredTheme())
     }
   }
 
