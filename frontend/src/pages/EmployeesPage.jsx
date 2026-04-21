@@ -15,11 +15,11 @@ import {
   RESIDENCE_COUNTRY_OPTIONS
 } from '../constants/employeeOptions'
 import {
-  DWT_SERVICE_INSTALLERS,
-  checkDWTScannerService,
-  resetDWTScannerService,
-  scanWithDWTDevice
-} from '../services/dwtScannerService'
+  ASPRISE_SCANNER_LINKS,
+  checkAspriseScannerService,
+  resetAspriseScannerService,
+  scanWithAspriseScanner
+} from '../services/aspriseScannerService'
 import * as employeesService from '../services/employeesService'
 import { normalizeSearchValue } from '../utils/filtering'
 
@@ -1488,21 +1488,29 @@ export default function EmployeesPage() {
     handleOcrDocumentPick('upload', uploadDraftFile)
   }
 
-  const checkScannerService = async () => {
+  const checkScannerService = async (options = {}) => {
     setScannerStatus('checking')
     setScannerError('')
     try {
-      const { devices } = await checkDWTScannerService()
+      const { devices } = await checkAspriseScannerService(options)
       setScannerDevices(devices)
       setSelectedScannerIndex(0)
       setScannerStatus(devices.length > 0 ? 'ready' : 'no-devices')
       if (devices.length === 0) {
-        setScannerError('Dynamic Web TWAIN is running, but no TWAIN/WIA scanner was found. Connect a scanner and install its driver, then check again.')
+        setScannerError('No scanner source was found. Connect a scanner and install its TWAIN/WIA driver, then check again.')
       }
     } catch (err) {
+      const message = err?.message || 'Asprise Scanner or its local scan app is not ready.'
+      if (message.includes('scanner source detection did not respond')) {
+        setScannerDevices([{ name: 'select', displayName: 'Select scanner in Asprise dialog' }])
+        setSelectedScannerIndex(0)
+        setScannerStatus('ready')
+        setScannerError(message)
+        return
+      }
       setScannerDevices([])
       setScannerStatus('service-missing')
-      setScannerError(err?.message || 'Dynamic Web TWAIN service is not active.')
+      setScannerError(message)
     }
   }
 
@@ -1514,12 +1522,12 @@ export default function EmployeesPage() {
     setScannerError('')
     setScannerStatus('checking')
     window.setTimeout(() => {
-      checkScannerService()
+      checkScannerService({ allowInstallPrompt: true })
     }, 0)
   }
 
   const closeScannerModal = () => {
-    resetDWTScannerService()
+    resetAspriseScannerService()
     setScannerModalOpen(false)
     setScannerError('')
   }
@@ -1539,7 +1547,7 @@ export default function EmployeesPage() {
     setScannerStatus('scanning')
     setScannerError('')
     try {
-      const file = await scanWithDWTDevice(device)
+      const file = await scanWithAspriseScanner(device)
       closeScannerModal()
       handleOcrDocumentPick('scanner', file)
     } catch (err) {
@@ -3717,29 +3725,27 @@ export default function EmployeesPage() {
               <h2 id="employee-scanner-title">Scanner</h2>
             </div>
             <p className="app-confirm-message">
-              The system connects to Dynamic Web TWAIN, which talks to the local TWAIN bridge/service and scanner driver before staging the scan for OCR.
+              The system connects through Asprise Scanner, which uses the local Asprise scan app and the TWAIN/WIA scanner driver before staging the scan for OCR.
             </p>
             <div className={`employee-scanner-status employee-scanner-status--${scannerStatus}`}>
               <strong>
                 {scannerStatus === 'checking'
-                  ? 'Checking Dynamic Web TWAIN service...'
+                  ? 'Checking Asprise Scanner...'
                   : scannerStatus === 'scanning'
                     ? 'Scanning document...'
                     : scannerStatus === 'ready'
-                      ? 'Scanner service is ready'
+                      ? 'Asprise scanner connection is ready'
                       : scannerStatus === 'no-devices'
                         ? 'Service found, no scanner detected'
-                        : 'Dynamic Web TWAIN service is not active'}
+                        : 'Asprise scanner app is not ready'}
               </strong>
               {scannerError ? <span>{scannerError}</span> : null}
             </div>
             {scannerStatus === 'service-missing' ? (
               <div className="employee-scanner-service-actions">
-                <a className="btn-secondary" href={DWT_SERVICE_INSTALLERS.windows}>Download for Windows</a>
-                <a className="btn-secondary" href={DWT_SERVICE_INSTALLERS.macos}>Download for macOS</a>
-                <a className="btn-secondary" href={DWT_SERVICE_INSTALLERS.linux}>Download for Linux</a>
-                <a className="btn-secondary" href={DWT_SERVICE_INSTALLERS.docs} target="_blank" rel="noreferrer">Service setup help</a>
-                <button type="button" onClick={checkScannerService}>I started the service - check again</button>
+                <a className="btn-secondary" href={ASPRISE_SCANNER_LINKS.enable}>Already have the scan app set up? Click here to enable it.</a>
+                <a className="btn-secondary" href={ASPRISE_SCANNER_LINKS.download} target="_blank" rel="noreferrer">Install scan app</a>
+                <button type="button" onClick={() => checkScannerService({ allowInstallPrompt: true })}>I started the app - check again</button>
               </div>
             ) : null}
             {scannerStatus === 'ready' ? (
@@ -3754,12 +3760,11 @@ export default function EmployeesPage() {
                 </select>
             </label>
             ) : null}
-            <div id="employee-dwt-container" className="employee-dwt-container" aria-hidden="true" />
             <div className="app-confirm-actions">
               <button type="button" className="btn-secondary" onClick={backToScanOptionsFromScanner}>Back</button>
               <button type="button" className="btn-secondary" onClick={closeScannerModal}>Cancel</button>
               {scannerStatus === 'no-devices' ? (
-                <button type="button" onClick={checkScannerService}>Check again</button>
+                <button type="button" onClick={() => checkScannerService({ allowInstallPrompt: true })}>Check again</button>
               ) : null}
               {scannerStatus === 'ready' ? (
                 <button type="button" onClick={scanFromSelectedScanner}>Scan document</button>

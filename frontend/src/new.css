@@ -2516,15 +2516,6 @@ html[data-theme='dark'] .notifications-page-list .notifications-page-item:not(.i
   font-weight: 650;
 }
 
-.employee-dwt-container {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  overflow: hidden;
-  opacity: 0;
-  pointer-events: none;
-}
-
 .notification-reminder-custom {
   display: grid;
   gap: 8px;
