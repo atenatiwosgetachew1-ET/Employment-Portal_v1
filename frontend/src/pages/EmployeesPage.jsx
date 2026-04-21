@@ -1484,15 +1484,15 @@ export default function EmployeesPage() {
       setUploadError('Choose a document before continuing.')
       return
     }
-    closeUploadDocumentModal()
+    closeUploadDocumentModal()/*  */
     handleOcrDocumentPick('upload', uploadDraftFile)
   }
 
-  const checkScannerService = async (options = {}) => {
+  const checkScannerService = async () => {
     setScannerStatus('checking')
     setScannerError('')
     try {
-      const { devices } = await checkAspriseScannerService(options)
+      const { devices } = await checkAspriseScannerService()
       setScannerDevices(devices)
       setSelectedScannerIndex(0)
       setScannerStatus(devices.length > 0 ? 'ready' : 'no-devices')
@@ -1500,17 +1500,9 @@ export default function EmployeesPage() {
         setScannerError('No scanner source was found. Connect a scanner and install its TWAIN/WIA driver, then check again.')
       }
     } catch (err) {
-      const message = err?.message || 'Asprise Scanner or its local scan app is not ready.'
-      if (message.includes('scanner source detection did not respond')) {
-        setScannerDevices([{ name: 'select', displayName: 'Select scanner in Asprise dialog' }])
-        setSelectedScannerIndex(0)
-        setScannerStatus('ready')
-        setScannerError(message)
-        return
-      }
       setScannerDevices([])
       setScannerStatus('service-missing')
-      setScannerError(message)
+      setScannerError(err?.message || 'Asprise Scanner or its local scan app is not ready.')
     }
   }
 
@@ -1522,7 +1514,7 @@ export default function EmployeesPage() {
     setScannerError('')
     setScannerStatus('checking')
     window.setTimeout(() => {
-      checkScannerService({ allowInstallPrompt: true })
+      checkScannerService()
     }, 0)
   }
 
@@ -3743,9 +3735,8 @@ export default function EmployeesPage() {
             </div>
             {scannerStatus === 'service-missing' ? (
               <div className="employee-scanner-service-actions">
-                <a className="btn-secondary" href={ASPRISE_SCANNER_LINKS.enable}>Already have the scan app set up? Click here to enable it.</a>
                 <a className="btn-secondary" href={ASPRISE_SCANNER_LINKS.download} target="_blank" rel="noreferrer">Install scan app</a>
-                <button type="button" onClick={() => checkScannerService({ allowInstallPrompt: true })}>I started the app - check again</button>
+                <button type="button" onClick={checkScannerService}>I started the app - check again</button>
               </div>
             ) : null}
             {scannerStatus === 'ready' ? (
@@ -3764,7 +3755,7 @@ export default function EmployeesPage() {
               <button type="button" className="btn-secondary" onClick={backToScanOptionsFromScanner}>Back</button>
               <button type="button" className="btn-secondary" onClick={closeScannerModal}>Cancel</button>
               {scannerStatus === 'no-devices' ? (
-                <button type="button" onClick={() => checkScannerService({ allowInstallPrompt: true })}>Check again</button>
+                <button type="button" onClick={checkScannerService}>Check again</button>
               ) : null}
               {scannerStatus === 'ready' ? (
                 <button type="button" onClick={scanFromSelectedScanner}>Scan document</button>
