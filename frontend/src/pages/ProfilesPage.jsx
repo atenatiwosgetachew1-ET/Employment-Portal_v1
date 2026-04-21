@@ -18,6 +18,7 @@ import {
   saveCompanyDocuments,
   saveProfileOverride
 } from '../utils/profileStore'
+import { normalizeSearchValue } from '../utils/filtering'
 
 const PROFILE_TABS = [
   { id: 'profile', label: 'All Profiles' },
@@ -32,6 +33,12 @@ const AGREEMENT_BOARD_FILTERS = [
   { id: 'expired', label: 'Expired' },
   { id: 'declined', label: 'Declined' }
 ]
+
+function readCssCustomProperty(name) {
+  if (typeof window === 'undefined') return ''
+  const value = window.getComputedStyle(document.documentElement).getPropertyValue(name).trim()
+  return value
+}
 
 function formatDateTime(value) {
   if (!value) return '--'
@@ -85,10 +92,6 @@ function buildAgentCardName(agent) {
   return [agent?.first_name, agent?.last_name].filter(Boolean).join(' ') || agent?.username || 'Unnamed agent'
 }
 
-function normalizeProfileValue(value) {
-  return String(value || '').trim().toLowerCase()
-}
-
 function belongsToSameAgentWorkspace(owner, candidate) {
   const ownerAgentId = owner?.agent_context?.agent_id || null
   const candidateAgentId = candidate?.agent_context?.agent_id || null
@@ -103,14 +106,14 @@ function belongsToSameAgentWorkspace(owner, candidate) {
     owner?.username,
     owner?.email
   ]
-    .map(normalizeProfileValue)
+    .map(normalizeSearchValue)
     .filter(Boolean)
 
   const candidateCandidates = [
     candidate?.staff_side,
     candidate?.organization?.name
   ]
-    .map(normalizeProfileValue)
+    .map(normalizeSearchValue)
     .filter(Boolean)
 
   return candidateCandidates.some((value) => ownerCandidates.includes(value))
@@ -215,11 +218,13 @@ function buildAgreementKindLabel(agreementType) {
 
 function pickContrastingStrokeColor(backgroundColor) {
   const match = String(backgroundColor || '').match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/i)
-  if (!match) return '#241913'
+  const contrastDark = readCssCustomProperty('--preview-contrast-dark') || readCssCustomProperty('--color-foreground')
+  const contrastLight = readCssCustomProperty('--preview-contrast-light') || readCssCustomProperty('--color-background')
+  if (!match) return contrastDark
   const [, rText, gText, bText] = match
   const [r, g, b] = [Number(rText), Number(gText), Number(bText)]
   const luminance = (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255
-  return luminance > 0.58 ? '#241913' : '#f7efe8'
+  return luminance > 0.58 ? contrastDark : contrastLight
 }
 
 export default function ProfilesPage() {
@@ -1278,6 +1283,8 @@ export default function ProfilesPage() {
         .replaceAll('&', '&amp;')
         .replaceAll('<', '&lt;')
         .replaceAll('>', '&gt;')
+      const previewScreenBackground = readCssCustomProperty('--preview-window-screen-bg') || 'Canvas'
+      const previewPaperBackground = readCssCustomProperty('--preview-window-paper-bg') || 'Canvas'
 
       if (previewDocument.isImage) {
         printWindow.document.write(`
@@ -1286,7 +1293,7 @@ export default function ProfilesPage() {
             <head>
               <title>${escapedTitle}</title>
               <style>
-                html, body { margin: 0; background: #111; }
+                html, body { margin: 0; background: ${previewScreenBackground}; }
                 body {
                   display: flex;
                   align-items: center;
@@ -1299,7 +1306,7 @@ export default function ProfilesPage() {
                   object-fit: contain;
                 }
                 @media print {
-                  html, body { background: #fff; }
+                  html, body { background: ${previewPaperBackground}; }
                 }
               </style>
             </head>
@@ -2007,7 +2014,7 @@ export default function ProfilesPage() {
                     name="agreement_details"
                     rows={7}
                     value={agreementForm.details}
-                    style={{resize:'none'}}
+                    className="textarea--no-resize"
                     onChange={(event) => handleAgreementFieldChange('details', event.target.value)}
                     placeholder="Add the agreement details, conditions, obligations, or signing notes here..."
                   />
@@ -2657,22 +2664,16 @@ export default function ProfilesPage() {
                   alt={previewDocument.label}
                   draggable={false}
                   onContextMenu={previewDocument.disableContextMenu ? (event) => event.preventDefault() : undefined}
+                  className={`document-preview-image${previewDocument.isProfilePhoto ? ' document-preview-image--profile' : ''}`}
                   style={{
-                    transform: `translate(${previewOffset.x}px, ${previewOffset.y}px) scale(${previewZoom})`,
-                    objectFit: 'contain',
-                    objectPosition: 'center center',
-                    display: 'block',
-                    maxWidth: '100%',
-                    maxHeight: '100%',
-                    width: previewDocument.isProfilePhoto ? 'auto' : undefined,
-                    height: previewDocument.isProfilePhoto ? 'auto' : undefined
+                    transform: `translate(${previewOffset.x}px, ${previewOffset.y}px) scale(${previewZoom})`
                   }}
                 />
               ) : previewDocument.isPdf ? (
                 <iframe
                   src={previewDocument.url}
                   title={previewDocument.label}
-                  style={{ width: '100%', minHeight: '72vh', border: 0, borderRadius: 12 }}
+                  className="document-preview-frame"
                 />
               ) : (
                 <div className="employee-attachment-preview-file">

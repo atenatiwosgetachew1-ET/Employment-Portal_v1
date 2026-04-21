@@ -1,7 +1,10 @@
 from datetime import date
 import os
 
+from datetime import timedelta
+
 from django.contrib.auth.models import User
+from django.utils import timezone
 from rest_framework import serializers
 
 from .auth_utils import get_profile_role, is_admin, is_superadmin
@@ -634,10 +637,60 @@ class AdminPasswordResetSerializer(serializers.Serializer):
 
 
 class NotificationSerializer(serializers.ModelSerializer):
+    remind_me = serializers.BooleanField(write_only=True, required=False)
+    is_reminder_pending = serializers.SerializerMethodField()
+
     class Meta:
         model = Notification
-        fields = ("id", "title", "body", "kind", "read", "created_at")
-        read_only_fields = ("id", "title", "body", "kind", "created_at")
+        fields = (
+            "id",
+            "title",
+            "body",
+            "kind",
+            "read",
+            "created_at",
+            "remind_at",
+            "is_reminder_pending",
+            "remind_me",
+        )
+        read_only_fields = (
+            "id",
+            "title",
+            "body",
+            "kind",
+            "created_at",
+            "is_reminder_pending",
+        )
+
+    def get_is_reminder_pending(self, obj):
+        return bool(obj.remind_at and obj.remind_at > timezone.now())
+
+    def validate_remind_at(self, value):
+        if value <= timezone.now():
+            raise serializers.ValidationError("Reminder time must be in the future.")
+        return value
+
+    def update(self, instance, validated_data):
+        remind_me = validated_data.pop("remind_me", None)
+        remind_at = validated_data.pop("remind_at", None)
+
+        for attr, value in validated_data.items():
+            setattr(instance, attr, value)
+
+        if validated_data.get("read") is False:
+            instance.remind_at = None
+
+        if remind_at is not None:
+            instance.read = True
+            instance.remind_at = remind_at
+        elif remind_me is True:
+            instance.read = True
+            instance.remind_at = timezone.now() + timedelta(days=1)
+        elif remind_me is False:
+            instance.remind_at = None
+
+        instance.save()
+        return instance
 
 
 class UserPreferencesSerializer(serializers.ModelSerializer):

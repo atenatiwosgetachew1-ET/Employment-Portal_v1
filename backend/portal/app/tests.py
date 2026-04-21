@@ -20,6 +20,7 @@ from .models import (
     AuditLog,
     Employee,
     EmployeeSelection,
+    Notification,
     OrganizationMembership,
     PlatformSettings,
     Profile,
@@ -555,6 +556,62 @@ class AuthFlowTests(TestCase):
                 actor=user,
                 action="profile.update",
             ).exists()
+        )
+
+
+class NotificationReminderTests(TestCase):
+    def setUp(self):
+        self.client = APIClient()
+        self.user = User.objects.create_user(
+            username="notify-user",
+            email="notify@example.com",
+            password="strong-pass-123",
+            is_active=True,
+        )
+        self.user.profile.email_verified = True
+        self.user.profile.save(update_fields=["email_verified"])
+        self.client.force_authenticate(user=self.user)
+
+    def test_patch_notification_can_schedule_reminder(self):
+        notification = Notification.objects.create(
+            user=self.user,
+            title="Missing document",
+            body="Passport copy still missing.",
+        )
+        scheduled_at = timezone.now() + timedelta(hours=4)
+
+        response = self.client.patch(
+            f"/api/notifications/{notification.id}/",
+            data={"remind_at": scheduled_at.isoformat()},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        notification.refresh_from_db()
+        self.assertTrue(notification.read)
+        self.assertIsNotNone(notification.remind_at)
+        self.assertEqual(notification.remind_at.isoformat(), scheduled_at.isoformat())
+        self.assertTrue(response.json()["is_reminder_pending"])
+
+    def test_listing_notifications_materializes_due_reminder(self):
+        notification = Notification.objects.create(
+            user=self.user,
+            title="Subscription follow-up",
+            body="Please confirm renewal status.",
+            read=True,
+            remind_at=timezone.now() - timedelta(minutes=5),
+        )
+
+        response = self.client.get("/api/notifications/")
+
+        self.assertEqual(response.status_code, 200)
+        notification.refresh_from_db()
+        self.assertFalse(notification.read)
+        self.assertIsNone(notification.remind_at)
+        self.assertEqual(Notification.objects.filter(user=self.user).count(), 1)
+        payload = response.json()
+        self.assertTrue(
+            any(item["title"] == "Subscription follow-up" and item["read"] is False for item in payload)
         )
 
 

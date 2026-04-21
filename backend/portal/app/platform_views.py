@@ -1,4 +1,5 @@
 from django.db.models import Q
+from django.utils import timezone
 from rest_framework import generics
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.permissions import BasePermission, IsAuthenticated
@@ -16,6 +17,14 @@ from .serializers import (
     PlatformSettingsSerializer,
     UserPreferencesSerializer,
 )
+
+
+def materialize_due_notification_reminders(user):
+    Notification.objects.filter(
+        user=user,
+        remind_at__isnull=False,
+        remind_at__lte=timezone.now(),
+    ).update(read=False, remind_at=None)
 
 
 class IsManagerForAudit(BasePermission):
@@ -44,6 +53,7 @@ class NotificationListView(generics.ListAPIView):
         restriction = get_access_restriction(self.request.user, write=False)
         if restriction:
             return Notification.objects.none()
+        materialize_due_notification_reminders(self.request.user)
         return Notification.objects.filter(user=self.request.user)
 
 

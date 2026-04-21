@@ -6,6 +6,7 @@ import { useAuth } from '../context/AuthContext'
 import { useUiFeedback } from '../context/UiFeedbackContext'
 import * as employeesService from '../services/employeesService'
 import * as usersService from '../services/usersService'
+import { matchesSearchQuery, normalizeSearchValue } from '../utils/filtering'
 
 const COMMISSION_VIEW_TABS = [
   { id: 'requests' },
@@ -89,6 +90,17 @@ function settledCommissionStatus(employee) {
   return isSettledCommissionEmployee(employee) ? 'Settled commission' : 'Not settled'
 }
 
+function statusTone(status) {
+  const normalized = String(status || '').trim().toLowerCase().replace(/\s+/g, '_')
+  if (!normalized) return ''
+  if (['pending', 'requested'].includes(normalized)) return 'pending'
+  if (['approved', 'active', 'fully_signed', 'success'].includes(normalized)) return 'success'
+  if (normalized === 'selected') return 'selected'
+  if (normalized === 'settled') return 'settled'
+  if (['declined', 'failed', 'expired', 'cancelled'].includes(normalized)) return 'declined'
+  return ''
+}
+
 function employmentStage(employee) {
   if (isReturnedEmployee(employee)) return 'Returned'
   if (isCommissionEligibleEmployee(employee)) return 'Employed'
@@ -101,10 +113,6 @@ function agentNameForEmployee(employee) {
 
 function displayAgentName(agent) {
   return [agent?.first_name, agent?.last_name].filter(Boolean).join(' ') || agent?.username || 'Unknown agent'
-}
-
-function normalizeMatchValue(value) {
-  return String(value || '').trim().toLowerCase()
 }
 
 function employeeBelongsToAgent(employee, user) {
@@ -123,7 +131,7 @@ function employeeBelongsToAgent(employee, user) {
     user?.username,
     user?.email
   ]
-    .map(normalizeMatchValue)
+    .map(normalizeSearchValue)
     .filter(Boolean)
 
   const employeeCandidates = [
@@ -133,7 +141,7 @@ function employeeBelongsToAgent(employee, user) {
     employee?.selection_state?.agent_name,
     employee?.registered_by_username
   ]
-    .map(normalizeMatchValue)
+    .map(normalizeSearchValue)
     .filter(Boolean)
 
   return employeeCandidates.some((candidate) => userCandidates.includes(candidate))
@@ -505,7 +513,7 @@ function requestBelongsToAgent(request, user) {
     user?.username,
     user?.email
   ]
-    .map(normalizeMatchValue)
+    .map(normalizeSearchValue)
     .filter(Boolean)
 
   const requestCandidates = [
@@ -513,7 +521,7 @@ function requestBelongsToAgent(request, user) {
     request?.agentUsername,
     request?.agentEmail
   ]
-    .map(normalizeMatchValue)
+    .map(normalizeSearchValue)
     .filter(Boolean)
 
   return requestCandidates.some((candidate) => userCandidates.includes(candidate))
@@ -908,24 +916,19 @@ export default function CommissionsPage() {
   }, [activeSettlementRequest, canRegisterSettlements, unsettledCases])
 
   const unsettledVisibleCases = useMemo(() => {
-    const query = search.trim().toLowerCase()
-    if (!query) return unsettledCases
     return unsettledCases.filter((employee) =>
-      [
+      matchesSearchQuery([
         employee.full_name,
         employee.profession,
         employee.professional_title,
         employee.passport_number,
         employee.mobile_number,
         agentNameForEmployee(employee)
-      ]
-        .filter(Boolean)
-        .some((value) => String(value).toLowerCase().includes(query))
+      ], search)
     )
   }, [search, unsettledCases])
 
   const visibleSettlements = useMemo(() => {
-    const query = search.trim().toLowerCase()
     const normalizedSettlements = settlements.map((settlement) => ({
       ...settlement,
       employees: (settlement.employees || []).map((employee) => ({
@@ -933,9 +936,8 @@ export default function CommissionsPage() {
         settled_commission: true
       }))
     }))
-    if (!query) return normalizedSettlements
     return normalizedSettlements.filter((settlement) =>
-      [
+      matchesSearchQuery([
         settlement.agentName,
         ...(settlement.employees || []).flatMap((employee) => [
           employee.full_name,
@@ -945,9 +947,7 @@ export default function CommissionsPage() {
           employee.mobile_number
         ]),
         ...(settlement.receipts || []).map((receipt) => receipt.label)
-      ]
-        .filter(Boolean)
-        .some((value) => String(value).toLowerCase().includes(query))
+      ], search)
     )
   }, [search, settlements])
 
@@ -1045,11 +1045,9 @@ export default function CommissionsPage() {
   )
 
   const visibleSettlementRequests = useMemo(() => {
-    const query = search.trim().toLowerCase()
     const activeRequests = settlementRequests.filter((request) => request.status !== 'cancelled' && request.status !== 'acknowledged')
-    if (!query) return activeRequests
     return activeRequests.filter((request) =>
-      [
+      matchesSearchQuery([
         request.agentName,
         request.requestedByName,
         request.note,
@@ -1059,9 +1057,7 @@ export default function CommissionsPage() {
           employee.professional_title,
           employee.passport_number
         ])
-      ]
-        .filter(Boolean)
-        .some((value) => String(value).toLowerCase().includes(query))
+      ], search)
     )
   }, [search, settlementRequests])
 
@@ -2172,7 +2168,7 @@ export default function CommissionsPage() {
                               {employee.profession || employee.professional_title || '--'} | Passport {employee.passport_number || '--'}
                             </span>
                           </span>
-                          <span className="commission-request-employee-state">
+                          <span className="commission-request-employee-state" data-tone={request.status === 'settled' ? 'settled' : 'requested'}>
                             {request.status === 'settled'
                               ? isAgentSideUser
                                 ? 'Paid, awaiting acknowledgment'
@@ -2528,7 +2524,7 @@ export default function CommissionsPage() {
                                   <span><strong>Return:</strong> {prettyStatus(employee.return_status)}</span>
                                   <span><strong>Commission rate:</strong> {settlement.rate === null || settlement.rate === undefined ? '--' : formatCurrency(settlement.rate)}</span>
                                 </div>
-                                <div className="employee-card-detail-links" style={{ marginTop: 12 }}>
+                                <div className="employee-card-detail-links employee-card-detail-links--spaced">
                                   <button type="button" className="btn-secondary" onClick={() => setOpenedEmployee(employee)}>
                                     View employee details
                                   </button>
@@ -2632,7 +2628,7 @@ export default function CommissionsPage() {
                         <span><strong>Last movement:</strong> {formatDateTime(employeeMovementDate(employee))}</span>
                       </div>
 
-                      <div className="employee-card-detail-links" style={{ marginTop: 12 }}>
+                      <div className="employee-card-detail-links employee-card-detail-links--spaced">
                         <button type="button" className="btn-secondary" onClick={() => setOpenedEmployee(employee)}>
                           View employee details
                         </button>
@@ -2657,7 +2653,7 @@ export default function CommissionsPage() {
                 <h2 id="commission-employee-title">{openedEmployee.full_name}</h2>
                 <p className="muted-text">{openedEmployee.profession || openedEmployee.professional_title || '--'} | {employmentStage(openedEmployee)}</p>
               </div>
-              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+              <div className="inline-actions inline-actions--wrap">
                 <button type="button" className="btn-secondary" onClick={() => setExpandedEmployee(openedEmployee)}>
                   Open employee details
                 </button>
@@ -2821,24 +2817,24 @@ export default function CommissionsPage() {
                 {requestEligibleGroups.length === 0 ? (
                   <p className="muted-text">No unsettled employed employees are currently available to request.</p>
                 ) : (
-                  <div className="return-request-employee-list">
+                  <div className="commission-request-picker-list">
                     {requestEligibleGroups.map((group) => {
                       const isSelected = selectedRequestAgentName === group.agentName
                       return (
                         <button
-                          key={group.agentName}
                           type="button"
-                          className={`return-request-employee-option${isSelected ? ' is-selected' : ''}`}
+                          key={group.agentName}
+                          className={`commission-request-picker-option${isSelected ? ' is-selected' : ''}`}
                           onClick={() => handleSelectRequestAgent(group.agentName)}
                           aria-pressed={isSelected}
                         >
                           <div>
                             <strong>{group.agentName}</strong>
-                            <span className="return-request-employee-meta">
+                            <span className="commission-request-picker-meta">
                               {group.employees.length} unsettled employee{group.employees.length === 1 ? '' : 's'}
                             </span>
                           </div>
-                          <span className="return-request-employee-state">{isSelected ? 'Selected' : 'Select'}</span>
+                          <span className="commission-request-picker-state">{isSelected ? 'Selected' : 'Select'}</span>
                         </button>
                       )
                     })}
@@ -2851,24 +2847,24 @@ export default function CommissionsPage() {
                 {!selectedRequestGroup ? (
                   <p className="muted-text">Select the responsible agent first.</p>
                 ) : (
-                  <div className="return-request-employee-list">
+                  <div className="commission-request-picker-list">
                     {selectedRequestGroup.employees.map((employee) => {
                       const isSelected = selectedRequestEmployeeIds.includes(employee.id)
                       return (
                         <button
-                          key={employee.id}
                           type="button"
-                          className={`return-request-employee-option${isSelected ? ' is-selected' : ''}`}
+                          key={employee.id}
+                          className={`commission-request-picker-option${isSelected ? ' is-selected' : ''}`}
                           onClick={() => handleSettlementRequestEmployeeToggle(employee.id)}
                           aria-pressed={isSelected}
                         >
                           <div>
                             <strong>{employee.full_name}</strong>
-                            <span className="return-request-employee-meta">
+                            <span className="commission-request-picker-meta">
                               {employee.profession || employee.professional_title || '--'} | Passport {employee.passport_number || '--'}
                             </span>
                           </div>
-                          <span className="return-request-employee-state">{isSelected ? 'Selected' : 'Select'}</span>
+                          <span className="commission-request-picker-state">{isSelected ? 'Selected' : 'Select'}</span>
                         </button>
                       )
                     })}
@@ -2877,9 +2873,9 @@ export default function CommissionsPage() {
               </div>
             </div>
 
-            <div className="employee-summary-card employee-review-documents" style={{ marginTop: 16 }}>
+            <div className="employee-summary-card employee-review-documents employee-review-documents--spaced">
               <h3>Request note</h3>
-              <div className="settings-form" style={{ maxWidth: 'none', marginTop: 0 }}>
+              <div className="settings-form settings-form--flush">
                 <label>
                   Internal note
                   <input
@@ -2962,7 +2958,7 @@ export default function CommissionsPage() {
                                 {employee.profession || employee.professional_title || '--'} | Travel {prettyStatus(employee.travel_status, 'pending')}
                               </span>
                             </div>
-                            <span className="return-request-employee-state">Requested</span>
+                            <span className="return-request-employee-state" data-tone="requested">Requested</span>
                           </div>
                         ) : (
                           <button
@@ -2978,7 +2974,7 @@ export default function CommissionsPage() {
                                 {employee.profession || employee.professional_title || '--'} | Travel {prettyStatus(employee.travel_status, 'pending')}
                               </span>
                             </div>
-                            <span className="return-request-employee-state">{isSelected ? 'Selected' : 'Select'}</span>
+                            <span className="return-request-employee-state" data-tone={isSelected ? 'selected' : ''}>{isSelected ? 'Selected' : 'Select'}</span>
                           </button>
                         )
                       })}
@@ -2989,7 +2985,7 @@ export default function CommissionsPage() {
 
               <div className="employee-summary-card">
                 <h3>Settlement details</h3>
-                <div className="settings-form" style={{ maxWidth: 'none', marginTop: 0 }}>
+                <div className="settings-form settings-form--flush">
                   <label>
                     Settlement date
                     <input type="date" value={settlementDate} disabled readOnly />
@@ -3035,7 +3031,7 @@ export default function CommissionsPage() {
               </div>
             </div>
 
-            <div className="employee-summary-card employee-review-documents" style={{ marginTop: 16 }}>
+            <div className="employee-summary-card employee-review-documents employee-review-documents--spaced">
               <h3>Bank receipts</h3>
               <div className="attachment-grid">
                 {[0, 1, 2].map((index) => {
@@ -3097,8 +3093,7 @@ export default function CommissionsPage() {
               <img
                 src={previewReceipt.dataUrl}
                 alt={previewReceipt.label}
-                className="employee-attachment-preview-image"
-                style={{ width: '100%', height: 'auto', maxHeight: '72vh', objectFit: 'contain' }}
+                className="employee-attachment-preview-image attachment-preview-image--contained"
               />
             </div>
           </div>

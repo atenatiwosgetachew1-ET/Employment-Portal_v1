@@ -80,9 +80,8 @@ export default function ActivityLogPage() {
       </div>
 
       <form
-        className="form-grid"
+        className="form-grid form-grid--align-end"
         onSubmit={handleSearchSubmit}
-        style={{ marginBottom: 16, alignItems: 'end' }}
       >
         <label>
           Search

@@ -1,12 +1,18 @@
-import { useRef } from 'react'
-import { NavLink, Outlet, useNavigate } from 'react-router-dom'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
 import { isAgentSideWorkspace } from '../../utils/profileStore'
+import * as notificationsService from '../../services/notificationsService'
 
 export default function DashboardLayoutSidebar() {
-  const { user } = useAuth()
+  const { user, signOut } = useAuth()
   const navigate = useNavigate()
+  const location = useLocation()
   const profileRef = useRef(null)
+  const [navCounts, setNavCounts] = useState({})
+  const isNotificationsRoute =
+    location.pathname === '/dashboard/notifications' ||
+    location.pathname.startsWith('/dashboard/notifications/')
 
   const permissions = user?.permissions || []
   const features = user?.feature_flags || {}
@@ -64,8 +70,83 @@ export default function DashboardLayoutSidebar() {
       : [])
   ]
 
+  const loadNavCounts = useCallback(async () => {
+    try {
+      const notifications = await notificationsService.fetchNotifications()
+      const notificationCount = isNotificationsRoute
+        ? 0
+        : (Array.isArray(notifications) ? notifications.filter((item) => !item.read).length : 0)
+
+      setNavCounts({
+        '/dashboard/notifications': notificationCount
+      })
+    } catch {
+      setNavCounts({})
+    }
+  }, [isNotificationsRoute])
+
+  useEffect(() => {
+    loadNavCounts()
+  }, [loadNavCounts])
+
+  useEffect(() => {
+    if (!isNotificationsRoute) return
+
+    setNavCounts((prev) => {
+      if (!prev['/dashboard/notifications']) return prev
+      return {
+        ...prev,
+        '/dashboard/notifications': 0
+      }
+    })
+  }, [isNotificationsRoute])
+
+  useEffect(() => {
+    const intervalId = window.setInterval(() => {
+      loadNavCounts()
+    }, 5000)
+
+    const handleWindowFocus = () => {
+      loadNavCounts()
+    }
+
+    window.addEventListener('focus', handleWindowFocus)
+
+    return () => {
+      window.clearInterval(intervalId)
+      window.removeEventListener('focus', handleWindowFocus)
+    }
+  }, [loadNavCounts])
+
+  useEffect(() => {
+    const handleNotificationsUpdated = () => {
+      if (isNotificationsRoute) {
+        setNavCounts((prev) => ({
+          ...prev,
+          '/dashboard/notifications': 0
+        }))
+        return
+      }
+
+      loadNavCounts()
+    }
+
+    window.addEventListener('notifications:updated', handleNotificationsUpdated)
+    window.addEventListener('notifications:viewed', handleNotificationsUpdated)
+
+    return () => {
+      window.removeEventListener('notifications:updated', handleNotificationsUpdated)
+      window.removeEventListener('notifications:viewed', handleNotificationsUpdated)
+    }
+  }, [isNotificationsRoute, loadNavCounts])
+
   const handleProfileNavigate = () => {
     navigate('/dashboard/profiles?tab=profile')
+  }
+
+  const handleLogout = async () => {
+    await signOut()
+    navigate('/login', { replace: true })
   }
 
   return (
@@ -104,10 +185,17 @@ export default function DashboardLayoutSidebar() {
         </div>
         <div className="dashboard-brand" title={brandName}>{brandName}</div>
         <nav className="dashboard-nav">
-          {navItems.map(({ to, label, end, disabled }) => (
-            disabled ? (
+          {navItems.map(({ to, label, end, disabled }) => {
+            const count = navCounts[to] || 0
+            const isCurrent = end
+              ? location.pathname === to
+              : location.pathname === to || location.pathname.startsWith(`${to}/`)
+            const badge = count > 0 && !isCurrent ? (count > 99 ? '99+' : String(count)) : null
+
+            return disabled ? (
               <span key={to} className="dashboard-nav-link is-disabled" aria-disabled="true">
-                {label}
+                <span className="dashboard-nav-link-copy">{label}</span>
+                {badge ? <span className="dashboard-nav-badge">{badge}</span> : null}
               </span>
             ) : (
               <NavLink
@@ -118,27 +206,34 @@ export default function DashboardLayoutSidebar() {
                   `dashboard-nav-link${isActive ? ' is-active' : ''}`
                 }
               >
-                {label}
+                <span className="dashboard-nav-link-copy">{label}</span>
+                {badge ? <span className="dashboard-nav-badge">{badge}</span> : null}
               </NavLink>
             )
-          ))}
+          })}
         </nav>
+        <div className="dashboard-sidebar-actions">
+          <p className="dashboard-sidebar-actions-title">Account</p>
+          <button type="button" className="dashboard-sidebar-action dashboard-logout" onClick={handleLogout}>
+            Logout
+          </button>
+        </div>
       </aside>
 
       <div className="dashboard-main">
         <div className="dashboard-content">
           {user?.is_suspended && (
-            <div className="dashboard-panel" style={{ marginBottom: 16 }}>
+            <div className="dashboard-panel dashboard-panel--spaced">
               <strong>Organization suspended.</strong>
-              <p className="muted-text" style={{ marginTop: 8 }}>
+              <p className="muted-text muted-text--mt-8">
                 Your company needs to resolve licensing before this Employment Portal can be used.
               </p>
             </div>
           )}
           {!user?.is_suspended && user?.is_read_only && (
-            <div className="dashboard-panel" style={{ marginBottom: 16 }}>
+            <div className="dashboard-panel dashboard-panel--spaced">
               <strong>Read-only mode.</strong>
-              <p className="muted-text" style={{ marginTop: 8 }}>
+              <p className="muted-text muted-text--mt-8">
                 This Employment Portal is active for viewing only because the organization
                 subscription is cancelled or restricted.
               </p>

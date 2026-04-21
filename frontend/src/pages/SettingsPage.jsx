@@ -359,7 +359,7 @@ export default function SettingsPage() {
           <form className="settings-form" onSubmit={handlePlatformSubmit}>
             {Object.keys(platformSettings.role_permissions || {}).map((role) => (
               <div key={role}>
-                <strong style={{ display: 'block', marginBottom: 8, textTransform: 'capitalize' }}>
+                <strong className="settings-role-title">
                   {role}
                 </strong>
                 {permissionOptions.map((option) => (

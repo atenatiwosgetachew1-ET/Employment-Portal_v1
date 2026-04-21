@@ -15,7 +15,7 @@ export default function DashboardPage() {
         Use the menu on the left to open other sections (e.g. Users management).
       </p>
       {org && (
-        <div style={{ marginTop: 16 }}>
+        <div className="dashboard-org-summary">
           <p className="muted-text">
             Organization: <strong>{org.name}</strong>
           </p>

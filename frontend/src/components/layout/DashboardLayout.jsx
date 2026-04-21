@@ -74,7 +74,7 @@ export default function DashboardLayout() {
                   )}
               </p>
               {organization && (
-                <p className="muted-text" style={{ marginTop: 4 }}>
+                <p className="muted-text muted-text--mt-4">
                   {organization.name}
                   {subscription?.plan_name ? ` • ${subscription.plan_name}` : ''}
                   {subscription?.status ? ` • ${subscription.status}` : ''}
@@ -89,17 +89,17 @@ export default function DashboardLayout() {
 
         <div className="dashboard-content">
           {user?.is_suspended && (
-            <div className="dashboard-panel" style={{ marginBottom: 16 }}>
+            <div className="dashboard-panel dashboard-panel--spaced">
               <strong>Organization suspended.</strong>
-              <p className="muted-text" style={{ marginTop: 8 }}>
+              <p className="muted-text muted-text--mt-8">
                 Your company needs to resolve licensing before this Employment Portal can be used.
               </p>
             </div>
           )}
           {!user?.is_suspended && user?.is_read_only && (
-            <div className="dashboard-panel" style={{ marginBottom: 16 }}>
+            <div className="dashboard-panel dashboard-panel--spaced">
               <strong>Read-only mode.</strong>
-              <p className="muted-text" style={{ marginTop: 8 }}>
+              <p className="muted-text muted-text--mt-8">
                 This Employment Portal is active for viewing only because the organization
                 subscription is cancelled or restricted.
               </p>

@@ -1,6 +1,33 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import * as notificationsService from '../../services/notificationsService'
 
+function getNextReminderDelay(items) {
+  const pendingTimes = items
+    .filter((item) => item.is_reminder_pending && item.remind_at)
+    .map((item) => new Date(item.remind_at).getTime())
+    .filter((value) => Number.isFinite(value))
+
+  if (pendingTimes.length === 0) return null
+  const nextAt = Math.min(...pendingTimes)
+  return Math.max(1000, nextAt - Date.now())
+}
+
+async function restoreDueReminders(items) {
+  const dueItems = items.filter((item) => {
+    if (!item.read || !item.remind_at) return false
+    const remindAt = new Date(item.remind_at).getTime()
+    return Number.isFinite(remindAt) && remindAt <= Date.now()
+  })
+
+  if (dueItems.length === 0) return false
+
+  await Promise.all(
+    dueItems.map((item) => notificationsService.patchNotification(item.id, { read: false }))
+  )
+
+  return true
+}
+
 export default function NotificationBell() {
   const [open, setOpen] = useState(false)
   const [items, setItems] = useState([])
@@ -11,7 +38,14 @@ export default function NotificationBell() {
     setLoading(true)
     try {
       const data = await notificationsService.fetchNotifications()
-      setItems(Array.isArray(data) ? data : [])
+      const normalized = Array.isArray(data) ? data : []
+      const restored = await restoreDueReminders(normalized)
+      if (restored) {
+        const refreshed = await notificationsService.fetchNotifications()
+        setItems(Array.isArray(refreshed) ? refreshed : [])
+      } else {
+        setItems(normalized)
+      }
     } catch {
       setItems([])
     } finally {
@@ -22,6 +56,17 @@ export default function NotificationBell() {
   useEffect(() => {
     load()
   }, [load])
+
+  useEffect(() => {
+    const delay = getNextReminderDelay(items)
+    if (delay == null) return undefined
+
+    const timeoutId = window.setTimeout(() => {
+      load()
+    }, delay)
+
+    return () => window.clearTimeout(timeoutId)
+  }, [items, load])
 
   useEffect(() => {
     if (!open) return

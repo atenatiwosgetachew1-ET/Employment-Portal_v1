@@ -23,7 +23,7 @@ import ProfilesPage from './pages/ProfilesPage'
 import TravelPage from './pages/TravelPage'
 import ProtectedRoute from './routes/ProtectedRoute'
 import { applyAccent, applyTheme, getStoredAccent, getStoredTheme } from './utils/theme'
-import './App.css'
+import './new.css'
 
 function AppRoutes() {
   useEffect(() => {

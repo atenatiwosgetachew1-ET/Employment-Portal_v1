@@ -4,6 +4,7 @@ import { useAuth } from '../context/AuthContext'
 import { useUiFeedback } from '../context/UiFeedbackContext'
 import { RESIDENCE_COUNTRY_OPTIONS } from '../constants/employeeOptions'
 import * as usersService from '../services/usersService'
+import { matchesBooleanFilter, matchesExactFilter, matchesSearchQuery, normalizeSearchValue } from '../utils/filtering'
 
 const ROLE_OPTIONS = [
   { value: 'superadmin', label: 'Super admin' },
@@ -38,10 +39,6 @@ function isAgentSideWorkspace(user) {
   return Boolean(staffSide) && staffSide !== organizationName
 }
 
-function normalizeScopeValue(value) {
-  return String(value || '').trim().toLowerCase()
-}
-
 function displayActorName(user) {
   return [user?.first_name, user?.last_name].filter(Boolean).join(' ') || user?.username || 'Unknown user'
 }
@@ -59,7 +56,7 @@ function belongsToSameAgentWorkspace(owner, candidate) {
     owner?.username,
     owner?.email
   ]
-    .map(normalizeScopeValue)
+    .map(normalizeSearchValue)
     .filter(Boolean)
 
   const candidateCandidates = [
@@ -68,7 +65,7 @@ function belongsToSameAgentWorkspace(owner, candidate) {
     candidate?.username,
     candidate?.email
   ]
-    .map(normalizeScopeValue)
+    .map(normalizeSearchValue)
     .filter(Boolean)
 
   return candidateCandidates.some((value) => ownerCandidates.includes(value))
@@ -192,29 +189,16 @@ export default function UsersManagementPage() {
         const allUsers = await fetchAllUsers({})
         const filteredUsers = allUsers
           .filter((row) => row.role !== 'customer' ? belongsToSameAgentWorkspace(currentUser, row) : belongsToSameAgentWorkspace(currentUser, row))
-          .filter((row) => {
-            if (!filters.role) return true
-            return row.role === filters.role
-          })
-          .filter((row) => {
-            if (!filters.isActive) return true
-            return String(Boolean(row.is_active)) === filters.isActive
-          })
-          .filter((row) => {
-            if (!filters.q.trim()) return true
-            const query = normalizeScopeValue(filters.q)
-            const haystack = [
-              row.username,
-              row.email,
-              row.first_name,
-              row.last_name,
-              row.phone,
-              row.staff_side
-            ]
-              .map(normalizeScopeValue)
-              .join(' ')
-            return haystack.includes(query)
-          })
+          .filter((row) => matchesExactFilter(row.role, filters.role))
+          .filter((row) => matchesBooleanFilter(row.is_active, filters.isActive))
+          .filter((row) => matchesSearchQuery([
+            row.username,
+            row.email,
+            row.first_name,
+            row.last_name,
+            row.phone,
+            row.staff_side
+          ], filters.q))
         const pageSize = 10
         const start = (page - 1) * pageSize
         const pagedUsers = filteredUsers.slice(start, start + pageSize)
@@ -554,17 +538,17 @@ export default function UsersManagementPage() {
       </div>
 
       {error && (
-        <p className="error-message" style={{ marginBottom: 16 }}>
+        <p className="error-message message-block--mb-16">
           {error}
         </p>
       )}
       {notice && (
-        <p className="muted-text" style={{ marginBottom: 16 }}>
+        <p className="muted-text message-block--mb-16">
           {notice}
         </p>
       )}
       {editingUserId && (
-        <div style={{ marginBottom: 16 }}>
+        <div className="stack-block--mb-16">
           <button
             type="button"
             className="btn-secondary"
@@ -753,13 +737,13 @@ export default function UsersManagementPage() {
             </label>
           </div>
           {form.role === 'staff' && (
-            <p className="muted-text" style={{ marginBottom: 12 }}>
+            <p className="muted-text message-block--mb-12">
               Set side to your organization name for home staff, or to an agent name for away
               staff. Roles map to fixed authority levels: Reception 1, Secretary 2, IT 3,
               Operations 4, Supervisor 5.
             </p>
           )}
-          <p className="muted-text" style={{ marginBottom: 12 }}>
+          <p className="muted-text message-block--mb-12">
             New users receive an email to set their password. If Google sign-in is enabled, they can
             also use the same email with Google.
           </p>
@@ -817,7 +801,7 @@ export default function UsersManagementPage() {
           </form>
           <h2>All users</h2>
           {!loading && (
-            <p className="muted-text" style={{ marginBottom: 12 }}>
+            <p className="muted-text message-block--mb-12">
               Showing {users.length} of {total} users.
             </p>
           )}

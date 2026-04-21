@@ -2270,6 +2270,11 @@ html[data-theme='dark'][data-accent] .profiles-agreement-selected-remove:hover:n
   color: #d1d1d1;
 }
 
+html[data-theme='light'] .form-grid label,
+html[data-theme='light'] .users-form-grid label {
+  color: var(--color-foreground) !important;
+}
+
 .form-grid input,
 .form-grid select {
   font-weight: 400;
@@ -6483,6 +6488,36 @@ html[data-accent] .returned-request-actions button:hover:not(:disabled) {
   color: var(--color-foreground) !important;
 }
 
+html[data-accent='natural'] .btn-secondary,
+html[data-accent='natural'] .employee-modal .btn-secondary,
+html[data-accent='natural'] .employee-review-modal .btn-secondary,
+html[data-accent='natural'] .document-preview-modal .btn-secondary,
+html[data-accent='natural'] .commission-toolbar .btn-secondary,
+html[data-accent='natural'] .employee-filters-grid button,
+html[data-accent='natural'] .employees-filter-grid button,
+html[data-accent='natural'] .users-filter-grid button,
+html[data-accent='natural'] .returned-list-actions button,
+html[data-accent='natural'] .returned-request-actions button {
+  background: color-mix(in oklch, var(--color-card) 88%, var(--color-muted)) !important;
+  border-color: color-mix(in oklch, var(--color-border) 78%, transparent) !important;
+  color: var(--color-foreground) !important;
+}
+
+html[data-accent='natural'] .btn-secondary:hover:not(:disabled),
+html[data-accent='natural'] .employee-modal .btn-secondary:hover:not(:disabled),
+html[data-accent='natural'] .employee-review-modal .btn-secondary:hover:not(:disabled),
+html[data-accent='natural'] .document-preview-modal .btn-secondary:hover:not(:disabled),
+html[data-accent='natural'] .commission-toolbar .btn-secondary:hover:not(:disabled),
+html[data-accent='natural'] .employee-filters-grid button:hover:not(:disabled),
+html[data-accent='natural'] .employees-filter-grid button:hover:not(:disabled),
+html[data-accent='natural'] .users-filter-grid button:hover:not(:disabled),
+html[data-accent='natural'] .returned-list-actions button:hover:not(:disabled),
+html[data-accent='natural'] .returned-request-actions button:hover:not(:disabled) {
+  background: color-mix(in oklch, var(--color-card) 80%, var(--color-muted)) !important;
+  border-color: color-mix(in oklch, var(--color-border) 82%, rgb(var(--accent-border) / 0.18)) !important;
+  color: var(--color-foreground) !important;
+}
+
 html[data-accent] .btn-primary {
   background: linear-gradient(25deg, rgb(var(--accent-active)) 0%, rgb(var(--accent-active-border)) 100%) !important;
   color: #fff !important;
@@ -6492,7 +6527,8 @@ html[data-accent] .btn-primary {
 html[data-accent] .settings-form > button[type='submit'],
 html[data-accent] .settings-tab-card .settings-form > button[type='submit'],
 html[data-accent] .profiles-page .settings-form > button[type='submit'],
-html[data-accent] .user-create-card > button[type='submit'] {
+html[data-accent] .user-create-card > button[type='submit'],
+html[data-accent] .employee-summary-card > div > button[type='button'] {
   align-self: flex-start !important;
   min-width: 170px !important;
   min-height: 42px !important;
@@ -6512,7 +6548,8 @@ html[data-accent] .btn-primary:hover:not(:disabled) {
 html[data-accent] .settings-form > button[type='submit']:hover:not(:disabled),
 html[data-accent] .settings-tab-card .settings-form > button[type='submit']:hover:not(:disabled),
 html[data-accent] .profiles-page .settings-form > button[type='submit']:hover:not(:disabled),
-html[data-accent] .user-create-card > button[type='submit']:hover:not(:disabled) {
+html[data-accent] .user-create-card > button[type='submit']:hover:not(:disabled),
+html[data-accent] .employee-summary-card > div > button[type='button']:hover:not(:disabled) {
   background: rgb(var(--accent-active) / 0.16) !important;
   border-color: rgb(var(--accent-active-border) / 0.42) !important;
   color: color-mix(in oklch, var(--color-foreground) 92%, white 8%) !important;
@@ -6523,13 +6560,15 @@ html[data-accent] .user-create-card > button[type='submit']:hover:not(:disabled)
 
 html[data-accent='natural'] .settings-form > button[type='submit'],
 html[data-accent='natural'] .settings-tab-card .settings-form > button[type='submit'],
-html[data-accent='natural'] .profiles-page .settings-form > button[type='submit'] {
+html[data-accent='natural'] .profiles-page .settings-form > button[type='submit'],
+html[data-accent='natural'] .employee-summary-card > div > button[type='button'] {
   color: #111111 !important;
 }
 
 html[data-accent='natural'] .settings-form > button[type='submit']:hover:not(:disabled),
 html[data-accent='natural'] .settings-tab-card .settings-form > button[type='submit']:hover:not(:disabled),
-html[data-accent='natural'] .profiles-page .settings-form > button[type='submit']:hover:not(:disabled) {
+html[data-accent='natural'] .profiles-page .settings-form > button[type='submit']:hover:not(:disabled),
+html[data-accent='natural'] .employee-summary-card > div > button[type='button']:hover:not(:disabled) {
   color: #111111 !important;
 }
 
@@ -7204,6 +7243,19 @@ html[data-theme='dark'][data-accent='natural'] .dashboard-brand {
   color: color-mix(in oklch, var(--color-sidebar-foreground) 90%, rgb(var(--accent-active) / 0.05)) !important;
 }
 
+html[data-theme='dark'][data-accent='orange'] .dashboard-profile-menu {
+  background: linear-gradient(
+    25deg,
+    rgb(var(--accent-active) / 0.14) 0%,
+    rgb(var(--accent-active-border) / 0.18) 100%
+  ) !important;
+}
+
+html[data-theme='dark'][data-accent='orange'] .dashboard-brand {
+  background: color-mix(in oklch, black 95%, rgb(var(--accent-active-border) / 0.05)) !important;
+  color: color-mix(in oklch, var(--color-sidebar-foreground) 90%, rgb(var(--accent-active) / 0.05)) !important;
+}
+
 .dashboard-profile-avatar {
   display: inline-flex !important;
   align-items: center !important;
@@ -7392,8 +7444,8 @@ html[data-theme='light'][data-accent='orange'] body {
 html[data-theme='light'][data-accent='orange'] .dashboard-profile-menu {
   background: linear-gradient(
     25deg,
-    rgb(var(--accent-active) / 0.1) 0%,
-    rgb(var(--accent-active-border) / 0.14) 100%
+    rgb(var(--accent-active) / 0.06) 0%,
+    rgb(var(--accent-active-border) / 0.08) 100%
   ) !important;
 }
 
@@ -7407,11 +7459,11 @@ html[data-theme='light'][data-accent='orange'] .dashboard-profile-trigger.has-im
     ),
     linear-gradient(
       135deg,
-      rgb(var(--accent-surface-strong) / 0.08) 0%,
-      rgb(var(--accent-active-border) / 0.06) 100%
+      rgb(var(--accent-surface-strong) / 0.06) 0%,
+      rgb(var(--accent-active-border) / 0.04) 100%
     ),
     var(--profile-trigger-image) center / cover no-repeat !important;
-  filter: saturate(0.82) contrast(1.04) brightness(1.03) blur(0.7px) !important;
+  filter: saturate(0.58) contrast(1.03) brightness(1.02) blur(0.7px) !important;
 }
 
 html[data-theme='dark'][data-accent='orange'] .dashboard-profile-trigger.has-image .dashboard-profile-trigger-bg {
@@ -7428,7 +7480,7 @@ html[data-theme='dark'][data-accent='orange'] .dashboard-profile-trigger.has-ima
       rgb(var(--accent-active-border) / 0.08) 100%
     ),
     var(--profile-trigger-image) center / cover no-repeat !important;
-  filter: saturate(0.72) contrast(1.05) brightness(0.95) blur(0.8px) !important;
+  filter: saturate(0.44) contrast(1.05) brightness(0.94) blur(0.8px) !important;
 }
 
 html[data-theme='dark'][data-accent='orange'] .dashboard-profile-trigger.has-image:hover .dashboard-profile-trigger-bg,
@@ -7446,7 +7498,17 @@ html[data-theme='dark'][data-accent='orange'] .dashboard-profile-trigger.has-ima
       rgb(var(--accent-active-border) / 0.07) 100%
     ),
     var(--profile-trigger-image) center / cover no-repeat !important;
-  filter: saturate(0.76) contrast(1.06) brightness(0.99) blur(0.6px) !important;
+  filter: saturate(0.48) contrast(1.06) brightness(0.98) blur(0.6px) !important;
+}
+
+html[data-theme='dark'][data-accent='orange'] .employee-card:hover,
+html[data-theme='dark'][data-accent='orange'] .employee-summary-card:hover,
+html[data-theme='dark'][data-accent='orange'] .returned-request-item:hover,
+html[data-theme='dark'][data-accent='orange'] .notification-item:hover,
+html[data-theme='dark'][data-accent='orange'] .notifications-page-item:hover,
+html[data-theme='dark'][data-accent='orange'] .commission-case-card:hover,
+html[data-theme='dark'][data-accent='orange'] .concept-card:hover {
+  background: rgb(var(--accent-active-border) / 0.1) !important;
 }
 
 html[data-theme='light'][data-accent='orange'] .dashboard-profile-trigger.has-image:hover .dashboard-profile-trigger-bg,
@@ -7460,25 +7522,50 @@ html[data-theme='light'][data-accent='orange'] .dashboard-profile-trigger.has-im
     ),
     linear-gradient(
       135deg,
-      rgb(var(--accent-surface-strong) / 0.06) 0%,
-      rgb(var(--accent-active-border) / 0.05) 100%
+      rgb(var(--accent-surface-strong) / 0.05) 0%,
+      rgb(var(--accent-active-border) / 0.03) 100%
     ),
     var(--profile-trigger-image) center / cover no-repeat !important;
-  filter: saturate(0.88) contrast(1.05) brightness(1.05) blur(0.55px) !important;
+  filter: saturate(0.62) contrast(1.04) brightness(1.04) blur(0.55px) !important;
 }
 
 html[data-theme='light'][data-accent='orange'] .dashboard-profile-avatar {
   background: linear-gradient(
     135deg,
-    color-mix(in oklch, var(--color-card) 76%, white 24%) 0%,
-    color-mix(in oklch, var(--color-card) 74%, rgb(var(--accent-tile-muted) / 0.36)) 100%
+    color-mix(in oklch, var(--color-card) 78%, white 22%) 0%,
+    color-mix(in oklch, var(--color-card) 84%, rgb(var(--accent-tile-muted) / 0.18)) 100%
   ) !important;
-  box-shadow: 0 6px 18px rgb(88 56 28 / 0.08) !important;
+  box-shadow: 0 4px 14px rgb(15 23 42 / 0.06) !important;
+}
+
+html[data-theme='light'][data-accent='orange'] .dashboard-profile-copy strong {
+  color: color-mix(in oklch, var(--color-foreground) 98%, black 2%) !important;
+}
+
+html[data-theme='light'][data-accent='orange'] .dashboard-profile-copy span {
+  color: color-mix(in oklch, var(--color-muted-foreground) 96%, var(--color-foreground) 4%) !important;
 }
 
 html[data-theme='light'][data-accent='orange'] .dashboard-brand {
   background: color-mix(in oklch, white 95%, rgb(var(--accent-active-border) / 0.05)) !important;
-  color: color-mix(in oklch, var(--color-foreground) 86%, rgb(var(--accent-active-border) / 0.2)) !important;
+  color: color-mix(in oklch, var(--color-foreground) 94%, rgb(var(--accent-active-border) / 0.06)) !important;
+}
+
+html[data-theme='light'][data-accent='orange'] .employee-progress-donut-label strong {
+  color: var(--color-foreground) !important;
+}
+
+html[data-theme='light'][data-accent='orange'] .employee-progress-donut-label span {
+  color: var(--color-muted-foreground) !important;
+}
+
+html[data-theme='light'][data-accent='orange'] .employee-summary-card p {
+  color: color-mix(in oklch, var(--color-muted-foreground) 92%, var(--color-foreground) 8%) !important;
+}
+
+html[data-theme='light'][data-accent='orange'] .employee-summary-card p strong,
+html[data-theme='light'][data-accent='orange'] .employee-progress-metrics p strong {
+  color: var(--color-foreground) !important;
 }
 
 html[data-theme='light'][data-accent='orange'] .dashboard-panel,
@@ -7542,7 +7629,7 @@ html[data-theme='light'][data-accent='orange'] .dashboard-nav {
 
 html[data-theme='light'][data-accent='orange'] .dashboard-nav-link,
 html[data-theme='light'][data-accent='orange'] .dashboard-nav-trigger {
-  color: color-mix(in oklch, var(--color-foreground) 84%, rgb(var(--accent-active-border) / 0.16)) !important;
+  color: color-mix(in oklch, var(--color-sidebar-foreground) 92%, var(--color-muted-foreground) 8%) !important;
   border-color: transparent !important;
   background: transparent !important;
 }
@@ -7551,18 +7638,19 @@ html[data-theme='light'][data-accent='orange'] .dashboard-nav-link:hover:not(.is
 html[data-theme='light'][data-accent='orange'] .dashboard-nav-trigger:hover:not(.is-active) {
   background: color-mix(in oklch, var(--color-card) 64%, var(--color-muted) 36%) !important;
   border-color: color-mix(in oklch, var(--color-border) 70%, rgb(var(--accent-border) / 0.14)) !important;
+  color: color-mix(in oklch, var(--color-sidebar-foreground) 98%, black 2%) !important;
 }
 
 html[data-theme='light'][data-accent='orange'] .dashboard-nav-link.is-active,
 html[data-theme='light'][data-accent='orange'] .dashboard-nav-link.is-active:hover {
   background: linear-gradient(
-    180deg,
-    color-mix(in oklch, rgb(var(--accent-active)) 86%, white 14%) 0%,
+    25deg,
+    rgb(var(--accent-active)) 0%,
     rgb(var(--accent-active-border)) 100%
   ) !important;
-  border-color: rgb(var(--accent-active-border) / 0.78) !important;
+  border-color: rgb(var(--accent-active-border) / 0.92) !important;
   color: #ffffff !important;
-  box-shadow: 0 8px 20px rgb(var(--accent-active-border) / 0.16) !important;
+  box-shadow: none !important;
 }
 
 html[data-theme='light'][data-accent='orange'] .employee-card,
@@ -7646,6 +7734,13 @@ html[data-theme='dark'][data-accent='natural'] .dashboard-nav-link.is-active,
 html[data-theme='dark'][data-accent='natural'] .returned-list-add-button,
 html[data-theme='dark'][data-accent='natural'] .return-request-employee-option.is-selected,
 html[data-theme='dark'][data-accent='natural'] .return-request-employee-option.is-selected .return-request-employee-state {
+  background: linear-gradient(
+    25deg,
+    rgb(var(--accent-active)) 0%,
+    rgb(var(--accent-active-border)) 100%
+  ) !important;
+  border-color: rgb(var(--accent-active-border) / 0.92) !important;
+  box-shadow: none !important;
   color: #111111 !important;
 }
 
@@ -7654,6 +7749,16 @@ html[data-theme='dark'][data-accent='natural'] .commissions-page .badge.badge-wa
 html[data-theme='dark'][data-accent='natural'] .commission-request-card-actions .badge.badge-warning,
 html[data-theme='dark'][data-accent='natural'] .commission-case-card .badge.badge-warning {
   color: #111111 !important;
+}
+
+html[data-theme='dark'][data-accent='natural'] .return-request-employee-option.is-selected strong,
+html[data-theme='dark'][data-accent='natural'] .return-request-employee-option.is-selected .return-request-employee-meta {
+  color: #111111 !important;
+}
+
+html[data-theme='dark'][data-accent='natural'] .employee-review-modal .btn-secondary,
+html[data-theme='dark'][data-accent='natural'] .employee-review-modal .btn-secondary:hover:not(:disabled) {
+  color: var(--color-foreground) !important;
 }
 
 html[data-theme='dark'][data-accent='natural'] .employee-step-tab.is-active span {
@@ -7682,6 +7787,11 @@ html[data-theme='dark'][data-accent='natural'] .return-request-employee-option.i
   opacity: 1 !important;
 }
 
+html[data-theme='dark'][data-accent='natural'] .return-request-employee-option.is-selected:hover strong,
+html[data-theme='dark'][data-accent='natural'] .return-request-employee-option.is-selected:hover .return-request-employee-meta {
+  color: #111111 !important;
+}
+
 html[data-theme='dark'][data-accent='natural'] .employee-step-tab.is-active:hover:not(:disabled) span {
   color: #111111 !important;
   background: rgb(0 0 0 / 0.12) !important;
@@ -7703,6 +7813,21 @@ html[data-theme='light'][data-accent='natural'] .employee-step-tab.is-active spa
   background: rgb(255 255 255 / 0.2) !important;
 }
 
+html[data-theme='light'][data-accent='natural'] .return-request-employee-option.is-selected strong,
+html[data-theme='light'][data-accent='natural'] .return-request-employee-option.is-selected .return-request-employee-meta {
+  color: #ffffff !important;
+}
+
+html[data-theme='light'][data-accent='natural'] .employee-review-modal .employee-summary-card textarea,
+html[data-theme='dark'][data-accent='natural'] .employee-review-modal .employee-summary-card textarea {
+  width: 100% !important;
+  min-width: 100% !important;
+  height: 132px !important;
+  min-height: 132px !important;
+  max-height: 132px !important;
+  resize: none !important;
+}
+
 html[data-theme='light'][data-accent='natural'] .btn-primary:hover:not(:disabled),
 html[data-theme='light'][data-accent='natural'] .btn-warning:hover:not(:disabled),
 html[data-theme='light'][data-accent='natural'] .employee-subtab.is-active:hover:not(:disabled),
@@ -7722,6 +7847,11 @@ html[data-theme='light'][data-accent='natural'] .return-request-employee-option.
   filter: none !important;
   transform: none !important;
   opacity: 1 !important;
+}
+
+html[data-theme='light'][data-accent='natural'] .return-request-employee-option.is-selected:hover strong,
+html[data-theme='light'][data-accent='natural'] .return-request-employee-option.is-selected:hover .return-request-employee-meta {
+  color: #ffffff !important;
 }
 
 html[data-theme='light'][data-accent='natural'] .employee-step-tab.is-active:hover:not(:disabled) span {
@@ -7866,25 +7996,92 @@ html[data-theme='light'][data-accent='natural'] .employee-step-tab.is-active:hov
   color: #ffffff !important;
 }
 
+html[data-theme='dark'][data-accent='natural'] .profiles-agreement-board-filters .employee-subtab:not(.is-active) {
+  color: rgb(var(--accent-active) / 0.9) !important;
+}
+
+html[data-theme='dark'][data-accent='natural'] .profiles-agreement-board-filters .employee-subtab:hover:not(.is-active):not(:disabled) {
+  color: rgb(var(--accent-active) / 0.98) !important;
+}
+
+html[data-theme='dark'][data-accent='natural'] .return-request-employee-option.is-selected,
+html[data-theme='dark'][data-accent='natural'] .return-request-employee-option.is-selected:hover,
+html[data-theme='dark'][data-accent='natural'] .return-request-employee-option.is-selected .return-request-employee-state,
+html[data-theme='dark'][data-accent='natural'] .return-request-employee-option.is-selected:hover .return-request-employee-state {
+  background: linear-gradient(
+    25deg,
+    rgb(var(--accent-active)) 0%,
+    rgb(var(--accent-active-border)) 100%
+  ) !important;
+  border-color: rgb(var(--accent-active-border) / 0.92) !important;
+  box-shadow: none !important;
+  filter: none !important;
+  transform: none !important;
+  opacity: 1 !important;
+}
+
+html[data-theme='dark'][data-accent='natural'] .return-request-employee-option.is-selected strong,
+html[data-theme='dark'][data-accent='natural'] .return-request-employee-option.is-selected:hover strong,
+html[data-theme='dark'][data-accent='natural'] .return-request-employee-option.is-selected .return-request-employee-meta,
+html[data-theme='dark'][data-accent='natural'] .return-request-employee-option.is-selected:hover .return-request-employee-meta {
+  color: #111111 !important;
+}
+
+html[data-theme='light'][data-accent='natural'] .return-request-employee-option.is-selected,
+html[data-theme='light'][data-accent='natural'] .return-request-employee-option.is-selected:hover,
+html[data-theme='light'][data-accent='natural'] .return-request-employee-option.is-selected .return-request-employee-state,
+html[data-theme='light'][data-accent='natural'] .return-request-employee-option.is-selected:hover .return-request-employee-state {
+  background: linear-gradient(25deg, #333333 0%, #111111 100%) !important;
+  border-color: #111111 !important;
+  box-shadow: none !important;
+  filter: none !important;
+  transform: none !important;
+  opacity: 1 !important;
+}
+
+html[data-theme='light'][data-accent='natural'] .return-request-employee-option.is-selected strong,
+html[data-theme='light'][data-accent='natural'] .return-request-employee-option.is-selected:hover strong,
+html[data-theme='light'][data-accent='natural'] .return-request-employee-option.is-selected .return-request-employee-meta,
+html[data-theme='light'][data-accent='natural'] .return-request-employee-option.is-selected:hover .return-request-employee-meta {
+  color: #ffffff !important;
+}
+
+html[data-theme='dark'][data-accent='natural'] .employee-review-modal .return-request-employee-option.is-selected:hover,
+html[data-theme='dark'][data-accent='natural'] .employee-review-modal .return-request-employee-option.is-selected:hover .return-request-employee-state {
+  background: linear-gradient(
+    25deg,
+    rgb(var(--accent-active)) 0%,
+    rgb(var(--accent-active-border)) 100%
+  ) !important;
+  border-color: rgb(var(--accent-active-border) / 0.92) !important;
+  box-shadow: none !important;
+}
+
+html[data-theme='light'][data-accent='natural'] .employee-review-modal .return-request-employee-option.is-selected:hover,
+html[data-theme='light'][data-accent='natural'] .employee-review-modal .return-request-employee-option.is-selected:hover .return-request-employee-state {
+  background: linear-gradient(25deg, #333333 0%, #111111 100%) !important;
+  border-color: #111111 !important;
+  box-shadow: none !important;
+}
+
+html[data-theme='dark'][data-accent='natural'] .employee-review-modal .btn-secondary,
+html[data-theme='dark'][data-accent='natural'] .employee-review-modal .btn-secondary:hover:not(:disabled),
+html[data-theme='light'][data-accent='natural'] .employee-review-modal .btn-secondary,
+html[data-theme='light'][data-accent='natural'] .employee-review-modal .btn-secondary:hover:not(:disabled) {
+  border: 1px solid color-mix(in oklch, var(--color-border) 84%, rgb(var(--accent-border) / 0.24)) !important;
+}
+
 /* Protected dark accent contract: dark + orange
    Keep these visuals stable unless we intentionally redesign this pair. */
 
 html[data-theme='dark'][data-accent='orange'] .btn-primary,
-html[data-theme='dark'][data-accent='orange'] .btn-primary:hover:not(:disabled),
 html[data-theme='dark'][data-accent='orange'] .btn-warning,
-html[data-theme='dark'][data-accent='orange'] .btn-warning:hover:not(:disabled),
 html[data-theme='dark'][data-accent='orange'] .employee-subtab.is-active,
-html[data-theme='dark'][data-accent='orange'] .employee-subtab.is-active:hover:not(:disabled),
 html[data-theme='dark'][data-accent='orange'] .employee-step-tab.is-active,
-html[data-theme='dark'][data-accent='orange'] .employee-step-tab.is-active:hover:not(:disabled),
 html[data-theme='dark'][data-accent='orange'] .dashboard-nav-link.is-active,
-html[data-theme='dark'][data-accent='orange'] .dashboard-nav-link.is-active:hover,
 html[data-theme='dark'][data-accent='orange'] .returned-list-add-button,
-html[data-theme='dark'][data-accent='orange'] .returned-list-add-button:hover:not(:disabled),
 html[data-theme='dark'][data-accent='orange'] .return-request-employee-option.is-selected,
-html[data-theme='dark'][data-accent='orange'] .return-request-employee-option.is-selected:hover,
 html[data-theme='dark'][data-accent='orange'] .return-request-employee-option.is-selected .return-request-employee-state,
-html[data-theme='dark'][data-accent='orange'] .return-request-employee-option.is-selected:hover .return-request-employee-state,
 html[data-theme='dark'][data-accent='orange'] .badge:not(.badge-muted):not(.badge-warning):not(.badge-success):not(.badge-danger):not(.badge-info):not(.commission-settled-badge):not(.profiles-agreement-status),
 html[data-theme='dark'][data-accent='orange'] .badge-super,
 html[data-theme='dark'][data-accent='orange'] .notification-bell-badge,
@@ -7894,20 +8091,486 @@ html[data-theme='dark'][data-accent='orange'] .badge.badge-warning.profiles-admi
 html[data-theme='dark'][data-accent='orange'] .commissions-page .badge.badge-warning,
 html[data-theme='dark'][data-accent='orange'] .commission-request-card-actions .badge.badge-warning,
 html[data-theme='dark'][data-accent='orange'] .commission-case-card .badge.badge-warning,
-html[data-theme='dark'][data-accent='orange'] .commission-request-employee-state,
-html[data-theme='dark'][data-accent='orange'] .profiles-agreement-status.profiles-agreement-status--pending {
+html[data-theme='dark'][data-accent='orange'] .commission-request-employee-state {
+  background: linear-gradient(
+    25deg,
+    rgb(var(--accent-active)) 0%,
+    rgb(var(--accent-active-border)) 100%
+  ) !important;
+  border-color: rgb(var(--accent-active-border) / 0.92) !important;
+  box-shadow: none !important;
   color: #ffffff !important;
 }
 
-html[data-theme='dark'][data-accent='orange'] .employee-step-tab.is-active span,
+html[data-theme='dark'][data-accent='orange'] .employee-step-tab.is-active span {
+  color: #ffffff !important;
+  background: rgb(255 255 255 / 0.2) !important;
+}
+
+html[data-theme='dark'][data-accent='orange'] .btn-primary:hover:not(:disabled),
+html[data-theme='dark'][data-accent='orange'] .btn-warning:hover:not(:disabled),
+html[data-theme='dark'][data-accent='orange'] .employee-subtab.is-active:hover:not(:disabled),
+html[data-theme='dark'][data-accent='orange'] .employee-step-tab.is-active:hover:not(:disabled),
+html[data-theme='dark'][data-accent='orange'] .dashboard-nav-link.is-active:hover,
+html[data-theme='dark'][data-accent='orange'] .returned-list-add-button:hover:not(:disabled),
+html[data-theme='dark'][data-accent='orange'] .return-request-employee-option.is-selected:hover,
+html[data-theme='dark'][data-accent='orange'] .return-request-employee-option.is-selected:hover .return-request-employee-state,
+html[data-theme='dark'][data-accent='orange'] .badge:not(.badge-muted):not(.badge-warning):not(.badge-success):not(.badge-danger):not(.badge-info):not(.commission-settled-badge):not(.profiles-agreement-status):hover,
+html[data-theme='dark'][data-accent='orange'] .badge-super:hover,
+html[data-theme='dark'][data-accent='orange'] .notification-bell-badge:hover,
+html[data-theme='dark'][data-accent='orange'] .employee-alert-list .badge:hover,
+html[data-theme='dark'][data-accent='orange'] .badge.badge-warning:hover,
+html[data-theme='dark'][data-accent='orange'] .badge.badge-warning.profiles-admin-badge:hover,
+html[data-theme='dark'][data-accent='orange'] .commissions-page .badge.badge-warning:hover,
+html[data-theme='dark'][data-accent='orange'] .commission-request-card-actions .badge.badge-warning:hover,
+html[data-theme='dark'][data-accent='orange'] .commission-case-card .badge.badge-warning:hover,
+html[data-theme='dark'][data-accent='orange'] .commission-request-employee-state:hover {
+  background: linear-gradient(
+    25deg,
+    rgb(var(--accent-active)) 0%,
+    rgb(var(--accent-active-border)) 100%
+  ) !important;
+  border-color: rgb(var(--accent-active-border) / 0.92) !important;
+  color: #ffffff !important;
+  box-shadow: none !important;
+  filter: none !important;
+  transform: none !important;
+  opacity: 1 !important;
+}
+
 html[data-theme='dark'][data-accent='orange'] .employee-step-tab.is-active:hover:not(:disabled) span {
   color: #ffffff !important;
+  background: rgb(255 255 255 / 0.2) !important;
+}
+
+html[data-theme='dark'][data-accent='orange'] .return-request-employee-option.is-selected strong,
+html[data-theme='dark'][data-accent='orange'] .return-request-employee-option.is-selected:hover strong,
+html[data-theme='dark'][data-accent='orange'] .return-request-employee-option.is-selected .return-request-employee-meta,
+html[data-theme='dark'][data-accent='orange'] .return-request-employee-option.is-selected:hover .return-request-employee-meta {
+  color: #ffffff !important;
+}
+
+/* Protected light accent contract: light + orange
+   Mirror the light + natural behavior, but with orange tokens. */
+
+html[data-theme='light'][data-accent='orange'] .btn-primary,
+html[data-theme='light'][data-accent='orange'] .btn-warning,
+html[data-theme='light'][data-accent='orange'] .employee-subtab.is-active,
+html[data-theme='light'][data-accent='orange'] .employee-step-tab.is-active,
+html[data-theme='light'][data-accent='orange'] .dashboard-nav-link.is-active,
+html[data-theme='light'][data-accent='orange'] .returned-list-add-button,
+html[data-theme='light'][data-accent='orange'] .return-request-employee-option.is-selected,
+html[data-theme='light'][data-accent='orange'] .return-request-employee-option.is-selected .return-request-employee-state,
+html[data-theme='light'][data-accent='orange'] .badge:not(.badge-muted):not(.badge-warning):not(.badge-success):not(.badge-danger):not(.badge-info):not(.commission-settled-badge):not(.profiles-agreement-status),
+html[data-theme='light'][data-accent='orange'] .badge-super,
+html[data-theme='light'][data-accent='orange'] .notification-bell-badge,
+html[data-theme='light'][data-accent='orange'] .employee-alert-list .badge,
+html[data-theme='light'][data-accent='orange'] .badge.badge-warning,
+html[data-theme='light'][data-accent='orange'] .badge.badge-warning.profiles-admin-badge,
+html[data-theme='light'][data-accent='orange'] .commissions-page .badge.badge-warning,
+html[data-theme='light'][data-accent='orange'] .commission-request-card-actions .badge.badge-warning,
+html[data-theme='light'][data-accent='orange'] .commission-case-card .badge.badge-warning,
+html[data-theme='light'][data-accent='orange'] .commission-request-employee-state {
+  background: linear-gradient(
+    25deg,
+    rgb(var(--accent-active)) 0%,
+    rgb(var(--accent-active-border)) 100%
+  ) !important;
+  border-color: rgb(var(--accent-active-border) / 0.92) !important;
+  box-shadow: none !important;
+  color: #ffffff !important;
+}
+
+html[data-theme='light'][data-accent='orange'] .employee-step-tab.is-active span {
+  color: #ffffff !important;
+  background: rgb(255 255 255 / 0.2) !important;
+}
+
+html[data-theme='light'][data-accent='orange'] .return-request-employee-option.is-selected strong,
+html[data-theme='light'][data-accent='orange'] .return-request-employee-option.is-selected .return-request-employee-meta {
+  color: #ffffff !important;
+}
+
+html[data-theme='light'][data-accent='orange'] .btn-primary:hover:not(:disabled),
+html[data-theme='light'][data-accent='orange'] .btn-warning:hover:not(:disabled),
+html[data-theme='light'][data-accent='orange'] .employee-subtab.is-active:hover:not(:disabled),
+html[data-theme='light'][data-accent='orange'] .employee-step-tab.is-active:hover:not(:disabled),
+html[data-theme='light'][data-accent='orange'] .dashboard-nav-link.is-active:hover,
+html[data-theme='light'][data-accent='orange'] .returned-list-add-button:hover:not(:disabled),
+html[data-theme='light'][data-accent='orange'] .return-request-employee-option.is-selected:hover,
+html[data-theme='light'][data-accent='orange'] .return-request-employee-option.is-selected:hover .return-request-employee-state {
+  background: linear-gradient(
+    25deg,
+    rgb(var(--accent-active)) 0%,
+    rgb(var(--accent-active-border)) 100%
+  ) !important;
+  border-color: rgb(var(--accent-active-border) / 0.92) !important;
+  color: #ffffff !important;
+  box-shadow: none !important;
+  filter: none !important;
+  transform: none !important;
+  opacity: 1 !important;
+}
+
+html[data-theme='light'][data-accent='orange'] .return-request-employee-option.is-selected:hover strong,
+html[data-theme='light'][data-accent='orange'] .return-request-employee-option.is-selected:hover .return-request-employee-meta {
+  color: #ffffff !important;
+}
+
+html[data-theme='light'][data-accent='orange'] .employee-step-tab.is-active:hover:not(:disabled) span {
+  color: #ffffff !important;
+  background: rgb(255 255 255 / 0.2) !important;
 }
 
 html[data-accent] .badge.profiles-admin-badge.profiles-agreement-status.profiles-agreement-status--active,
 html[data-theme='dark'][data-accent] .badge.profiles-admin-badge.profiles-agreement-status.profiles-agreement-status--active,
 html[data-theme='light'][data-accent] .badge.profiles-admin-badge.profiles-agreement-status.profiles-agreement-status--active {
   color: #ffffff !important;
+}
+
+html[data-accent] .btn-secondary,
+html[data-accent] .employee-modal .btn-secondary,
+html[data-accent] .employee-review-modal .btn-secondary,
+html[data-accent] .document-preview-modal .btn-secondary,
+html[data-accent] .commission-toolbar .btn-secondary {
+  transition:
+    background-color 0.18s ease,
+    border-color 0.18s ease,
+    color 0.18s ease,
+    box-shadow 0.18s ease,
+    transform 0.18s ease !important;
+}
+
+html[data-accent] .btn-secondary:hover:not(:disabled),
+html[data-accent] .employee-modal .btn-secondary:hover:not(:disabled),
+html[data-accent] .employee-review-modal .btn-secondary:hover:not(:disabled),
+html[data-accent] .document-preview-modal .btn-secondary:hover:not(:disabled),
+html[data-accent] .commission-toolbar .btn-secondary:hover:not(:disabled) {
+  background: color-mix(in oklch, var(--color-card) 68%, rgb(var(--accent-tile-hover) / 0.9)) !important;
+  border-color: rgb(var(--accent-active-border) / 0.5) !important;
+  color: var(--color-foreground) !important;
+  transform: none !important;
+  box-shadow: none !important;
+}
+
+html[data-theme='dark'][data-accent='natural'] .employee-review-modal .btn-secondary,
+html[data-theme='dark'][data-accent='natural'] .employee-review-modal .btn-secondary:hover:not(:disabled),
+html[data-theme='light'][data-accent='natural'] .employee-review-modal .btn-secondary,
+html[data-theme='light'][data-accent='natural'] .employee-review-modal .btn-secondary:hover:not(:disabled) {
+  border: 1px solid color-mix(in oklch, var(--color-border) 68%, rgb(var(--accent-active-border) / 0.32)) !important;
+  box-shadow: inset 0 0 0 1px color-mix(in oklch, var(--color-border) 86%, transparent) !important;
+}
+
+html[data-theme='dark'][data-accent='natural'] .employee-review-modal > div .btn-secondary,
+html[data-theme='light'][data-accent='natural'] .employee-review-modal > div .btn-secondary {
+  border-width: 1px !important;
+  border-style: solid !important;
+}
+
+html[data-theme='dark'][data-accent='natural'] .employee-review-modal .return-request-employee-list > .return-request-employee-option.is-selected,
+html[data-theme='dark'][data-accent='natural'] .employee-review-modal .return-request-employee-list > .return-request-employee-option.is-selected:hover,
+html[data-theme='dark'][data-accent='natural'] .employee-review-modal .return-request-employee-list > .return-request-employee-option.is-selected:focus-visible,
+html[data-theme='dark'][data-accent='natural'] .employee-review-modal .return-request-employee-list > .return-request-employee-option.is-selected:active,
+html[data-theme='dark'][data-accent='natural'] .employee-review-modal .return-request-employee-list > .return-request-employee-option.is-selected .return-request-employee-state,
+html[data-theme='dark'][data-accent='natural'] .employee-review-modal .return-request-employee-list > .return-request-employee-option.is-selected:hover .return-request-employee-state,
+html[data-theme='dark'][data-accent='natural'] .employee-review-modal .return-request-employee-list > .return-request-employee-option.is-selected:focus-visible .return-request-employee-state,
+html[data-theme='dark'][data-accent='natural'] .employee-review-modal .return-request-employee-list > .return-request-employee-option.is-selected:active .return-request-employee-state {
+  background-image: linear-gradient(25deg, rgb(var(--accent-active)) 0%, rgb(var(--accent-active-border)) 100%) !important;
+  background-color: transparent !important;
+  border-color: rgb(var(--accent-active-border) / 0.92) !important;
+  box-shadow: none !important;
+  filter: none !important;
+  transform: none !important;
+  opacity: 1 !important;
+  transition: none !important;
+}
+
+html[data-theme='light'][data-accent='natural'] .employee-review-modal .return-request-employee-list > .return-request-employee-option.is-selected,
+html[data-theme='light'][data-accent='natural'] .employee-review-modal .return-request-employee-list > .return-request-employee-option.is-selected:hover,
+html[data-theme='light'][data-accent='natural'] .employee-review-modal .return-request-employee-list > .return-request-employee-option.is-selected:focus-visible,
+html[data-theme='light'][data-accent='natural'] .employee-review-modal .return-request-employee-list > .return-request-employee-option.is-selected:active,
+html[data-theme='light'][data-accent='natural'] .employee-review-modal .return-request-employee-list > .return-request-employee-option.is-selected .return-request-employee-state,
+html[data-theme='light'][data-accent='natural'] .employee-review-modal .return-request-employee-list > .return-request-employee-option.is-selected:hover .return-request-employee-state,
+html[data-theme='light'][data-accent='natural'] .employee-review-modal .return-request-employee-list > .return-request-employee-option.is-selected:focus-visible .return-request-employee-state,
+html[data-theme='light'][data-accent='natural'] .employee-review-modal .return-request-employee-list > .return-request-employee-option.is-selected:active .return-request-employee-state {
+  background-image: linear-gradient(25deg, #333333 0%, #111111 100%) !important;
+  background-color: transparent !important;
+  border-color: #111111 !important;
+  box-shadow: none !important;
+  filter: none !important;
+  transform: none !important;
+  opacity: 1 !important;
+  transition: none !important;
+}
+
+html[data-theme='dark'][data-accent='natural'] .employee-review-modal .return-request-employee-list > .return-request-employee-option.is-selected strong,
+html[data-theme='dark'][data-accent='natural'] .employee-review-modal .return-request-employee-list > .return-request-employee-option.is-selected:hover strong,
+html[data-theme='dark'][data-accent='natural'] .employee-review-modal .return-request-employee-list > .return-request-employee-option.is-selected .return-request-employee-meta,
+html[data-theme='dark'][data-accent='natural'] .employee-review-modal .return-request-employee-list > .return-request-employee-option.is-selected:hover .return-request-employee-meta {
+  color: #111111 !important;
+  opacity: 1 !important;
+  transition: none !important;
+}
+
+html[data-theme='light'][data-accent='natural'] .employee-review-modal .return-request-employee-list > .return-request-employee-option.is-selected strong,
+html[data-theme='light'][data-accent='natural'] .employee-review-modal .return-request-employee-list > .return-request-employee-option.is-selected:hover strong,
+html[data-theme='light'][data-accent='natural'] .employee-review-modal .return-request-employee-list > .return-request-employee-option.is-selected .return-request-employee-meta,
+html[data-theme='light'][data-accent='natural'] .employee-review-modal .return-request-employee-list > .return-request-employee-option.is-selected:hover .return-request-employee-meta {
+  color: #ffffff !important;
+  opacity: 1 !important;
+  transition: none !important;
+}
+
+/* Final isolated return-request picker styles */
+
+.employee-review-modal .employee-summary-card:has(.return-request-picker-list),
+.employee-review-modal .employee-summary-card:has(.commission-request-picker-list) {
+  display: flex !important;
+  flex-direction: column !important;
+}
+
+.return-request-picker-list,
+.commission-request-picker-list {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 10px !important;
+  margin-top: 12px !important;
+  flex: 1 1 auto !important;
+  min-height: 0 !important;
+  max-height: none !important;
+  overflow: auto !important;
+}
+
+.return-request-picker-option,
+.commission-request-picker-option {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 12px !important;
+  width: 100% !important;
+  min-height: 56px !important;
+  padding: 12px 14px !important;
+  border-radius: 3px !important;
+  text-align: left !important;
+  font: inherit !important;
+  line-height: 1.25 !important;
+  border: 1px solid var(--color-border) !important;
+  background: color-mix(in oklch, var(--color-card) 92%, var(--color-muted)) !important;
+  color: var(--color-foreground) !important;
+  box-shadow: none !important;
+  outline: none !important;
+  user-select: none !important;
+  -webkit-user-select: none !important;
+  transition:
+    border-color 0.18s ease,
+    background-color 0.18s ease,
+    color 0.18s ease !important;
+}
+
+.return-request-picker-option:hover:not(.is-selected),
+.return-request-picker-option:focus-visible:not(.is-selected),
+.commission-request-picker-option:hover:not(.is-selected),
+.commission-request-picker-option:focus-visible:not(.is-selected) {
+  border-color: color-mix(in oklch, var(--color-ring) 34%, var(--color-border)) !important;
+  background: color-mix(in oklch, var(--color-card) 84%, var(--color-muted)) !important;
+  box-shadow: none !important;
+}
+
+.return-request-picker-option:focus,
+.return-request-picker-option:focus-visible,
+.commission-request-picker-option:focus,
+.commission-request-picker-option:focus-visible {
+  outline: none !important;
+}
+
+.return-request-picker-meta,
+.commission-request-picker-meta {
+  display: block !important;
+  margin-top: 4px !important;
+  font-size: 0.92rem !important;
+}
+
+.return-request-picker-state,
+.commission-request-picker-state {
+  flex-shrink: 0 !important;
+  border-radius: 999px !important;
+  padding: 4px 10px !important;
+  font-size: 0.8rem !important;
+  font-weight: 700 !important;
+  background: color-mix(in oklch, var(--color-muted) 70%, transparent) !important;
+  color: var(--color-foreground) !important;
+  border: 1px solid color-mix(in oklch, var(--color-border) 72%, transparent) !important;
+}
+
+html[data-theme='dark'][data-accent='natural'] .employee-review-modal .return-request-picker-option.is-selected,
+html[data-theme='dark'][data-accent='natural'] .employee-review-modal .return-request-picker-option.is-selected:hover,
+html[data-theme='dark'][data-accent='natural'] .employee-review-modal .return-request-picker-option.is-selected:focus-visible,
+html[data-theme='dark'][data-accent='natural'] .employee-review-modal .return-request-picker-option.is-selected:active,
+html[data-theme='dark'][data-accent='natural'] .employee-review-modal .return-request-picker-option.is-selected .return-request-picker-state,
+html[data-theme='dark'][data-accent='natural'] .employee-review-modal .return-request-picker-option.is-selected:hover .return-request-picker-state,
+html[data-theme='dark'][data-accent='natural'] .employee-review-modal .return-request-picker-option.is-selected:focus-visible .return-request-picker-state,
+html[data-theme='dark'][data-accent='natural'] .employee-review-modal .return-request-picker-option.is-selected:active .return-request-picker-state,
+html[data-theme='dark'][data-accent='natural'] .employee-review-modal .commission-request-picker-option.is-selected,
+html[data-theme='dark'][data-accent='natural'] .employee-review-modal .commission-request-picker-option.is-selected:hover,
+html[data-theme='dark'][data-accent='natural'] .employee-review-modal .commission-request-picker-option.is-selected:focus-visible,
+html[data-theme='dark'][data-accent='natural'] .employee-review-modal .commission-request-picker-option.is-selected:active,
+html[data-theme='dark'][data-accent='natural'] .employee-review-modal .commission-request-picker-option.is-selected .commission-request-picker-state,
+html[data-theme='dark'][data-accent='natural'] .employee-review-modal .commission-request-picker-option.is-selected:hover .commission-request-picker-state,
+html[data-theme='dark'][data-accent='natural'] .employee-review-modal .commission-request-picker-option.is-selected:focus-visible .commission-request-picker-state,
+html[data-theme='dark'][data-accent='natural'] .employee-review-modal .commission-request-picker-option.is-selected:active .commission-request-picker-state {
+  background: linear-gradient(25deg, rgb(var(--accent-active)) 0%, rgb(var(--accent-active-border)) 100%) !important;
+  border-color: rgb(var(--accent-active-border) / 0.92) !important;
+  color: #111111 !important;
+  box-shadow: none !important;
+  filter: none !important;
+  transform: none !important;
+  opacity: 1 !important;
+  outline: none !important;
+  transition: none !important;
+}
+
+html[data-theme='dark'][data-accent='natural'] .employee-review-modal .return-request-picker-option.is-selected strong,
+html[data-theme='dark'][data-accent='natural'] .employee-review-modal .return-request-picker-option.is-selected:hover strong,
+html[data-theme='dark'][data-accent='natural'] .employee-review-modal .return-request-picker-option.is-selected .return-request-picker-meta,
+html[data-theme='dark'][data-accent='natural'] .employee-review-modal .return-request-picker-option.is-selected:hover .return-request-picker-meta,
+html[data-theme='dark'][data-accent='natural'] .employee-review-modal .commission-request-picker-option.is-selected strong,
+html[data-theme='dark'][data-accent='natural'] .employee-review-modal .commission-request-picker-option.is-selected:hover strong,
+html[data-theme='dark'][data-accent='natural'] .employee-review-modal .commission-request-picker-option.is-selected .commission-request-picker-meta,
+html[data-theme='dark'][data-accent='natural'] .employee-review-modal .commission-request-picker-option.is-selected:hover .commission-request-picker-meta {
+  color: #111111 !important;
+  opacity: 1 !important;
+  transition: none !important;
+}
+
+html[data-theme='light'][data-accent='natural'] .employee-review-modal .return-request-picker-option.is-selected,
+html[data-theme='light'][data-accent='natural'] .employee-review-modal .return-request-picker-option.is-selected:hover,
+html[data-theme='light'][data-accent='natural'] .employee-review-modal .return-request-picker-option.is-selected:focus-visible,
+html[data-theme='light'][data-accent='natural'] .employee-review-modal .return-request-picker-option.is-selected:active,
+html[data-theme='light'][data-accent='natural'] .employee-review-modal .return-request-picker-option.is-selected .return-request-picker-state,
+html[data-theme='light'][data-accent='natural'] .employee-review-modal .return-request-picker-option.is-selected:hover .return-request-picker-state,
+html[data-theme='light'][data-accent='natural'] .employee-review-modal .return-request-picker-option.is-selected:focus-visible .return-request-picker-state,
+html[data-theme='light'][data-accent='natural'] .employee-review-modal .return-request-picker-option.is-selected:active .return-request-picker-state,
+html[data-theme='light'][data-accent='natural'] .employee-review-modal .commission-request-picker-option.is-selected,
+html[data-theme='light'][data-accent='natural'] .employee-review-modal .commission-request-picker-option.is-selected:hover,
+html[data-theme='light'][data-accent='natural'] .employee-review-modal .commission-request-picker-option.is-selected:focus-visible,
+html[data-theme='light'][data-accent='natural'] .employee-review-modal .commission-request-picker-option.is-selected:active,
+html[data-theme='light'][data-accent='natural'] .employee-review-modal .commission-request-picker-option.is-selected .commission-request-picker-state,
+html[data-theme='light'][data-accent='natural'] .employee-review-modal .commission-request-picker-option.is-selected:hover .commission-request-picker-state,
+html[data-theme='light'][data-accent='natural'] .employee-review-modal .commission-request-picker-option.is-selected:focus-visible .commission-request-picker-state,
+html[data-theme='light'][data-accent='natural'] .employee-review-modal .commission-request-picker-option.is-selected:active .commission-request-picker-state {
+  background: linear-gradient(25deg, #333333 0%, #111111 100%) !important;
+  border-color: #111111 !important;
+  color: #ffffff !important;
+  box-shadow: none !important;
+  filter: none !important;
+  transform: none !important;
+  opacity: 1 !important;
+  outline: none !important;
+  transition: none !important;
+}
+
+html[data-theme='light'][data-accent='natural'] .employee-review-modal .return-request-picker-option.is-selected strong,
+html[data-theme='light'][data-accent='natural'] .employee-review-modal .return-request-picker-option.is-selected:hover strong,
+html[data-theme='light'][data-accent='natural'] .employee-review-modal .return-request-picker-option.is-selected .return-request-picker-meta,
+html[data-theme='light'][data-accent='natural'] .employee-review-modal .return-request-picker-option.is-selected:hover .return-request-picker-meta,
+html[data-theme='light'][data-accent='natural'] .employee-review-modal .commission-request-picker-option.is-selected strong,
+html[data-theme='light'][data-accent='natural'] .employee-review-modal .commission-request-picker-option.is-selected:hover strong,
+html[data-theme='light'][data-accent='natural'] .employee-review-modal .commission-request-picker-option.is-selected .commission-request-picker-meta,
+html[data-theme='light'][data-accent='natural'] .employee-review-modal .commission-request-picker-option.is-selected:hover .commission-request-picker-meta {
+  color: #ffffff !important;
+  opacity: 1 !important;
+  transition: none !important;
+}
+
+html[data-theme='dark'][data-accent='orange'] .employee-review-modal .return-request-picker-option.is-selected,
+html[data-theme='dark'][data-accent='orange'] .employee-review-modal .return-request-picker-option.is-selected:hover,
+html[data-theme='dark'][data-accent='orange'] .employee-review-modal .return-request-picker-option.is-selected:focus-visible,
+html[data-theme='dark'][data-accent='orange'] .employee-review-modal .return-request-picker-option.is-selected:active,
+html[data-theme='dark'][data-accent='orange'] .employee-review-modal .return-request-picker-option.is-selected .return-request-picker-state,
+html[data-theme='dark'][data-accent='orange'] .employee-review-modal .return-request-picker-option.is-selected:hover .return-request-picker-state,
+html[data-theme='dark'][data-accent='orange'] .employee-review-modal .return-request-picker-option.is-selected:focus-visible .return-request-picker-state,
+html[data-theme='dark'][data-accent='orange'] .employee-review-modal .return-request-picker-option.is-selected:active .return-request-picker-state,
+html[data-theme='dark'][data-accent='orange'] .employee-review-modal .commission-request-picker-option.is-selected,
+html[data-theme='dark'][data-accent='orange'] .employee-review-modal .commission-request-picker-option.is-selected:hover,
+html[data-theme='dark'][data-accent='orange'] .employee-review-modal .commission-request-picker-option.is-selected:focus-visible,
+html[data-theme='dark'][data-accent='orange'] .employee-review-modal .commission-request-picker-option.is-selected:active,
+html[data-theme='dark'][data-accent='orange'] .employee-review-modal .commission-request-picker-option.is-selected .commission-request-picker-state,
+html[data-theme='dark'][data-accent='orange'] .employee-review-modal .commission-request-picker-option.is-selected:hover .commission-request-picker-state,
+html[data-theme='dark'][data-accent='orange'] .employee-review-modal .commission-request-picker-option.is-selected:focus-visible .commission-request-picker-state,
+html[data-theme='dark'][data-accent='orange'] .employee-review-modal .commission-request-picker-option.is-selected:active .commission-request-picker-state {
+  background: linear-gradient(25deg, rgb(var(--accent-active)) 0%, rgb(var(--accent-active-border)) 100%) !important;
+  border-color: rgb(var(--accent-active-border) / 0.92) !important;
+  color: #ffffff !important;
+  box-shadow: none !important;
+  filter: none !important;
+  transform: none !important;
+  opacity: 1 !important;
+  outline: none !important;
+  transition: none !important;
+}
+
+html[data-theme='dark'][data-accent='orange'] .employee-review-modal .return-request-picker-option.is-selected strong,
+html[data-theme='dark'][data-accent='orange'] .employee-review-modal .return-request-picker-option.is-selected:hover strong,
+html[data-theme='dark'][data-accent='orange'] .employee-review-modal .return-request-picker-option.is-selected .return-request-picker-meta,
+html[data-theme='dark'][data-accent='orange'] .employee-review-modal .return-request-picker-option.is-selected:hover .return-request-picker-meta,
+html[data-theme='dark'][data-accent='orange'] .employee-review-modal .commission-request-picker-option.is-selected strong,
+html[data-theme='dark'][data-accent='orange'] .employee-review-modal .commission-request-picker-option.is-selected:hover strong,
+html[data-theme='dark'][data-accent='orange'] .employee-review-modal .commission-request-picker-option.is-selected .commission-request-picker-meta,
+html[data-theme='dark'][data-accent='orange'] .employee-review-modal .commission-request-picker-option.is-selected:hover .commission-request-picker-meta {
+  color: #ffffff !important;
+  opacity: 1 !important;
+  transition: none !important;
+}
+
+html[data-theme='light'][data-accent='orange'] .employee-review-modal .return-request-picker-option.is-selected,
+html[data-theme='light'][data-accent='orange'] .employee-review-modal .return-request-picker-option.is-selected:hover,
+html[data-theme='light'][data-accent='orange'] .employee-review-modal .return-request-picker-option.is-selected:focus-visible,
+html[data-theme='light'][data-accent='orange'] .employee-review-modal .return-request-picker-option.is-selected:active,
+html[data-theme='light'][data-accent='orange'] .employee-review-modal .return-request-picker-option.is-selected .return-request-picker-state,
+html[data-theme='light'][data-accent='orange'] .employee-review-modal .return-request-picker-option.is-selected:hover .return-request-picker-state,
+html[data-theme='light'][data-accent='orange'] .employee-review-modal .return-request-picker-option.is-selected:focus-visible .return-request-picker-state,
+html[data-theme='light'][data-accent='orange'] .employee-review-modal .return-request-picker-option.is-selected:active .return-request-picker-state,
+html[data-theme='light'][data-accent='orange'] .employee-review-modal .commission-request-picker-option.is-selected,
+html[data-theme='light'][data-accent='orange'] .employee-review-modal .commission-request-picker-option.is-selected:hover,
+html[data-theme='light'][data-accent='orange'] .employee-review-modal .commission-request-picker-option.is-selected:focus-visible,
+html[data-theme='light'][data-accent='orange'] .employee-review-modal .commission-request-picker-option.is-selected:active,
+html[data-theme='light'][data-accent='orange'] .employee-review-modal .commission-request-picker-option.is-selected .commission-request-picker-state,
+html[data-theme='light'][data-accent='orange'] .employee-review-modal .commission-request-picker-option.is-selected:hover .commission-request-picker-state,
+html[data-theme='light'][data-accent='orange'] .employee-review-modal .commission-request-picker-option.is-selected:focus-visible .commission-request-picker-state,
+html[data-theme='light'][data-accent='orange'] .employee-review-modal .commission-request-picker-option.is-selected:active .commission-request-picker-state {
+  background: linear-gradient(25deg, rgb(var(--accent-active)) 0%, rgb(var(--accent-active-border)) 100%) !important;
+  border-color: rgb(var(--accent-active-border) / 0.92) !important;
+  color: #ffffff !important;
+  box-shadow: none !important;
+  filter: none !important;
+  transform: none !important;
+  opacity: 1 !important;
+  outline: none !important;
+  transition: none !important;
+}
+
+html[data-theme='light'][data-accent='orange'] .employee-review-modal .return-request-picker-option.is-selected strong,
+html[data-theme='light'][data-accent='orange'] .employee-review-modal .return-request-picker-option.is-selected:hover strong,
+html[data-theme='light'][data-accent='orange'] .employee-review-modal .return-request-picker-option.is-selected .return-request-picker-meta,
+html[data-theme='light'][data-accent='orange'] .employee-review-modal .return-request-picker-option.is-selected:hover .return-request-picker-meta,
+html[data-theme='light'][data-accent='orange'] .employee-review-modal .commission-request-picker-option.is-selected strong,
+html[data-theme='light'][data-accent='orange'] .employee-review-modal .commission-request-picker-option.is-selected:hover strong,
+html[data-theme='light'][data-accent='orange'] .employee-review-modal .commission-request-picker-option.is-selected .commission-request-picker-meta,
+html[data-theme='light'][data-accent='orange'] .employee-review-modal .commission-request-picker-option.is-selected:hover .commission-request-picker-meta {
+  color: #ffffff !important;
+  opacity: 1 !important;
+  transition: none !important;
+}
+
+.return-request-picker-search {
+  border-width: 1px !important;
+  border-style: solid !important;
+}
+
+html[data-theme='dark'][data-accent='natural'] .employee-review-modal .return-request-picker-search,
+html[data-theme='light'][data-accent='natural'] .employee-review-modal .return-request-picker-search {
+  border-color: color-mix(in oklch, var(--color-border) 52%, rgb(var(--accent-active-border) / 0.42)) !important;
+  box-shadow: none !important;
 }
 
 

@@ -15,6 +15,7 @@ import {
   RESIDENCE_COUNTRY_OPTIONS
 } from '../constants/employeeOptions'
 import * as employeesService from '../services/employeesService'
+import { normalizeSearchValue } from '../utils/filtering'
 
 const MINIMUM_EMPLOYEE_AGE = 18
 const PHONE_ALLOWED_CHARS = /^[+\d\s()-]+$/
@@ -66,6 +67,12 @@ const TEMPLATE_FORM_FIELDS = [
   'weight_kg',
   'height_cm'
 ]
+
+function readCssCustomProperty(name) {
+  if (typeof window === 'undefined') return ''
+  const value = window.getComputedStyle(document.documentElement).getPropertyValue(name).trim()
+  return value
+}
 const emptyExperience = { country: '', years: '' }
 const REGISTRATION_STEPS = [
   { id: 'personal', label: 'Personal' },
@@ -82,6 +89,19 @@ const EMPLOYEE_VIEW_TABS = [
   { id: 'under-process', label: 'Under process Employees' },
   { id: 'employed', label: 'Employed' },
   { id: 'returned', label: 'Returned list' }
+]
+const EMPLOYEE_TAG_FILTER_OPTIONS = [
+  { value: '', label: 'All tags' },
+  { value: 'available', label: 'Available' },
+  { value: 'not_available', label: 'Not available' },
+  { value: 'pending', label: 'Pending approval' },
+  { value: 'approved', label: 'Approved' },
+  { value: 'rejected', label: 'Rejected' },
+  { value: 'suspended', label: 'Suspended' },
+  { value: 'selected', label: 'Selected' },
+  { value: 'under_process', label: 'Under process' },
+  { value: 'employed', label: 'Employed' },
+  { value: 'returned', label: 'Returned' }
 ]
 const CARD_PREVIEW_DOCUMENTS = [
   { key: 'portrait', label: 'Portrait', types: ['portrait_photo'] },
@@ -374,6 +394,51 @@ function employeeStatusBadgeVariantClass(employee, currentView = '') {
   return ''
 }
 
+function employeeMatchesTagFilter(employee, tag, currentView = '') {
+  const normalizedTag = String(tag || '').trim().toLowerCase()
+  if (!normalizedTag) return true
+
+  switch (normalizedTag) {
+    case 'available':
+      return employeeAvailability(employee, currentView) === 'Available'
+    case 'not_available':
+      return employeeAvailability(employee, currentView) !== 'Available'
+    case 'pending':
+      return employee?.status === 'pending'
+    case 'approved':
+      return employee?.status === 'approved'
+    case 'rejected':
+      return employee?.status === 'rejected'
+    case 'suspended':
+      return employee?.status === 'suspended'
+    case 'selected':
+      return Boolean(
+        employee?.selection_state?.selected_by_current_agent ||
+        employee?.selection_state?.is_selected ||
+        employee?.selection_state?.selection?.status === 'selected'
+      )
+    case 'under_process':
+      return employee?.selection_state?.selection?.status === 'under_process'
+    case 'employed':
+      return isEmployeeInEmployedStage(employee)
+    case 'returned':
+      return isEmployeeReturned(employee)
+    default:
+      return true
+  }
+}
+
+function statusTone(status) {
+  const normalized = String(status || '').trim().toLowerCase().replace(/\s+/g, '_')
+  if (!normalized) return ''
+  if (['pending', 'requested', 'pending_approval', 'travel_confirmation_pending'].includes(normalized)) return 'pending'
+  if (['approved', 'active', 'fully_signed', 'success', 'employed', 'returned'].includes(normalized)) return 'success'
+  if (normalized === 'selected') return 'selected'
+  if (normalized === 'settled') return 'settled'
+  if (['declined', 'failed', 'expired', 'cancelled', 'rejected', 'suspended'].includes(normalized)) return 'declined'
+  return ''
+}
+
 function employedEmployeesHelpText() {
   return 'Employees who either already travelled or completed 100% progress and are waiting for travel confirmation are listed here.'
 }
@@ -383,7 +448,7 @@ function returnedEmployeesHelpText() {
 }
 
 function normalizeAgentMatchValue(value) {
-  return String(value || '').trim().toLowerCase()
+  return normalizeSearchValue(value)
 }
 
 function employeeBelongsToCurrentAgent(employee, user) {
@@ -471,9 +536,9 @@ async function readStoredSettlements() {
 }
 
 function progressTone(progress) {
-  if (progress >= 90) return '#16a34a'
-  if (progress >= 60) return '#2563eb'
-  return '#ea580c'
+  if (progress >= 90) return 'var(--progress-tone-high)'
+  if (progress >= 60) return 'var(--progress-tone-mid)'
+  return 'var(--progress-tone-low)'
 }
 
 function buildProgressDonut(progressStatus) {
@@ -747,7 +812,7 @@ export default function EmployeesPage() {
   const [notice, setNotice] = useState('')
   const [page, setPage] = useState(1)
   const [searchInput, setSearchInput] = useState('')
-  const [filters, setFilters] = useState({ q: '', isActive: '' })
+  const [filters, setFilters] = useState({ q: '', isActive: '', tag: '' })
   const [editingEmployeeId, setEditingEmployeeId] = useState(null)
   const [busyEmployeeId, setBusyEmployeeId] = useState(null)
   const [actionBusyId, setActionBusyId] = useState(null)
@@ -780,7 +845,12 @@ export default function EmployeesPage() {
   const [travelPendingOpen, setTravelPendingOpen] = useState(false)
   const [currentView, setCurrentView] = useState('list')
   const [activeStep, setActiveStep] = useState(0)
+  const [scanImportModalOpen, setScanImportModalOpen] = useState(false)
+  const [ocrImportSource, setOcrImportSource] = useState('')
+  const [ocrImportFileName, setOcrImportFileName] = useState('')
   const registrationRef = useRef(null)
+  const scanDeviceInputRef = useRef(null)
+  const scanUploadInputRef = useRef(null)
   const previewDragRef = useRef({ startX: 0, startY: 0, originX: 0, originY: 0 })
 
   const canManageEmployees = Boolean(user?.feature_flags?.employees_enabled)
@@ -841,21 +911,31 @@ export default function EmployeesPage() {
         return
       }
 
-      if (viewOverride === 'list' && isAgentSideUser) {
+      if (viewOverride === 'list' && (isAgentSideUser || filters.tag)) {
         const baseEmployees = await fetchAllEmployeePages({
-          q: filters.q
+          q: filters.q,
+          isActive: isAgentSideUser ? '' : filters.isActive
         })
-        const visibleMarketEmployees = baseEmployees
-          .map(applyTravelOverrides)
-          .filter((employee) =>
+        let visibleListEmployees = baseEmployees.map(applyTravelOverrides)
+
+        if (isAgentSideUser) {
+          visibleListEmployees = visibleListEmployees.filter((employee) =>
             !isEmployeeReturned(employee) &&
             !isEmployeeInEmployedStage(employee) &&
             employee?.selection_state?.selection?.status !== 'under_process' &&
             employeeAvailability(employee, 'list') === 'Available'
           )
+        }
+
+        if (filters.tag) {
+          visibleListEmployees = visibleListEmployees.filter((employee) =>
+            employeeMatchesTagFilter(employee, filters.tag, 'list')
+          )
+        }
+
         setEmployeesData({
-          count: visibleMarketEmployees.length,
-          results: visibleMarketEmployees,
+          count: visibleListEmployees.length,
+          results: visibleListEmployees,
           next: null,
           previous: null
         })
@@ -1190,6 +1270,9 @@ export default function EmployeesPage() {
     setAttachmentLabels({})
     setExistingAttachmentDocs({})
     setActiveStep(0)
+    setScanImportModalOpen(false)
+    setOcrImportSource('')
+    setOcrImportFileName('')
     setModalError('')
     setModalNotice('')
   }, [])
@@ -1205,6 +1288,7 @@ export default function EmployeesPage() {
     setModalError('')
     setModalNotice('')
     setNotice('')
+    setScanImportModalOpen(false)
     setCurrentView('register')
   }
 
@@ -1225,6 +1309,39 @@ export default function EmployeesPage() {
     }
     setNotice('Registration template cleared.')
     setModalNotice('Registration template cleared.')
+  }
+
+  const openScanImportModal = () => {
+    setScanImportModalOpen(true)
+    setModalError('')
+  }
+
+  const closeScanImportModal = () => {
+    setScanImportModalOpen(false)
+  }
+
+  const triggerScanImport = (source) => {
+    const inputRef = source === 'device' ? scanDeviceInputRef : scanUploadInputRef
+    setScanImportModalOpen(false)
+    if (!inputRef.current) return
+    inputRef.current.value = ''
+    inputRef.current.click()
+  }
+
+  const handleOcrDocumentPick = (source, file) => {
+    if (!file) return
+    if (!attachmentFileAllowed(file)) {
+      setModalError('Scan imports must be PDF, JPG, JPEG, or PNG files only.')
+      return
+    }
+    setModalError('')
+    setActiveStep(0)
+    setOcrImportSource(source)
+    setOcrImportFileName(file.name || 'Selected document')
+    setModalNotice(
+      `${source === 'device' ? 'Device scan' : 'Document upload'} is ready for OCR. ` +
+      'The popup and file intake are in place, and the next OCR integration can map recognized values into the matching employee fields.'
+    )
   }
 
   const handleCheckboxList = (field, value) => {
@@ -1609,6 +1726,7 @@ export default function EmployeesPage() {
 
         if (currentView === 'list' && filters.isActive === 'true' && !nextActive) return null
         if (currentView === 'list' && filters.isActive === 'false' && nextActive) return null
+        if (currentView === 'list' && filters.tag && !employeeMatchesTagFilter(nextEmployee, filters.tag, currentView)) return null
         return nextEmployee
       })
       setNotice(`Employee ${actionLabel.toLowerCase()} successfully.`)
@@ -1950,6 +2068,8 @@ export default function EmployeesPage() {
         .replaceAll('&', '&amp;')
         .replaceAll('<', '&lt;')
         .replaceAll('>', '&gt;')
+      const previewScreenBackground = readCssCustomProperty('--preview-window-screen-bg') || 'Canvas'
+      const previewPaperBackground = readCssCustomProperty('--preview-window-paper-bg') || 'Canvas'
 
       if (previewDocument.isImage) {
         printWindow.document.write(`
@@ -1958,7 +2078,7 @@ export default function EmployeesPage() {
             <head>
               <title>${escapedTitle}</title>
               <style>
-                html, body { margin: 0; background: #111; }
+                html, body { margin: 0; background: ${previewScreenBackground}; }
                 body {
                   display: flex;
                   align-items: center;
@@ -1971,7 +2091,7 @@ export default function EmployeesPage() {
                   object-fit: contain;
                 }
                 @media print {
-                  html, body { background: #fff; }
+                  html, body { background: ${previewPaperBackground}; }
                 }
               </style>
             </head>
@@ -2080,11 +2200,19 @@ export default function EmployeesPage() {
               <option value="false">Not available</option>
             </select>
           </label>
+          <label>
+            Tag
+            <select value={filters.tag} onChange={(event) => { setPage(1); setFilters((prev) => ({ ...prev, tag: event.target.value })) }}>
+              {EMPLOYEE_TAG_FILTER_OPTIONS.map((option) => (
+                <option key={option.value || 'all-tags'} value={option.value}>{option.label}</option>
+              ))}
+            </select>
+          </label>
           <button type="submit" className="btn-secondary">Apply filters</button>
         </form>
       ) : null}
       {pageError ? <p className="error-message">{pageError}</p> : null}
-      {notice ? <p className="muted-text" style={{ marginBottom: 16 }}>{notice}</p> : null}
+      {notice ? <p className="muted-text message-block--mb-16">{notice}</p> : null}
       {currentView === 'register' ? (
         <div className="users-table-wrap employee-registration-surface">
           <div ref={registrationRef} className="employee-modal" aria-labelledby="employee-modal-title">
@@ -2122,6 +2250,48 @@ export default function EmployeesPage() {
                 </button>
               ))}
             </div>
+            <div
+              className="employee-scan-launch-card"
+              role="button"
+              tabIndex={0}
+              onClick={openScanImportModal}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter' || event.key === ' ') {
+                  event.preventDefault()
+                  openScanImportModal()
+                }
+              }}
+            >
+              <div className="employee-scan-launch-copy">
+                <p className="employee-modal-eyebrow">Scan from document</p>
+                <h3>Scan from document</h3>
+                <p className="muted-text">
+                  Open OCR import options for scanning from a device or uploading a document, so the next OCR step can map detected values into the employee fields.
+                </p>
+                {ocrImportFileName ? (
+                  <p className="employee-scan-launch-meta">
+                    Last selected: {ocrImportFileName}
+                    {ocrImportSource ? ` (${ocrImportSource === 'device' ? 'Scan from device' : 'Upload a document'})` : ''}
+                  </p>
+                ) : null}
+              </div>
+              <span className="btn-secondary employee-scan-launch-action">Open scan options</span>
+            </div>
+            <input
+              ref={scanDeviceInputRef}
+              type="file"
+              accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png"
+              capture="environment"
+              className="visually-hidden-file"
+              onChange={(event) => handleOcrDocumentPick('device', event.target.files?.[0] || null)}
+            />
+            <input
+              ref={scanUploadInputRef}
+              type="file"
+              accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png"
+              className="visually-hidden-file"
+              onChange={(event) => handleOcrDocumentPick('upload', event.target.files?.[0] || null)}
+            />
             {modalNotice ? <p className="muted-text employee-modal-error">{modalNotice}</p> : null}
             {modalError ? <p className="error-message employee-modal-error">{modalError}</p> : null}
             <form className="employee-modal-form" onSubmit={(event) => event.preventDefault()}>
@@ -2407,7 +2577,7 @@ export default function EmployeesPage() {
             currentView === 'returned' ? (
               <div className="returned-list-surface">
                 <div className="returned-list-intro">
-                  <p className="muted-text" style={{ marginBottom: 0 }}>
+                  <p className="muted-text message-block--mb-0">
                     {`${returnedEmployeesHelpText()} Showing ${visibleEmployees.length} of ${total} employees.`}
                   </p>
                   <button type="button" className="btn-secondary" onClick={openReturnRequestModal} disabled={readOnly}>
@@ -2444,7 +2614,7 @@ export default function EmployeesPage() {
                                     Requested by {employee.return_request?.requested_by_username || '--'} on {formatDateTime(employee.return_request?.requested_at)}
                                   </span>
                                 </span>
-                                <span className="return-request-employee-state">
+                                <span className="return-request-employee-state" data-tone={statusTone(employee.return_request?.status)}>
                                   {prettyStatus(employee.return_request?.status)}
                                 </span>
                               </button>
@@ -2488,7 +2658,7 @@ export default function EmployeesPage() {
                 </div>
               </div>
             ) : (
-              <p className="muted-text" style={{ marginBottom: 12 }}>
+              <p className="muted-text message-block--mb-12">
                 {currentView === 'employed'
                   ? `${employedEmployeesHelpText()} Showing ${visibleEmployees.length} of ${total} employees.`
                   : currentView === 'under-process'
@@ -2555,7 +2725,7 @@ export default function EmployeesPage() {
                               Progress {employee.progress_status?.overall_completion ?? 0}% | Travel {prettyStatus(employee.travel_status, 'pending')}
                             </span>
                           </span>
-                          <span className="return-request-employee-state">
+                          <span className="return-request-employee-state" data-tone={statusTone(employeeStatusLabel(employee, currentView))}>
                             {employeeStatusLabel(employee, currentView)}
                           </span>
                         </button>
@@ -2852,27 +3022,27 @@ export default function EmployeesPage() {
                     placeholder="Search employed employee"
                   />
                 </label>
-                <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
-                  <button type="button" className="btn-secondary" onClick={() => loadReturnRequestEmployees(returnRequestSearch)} disabled={returnRequestLoading}>
+                <div className="inline-actions inline-actions--mt-12">
+                  <button type="button" className="btn-secondary return-request-picker-search" onClick={() => loadReturnRequestEmployees(returnRequestSearch)} disabled={returnRequestLoading}>
                     {returnRequestLoading ? 'Loading...' : 'Search'}
                   </button>
                 </div>
-                <div className="return-request-employee-list">
+                <div className="return-request-picker-list">
                   {returnRequestEmployees.map((employee) => (
                     <button
-                      key={`return-request-${employee.id}`}
                       type="button"
-                      className={`return-request-employee-option${selectedReturnEmployeeId === String(employee.id) ? ' is-selected' : ''}`}
+                      key={`return-request-${employee.id}`}
+                      className={`return-request-picker-option${selectedReturnEmployeeId === String(employee.id) ? ' is-selected' : ''}`}
                       onClick={() => setSelectedReturnEmployeeId(String(employee.id))}
                       aria-pressed={selectedReturnEmployeeId === String(employee.id)}
                     >
                       <span>
                         <strong>{employee.full_name}</strong>
-                        <span className="return-request-employee-meta">
+                        <span className="return-request-picker-meta">
                           {employee.profession || employee.professional_title || '--'}
                         </span>
                       </span>
-                      <span className="return-request-employee-state">
+                      <span className="return-request-picker-state">
                         {selectedReturnEmployeeId === String(employee.id) ? 'Selected' : 'Select'}
                       </span>
                     </button>
@@ -2893,7 +3063,7 @@ export default function EmployeesPage() {
                     placeholder="Explain the reason for initiating this return."
                   />
                 </label>
-                <div className="form-grid" style={{ marginTop: 12 }}>
+                <div className="form-grid form-grid--mt-12">
                   {[0, 1, 2].map((index) => (
                     <label key={`return-evidence-${index}`}>
                       Evidence {index + 1}
@@ -2905,12 +3075,51 @@ export default function EmployeesPage() {
                     </label>
                   ))}
                 </div>
-                <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
+                <div className="inline-actions inline-actions--mt-16">
                   <button type="button" onClick={handleSubmitReturnRequest} disabled={returnRequestLoading || readOnly}>
                     {returnRequestLoading ? 'Saving...' : 'Submit return'}
                   </button>
                 </div>
               </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
+      {scanImportModalOpen ? (
+        <div className="app-confirm-backdrop" role="presentation" onClick={closeScanImportModal}>
+          <div
+            className="app-confirm-dialog notification-reminder-dialog employee-scan-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="employee-scan-title"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="app-confirm-header">
+              <h2 id="employee-scan-title">Scan from document</h2>
+            </div>
+            <p className="app-confirm-message">
+              Choose how you want to bring the document in before the OCR autofill wiring is added.
+            </p>
+            <div className="notification-reminder-options employee-scan-option-grid">
+              <button
+                type="button"
+                className={`notification-reminder-option employee-scan-option-card${ocrImportSource === 'device' ? ' is-selected' : ''}`}
+                onClick={() => triggerScanImport('device')}
+              >
+                <strong>Scan from device</strong>
+                <span>Use the camera or scanner path on this device and stage the file for OCR.</span>
+              </button>
+              <button
+                type="button"
+                className={`notification-reminder-option employee-scan-option-card${ocrImportSource === 'upload' ? ' is-selected' : ''}`}
+                onClick={() => triggerScanImport('upload')}
+              >
+                <strong>Upload a document</strong>
+                <span>Select an existing PDF or image so OCR can later read it and prefill the registration form.</span>
+              </button>
+            </div>
+            <div className="app-confirm-actions">
+              <button type="button" className="btn-secondary" onClick={closeScanImportModal}>Cancel</button>
             </div>
           </div>
         </div>
@@ -2963,7 +3172,7 @@ export default function EmployeesPage() {
                   <p className="muted-text">{openedEmployee.profession || openedEmployee.professional_title || '--'} | {employeeStatusLabel(openedEmployee, currentView)}</p>
                 </div>
               </div>
-              <div style={{ display: 'flex', gap: 8 }}>
+              <div className="inline-actions">
                 {openedEmployeeMode === 'request' ? (
                   <button type="button" className="btn-secondary" onClick={() => setOpenedEmployeeMode('full')}>Open employee details</button>
                 ) : null}
@@ -2986,15 +3195,14 @@ export default function EmployeesPage() {
                     <p><strong>Requested at:</strong> {formatDateTime(openedEmployeeReturnRequest?.requested_at)}</p>
                     <p><strong>Responded by:</strong> {openedEmployeeReturnRequest?.approved_by_username || '--'}</p>
                     <p><strong>Responded at:</strong> {formatDateTime(openedEmployeeReturnRequest?.approved_at)}</p>
-                    <div className="employee-modal-document-strip" style={{ marginTop: 12 }}>
+                    <div className="employee-modal-document-strip employee-modal-document-strip--spaced">
                       {[openedEmployeeReturnRequest?.evidence_file_1_url, openedEmployeeReturnRequest?.evidence_file_2_url, openedEmployeeReturnRequest?.evidence_file_3_url]
                         .filter(Boolean)
                         .map((url, index) => (
-                          <div
+                          <button
+                            type="button"
                             key={`return-request-evidence-${index}`}
                             className="employee-modal-document-card"
-                            role="button"
-                            tabIndex={0}
                             title={`Evidence ${index + 1}`}
                             onClick={() =>
                               openDocumentPreview({
@@ -3004,22 +3212,11 @@ export default function EmployeesPage() {
                                 isPdf: isPdfDocumentUrl(url)
                               })
                             }
-                            onKeyDown={(event) => {
-                              if (event.key === 'Enter' || event.key === ' ') {
-                                event.preventDefault()
-                                openDocumentPreview({
-                                  url,
-                                  label: `Evidence ${index + 1}`,
-                                  isImage: !isPdfDocumentUrl(url),
-                                  isPdf: isPdfDocumentUrl(url)
-                                })
-                              }
-                            }}
                           >
                             <div className="employee-modal-document-tile">
                               {isPdfDocumentUrl(url) ? <span>PDF</span> : <img src={url} alt={`Evidence ${index + 1}`} />}
                             </div>
-                          </div>
+                          </button>
                         ))}
                       {![openedEmployeeReturnRequest?.evidence_file_1_url, openedEmployeeReturnRequest?.evidence_file_2_url, openedEmployeeReturnRequest?.evidence_file_3_url].some(Boolean) ? (
                         <span className="muted-text">No evidence uploaded.</span>
@@ -3086,11 +3283,10 @@ export default function EmployeesPage() {
                         <span className="muted-text">No documents uploaded.</span>
                       ) : (
                         openedEmployee.documents.map((document) => (
-                          <div
+                          <button
+                            type="button"
                             key={document.id}
                             className="employee-modal-document-card"
-                            role="button"
-                            tabIndex={0}
                             title={fileLabel(document, attachmentLabels)}
                             onClick={() =>
                               openDocumentPreview({
@@ -3100,17 +3296,6 @@ export default function EmployeesPage() {
                                 isPdf: isPdfDocumentUrl(document.file_url)
                               })
                             }
-                            onKeyDown={(event) => {
-                              if (event.key === 'Enter' || event.key === ' ') {
-                                event.preventDefault()
-                                openDocumentPreview({
-                                  url: document.file_url,
-                                  label: fileLabel(document, attachmentLabels),
-                                  isImage: isImageDocument(document),
-                                  isPdf: isPdfDocumentUrl(document.file_url)
-                                })
-                              }
-                            }}
                           >
                             <div className="employee-modal-document-tile">
                               {isImageDocument(document) ? (
@@ -3119,7 +3304,7 @@ export default function EmployeesPage() {
                                 <span>{fileLabel(document, attachmentLabels).slice(0, 2).toUpperCase()}</span>
                               )}
                             </div>
-                          </div>
+                          </button>
                         ))
                       )}
                     </div>
@@ -3137,15 +3322,14 @@ export default function EmployeesPage() {
                         {openedEmployee.returned_recorded_by_username ? (
                           <p><strong>Returned recorded by:</strong> {openedEmployee.returned_recorded_by_username}</p>
                         ) : null}
-                        <div className="employee-modal-document-strip" style={{ marginTop: 12 }}>
+                        <div className="employee-modal-document-strip employee-modal-document-strip--spaced">
                           {[openedEmployeeReturnRequest.evidence_file_1_url, openedEmployeeReturnRequest.evidence_file_2_url, openedEmployeeReturnRequest.evidence_file_3_url]
                             .filter(Boolean)
                             .map((url, index) => (
-                              <div
+                              <button
+                                type="button"
                                 key={`last-return-request-evidence-${index}`}
                                 className="employee-modal-document-card"
-                                role="button"
-                                tabIndex={0}
                                 title={`Evidence ${index + 1}`}
                                 onClick={() =>
                                   openDocumentPreview({
@@ -3155,22 +3339,11 @@ export default function EmployeesPage() {
                                     isPdf: isPdfDocumentUrl(url)
                                   })
                                 }
-                                onKeyDown={(event) => {
-                                  if (event.key === 'Enter' || event.key === ' ') {
-                                    event.preventDefault()
-                                    openDocumentPreview({
-                                      url,
-                                      label: `Evidence ${index + 1}`,
-                                      isImage: !isPdfDocumentUrl(url),
-                                      isPdf: isPdfDocumentUrl(url)
-                                    })
-                                  }
-                                }}
                               >
                                 <div className="employee-modal-document-tile">
                                   {isPdfDocumentUrl(url) ? <span>PDF</span> : <img src={url} alt={`Evidence ${index + 1}`} />}
                                 </div>
-                              </div>
+                              </button>
                             ))}
                         </div>
                       </>
@@ -3205,8 +3378,8 @@ export default function EmployeesPage() {
           >
             <div className="document-preview-toolbar">
               <div>
-                <h3 style={{ margin: 0 }}>{previewDocument.label}</h3>
-                <p className="muted-text" style={{ margin: '6px 0 0' }}>
+                <h3 className="document-preview-title">{previewDocument.label}</h3>
+                <p className="muted-text document-preview-subtitle">
                   Previewing attached document
                 </p>
               </div>
@@ -3255,7 +3428,7 @@ export default function EmployeesPage() {
                 <iframe
                   src={previewDocument.url}
                   title={previewDocument.label}
-                  style={{ width: '100%', minHeight: '72vh', border: 0, borderRadius: 12 }}
+                  className="document-preview-frame"
                 />
               ) : (
                 <div className="employee-attachment-preview-file">

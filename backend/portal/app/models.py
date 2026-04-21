@@ -352,6 +352,7 @@ class Notification(models.Model):
     body = models.TextField(blank=True, default="")
     kind = models.CharField(max_length=20, choices=KIND_CHOICES, default=KIND_INFO)
     read = models.BooleanField(default=False)
+    remind_at = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:

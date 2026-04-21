@@ -88,42 +88,50 @@ html[data-theme='light'][data-accent='natural'] {
 html[data-theme='dark'][data-accent='natural'] {
   --accent-bg-start: 17 17 17;
   --accent-bg-end: 17 17 17;
-  --accent-glow-1: 64 64 62;
-  --accent-glow-2: 50 50 48;
-  --accent-active: 226 226 222;
-  --accent-active-border: 170 170 164;
-  --accent-tile-muted: 47 47 45;
-  --accent-tile-hover: 61 61 58;
-  --accent-border: 106 106 101;
-  --accent-surface-strong: 190 190 184;
+  --accent-glow-1: 56 56 54;
+  --accent-glow-2: 44 44 42;
+  --accent-active: 198 198 194;
+  --accent-active-border: 146 146 141;
+  --accent-tile-muted: 43 43 41;
+  --accent-tile-hover: 54 54 51;
+  --accent-border: 92 92 88;
+  --accent-surface-strong: 164 164 159;
 }
 
 /* Accent family tokens only.
    Do not place theme-specific foreground/background tokens here. */
 html[data-accent='orange'] {
-  --accent-bg-start: 246 238 227;
-  --accent-bg-end: 240 231 219;
-  --accent-glow-1: 241 226 206;
-  --accent-glow-2: 232 214 191;
-  --accent-active: 181 108 44;
-  --accent-active-border: 150 88 33;
-  --accent-tile-muted: 246 234 217;
-  --accent-tile-hover: 238 222 200;
-  --accent-border: 226 200 171;
-  --accent-surface-strong: 118 74 36;
+  --accent-bg-start: 246 242 237;
+  --accent-bg-end: 239 233 227;
+  --accent-glow-1: 235 223 209;
+  --accent-glow-2: 221 205 189;
+  --accent-active: 157 97 46;
+  --accent-active-border: 97 57 24;
+  --accent-tile-muted: 239 231 222;
+  --accent-tile-hover: 228 216 203;
+  --accent-border: 203 182 161;
+  --accent-surface-strong: 95 59 30;
+}
+
+html[data-theme='light'][data-accent='orange'] {
+  --color-foreground: #161616;
+  --color-card-foreground: #141414;
+  --color-muted-foreground: #565656;
+  --color-sidebar-foreground: #181818;
+  --color-secondary-foreground: #181818;
 }
 
 html[data-theme='dark'][data-accent='orange'] {
   --accent-bg-start: 17 17 17;
   --accent-bg-end: 17 17 17;
-  --accent-glow-1: 72 43 20;
-  --accent-glow-2: 56 33 17;
-  --accent-active: 194 117 45;
-  --accent-active-border: 158 94 34;
-  --accent-tile-muted: 42 30 22;
-  --accent-tile-hover: 58 39 26;
-  --accent-border: 86 54 31;
-  --accent-surface-strong: 101 61 29;
+  --accent-glow-1: 235 223 209;
+  --accent-glow-2: 221 205 189;
+  --accent-active: 157 97 46;
+  --accent-active-border: 97 57 24;
+  --accent-tile-muted: 239 231 222;
+  --accent-tile-hover: 228 216 203;
+  --accent-border: 203 182 161;
+  --accent-surface-strong: 95 59 30;
 }
 
 *,
