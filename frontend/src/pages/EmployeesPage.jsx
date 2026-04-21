@@ -14,6 +14,12 @@ import {
   RELIGION_OPTIONS,
   RESIDENCE_COUNTRY_OPTIONS
 } from '../constants/employeeOptions'
+import {
+  DWT_SERVICE_INSTALLERS,
+  checkDWTScannerService,
+  resetDWTScannerService,
+  scanWithDWTDevice
+} from '../services/dwtScannerService'
 import * as employeesService from '../services/employeesService'
 import { normalizeSearchValue } from '../utils/filtering'
 
@@ -76,9 +82,9 @@ function readCssCustomProperty(name) {
 const emptyExperience = { country: '', years: '' }
 const REGISTRATION_STEPS = [
   { id: 'personal', label: 'Personal' },
-  { id: 'application', label: 'Application' },
   { id: 'profile', label: 'Profile' },
   { id: 'contact', label: 'Contact' },
+  { id: 'application', label: 'Application' },
   { id: 'attachments', label: 'Attachments' },
   { id: 'summary', label: 'Summary' }
 ]
@@ -133,6 +139,15 @@ function computeAge(value) {
   const monthDiff = today.getMonth() - birth.getMonth()
   if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birth.getDate())) age -= 1
   return age >= 0 ? age : ''
+}
+
+function loadImageFromUrl(url) {
+  return new Promise((resolve, reject) => {
+    const image = new Image()
+    image.onload = () => resolve(image)
+    image.onerror = () => reject(new Error('Could not load the scanned image for attachment.'))
+    image.src = url
+  })
 }
 
 function normalizeEmployeeForm(employee) {
@@ -642,31 +657,31 @@ function getValidationTarget(errorMessage) {
   if (
     message.includes('destination country') ||
     message.includes('application_countries')
-  ) return { step: 1, selector: '[name="application_countries"]' }
-  if (message.includes('profession')) return { step: 1, selector: '[name="profession"]' }
-  if (message.includes('type is required') || message.includes('employment type')) return { step: 1, selector: '[name="employment_type"]' }
-  if (message.includes('salary')) return { step: 1, selector: '[name="application_salary"]' }
-  if (message.includes('skill')) return { step: 1, selector: '[name="skills"]' }
-  if (message.includes('experience') || message.includes('years')) return { step: 1, selector: '[name^="experience_country_"]' }
+  ) return { step: 3, selector: '[name="application_countries"]' }
+  if (message.includes('profession')) return { step: 3, selector: '[name="profession"]' }
+  if (message.includes('type is required') || message.includes('employment type')) return { step: 3, selector: '[name="employment_type"]' }
+  if (message.includes('salary')) return { step: 3, selector: '[name="application_salary"]' }
+  if (message.includes('skill')) return { step: 3, selector: '[name="skills"]' }
+  if (message.includes('experience') || message.includes('years')) return { step: 3, selector: '[name^="experience_country_"]' }
 
   if (
     message.includes('religion')
-  ) return { step: 2, selector: '[name="religion"]' }
-  if (message.includes('marital status')) return { step: 2, selector: '[name="marital_status"]' }
-  if (message.includes('residence country')) return { step: 2, selector: '[name="residence_country"]' }
-  if (message.includes('nationality')) return { step: 2, selector: '[name="nationality"]' }
-  if (message.includes('birth place')) return { step: 2, selector: '[name="birth_place"]' }
-  if (message.includes('weight')) return { step: 2, selector: '[name="weight_kg"]' }
-  if (message.includes('height')) return { step: 2, selector: '[name="height_cm"]' }
-  if (message.includes('children count')) return { step: 2, selector: '[name="children_count"]' }
+  ) return { step: 1, selector: '[name="religion"]' }
+  if (message.includes('marital status')) return { step: 1, selector: '[name="marital_status"]' }
+  if (message.includes('residence country')) return { step: 1, selector: '[name="residence_country"]' }
+  if (message.includes('nationality')) return { step: 1, selector: '[name="nationality"]' }
+  if (message.includes('birth place')) return { step: 1, selector: '[name="birth_place"]' }
+  if (message.includes('weight')) return { step: 1, selector: '[name="weight_kg"]' }
+  if (message.includes('height')) return { step: 1, selector: '[name="height_cm"]' }
+  if (message.includes('children count')) return { step: 1, selector: '[name="children_count"]' }
 
   if (
     message.includes('contact person name')
-  ) return { step: 3, selector: '[name="contact_person_name"]' }
-  if (message.includes('contact person mobile')) return { step: 3, selector: '[name="contact_person_mobile"]' }
-  if (message.includes('contact person id')) return { step: 3, selector: '[name="contact_person_id_number"]' }
-  if (message.includes('secondary phone')) return { step: 3, selector: '[name="phone"]' }
-  if (message.includes('email')) return { step: 3, selector: '[name="email"]' }
+  ) return { step: 2, selector: '[name="contact_person_name"]' }
+  if (message.includes('contact person mobile')) return { step: 2, selector: '[name="contact_person_mobile"]' }
+  if (message.includes('contact person id')) return { step: 2, selector: '[name="contact_person_id_number"]' }
+  if (message.includes('secondary phone')) return { step: 2, selector: '[name="phone"]' }
+  if (message.includes('email')) return { step: 2, selector: '[name="email"]' }
 
   if (
     message.includes('portrait photo')
@@ -732,6 +747,26 @@ function validateStepFields(form, stepIndex, ageRestrictionError, validateAttach
   }
 
   if (stepIndex === 1) {
+    if (!form.religion) return 'Religion is required.'
+    if (!form.marital_status) return 'Marital status is required.'
+    if (!form.residence_country) return 'Residence country is required.'
+    if (form.weight_kg !== '' && Number(form.weight_kg) < 0) return 'Weight cannot be negative.'
+    if (form.height_cm !== '' && Number(form.height_cm) < 0) return 'Height cannot be negative.'
+    if (Number(form.children_count || 0) < 0) return 'Children count cannot be negative.'
+    return ''
+  }
+
+  if (stepIndex === 2) {
+    if (!(form.contact_person_name || '').trim()) return 'Contact person name is required.'
+    if (!(form.contact_person_mobile || '').trim()) return 'Contact person mobile is required.'
+    if (!isValidPhoneNumber(form.phone)) return 'Enter a valid secondary phone number.'
+    if (!isValidPhoneNumber(form.contact_person_mobile)) return 'Enter a valid contact person mobile number.'
+    if (!isValidEmailAddress(form.email)) return 'Enter a valid email address.'
+    if (!isValidDocumentNumber(form.contact_person_id_number)) return 'Contact person ID number may only contain letters, numbers, spaces, slashes, and hyphens.'
+    return ''
+  }
+
+  if (stepIndex === 3) {
     if (form.application_countries.length === 0) return 'Select at least one destination country.'
     if (!form.profession) return 'Profession is required.'
     if (!form.employment_type) return 'Type is required.'
@@ -742,26 +777,6 @@ function validateStepFields(form, stepIndex, ageRestrictionError, validateAttach
       : []
     if (selectedExperiences.some((item) => String(item.years ?? '').trim() === '')) return 'Fill in years for each selected experience country.'
     if (form.application_salary !== '' && Number(form.application_salary) < 0) return 'Salary cannot be negative.'
-    return ''
-  }
-
-  if (stepIndex === 2) {
-    if (!form.religion) return 'Religion is required.'
-    if (!form.marital_status) return 'Marital status is required.'
-    if (!form.residence_country) return 'Residence country is required.'
-    if (form.weight_kg !== '' && Number(form.weight_kg) < 0) return 'Weight cannot be negative.'
-    if (form.height_cm !== '' && Number(form.height_cm) < 0) return 'Height cannot be negative.'
-    if (Number(form.children_count || 0) < 0) return 'Children count cannot be negative.'
-    return ''
-  }
-
-  if (stepIndex === 3) {
-    if (!(form.contact_person_name || '').trim()) return 'Contact person name is required.'
-    if (!(form.contact_person_mobile || '').trim()) return 'Contact person mobile is required.'
-    if (!isValidPhoneNumber(form.phone)) return 'Enter a valid secondary phone number.'
-    if (!isValidPhoneNumber(form.contact_person_mobile)) return 'Enter a valid contact person mobile number.'
-    if (!isValidEmailAddress(form.email)) return 'Enter a valid email address.'
-    if (!isValidDocumentNumber(form.contact_person_id_number)) return 'Contact person ID number may only contain letters, numbers, spaces, slashes, and hyphens.'
     return ''
   }
 
@@ -846,11 +861,39 @@ export default function EmployeesPage() {
   const [currentView, setCurrentView] = useState('list')
   const [activeStep, setActiveStep] = useState(0)
   const [scanImportModalOpen, setScanImportModalOpen] = useState(false)
+  const [cameraCaptureModalOpen, setCameraCaptureModalOpen] = useState(false)
+  const [cameraStream, setCameraStream] = useState(null)
+  const [cameraError, setCameraError] = useState('')
+  const [uploadDocumentModalOpen, setUploadDocumentModalOpen] = useState(false)
+  const [uploadDraftFile, setUploadDraftFile] = useState(null)
+  const [uploadError, setUploadError] = useState('')
+  const [uploadDragActive, setUploadDragActive] = useState(false)
+  const [scannerModalOpen, setScannerModalOpen] = useState(false)
+  const [scannerStatus, setScannerStatus] = useState('idle')
+  const [scannerDevices, setScannerDevices] = useState([])
+  const [selectedScannerIndex, setSelectedScannerIndex] = useState(0)
+  const [scannerError, setScannerError] = useState('')
   const [ocrImportSource, setOcrImportSource] = useState('')
   const [ocrImportFileName, setOcrImportFileName] = useState('')
+  const [ocrImportFile, setOcrImportFile] = useState(null)
+  const [ocrImportPreviewUrl, setOcrImportPreviewUrl] = useState('')
+  const [scanAttachmentModalOpen, setScanAttachmentModalOpen] = useState(false)
+  const [scanAttachmentKeys, setScanAttachmentKeys] = useState([])
+  const [scanAttachmentRotation, setScanAttachmentRotation] = useState(0)
+  const [scanAttachmentFlipX, setScanAttachmentFlipX] = useState(false)
+  const [scanAttachmentFlipY, setScanAttachmentFlipY] = useState(false)
+  const [scanAttachmentZoom, setScanAttachmentZoom] = useState(1)
+  const [scanAttachmentOffset, setScanAttachmentOffset] = useState({ x: 0, y: 0 })
+  const [scanAttachmentDragging, setScanAttachmentDragging] = useState(false)
+  const [scanAttachmentError, setScanAttachmentError] = useState('')
   const registrationRef = useRef(null)
-  const scanDeviceInputRef = useRef(null)
   const scanUploadInputRef = useRef(null)
+  const scanCameraVideoRef = useRef(null)
+  const scanCameraCanvasRef = useRef(null)
+  const scanCameraStreamRef = useRef(null)
+  const scanCameraRequestRef = useRef(0)
+  const scanAttachmentFrameRef = useRef(null)
+  const scanAttachmentDragRef = useRef({ startX: 0, startY: 0, originX: 0, originY: 0 })
   const previewDragRef = useRef({ startX: 0, startY: 0, originX: 0, originY: 0 })
 
   const canManageEmployees = Boolean(user?.feature_flags?.employees_enabled)
@@ -862,6 +905,24 @@ export default function EmployeesPage() {
   const canOverrideProgress = canManageOrganizationProcesses
   const selectedScope = isAgentSideUser ? 'mine' : 'organization'
   const age = computeAge(form.date_of_birth)
+  const stopCameraCapture = useCallback(() => {
+    if (scanCameraStreamRef.current) {
+      scanCameraStreamRef.current.getTracks().forEach((track) => track.stop())
+      scanCameraStreamRef.current = null
+    }
+    if (scanCameraVideoRef.current) {
+      scanCameraVideoRef.current.srcObject = null
+    }
+    setCameraStream(null)
+  }, [])
+
+  const closeCameraCapture = useCallback(() => {
+    scanCameraRequestRef.current += 1
+    stopCameraCapture()
+    setCameraCaptureModalOpen(false)
+    setCameraError('')
+  }, [stopCameraCapture])
+
   const isTravelConfirmationDeclined = useCallback(
     (employee) => travelConfirmationDeclinedIds.includes(employee?.id),
     [travelConfirmationDeclinedIds]
@@ -1169,6 +1230,21 @@ export default function EmployeesPage() {
   }, [modalError, showToast])
 
   useEffect(() => {
+    if (!scanCameraVideoRef.current) return
+    scanCameraVideoRef.current.srcObject = cameraStream
+  }, [cameraStream])
+
+  useEffect(() => () => {
+    stopCameraCapture()
+  }, [stopCameraCapture])
+
+  useEffect(() => () => {
+    if (ocrImportPreviewUrl && typeof URL !== 'undefined') {
+      URL.revokeObjectURL(ocrImportPreviewUrl)
+    }
+  }, [ocrImportPreviewUrl])
+
+  useEffect(() => {
     if (typeof window === 'undefined') return
     try {
       const rawTemplate = window.localStorage.getItem(REGISTRATION_TEMPLATE_STORAGE_KEY)
@@ -1222,6 +1298,30 @@ export default function EmployeesPage() {
   }, [previewDragging])
 
   useEffect(() => {
+    if (!scanAttachmentDragging) return undefined
+
+    function handlePointerMove(event) {
+      const { startX, startY, originX, originY } = scanAttachmentDragRef.current
+      setScanAttachmentOffset({
+        x: originX + (event.clientX - startX),
+        y: originY + (event.clientY - startY)
+      })
+    }
+
+    function handlePointerUp() {
+      setScanAttachmentDragging(false)
+    }
+
+    window.addEventListener('mousemove', handlePointerMove)
+    window.addEventListener('mouseup', handlePointerUp)
+
+    return () => {
+      window.removeEventListener('mousemove', handlePointerMove)
+      window.removeEventListener('mouseup', handlePointerUp)
+    }
+  }, [scanAttachmentDragging])
+
+  useEffect(() => {
     if (currentView !== 'register' || !modalError) return
     const target = getValidationTarget(modalError)
     if (!target || target.step !== activeStep || !target.selector || !registrationRef.current) return
@@ -1263,6 +1363,22 @@ export default function EmployeesPage() {
   const hasSavedTemplate = Boolean(savedTemplate)
   const createFormFromTemplate = useCallback(() => applyRegistrationTemplate(savedTemplate), [savedTemplate])
 
+  const clearScannedDocument = useCallback(() => {
+    setOcrImportSource('')
+    setOcrImportFileName('')
+    setOcrImportFile(null)
+    setOcrImportPreviewUrl('')
+    setScanAttachmentModalOpen(false)
+    setScanAttachmentKeys([])
+    setScanAttachmentRotation(0)
+    setScanAttachmentFlipX(false)
+    setScanAttachmentFlipY(false)
+    setScanAttachmentZoom(1)
+    setScanAttachmentOffset({ x: 0, y: 0 })
+    setScanAttachmentDragging(false)
+    setScanAttachmentError('')
+  }, [])
+
   const resetForm = useCallback(() => {
     setEditingEmployeeId(null)
     setForm(emptyForm)
@@ -1271,11 +1387,10 @@ export default function EmployeesPage() {
     setExistingAttachmentDocs({})
     setActiveStep(0)
     setScanImportModalOpen(false)
-    setOcrImportSource('')
-    setOcrImportFileName('')
+    clearScannedDocument()
     setModalError('')
     setModalNotice('')
-  }, [])
+  }, [clearScannedDocument])
 
   const openCreateModal = () => {
     setEditingEmployeeId(null)
@@ -1289,6 +1404,7 @@ export default function EmployeesPage() {
     setModalNotice('')
     setNotice('')
     setScanImportModalOpen(false)
+    clearScannedDocument()
     setCurrentView('register')
   }
 
@@ -1320,12 +1436,199 @@ export default function EmployeesPage() {
     setScanImportModalOpen(false)
   }
 
+  const openUploadDocumentModal = () => {
+    setScanImportModalOpen(false)
+    setUploadDocumentModalOpen(true)
+    setUploadDraftFile(null)
+    setUploadError('')
+    setUploadDragActive(false)
+    if (scanUploadInputRef.current) {
+      scanUploadInputRef.current.value = ''
+    }
+  }
+
+  const closeUploadDocumentModal = () => {
+    setUploadDocumentModalOpen(false)
+    setUploadDraftFile(null)
+    setUploadError('')
+    setUploadDragActive(false)
+    if (scanUploadInputRef.current) {
+      scanUploadInputRef.current.value = ''
+    }
+  }
+
+  const backToScanOptionsFromUpload = () => {
+    closeUploadDocumentModal()
+    setScanImportModalOpen(true)
+  }
+
+  const handleUploadDraftPick = (file) => {
+    if (!file) return
+    if (!attachmentFileAllowed(file)) {
+      setUploadDraftFile(null)
+      setUploadError('Upload must be a PDF, JPG, JPEG, or PNG file.')
+      return
+    }
+    setUploadError('')
+    setUploadDraftFile(file)
+  }
+
+  const handleUploadDrop = (event) => {
+    event.preventDefault()
+    setUploadDragActive(false)
+    handleUploadDraftPick(event.dataTransfer.files?.[0] || null)
+  }
+
+  const submitUploadDocument = () => {
+    if (!uploadDraftFile) {
+      setUploadError('Choose a document before continuing.')
+      return
+    }
+    closeUploadDocumentModal()
+    handleOcrDocumentPick('upload', uploadDraftFile)
+  }
+
+  const checkScannerService = async () => {
+    setScannerStatus('checking')
+    setScannerError('')
+    try {
+      const { devices } = await checkDWTScannerService()
+      setScannerDevices(devices)
+      setSelectedScannerIndex(0)
+      setScannerStatus(devices.length > 0 ? 'ready' : 'no-devices')
+      if (devices.length === 0) {
+        setScannerError('Dynamic Web TWAIN is running, but no TWAIN/WIA scanner was found. Connect a scanner and install its driver, then check again.')
+      }
+    } catch (err) {
+      setScannerDevices([])
+      setScannerStatus('service-missing')
+      setScannerError(err?.message || 'Dynamic Web TWAIN service is not active.')
+    }
+  }
+
+  const openScannerModal = () => {
+    setScanImportModalOpen(false)
+    setScannerModalOpen(true)
+    setScannerDevices([])
+    setSelectedScannerIndex(0)
+    setScannerError('')
+    setScannerStatus('checking')
+    window.setTimeout(() => {
+      checkScannerService()
+    }, 0)
+  }
+
+  const closeScannerModal = () => {
+    resetDWTScannerService()
+    setScannerModalOpen(false)
+    setScannerError('')
+  }
+
+  const backToScanOptionsFromScanner = () => {
+    closeScannerModal()
+    setScanImportModalOpen(true)
+  }
+
+  const backToScanOptionsFromCamera = () => {
+    closeCameraCapture()
+    setScanImportModalOpen(true)
+  }
+
+  const scanFromSelectedScanner = async () => {
+    const device = scannerDevices[selectedScannerIndex]
+    setScannerStatus('scanning')
+    setScannerError('')
+    try {
+      const file = await scanWithDWTDevice(device)
+      closeScannerModal()
+      handleOcrDocumentPick('scanner', file)
+    } catch (err) {
+      setScannerStatus(scannerDevices.length > 0 ? 'ready' : 'service-missing')
+      setScannerError(err?.message || 'Scanner acquisition failed.')
+    }
+  }
+
+  const openCameraCapture = async () => {
+    const requestId = scanCameraRequestRef.current + 1
+    scanCameraRequestRef.current = requestId
+    setScanImportModalOpen(false)
+    setCameraError('')
+
+    if (!navigator.mediaDevices?.getUserMedia) {
+      setCameraCaptureModalOpen(true)
+      setCameraError('This browser does not support direct camera capture. Use scanner or upload instead.')
+      return
+    }
+
+    try {
+      stopCameraCapture()
+      setCameraCaptureModalOpen(true)
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          facingMode: { ideal: 'environment' },
+          width: { ideal: 1600 },
+          height: { ideal: 1200 }
+        },
+        audio: false
+      })
+      if (scanCameraRequestRef.current !== requestId) {
+        stream.getTracks().forEach((track) => track.stop())
+        return
+      }
+      scanCameraStreamRef.current = stream
+      setCameraStream(stream)
+    } catch (err) {
+      setCameraCaptureModalOpen(true)
+      setCameraError(err?.message || 'Could not access the camera. Check browser permissions and try again.')
+    }
+  }
+
   const triggerScanImport = (source) => {
-    const inputRef = source === 'device' ? scanDeviceInputRef : scanUploadInputRef
+    if (source === 'camera') {
+      openCameraCapture()
+      return
+    }
+    if (source === 'upload') {
+      openUploadDocumentModal()
+      return
+    }
+    if (source === 'scanner') {
+      openScannerModal()
+      return
+    }
+    const inputRef = scanUploadInputRef
     setScanImportModalOpen(false)
     if (!inputRef.current) return
     inputRef.current.value = ''
     inputRef.current.click()
+  }
+
+  const captureCameraDocument = () => {
+    const video = scanCameraVideoRef.current
+    const canvas = scanCameraCanvasRef.current
+    if (!video || !canvas || !video.videoWidth || !video.videoHeight) {
+      setCameraError('Camera preview is not ready yet.')
+      return
+    }
+
+    canvas.width = video.videoWidth
+    canvas.height = video.videoHeight
+    const context = canvas.getContext('2d')
+    if (!context) {
+      setCameraError('Could not prepare the camera capture.')
+      return
+    }
+
+    context.drawImage(video, 0, 0, canvas.width, canvas.height)
+    canvas.toBlob((blob) => {
+      if (!blob) {
+        setCameraError('Could not capture the camera frame.')
+        return
+      }
+      const file = new File([blob], `camera-capture-${Date.now()}.jpg`, { type: 'image/jpeg' })
+      closeCameraCapture()
+      handleOcrDocumentPick('camera', file)
+    }, 'image/jpeg', 0.92)
   }
 
   const handleOcrDocumentPick = (source, file) => {
@@ -1338,10 +1641,169 @@ export default function EmployeesPage() {
     setActiveStep(0)
     setOcrImportSource(source)
     setOcrImportFileName(file.name || 'Selected document')
+    setOcrImportFile(file)
+    setOcrImportPreviewUrl(typeof URL !== 'undefined' ? URL.createObjectURL(file) : '')
+    setScanAttachmentError('')
+    const sourceLabel =
+      source === 'camera'
+        ? 'Camera capture'
+        : source === 'scanner'
+          ? 'Scanner import'
+          : 'Document upload'
+
     setModalNotice(
-      `${source === 'device' ? 'Device scan' : 'Document upload'} is ready for OCR. ` +
+      `${sourceLabel} is ready for OCR. ` +
       'The popup and file intake are in place, and the next OCR integration can map recognized values into the matching employee fields.'
     )
+  }
+
+  const handleAutoFillFromScan = () => {
+    if (!ocrImportFile) {
+      setModalNotice('')
+      setModalError('Scan, capture, or upload a document from the first step before using auto fill.')
+      setActiveStep(0)
+      return
+    }
+    setModalError('')
+    setModalNotice(
+      `Using ${ocrImportFileName || 'the scanned document'} for the ${REGISTRATION_STEPS[activeStep].label.toLowerCase()} fields. ` +
+      'OCR extraction is staged for this step, but field matching is not connected yet, so no values were changed.'
+    )
+  }
+
+  const openScanAttachmentModal = () => {
+    if (!ocrImportFile) {
+      setModalNotice('')
+      setModalError('Scan, capture, or upload a document from the first step before attaching from scan.')
+      setActiveStep(0)
+      return
+    }
+    const missingRequiredKeys = MANDATORY_ATTACHMENT_KEYS.filter((key) => !attachmentFiles[key] && !existingAttachmentDocs[key])
+    setScanAttachmentKeys(missingRequiredKeys.length > 0 ? missingRequiredKeys : [ATTACHMENT_FIELDS[0].key])
+    setScanAttachmentRotation(0)
+    setScanAttachmentFlipX(false)
+    setScanAttachmentFlipY(false)
+    setScanAttachmentZoom(1)
+    setScanAttachmentOffset({ x: 0, y: 0 })
+    setScanAttachmentDragging(false)
+    setScanAttachmentError('')
+    setModalError('')
+    setScanAttachmentModalOpen(true)
+  }
+
+  const closeScanAttachmentModal = () => {
+    setScanAttachmentModalOpen(false)
+    setScanAttachmentDragging(false)
+    setScanAttachmentError('')
+  }
+
+  const handleScanAttachmentKeyToggle = (key) => {
+    setScanAttachmentKeys((prev) =>
+      prev.includes(key) ? prev.filter((item) => item !== key) : [...prev, key]
+    )
+  }
+
+  const handleScanAttachmentWheel = (event) => {
+    if (!ocrImportFile?.type?.startsWith('image/')) return
+    event.preventDefault()
+    const frame = scanAttachmentFrameRef.current
+    if (!frame) return
+    const rect = frame.getBoundingClientRect()
+    const point = {
+      x: event.clientX - rect.left - rect.width / 2,
+      y: event.clientY - rect.top - rect.height / 2
+    }
+    setScanAttachmentZoom((prev) => {
+      const next = Math.min(5, Math.max(1, Number((prev + (event.deltaY < 0 ? 0.18 : -0.18)).toFixed(2))))
+      setScanAttachmentOffset((offset) => {
+        if (next === 1) return { x: 0, y: 0 }
+        const ratio = next / prev
+        return {
+          x: point.x - (point.x - offset.x) * ratio,
+          y: point.y - (point.y - offset.y) * ratio
+        }
+      })
+      return next
+    })
+  }
+
+  const handleScanAttachmentPointerDown = (event) => {
+    if (!ocrImportFile?.type?.startsWith('image/') || scanAttachmentZoom <= 1) return
+    scanAttachmentDragRef.current = {
+      startX: event.clientX,
+      startY: event.clientY,
+      originX: scanAttachmentOffset.x,
+      originY: scanAttachmentOffset.y
+    }
+    setScanAttachmentDragging(true)
+  }
+
+  const resetScanAttachmentView = () => {
+    setScanAttachmentZoom(1)
+    setScanAttachmentOffset({ x: 0, y: 0 })
+    setScanAttachmentDragging(false)
+  }
+
+  const buildAdjustedScanAttachment = async () => {
+    if (!ocrImportFile) throw new Error('No scanned document is ready.')
+    if (!ocrImportFile.type?.startsWith('image/')) return ocrImportFile
+    if (typeof document === 'undefined' || !ocrImportPreviewUrl) return ocrImportFile
+
+    const image = await loadImageFromUrl(ocrImportPreviewUrl)
+    const frame = scanAttachmentFrameRef.current
+    const frameWidth = Math.max(1, Math.round(frame?.clientWidth || image.naturalWidth))
+    const frameHeight = Math.max(1, Math.round(frame?.clientHeight || image.naturalHeight))
+    const pixelRatio = 2
+    const imageRatio = image.naturalWidth / image.naturalHeight
+    const frameRatio = frameWidth / frameHeight
+    const drawWidth = imageRatio > frameRatio ? frameWidth : frameHeight * imageRatio
+    const drawHeight = imageRatio > frameRatio ? frameWidth / imageRatio : frameHeight
+    const rotation = ((scanAttachmentRotation % 360) + 360) % 360
+    const outputCanvas = document.createElement('canvas')
+    outputCanvas.width = Math.round(frameWidth * pixelRatio)
+    outputCanvas.height = Math.round(frameHeight * pixelRatio)
+    const outputContext = outputCanvas.getContext('2d')
+    if (!outputContext) throw new Error('Could not prepare the adjusted scanned image.')
+    outputContext.fillStyle = '#ffffff'
+    outputContext.fillRect(0, 0, outputCanvas.width, outputCanvas.height)
+    outputContext.scale(pixelRatio, pixelRatio)
+    outputContext.translate(frameWidth / 2 + scanAttachmentOffset.x, frameHeight / 2 + scanAttachmentOffset.y)
+    outputContext.rotate((rotation * Math.PI) / 180)
+    outputContext.scale(
+      (scanAttachmentFlipX ? -1 : 1) * scanAttachmentZoom,
+      (scanAttachmentFlipY ? -1 : 1) * scanAttachmentZoom
+    )
+    outputContext.drawImage(image, -drawWidth / 2, -drawHeight / 2, drawWidth, drawHeight)
+
+    const blob = await new Promise((resolve, reject) => {
+      outputCanvas.toBlob((nextBlob) => {
+        if (nextBlob) resolve(nextBlob)
+        else reject(new Error('Could not create the adjusted scanned attachment.'))
+      }, 'image/jpeg', 0.92)
+    })
+    return new File([blob], `scan-attachment-${Date.now()}.jpg`, { type: 'image/jpeg' })
+  }
+
+  const attachSelectedFromScan = async () => {
+    if (scanAttachmentKeys.length === 0) {
+      setScanAttachmentError('Select at least one attachment type.')
+      return
+    }
+    setScanAttachmentError('')
+    try {
+      const file = await buildAdjustedScanAttachment()
+      setAttachmentFiles((prev) => {
+        const next = { ...prev }
+        scanAttachmentKeys.forEach((key) => {
+          next[key] = file
+        })
+        return next
+      })
+      setModalNotice(`${scanAttachmentKeys.length} attachment${scanAttachmentKeys.length === 1 ? '' : 's'} attached from the scanned document.`)
+      closeScanAttachmentModal()
+    } catch (err) {
+      setScanAttachmentError(err?.message || 'Could not attach from the scanned document.')
+    }
   }
 
   const handleCheckboxList = (field, value) => {
@@ -1435,6 +1897,7 @@ export default function EmployeesPage() {
         setAttachmentLabels({})
         setExistingAttachmentDocs({})
         setActiveStep(0)
+        clearScannedDocument()
         setCurrentView('register')
       }
       await Promise.all([loadEmployees(), loadFormOptions()])
@@ -1472,6 +1935,7 @@ export default function EmployeesPage() {
       setExistingAttachmentDocs(nextExistingDocs)
       setAttachmentFiles({})
       setActiveStep(0)
+      clearScannedDocument()
       setCurrentView('register')
     } catch (err) {
       setPageError(err.message || 'Could not load employee details')
@@ -2250,48 +2714,63 @@ export default function EmployeesPage() {
                 </button>
               ))}
             </div>
-            <div
-              className="employee-scan-launch-card"
-              role="button"
-              tabIndex={0}
-              onClick={openScanImportModal}
-              onKeyDown={(event) => {
-                if (event.key === 'Enter' || event.key === ' ') {
-                  event.preventDefault()
-                  openScanImportModal()
-                }
-              }}
-            >
-              <div className="employee-scan-launch-copy">
-                <p className="employee-modal-eyebrow">Scan from document</p>
-                <h3>Scan from document</h3>
-                <p className="muted-text">
-                  Open OCR import options for scanning from a device or uploading a document, so the next OCR step can map detected values into the employee fields.
-                </p>
-                {ocrImportFileName ? (
-                  <p className="employee-scan-launch-meta">
-                    Last selected: {ocrImportFileName}
-                    {ocrImportSource ? ` (${ocrImportSource === 'device' ? 'Scan from device' : 'Upload a document'})` : ''}
+            {activeStep === 0 ? (
+              <div
+                className="employee-scan-launch-card"
+                role="button"
+                tabIndex={0}
+                onClick={openScanImportModal}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter' || event.key === ' ') {
+                    event.preventDefault()
+                    openScanImportModal()
+                  }
+                }}
+              >
+                <div className="employee-scan-launch-copy">
+                  <p className="employee-modal-eyebrow">Scan from document</p>
+                  <h3>Scan from document</h3>
+                  <p className="muted-text">
+                    Open OCR import options for scanning from a device or uploading a document, so the next OCR step can map detected values into the employee fields.
                   </p>
-                ) : null}
+                  {ocrImportFileName ? (
+                    <p className="employee-scan-launch-meta">
+                      Last selected: {ocrImportFileName}
+                      {ocrImportSource ? ` (${
+                        ocrImportSource === 'camera'
+                          ? 'From camera'
+                          : ocrImportSource === 'scanner'
+                            ? 'From scanner'
+                            : 'Upload a document'
+                      })` : ''}
+                    </p>
+                  ) : null}
+                </div>
+                <span className="btn-secondary employee-scan-launch-action">Open scan options</span>
               </div>
-              <span className="btn-secondary employee-scan-launch-action">Open scan options</span>
-            </div>
-            <input
-              ref={scanDeviceInputRef}
-              type="file"
-              accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png"
-              capture="environment"
-              className="visually-hidden-file"
-              onChange={(event) => handleOcrDocumentPick('device', event.target.files?.[0] || null)}
-            />
-            <input
-              ref={scanUploadInputRef}
-              type="file"
-              accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png"
-              className="visually-hidden-file"
-              onChange={(event) => handleOcrDocumentPick('upload', event.target.files?.[0] || null)}
-            />
+            ) : activeStep > 0 && activeStep < 4 ? (
+              <div className="employee-scan-step-assist">
+                <div>
+                  <strong>Auto fill from the scanned document</strong>
+                  <span>{ocrImportFileName ? ocrImportFileName : 'No scanned document selected yet'}</span>
+                </div>
+                <div className="employee-scan-step-actions">
+                  <button type="button" className="btn-secondary" onClick={handleAutoFillFromScan}>Auto fill</button>
+                  <button type="button" className="btn-secondary" onClick={openScanImportModal}>Rescan</button>
+                </div>
+              </div>
+            ) : activeStep === 4 ? (
+              <div className="employee-scan-step-assist">
+                <div>
+                  <strong>Attached from the scanned document</strong>
+                  <span>{ocrImportFileName ? ocrImportFileName : 'No scanned document selected yet'}</span>
+                </div>
+                <div className="employee-scan-step-actions">
+                  <button type="button" className="btn-secondary" onClick={openScanAttachmentModal}>Attach from scan</button>
+                  <button type="button" className="btn-secondary" onClick={openScanImportModal}>Rescan</button>
+                </div>
+              </div>
+            ) : null}
             {modalNotice ? <p className="muted-text employee-modal-error">{modalNotice}</p> : null}
             {modalError ? <p className="error-message employee-modal-error">{modalError}</p> : null}
             <form className="employee-modal-form" onSubmit={(event) => event.preventDefault()}>
@@ -2316,7 +2795,7 @@ export default function EmployeesPage() {
                   {ageRestrictionError ? <p className="error-message employee-step-note">{ageRestrictionError}</p> : null}
                 </div>
               ) : null}
-              {activeStep === 1 ? (
+              {activeStep === 3 ? (
                 <div className="employee-step-grid">
                   <div className="employee-span-two">
                     <span className="employee-group-label">Destination countries *</span>
@@ -2391,7 +2870,7 @@ export default function EmployeesPage() {
                   </div>
                 </div>
               ) : null}
-              {activeStep === 2 ? (
+              {activeStep === 1 ? (
                 <div className="employee-step-grid">
                   <label>
                     Religion
@@ -2437,7 +2916,7 @@ export default function EmployeesPage() {
                   <label className="employee-span-two">Experience notes<textarea value={form.experience} onChange={(event) => setForm((prev) => ({ ...prev, experience: event.target.value }))} rows={3} /></label>
                 </div>
               ) : null}
-              {activeStep === 3 ? (
+              {activeStep === 2 ? (
                 <div className="employee-step-grid">
                   <label>Contact person name<input name="contact_person_name" value={form.contact_person_name} onChange={(event) => setForm((prev) => ({ ...prev, contact_person_name: event.target.value }))} required /></label>
                   <label>Contact person ID.No<input name="contact_person_id_number" value={form.contact_person_id_number} onChange={(event) => setForm((prev) => ({ ...prev, contact_person_id_number: event.target.value }))} pattern="[A-Za-z0-9\\s/-]+" /></label>
@@ -3103,11 +3582,19 @@ export default function EmployeesPage() {
             <div className="notification-reminder-options employee-scan-option-grid">
               <button
                 type="button"
-                className={`notification-reminder-option employee-scan-option-card${ocrImportSource === 'device' ? ' is-selected' : ''}`}
-                onClick={() => triggerScanImport('device')}
+                className={`notification-reminder-option employee-scan-option-card${ocrImportSource === 'camera' ? ' is-selected' : ''}`}
+                onClick={() => triggerScanImport('camera')}
               >
-                <strong>Scan from device</strong>
-                <span>Use the camera or scanner path on this device and stage the file for OCR.</span>
+                <strong>From camera</strong>
+                <span>Capture a document photo from this device and stage it for OCR.</span>
+              </button>
+              <button
+                type="button"
+                className={`notification-reminder-option employee-scan-option-card${ocrImportSource === 'scanner' ? ' is-selected' : ''}`}
+                onClick={() => triggerScanImport('scanner')}
+              >
+                <strong>Scanner</strong>
+                <span>Choose a scanned PDF or image from a scanner workflow on this device.</span>
               </button>
               <button
                 type="button"
@@ -3120,6 +3607,249 @@ export default function EmployeesPage() {
             </div>
             <div className="app-confirm-actions">
               <button type="button" className="btn-secondary" onClick={closeScanImportModal}>Cancel</button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+      {cameraCaptureModalOpen ? (
+        <div className="app-confirm-backdrop" role="presentation" onClick={closeCameraCapture}>
+          <div
+            className="app-confirm-dialog notification-reminder-dialog employee-scan-modal employee-camera-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="employee-camera-title"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="app-confirm-header">
+              <h2 id="employee-camera-title">Capture from camera</h2>
+            </div>
+            <p className="app-confirm-message">
+              Position the document inside the preview, then capture a photo for OCR staging.
+            </p>
+            <div className="employee-camera-preview">
+              {cameraStream ? (
+                <video ref={scanCameraVideoRef} autoPlay playsInline muted />
+              ) : (
+                <div className="employee-camera-placeholder">
+                  {cameraError || 'Starting camera...'}
+                </div>
+              )}
+              <canvas ref={scanCameraCanvasRef} aria-hidden="true" />
+            </div>
+            {cameraError ? <p className="error-message employee-modal-error">{cameraError}</p> : null}
+            <div className="app-confirm-actions">
+              <button type="button" className="btn-secondary" onClick={backToScanOptionsFromCamera}>Back</button>
+              <button type="button" className="btn-secondary" onClick={closeCameraCapture}>Cancel</button>
+              <button type="button" onClick={captureCameraDocument} disabled={!cameraStream}>Capture photo</button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+      {uploadDocumentModalOpen ? (
+        <div className="app-confirm-backdrop" role="presentation" onClick={closeUploadDocumentModal}>
+          <div
+            className="app-confirm-dialog notification-reminder-dialog employee-scan-modal employee-upload-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="employee-upload-title"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="app-confirm-header">
+              <h2 id="employee-upload-title">Upload a document</h2>
+            </div>
+            <p className="app-confirm-message">
+              Select or drop a PDF or image document, then continue to stage it for OCR.
+            </p>
+            <div
+              className={`employee-upload-dropzone${uploadDragActive ? ' is-dragging' : ''}${uploadDraftFile ? ' has-file' : ''}`}
+              role="button"
+              tabIndex={0}
+              onClick={() => scanUploadInputRef.current?.click()}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter' || event.key === ' ') {
+                  event.preventDefault()
+                  scanUploadInputRef.current?.click()
+                }
+              }}
+              onDragEnter={(event) => {
+                event.preventDefault()
+                setUploadDragActive(true)
+              }}
+              onDragOver={(event) => {
+                event.preventDefault()
+                setUploadDragActive(true)
+              }}
+              onDragLeave={(event) => {
+                event.preventDefault()
+                setUploadDragActive(false)
+              }}
+              onDrop={handleUploadDrop}
+            >
+              <strong>{uploadDraftFile ? uploadDraftFile.name : 'Choose or drop a document'}</strong>
+              <span>{uploadDraftFile ? `${Math.max(1, Math.round(uploadDraftFile.size / 1024))} KB selected` : 'PDF, JPG, JPEG, or PNG'}</span>
+            </div>
+            <input
+              ref={scanUploadInputRef}
+              type="file"
+              accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png"
+              className="visually-hidden-file"
+              onChange={(event) => handleUploadDraftPick(event.target.files?.[0] || null)}
+            />
+            {uploadError ? <p className="error-message employee-modal-error">{uploadError}</p> : null}
+            <div className="app-confirm-actions">
+              <button type="button" className="btn-secondary" onClick={backToScanOptionsFromUpload}>Back</button>
+              <button type="button" className="btn-secondary" onClick={closeUploadDocumentModal}>Cancel</button>
+              <button type="button" onClick={submitUploadDocument} disabled={!uploadDraftFile}>Use document</button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+      {scannerModalOpen ? (
+        <div className="app-confirm-backdrop" role="presentation" onClick={closeScannerModal}>
+          <div
+            className="app-confirm-dialog notification-reminder-dialog employee-scan-modal employee-scanner-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="employee-scanner-title"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="app-confirm-header">
+              <h2 id="employee-scanner-title">Scanner</h2>
+            </div>
+            <p className="app-confirm-message">
+              The system connects to Dynamic Web TWAIN, which talks to the local TWAIN bridge/service and scanner driver before staging the scan for OCR.
+            </p>
+            <div className={`employee-scanner-status employee-scanner-status--${scannerStatus}`}>
+              <strong>
+                {scannerStatus === 'checking'
+                  ? 'Checking Dynamic Web TWAIN service...'
+                  : scannerStatus === 'scanning'
+                    ? 'Scanning document...'
+                    : scannerStatus === 'ready'
+                      ? 'Scanner service is ready'
+                      : scannerStatus === 'no-devices'
+                        ? 'Service found, no scanner detected'
+                        : 'Dynamic Web TWAIN service is not active'}
+              </strong>
+              {scannerError ? <span>{scannerError}</span> : null}
+            </div>
+            {scannerStatus === 'service-missing' ? (
+              <div className="employee-scanner-service-actions">
+                <a className="btn-secondary" href={DWT_SERVICE_INSTALLERS.windows}>Download for Windows</a>
+                <a className="btn-secondary" href={DWT_SERVICE_INSTALLERS.macos}>Download for macOS</a>
+                <a className="btn-secondary" href={DWT_SERVICE_INSTALLERS.linux}>Download for Linux</a>
+                <a className="btn-secondary" href={DWT_SERVICE_INSTALLERS.docs} target="_blank" rel="noreferrer">Service setup help</a>
+                <button type="button" onClick={checkScannerService}>I started the service - check again</button>
+              </div>
+            ) : null}
+            {scannerStatus === 'ready' ? (
+              <label className="employee-scanner-device-picker">
+                Scanner device
+                <select value={selectedScannerIndex} onChange={(event) => setSelectedScannerIndex(Number(event.target.value))}>
+                  {scannerDevices.map((device, index) => (
+                    <option key={`${device.displayName || device.name || 'scanner'}-${index}`} value={index}>
+                      {device.displayName || device.name || `Scanner ${index + 1}`}
+                    </option>
+                  ))}
+                </select>
+            </label>
+            ) : null}
+            <div id="employee-dwt-container" className="employee-dwt-container" aria-hidden="true" />
+            <div className="app-confirm-actions">
+              <button type="button" className="btn-secondary" onClick={backToScanOptionsFromScanner}>Back</button>
+              <button type="button" className="btn-secondary" onClick={closeScannerModal}>Cancel</button>
+              {scannerStatus === 'no-devices' ? (
+                <button type="button" onClick={checkScannerService}>Check again</button>
+              ) : null}
+              {scannerStatus === 'ready' ? (
+                <button type="button" onClick={scanFromSelectedScanner}>Scan document</button>
+              ) : null}
+            </div>
+          </div>
+        </div>
+      ) : null}
+      {scanAttachmentModalOpen ? (
+        <div className="app-confirm-backdrop" role="presentation" onClick={closeScanAttachmentModal}>
+          <div
+            className="app-confirm-dialog notification-reminder-dialog employee-scan-modal employee-scan-attach-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="employee-scan-attach-title"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="app-confirm-header">
+              <h2 id="employee-scan-attach-title">Attach from scan</h2>
+            </div>
+            <p className="app-confirm-message">
+              Adjust the scanned document and choose which attachment records should receive this image.
+            </p>
+            <div className="employee-scan-attach-workspace">
+              <div className="employee-scan-attach-preview">
+                {ocrImportPreviewUrl && ocrImportFile?.type?.startsWith('image/') ? (
+                  <div
+                    ref={scanAttachmentFrameRef}
+                    className={`employee-scan-attach-image-frame${scanAttachmentZoom > 1 ? ' is-zoomed' : ''}${scanAttachmentDragging ? ' is-dragging' : ''}`}
+                    onWheel={handleScanAttachmentWheel}
+                    onMouseDown={handleScanAttachmentPointerDown}
+                  >
+                    <img
+                      src={ocrImportPreviewUrl}
+                      alt="Scanned document preview"
+                      draggable="false"
+                      style={{
+                        transform: `translate(${scanAttachmentOffset.x}px, ${scanAttachmentOffset.y}px) rotate(${scanAttachmentRotation}deg) scale(${(scanAttachmentFlipX ? -1 : 1) * scanAttachmentZoom}, ${(scanAttachmentFlipY ? -1 : 1) * scanAttachmentZoom})`
+                      }}
+                    />
+                  </div>
+                ) : ocrImportPreviewUrl ? (
+                  <embed src={ocrImportPreviewUrl} title="Scanned document preview" />
+                ) : (
+                  <div className="employee-camera-placeholder">No scanned preview is available.</div>
+                )}
+              </div>
+              <div className="employee-scan-attach-controls">
+                <div className="employee-scan-adjust-panel">
+                  <strong>Adjust</strong>
+                  <div className="employee-scan-adjust-actions">
+                    <button type="button" className="btn-secondary" onClick={() => setScanAttachmentRotation((prev) => (prev + 270) % 360)}>Rotate left</button>
+                    <button type="button" className="btn-secondary" onClick={() => setScanAttachmentRotation((prev) => (prev + 90) % 360)}>Rotate right</button>
+                    <button type="button" className="btn-secondary" onClick={() => setScanAttachmentFlipX((prev) => !prev)}>Flip horizontal</button>
+                    <button type="button" className="btn-secondary" onClick={() => setScanAttachmentFlipY((prev) => !prev)}>Flip vertical</button>
+                    <button type="button" className="btn-secondary" onClick={() => setScanAttachmentZoom((prev) => Math.min(5, Number((prev + 0.25).toFixed(2))))}>Zoom in</button>
+                    <button type="button" className="btn-secondary" onClick={() => setScanAttachmentZoom((prev) => {
+                      const next = Math.max(1, Number((prev - 0.25).toFixed(2)))
+                      if (next === 1) setScanAttachmentOffset({ x: 0, y: 0 })
+                      return next
+                    })}>Zoom out</button>
+                    <button type="button" className="btn-secondary" onClick={resetScanAttachmentView}>Reset view</button>
+                  </div>
+                  {ocrImportFile?.type?.startsWith('image/') ? (
+                    <p className="muted-text employee-step-note">Use the mouse wheel to zoom from the cursor, then drag the image to frame the part you want. Attach selected saves what is currently visible.</p>
+                  ) : (
+                    <p className="muted-text employee-step-note">PDF scans can be attached directly. Crop, rotate, and flip are available for image scans.</p>
+                  )}
+                </div>
+                <div className="employee-scan-attachment-list">
+                  <strong>Attachment list</strong>
+                  <div className="employee-scan-attachment-options">
+                    {ATTACHMENT_FIELDS.map((attachment) => (
+                      <label key={attachment.key} className="checkbox-pill">
+                        <input
+                          type="checkbox"
+                          checked={scanAttachmentKeys.includes(attachment.key)}
+                          onChange={() => handleScanAttachmentKeyToggle(attachment.key)}
+                        />
+                        <span>{attachmentLabels[attachment.key] || attachment.label}</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+            {scanAttachmentError ? <p className="error-message employee-modal-error">{scanAttachmentError}</p> : null}
+            <div className="app-confirm-actions">
+              <button type="button" className="btn-secondary" onClick={closeScanAttachmentModal}>Cancel</button>
+              <button type="button" onClick={attachSelectedFromScan} disabled={scanAttachmentKeys.length === 0}>Attach selected</button>
             </div>
           </div>
         </div>
