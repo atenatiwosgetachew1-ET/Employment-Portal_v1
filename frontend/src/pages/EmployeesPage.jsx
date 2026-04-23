@@ -20,6 +20,7 @@ import {
   resetAspriseScannerService,
   scanWithAspriseScanner
 } from '../services/aspriseScannerService'
+import { extractTextFromEmployeeDocument, mapEmployeeOcrText } from '../services/employeeOcrService'
 import * as employeesService from '../services/employeesService'
 import { normalizeSearchValue } from '../utils/filtering'
 
@@ -73,6 +74,33 @@ const TEMPLATE_FORM_FIELDS = [
   'weight_kg',
   'height_cm'
 ]
+const EMPLOYEE_OCR_FIELD_LABELS = {
+  application_countries: 'Application countries',
+  profession: 'Profession',
+  employment_type: 'Employment type',
+  application_salary: 'Application salary',
+  professional_title: 'Professional title',
+  languages: 'Languages',
+  religion: 'Religion',
+  marital_status: 'Marital status',
+  children_count: 'Children count',
+  address: 'Address',
+  residence_country: 'Residence country',
+  nationality: 'Nationality',
+  birth_place: 'Birth place',
+  weight_kg: 'Weight',
+  height_cm: 'Height',
+  summary: 'Summary',
+  education: 'Education',
+  experience: 'Experience',
+  contact_person_name: 'Contact person name',
+  contact_person_id_number: 'Contact person ID',
+  contact_person_mobile: 'Contact person mobile',
+  email: 'Email',
+  phone: 'Phone',
+  references: 'References',
+  notes: 'Notes'
+}
 
 function readCssCustomProperty(name) {
   if (typeof window === 'undefined') return ''
@@ -877,6 +905,8 @@ export default function EmployeesPage() {
   const [ocrImportFileName, setOcrImportFileName] = useState('')
   const [ocrImportFile, setOcrImportFile] = useState(null)
   const [ocrImportPreviewUrl, setOcrImportPreviewUrl] = useState('')
+  const [ocrExtractedText, setOcrExtractedText] = useState('')
+  const [ocrBusy, setOcrBusy] = useState(false)
   const [scanAttachmentModalOpen, setScanAttachmentModalOpen] = useState(false)
   const [scanAttachmentKeys, setScanAttachmentKeys] = useState([])
   const [scanAttachmentRotation, setScanAttachmentRotation] = useState(0)
@@ -1368,6 +1398,8 @@ export default function EmployeesPage() {
     setOcrImportFileName('')
     setOcrImportFile(null)
     setOcrImportPreviewUrl('')
+    setOcrExtractedText('')
+    setOcrBusy(false)
     setScanAttachmentModalOpen(false)
     setScanAttachmentKeys([])
     setScanAttachmentRotation(0)
@@ -1425,6 +1457,17 @@ export default function EmployeesPage() {
     }
     setNotice('Registration template cleared.')
     setModalNotice('Registration template cleared.')
+  }
+
+  const handleResetRegistrationToTemplate = () => {
+    setForm(createFormFromTemplate())
+    setAttachmentFiles({})
+    setAttachmentLabels({})
+    setExistingAttachmentDocs({})
+    setActiveStep(0)
+    setModalError('')
+    clearScannedDocument()
+    setModalNotice('Registration reset to the saved template.')
   }
 
   const openScanImportModal = () => {
@@ -1643,6 +1686,8 @@ export default function EmployeesPage() {
     setOcrImportFileName(file.name || 'Selected document')
     setOcrImportFile(file)
     setOcrImportPreviewUrl(typeof URL !== 'undefined' ? URL.createObjectURL(file) : '')
+    setOcrExtractedText('')
+    setOcrBusy(false)
     setScanAttachmentError('')
     const sourceLabel =
       source === 'camera'
@@ -1653,11 +1698,11 @@ export default function EmployeesPage() {
 
     setModalNotice(
       `${sourceLabel} is ready for OCR. ` +
-      'The popup and file intake are in place, and the next OCR integration can map recognized values into the matching employee fields.'
+      'Move through the registration steps and use Auto fill to map detected text into the matching fields.'
     )
   }
 
-  const handleAutoFillFromScan = () => {
+  const handleAutoFillFromScan = async () => {
     if (!ocrImportFile) {
       setModalNotice('')
       setModalError('Scan, capture, or upload a document from the first step before using auto fill.')
@@ -1665,10 +1710,37 @@ export default function EmployeesPage() {
       return
     }
     setModalError('')
-    setModalNotice(
-      `Using ${ocrImportFileName || 'the scanned document'} for the ${REGISTRATION_STEPS[activeStep].label.toLowerCase()} fields. ` +
-      'OCR extraction is staged for this step, but field matching is not connected yet, so no values were changed.'
-    )
+    setOcrBusy(true)
+    setModalNotice(`Reading ${ocrImportFileName || 'the scanned document'} for ${REGISTRATION_STEPS[activeStep].label.toLowerCase()} fields...`)
+
+    try {
+      const text = ocrExtractedText || await extractTextFromEmployeeDocument(ocrImportFile)
+      if (!ocrExtractedText) setOcrExtractedText(text)
+
+      const updates = mapEmployeeOcrText(text, activeStep, form, formOptions)
+      const updatedFields = Object.keys(updates)
+      if (updatedFields.length === 0) {
+        setModalNotice(
+          'OCR finished, but no matching fields were found for this step.'
+        )
+        return
+      }
+
+      setForm((prev) => ({ ...prev, ...updates }))
+      const fieldLabels = updatedFields
+        .map((field) => EMPLOYEE_OCR_FIELD_LABELS[field] || field.replace(/_/g, ' '))
+        .slice(0, 5)
+        .join(', ')
+      setModalNotice(
+        `OCR filled ${updatedFields.length} ${updatedFields.length === 1 ? 'field' : 'fields'} for ${REGISTRATION_STEPS[activeStep].label.toLowerCase()}: ` +
+        `${fieldLabels}${updatedFields.length > 5 ? ', ...' : ''}.`
+      )
+    } catch (err) {
+      setModalNotice('')
+      setModalError(err?.message || 'OCR could not read this scanned document.')
+    } finally {
+      setOcrBusy(false)
+    }
   }
 
   const openScanAttachmentModal = () => {
@@ -2699,9 +2771,14 @@ export default function EmployeesPage() {
                     Save current values as template
                   </button>
                   {hasSavedTemplate ? (
-                    <button type="button" className="btn-secondary" onClick={handleClearTemplate} disabled={saving}>
-                      Clear template
-                    </button>
+                    <>
+                      <button type="button" className="btn-secondary" onClick={handleResetRegistrationToTemplate} disabled={saving}>
+                        Reset registration
+                      </button>
+                      <button type="button" className="btn-secondary" onClick={handleClearTemplate} disabled={saving}>
+                        Clear template
+                      </button>
+                    </>
                   ) : null}
                 </div>
               </div>
@@ -2746,7 +2823,22 @@ export default function EmployeesPage() {
                     </p>
                   ) : null}
                 </div>
-                <span className="btn-secondary employee-scan-launch-action">Open scan options</span>
+                <div className="employee-scan-launch-actions">
+                  {ocrImportFileName ? (
+                    <button
+                      type="button"
+                      className="btn-secondary"
+                      onClick={(event) => {
+                        event.stopPropagation()
+                        handleAutoFillFromScan()
+                      }}
+                      disabled={ocrBusy}
+                    >
+                      {ocrBusy ? 'Reading...' : 'Auto fill'}
+                    </button>
+                  ) : null}
+                  <span className="btn-secondary employee-scan-launch-action">Open scan options</span>
+                </div>
               </div>
             ) : activeStep > 0 && activeStep < 4 ? (
               <div className="employee-scan-step-assist">
@@ -2755,8 +2847,10 @@ export default function EmployeesPage() {
                   <span>{ocrImportFileName ? ocrImportFileName : 'No scanned document selected yet'}</span>
                 </div>
                 <div className="employee-scan-step-actions">
-                  <button type="button" className="btn-secondary" onClick={handleAutoFillFromScan}>Auto fill</button>
-                  <button type="button" className="btn-secondary" onClick={openScanImportModal}>Rescan</button>
+                  <button type="button" className="btn-secondary" onClick={handleAutoFillFromScan} disabled={ocrBusy}>
+                    {ocrBusy ? 'Reading...' : 'Auto fill'}
+                  </button>
+                  <button type="button" className="btn-secondary" onClick={openScanImportModal} disabled={ocrBusy}>Rescan</button>
                 </div>
               </div>
             ) : activeStep === 4 ? (

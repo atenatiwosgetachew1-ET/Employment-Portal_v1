@@ -3183,6 +3183,14 @@ html[data-theme='dark'] .notifications-page-list .notifications-page-item:not(.i
   font-size: 0.86rem;
 }
 
+.employee-scan-launch-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
 .employee-scan-launch-action {
   justify-self: end;
   white-space: nowrap;
@@ -4112,8 +4120,8 @@ html[data-theme='dark'] .notifications-page-list .notifications-page-item:not(.i
     grid-template-columns: 1fr;
   }
 
-  .employee-scan-launch-action {
-    justify-self: start;
+  .employee-scan-launch-actions {
+    justify-content: flex-start;
   }
 
 }
