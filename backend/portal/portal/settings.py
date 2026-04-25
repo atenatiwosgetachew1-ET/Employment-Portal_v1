@@ -193,6 +193,8 @@ if not DEBUG:
 FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:5173")
 LOGIN_MAX_FAILED_ATTEMPTS = int(os.getenv("LOGIN_MAX_FAILED_ATTEMPTS", "5") or "5")
 LOGIN_LOCKOUT_MINUTES = int(os.getenv("LOGIN_LOCKOUT_MINUTES", "15") or "15")
+EMPLOYEE_OCR_SERVICE_URL = (os.getenv("EMPLOYEE_OCR_SERVICE_URL") or "").strip().rstrip("/")
+EMPLOYEE_OCR_SERVICE_TIMEOUT_SECONDS = int(os.getenv("EMPLOYEE_OCR_SERVICE_TIMEOUT_SECONDS", "60") or "60")
 
 
 def _env_strip(key: str, default: str = "") -> str:

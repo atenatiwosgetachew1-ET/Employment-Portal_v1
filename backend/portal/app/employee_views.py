@@ -11,6 +11,7 @@ from rest_framework.views import APIView
 from .audit_log import log_audit
 from .auth_utils import feature_enabled, is_admin, is_superadmin
 from .employee_selection import build_agent_context, get_selection_agent_for_user
+from .employee_ocr import EmployeeOcrError, extract_employee_document_fields, get_ocr_status, parse_form_options
 from .licensing import get_access_restriction, get_user_organization
 from django.contrib.auth.models import User
 from .models import (
@@ -540,6 +541,52 @@ class EmployeeFormOptionsView(APIView):
                 "agent_options": agent_options,
             }
         )
+
+
+class EmployeeOcrExtractView(APIView):
+    permission_classes = [IsAuthenticated, EmployeesEnabled]
+    parser_classes = [MultiPartParser, FormParser]
+
+    def post(self, request):
+        restriction = get_access_restriction(request.user, write=True)
+        if restriction:
+            return Response({"detail": restriction}, status=status.HTTP_403_FORBIDDEN)
+        organization = get_user_organization(request.user)
+        if not organization or not can_manage_employee_registration(request.user, organization):
+            return Response(
+                {"detail": "Only organization-side privileged users can extract employee document fields."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        uploaded_file = request.FILES.get("file")
+        if not uploaded_file:
+            return Response({"detail": "No document was uploaded."}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            step_index = int(request.data.get("step_index", 0))
+        except (TypeError, ValueError):
+            return Response({"detail": "Invalid registration step."}, status=status.HTTP_400_BAD_REQUEST)
+
+        form_options = parse_form_options(request.data.get("form_options"))
+        try:
+            result = extract_employee_document_fields(uploaded_file, step_index=step_index, form_options=form_options)
+        except EmployeeOcrError as exc:
+            return Response({"detail": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+
+        return Response(result, status=status.HTTP_200_OK)
+
+
+class EmployeeOcrStatusView(APIView):
+    permission_classes = [IsAuthenticated, EmployeesEnabled]
+
+    def get(self, request):
+        organization = get_user_organization(request.user)
+        if not organization or not can_manage_employee_registration(request.user, organization):
+            return Response(
+                {"detail": "Only organization-side privileged users can check OCR setup."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+        return Response(get_ocr_status(), status=status.HTTP_200_OK)
 
 
 class EmployeeDocumentDeleteView(generics.DestroyAPIView):

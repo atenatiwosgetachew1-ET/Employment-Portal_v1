@@ -103,3 +103,23 @@ Expected company response shape from `POST /api/customer-portals/bootstrap-login
 ```
 
 If the username already exists locally, normal Django authentication is used and the company bootstrap fallback is skipped.
+
+## OCR Service
+
+Employee document OCR is backend-owned, but the recognition engine runs in a separate PaddleOCR service. The Employment Portal backend calls that service over HTTP, similar to how it integrates with the company control center.
+
+Set this on the customer Employment Portal:
+
+- `EMPLOYEE_OCR_SERVICE_URL`
+
+Optional backend override:
+
+- `EMPLOYEE_OCR_SERVICE_TIMEOUT_SECONDS`
+
+Local development default if `EMPLOYEE_OCR_SERVICE_URL` is empty:
+
+```text
+http://127.0.0.1:8766
+```
+
+This repository no longer contains the OCR engine runtime or any OCR service setup scripts. Run the OCR service separately and point `EMPLOYEE_OCR_SERVICE_URL` at it.

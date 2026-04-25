@@ -20,7 +20,6 @@ import {
   resetAspriseScannerService,
   scanWithAspriseScanner
 } from '../services/aspriseScannerService'
-import { extractTextFromEmployeeDocument, mapEmployeeOcrText } from '../services/employeeOcrService'
 import * as employeesService from '../services/employeesService'
 import { normalizeSearchValue } from '../utils/filtering'
 
@@ -142,6 +141,16 @@ const CARD_PREVIEW_DOCUMENTS = [
   { key: 'full', label: 'Full photo', types: ['full_photo'] },
   { key: 'passport', label: 'Passport', types: ['passport_photo', 'passport_document'] }
 ]
+
+function buildOcrCacheKey(file) {
+  if (!file) return ''
+  return [
+    file.name || 'scan',
+    file.size || 0,
+    file.lastModified || 0,
+    file.type || ''
+  ].join('::')
+}
 
 const emptyForm = {
   first_name: '', middle_name: '', last_name: '', date_of_birth: '', gender: '',
@@ -894,6 +903,7 @@ export default function EmployeesPage() {
   const [cameraError, setCameraError] = useState('')
   const [uploadDocumentModalOpen, setUploadDocumentModalOpen] = useState(false)
   const [uploadDraftFile, setUploadDraftFile] = useState(null)
+  const [uploadDocumentPurpose, setUploadDocumentPurpose] = useState('ocr')
   const [uploadError, setUploadError] = useState('')
   const [uploadDragActive, setUploadDragActive] = useState(false)
   const [scannerModalOpen, setScannerModalOpen] = useState(false)
@@ -905,9 +915,16 @@ export default function EmployeesPage() {
   const [ocrImportFileName, setOcrImportFileName] = useState('')
   const [ocrImportFile, setOcrImportFile] = useState(null)
   const [ocrImportPreviewUrl, setOcrImportPreviewUrl] = useState('')
-  const [ocrExtractedText, setOcrExtractedText] = useState('')
+  const [attachmentStageFileName, setAttachmentStageFileName] = useState('')
+  const [attachmentStageFile, setAttachmentStageFile] = useState(null)
+  const [attachmentStagePreviewUrl, setAttachmentStagePreviewUrl] = useState('')
+  const [ocrCachedResult, setOcrCachedResult] = useState(null)
   const [ocrBusy, setOcrBusy] = useState(false)
+  const [ocrSetupModalOpen, setOcrSetupModalOpen] = useState(false)
+  const [ocrStatus, setOcrStatus] = useState({ ready: false, message: '' })
+  const [ocrStatusLoading, setOcrStatusLoading] = useState(false)
   const [scanAttachmentModalOpen, setScanAttachmentModalOpen] = useState(false)
+  const [scanAttachmentSourceMode, setScanAttachmentSourceMode] = useState('scan')
   const [scanAttachmentKeys, setScanAttachmentKeys] = useState([])
   const [scanAttachmentRotation, setScanAttachmentRotation] = useState(0)
   const [scanAttachmentFlipX, setScanAttachmentFlipX] = useState(false)
@@ -1274,6 +1291,12 @@ export default function EmployeesPage() {
     }
   }, [ocrImportPreviewUrl])
 
+  useEffect(() => () => {
+    if (attachmentStagePreviewUrl && typeof URL !== 'undefined') {
+      URL.revokeObjectURL(attachmentStagePreviewUrl)
+    }
+  }, [attachmentStagePreviewUrl])
+
   useEffect(() => {
     if (typeof window === 'undefined') return
     try {
@@ -1392,15 +1415,21 @@ export default function EmployeesPage() {
 
   const hasSavedTemplate = Boolean(savedTemplate)
   const createFormFromTemplate = useCallback(() => applyRegistrationTemplate(savedTemplate), [savedTemplate])
+  const activeOcrCacheKey = buildOcrCacheKey(ocrImportFile)
+  const hasAnalyzedScan = Boolean(activeOcrCacheKey && ocrCachedResult?.cacheKey === activeOcrCacheKey)
+  const scanAttachmentSourceFile = scanAttachmentSourceMode === 'upload' ? attachmentStageFile : ocrImportFile
+  const scanAttachmentSourceFileName = scanAttachmentSourceMode === 'upload' ? attachmentStageFileName : ocrImportFileName
+  const scanAttachmentSourcePreviewUrl = scanAttachmentSourceMode === 'upload' ? attachmentStagePreviewUrl : ocrImportPreviewUrl
 
   const clearScannedDocument = useCallback(() => {
     setOcrImportSource('')
     setOcrImportFileName('')
     setOcrImportFile(null)
     setOcrImportPreviewUrl('')
-    setOcrExtractedText('')
+    setOcrCachedResult(null)
     setOcrBusy(false)
     setScanAttachmentModalOpen(false)
+    setScanAttachmentSourceMode('scan')
     setScanAttachmentKeys([])
     setScanAttachmentRotation(0)
     setScanAttachmentFlipX(false)
@@ -1409,6 +1438,12 @@ export default function EmployeesPage() {
     setScanAttachmentOffset({ x: 0, y: 0 })
     setScanAttachmentDragging(false)
     setScanAttachmentError('')
+  }, [])
+
+  const clearAttachmentStageDocument = useCallback(() => {
+    setAttachmentStageFileName('')
+    setAttachmentStageFile(null)
+    setAttachmentStagePreviewUrl('')
   }, [])
 
   const resetForm = useCallback(() => {
@@ -1460,14 +1495,18 @@ export default function EmployeesPage() {
   }
 
   const handleResetRegistrationToTemplate = () => {
-    setForm(createFormFromTemplate())
+    const hasTemplate = Boolean(savedTemplate)
+    setForm(hasTemplate ? createFormFromTemplate() : emptyForm)
     setAttachmentFiles({})
     setAttachmentLabels({})
     setExistingAttachmentDocs({})
     setActiveStep(0)
     setModalError('')
-    clearScannedDocument()
-    setModalNotice('Registration reset to the saved template.')
+    setModalNotice(
+      hasTemplate
+        ? 'Registration reset to the saved template. Current scanned document is still available for Auto fill.'
+        : 'Registration reset to a blank form. Current scanned document is still available for Auto fill.'
+    )
   }
 
   const openScanImportModal = () => {
@@ -1475,12 +1514,41 @@ export default function EmployeesPage() {
     setModalError('')
   }
 
+  const checkOcrStatus = async () => {
+    setOcrStatusLoading(true)
+    try {
+      const status = await employeesService.fetchEmployeeOcrStatus()
+      setOcrStatus(status)
+      if (status.ready) {
+        setOcrSetupModalOpen(false)
+        setModalNotice('OCR service is ready. Try Auto fill again.')
+      }
+      return status
+    } catch (err) {
+      const status = { ready: false, message: err?.message || 'Could not check OCR setup.' }
+      setOcrStatus(status)
+      return status
+    } finally {
+      setOcrStatusLoading(false)
+    }
+  }
+
+  const openOcrSetupModal = async () => {
+    setOcrSetupModalOpen(true)
+    await checkOcrStatus()
+  }
+
+  const closeOcrSetupModal = () => {
+    setOcrSetupModalOpen(false)
+  }
+
   const closeScanImportModal = () => {
     setScanImportModalOpen(false)
   }
 
-  const openUploadDocumentModal = () => {
+  const openUploadDocumentModal = (purpose = 'ocr') => {
     setScanImportModalOpen(false)
+    setUploadDocumentPurpose(purpose)
     setUploadDocumentModalOpen(true)
     setUploadDraftFile(null)
     setUploadError('')
@@ -1493,6 +1561,7 @@ export default function EmployeesPage() {
   const closeUploadDocumentModal = () => {
     setUploadDocumentModalOpen(false)
     setUploadDraftFile(null)
+    setUploadDocumentPurpose('ocr')
     setUploadError('')
     setUploadDragActive(false)
     if (scanUploadInputRef.current) {
@@ -1527,8 +1596,26 @@ export default function EmployeesPage() {
       setUploadError('Choose a document before continuing.')
       return
     }
-    closeUploadDocumentModal()/*  */
-    handleOcrDocumentPick('upload', uploadDraftFile)
+    const selectedFile = uploadDraftFile
+    const purpose = uploadDocumentPurpose
+    closeUploadDocumentModal()
+    if (purpose === 'attachment') {
+      handleAttachmentStagePick(selectedFile)
+      setTimeout(() => {
+        setScanAttachmentError('')
+        setScanAttachmentKeys([ATTACHMENT_FIELDS[0].key])
+        setScanAttachmentRotation(0)
+        setScanAttachmentFlipX(false)
+        setScanAttachmentFlipY(false)
+        setScanAttachmentZoom(1)
+        setScanAttachmentOffset({ x: 0, y: 0 })
+        setScanAttachmentDragging(false)
+        setScanAttachmentModalOpen(true)
+        setModalNotice('Generic document uploaded. Adjust it and attach the visible area to the selected attachment slots.')
+      }, 0)
+      return
+    }
+    handleOcrDocumentPick('upload', selectedFile)
   }
 
   const checkScannerService = async () => {
@@ -1686,7 +1773,7 @@ export default function EmployeesPage() {
     setOcrImportFileName(file.name || 'Selected document')
     setOcrImportFile(file)
     setOcrImportPreviewUrl(typeof URL !== 'undefined' ? URL.createObjectURL(file) : '')
-    setOcrExtractedText('')
+    setOcrCachedResult(null)
     setOcrBusy(false)
     setScanAttachmentError('')
     const sourceLabel =
@@ -1702,6 +1789,17 @@ export default function EmployeesPage() {
     )
   }
 
+  const handleAttachmentStagePick = (file) => {
+    if (!file) return
+    if (!attachmentFileAllowed(file)) {
+      setUploadError('Upload must be a PDF, JPG, JPEG, or PNG file.')
+      return
+    }
+    setAttachmentStageFileName(file.name || 'Selected document')
+    setAttachmentStageFile(file)
+    setAttachmentStagePreviewUrl(typeof URL !== 'undefined' ? URL.createObjectURL(file) : '')
+  }
+
   const handleAutoFillFromScan = async () => {
     if (!ocrImportFile) {
       setModalNotice('')
@@ -1709,15 +1807,26 @@ export default function EmployeesPage() {
       setActiveStep(0)
       return
     }
+    const cacheKey = buildOcrCacheKey(ocrImportFile)
+    const hasCachedResult = ocrCachedResult?.cacheKey === cacheKey
+    if (!hasCachedResult) {
+      setModalNotice('')
+      setModalError('Analyze the scanned document first, then use Auto fill for the current step.')
+      return
+    }
     setModalError('')
-    setOcrBusy(true)
-    setModalNotice(`Reading ${ocrImportFileName || 'the scanned document'} for ${REGISTRATION_STEPS[activeStep].label.toLowerCase()} fields...`)
+    setModalNotice(
+      `Using the analyzed OCR result for ${REGISTRATION_STEPS[activeStep].label.toLowerCase()} fields...`
+    )
 
     try {
-      const text = ocrExtractedText || await extractTextFromEmployeeDocument(ocrImportFile)
-      if (!ocrExtractedText) setOcrExtractedText(text)
-
-      const updates = mapEmployeeOcrText(text, activeStep, form, formOptions)
+      const result = ocrCachedResult
+      const updatesByStep = result?.updatesByStep && typeof result.updatesByStep === 'object' ? result.updatesByStep : {}
+      const updates = updatesByStep[String(activeStep)] && typeof updatesByStep[String(activeStep)] === 'object'
+        ? updatesByStep[String(activeStep)]
+        : result?.updates && typeof result.updates === 'object'
+          ? result.updates
+          : {}
       const updatedFields = Object.keys(updates)
       if (updatedFields.length === 0) {
         setModalNotice(
@@ -1737,19 +1846,71 @@ export default function EmployeesPage() {
       )
     } catch (err) {
       setModalNotice('')
-      setModalError(err?.message || 'OCR could not read this scanned document.')
+      const message = err?.message || 'OCR could not read this scanned document.'
+      setModalError(message)
+      if (message.includes('Backend OCR is not configured yet')) {
+        setOcrStatus({ ready: false, message })
+        await openOcrSetupModal()
+      }
+    }
+  }
+
+  const handleAnalyzeScan = async () => {
+    if (!ocrImportFile) {
+      setModalNotice('')
+      setModalError('Scan, capture, or upload a document from the first step before analyzing it.')
+      setActiveStep(0)
+      return
+    }
+    setModalError('')
+    setOcrBusy(true)
+    const cacheKey = buildOcrCacheKey(ocrImportFile)
+    const hasCachedResult = ocrCachedResult?.cacheKey === cacheKey
+    if (hasCachedResult) {
+      setModalNotice('This scanned document is already analyzed. Use Auto fill on any step to apply the detected fields.')
+      setOcrBusy(false)
+      return
+    }
+
+    setModalNotice(`Analyzing ${ocrImportFileName || 'the scanned document'} and preparing OCR matches for all registration steps...`)
+
+    try {
+      const result = await employeesService.extractEmployeeDocumentFields(ocrImportFile, 0, formOptions)
+      const updatesByStep = result?.updatesByStep && typeof result.updatesByStep === 'object' ? result.updatesByStep : {}
+      const mappedFieldCount = Object.values(updatesByStep).reduce((count, value) => {
+        if (!value || typeof value !== 'object') return count
+        return count + Object.keys(value).length
+      }, 0)
+      setOcrCachedResult({ ...result, cacheKey })
+      setModalNotice(
+        mappedFieldCount > 0
+          ? `Analysis completed. OCR found ${mappedFieldCount} mapped ${mappedFieldCount === 1 ? 'field' : 'fields'} across the registration steps.`
+          : 'Analysis completed, but no matching registration fields were found. You can still rescan or attach the document.'
+      )
+    } catch (err) {
+      setModalNotice('')
+      const message = err?.message || 'OCR could not read this scanned document.'
+      setModalError(message)
+      if (message.includes('Backend OCR is not configured yet')) {
+        setOcrStatus({ ready: false, message })
+        await openOcrSetupModal()
+      }
     } finally {
       setOcrBusy(false)
     }
   }
 
-  const openScanAttachmentModal = () => {
-    if (!ocrImportFile) {
+  const openScanAttachmentModal = (sourceMode = 'scan') => {
+    const selectedSourceFile = sourceMode === 'upload' ? attachmentStageFile : ocrImportFile
+    const missingMessage = sourceMode === 'upload'
+      ? 'Upload a generic document before attaching it.'
+      : 'Select or analyze a scanned document from step 1 before attaching it.'
+    if (!selectedSourceFile) {
       setModalNotice('')
-      setModalError('Scan, capture, or upload a document from the first step before attaching from scan.')
-      setActiveStep(0)
+      setModalError(missingMessage)
       return
     }
+    setScanAttachmentSourceMode(sourceMode)
     const missingRequiredKeys = MANDATORY_ATTACHMENT_KEYS.filter((key) => !attachmentFiles[key] && !existingAttachmentDocs[key])
     setScanAttachmentKeys(missingRequiredKeys.length > 0 ? missingRequiredKeys : [ATTACHMENT_FIELDS[0].key])
     setScanAttachmentRotation(0)
@@ -1776,7 +1937,7 @@ export default function EmployeesPage() {
   }
 
   const handleScanAttachmentWheel = (event) => {
-    if (!ocrImportFile?.type?.startsWith('image/')) return
+    if (!scanAttachmentSourceFile?.type?.startsWith('image/')) return
     event.preventDefault()
     const frame = scanAttachmentFrameRef.current
     if (!frame) return
@@ -1799,8 +1960,18 @@ export default function EmployeesPage() {
     })
   }
 
+  useEffect(() => {
+    const frame = scanAttachmentFrameRef.current
+    if (!frame || !scanAttachmentModalOpen || !scanAttachmentSourceFile?.type?.startsWith('image/')) return undefined
+    const handleWheel = (event) => handleScanAttachmentWheel(event)
+    frame.addEventListener('wheel', handleWheel, { passive: false })
+    return () => {
+      frame.removeEventListener('wheel', handleWheel)
+    }
+  }, [handleScanAttachmentWheel, scanAttachmentModalOpen, scanAttachmentSourceFile])
+
   const handleScanAttachmentPointerDown = (event) => {
-    if (!ocrImportFile?.type?.startsWith('image/') || scanAttachmentZoom <= 1) return
+    if (!scanAttachmentSourceFile?.type?.startsWith('image/') || scanAttachmentZoom <= 1) return
     scanAttachmentDragRef.current = {
       startX: event.clientX,
       startY: event.clientY,
@@ -1817,11 +1988,11 @@ export default function EmployeesPage() {
   }
 
   const buildAdjustedScanAttachment = async () => {
-    if (!ocrImportFile) throw new Error('No scanned document is ready.')
-    if (!ocrImportFile.type?.startsWith('image/')) return ocrImportFile
-    if (typeof document === 'undefined' || !ocrImportPreviewUrl) return ocrImportFile
+    if (!scanAttachmentSourceFile) throw new Error('No scanned document is ready.')
+    if (!scanAttachmentSourceFile.type?.startsWith('image/')) return scanAttachmentSourceFile
+    if (typeof document === 'undefined' || !scanAttachmentSourcePreviewUrl) return scanAttachmentSourceFile
 
-    const image = await loadImageFromUrl(ocrImportPreviewUrl)
+    const image = await loadImageFromUrl(scanAttachmentSourcePreviewUrl)
     const frame = scanAttachmentFrameRef.current
     const frameWidth = Math.max(1, Math.round(frame?.clientWidth || image.naturalWidth))
     const frameHeight = Math.max(1, Math.round(frame?.clientHeight || image.naturalHeight))
@@ -2751,7 +2922,7 @@ export default function EmployeesPage() {
       {notice ? <p className="muted-text message-block--mb-16">{notice}</p> : null}
       {currentView === 'register' ? (
         <div className="users-table-wrap employee-registration-surface">
-          <div ref={registrationRef} className="employee-modal" aria-labelledby="employee-modal-title">
+          <div ref={registrationRef} className="employee-modal employee-modal--flat" aria-labelledby="employee-modal-title">
             <div className="employee-modal-header">
               <div>
                 <p className="employee-modal-eyebrow">Register employee</p>
@@ -2770,15 +2941,13 @@ export default function EmployeesPage() {
                   <button type="button" className="btn-secondary" onClick={handleSaveTemplate} disabled={saving}>
                     Save current values as template
                   </button>
+                  <button type="button" className="btn-secondary" onClick={handleResetRegistrationToTemplate} disabled={saving}>
+                    Reset registration
+                  </button>
                   {hasSavedTemplate ? (
-                    <>
-                      <button type="button" className="btn-secondary" onClick={handleResetRegistrationToTemplate} disabled={saving}>
-                        Reset registration
-                      </button>
-                      <button type="button" className="btn-secondary" onClick={handleClearTemplate} disabled={saving}>
-                        Clear template
-                      </button>
-                    </>
+                    <button type="button" className="btn-secondary" onClick={handleClearTemplate} disabled={saving}>
+                      Clear template
+                    </button>
                   ) : null}
                 </div>
               </div>
@@ -2824,19 +2993,39 @@ export default function EmployeesPage() {
                   ) : null}
                 </div>
                 <div className="employee-scan-launch-actions">
-                  {ocrImportFileName ? (
-                    <button
-                      type="button"
-                      className="btn-secondary"
-                      onClick={(event) => {
-                        event.stopPropagation()
-                        handleAutoFillFromScan()
-                      }}
-                      disabled={ocrBusy}
-                    >
-                      {ocrBusy ? 'Reading...' : 'Auto fill'}
-                    </button>
-                  ) : null}
+                  <button
+                    type="button"
+                    className="btn-secondary"
+                    onClick={(event) => {
+                      event.stopPropagation()
+                      handleAnalyzeScan()
+                    }}
+                    disabled={ocrBusy || !ocrImportFileName}
+                  >
+                    {ocrBusy ? 'Analyzing...' : 'Analyze'}
+                  </button>
+                  <button
+                    type="button"
+                    className="btn-secondary"
+                    onClick={(event) => {
+                      event.stopPropagation()
+                      handleAutoFillFromScan()
+                    }}
+                    disabled={ocrBusy || !ocrImportFileName || !hasAnalyzedScan}
+                  >
+                    Auto fill
+                  </button>
+                  <button
+                    type="button"
+                    className="btn-secondary"
+                    onClick={(event) => {
+                      event.stopPropagation()
+                      clearScannedDocument()
+                    }}
+                    disabled={ocrBusy || !ocrImportFileName}
+                  >
+                    Reset
+                  </button>
                   <span className="btn-secondary employee-scan-launch-action">Open scan options</span>
                 </div>
               </div>
@@ -2847,21 +3036,27 @@ export default function EmployeesPage() {
                   <span>{ocrImportFileName ? ocrImportFileName : 'No scanned document selected yet'}</span>
                 </div>
                 <div className="employee-scan-step-actions">
-                  <button type="button" className="btn-secondary" onClick={handleAutoFillFromScan} disabled={ocrBusy}>
-                    {ocrBusy ? 'Reading...' : 'Auto fill'}
+                  <button type="button" className="btn-secondary" onClick={handleAutoFillFromScan} disabled={ocrBusy || !ocrImportFileName || !hasAnalyzedScan}>
+                    Auto fill
                   </button>
-                  <button type="button" className="btn-secondary" onClick={openScanImportModal} disabled={ocrBusy}>Rescan</button>
                 </div>
               </div>
             ) : activeStep === 4 ? (
               <div className="employee-scan-step-assist">
                 <div>
-                  <strong>Attached from the scanned document</strong>
-                  <span>{ocrImportFileName ? ocrImportFileName : 'No scanned document selected yet'}</span>
+                  <strong>Attach documents</strong>
+                  <span>{scanAttachmentSourceFileName ? scanAttachmentSourceFileName : 'No scanned document selected yet'}</span>
                 </div>
                 <div className="employee-scan-step-actions">
-                  <button type="button" className="btn-secondary" onClick={openScanAttachmentModal}>Attach from scan</button>
-                  <button type="button" className="btn-secondary" onClick={openScanImportModal}>Rescan</button>
+                  <button type="button" className="btn-secondary" onClick={() => openScanAttachmentModal('scan')} disabled={!ocrImportFile}>
+                    Attach from scan
+                  </button>
+                  <button type="button" className="btn-secondary" onClick={() => openScanAttachmentModal('upload')} disabled={!attachmentStageFile}>
+                    Attach from upload
+                  </button>
+                  <button type="button" className="btn-secondary" onClick={() => openUploadDocumentModal('attachment')}>
+                    Upload generic document
+                  </button>
                 </div>
               </div>
             ) : null}
@@ -2882,9 +3077,9 @@ export default function EmployeesPage() {
                       {GENDER_OPTIONS.map((option) => <option key={option} value={option}>{option}</option>)}
                     </select>
                   </label>
-                  <label>ID Number<input name="id_number" value={form.id_number} onChange={(event) => setForm((prev) => ({ ...prev, id_number: event.target.value }))} pattern="[A-Za-z0-9\\s/-]+" /></label>
-                  <label>Passport Number *<input name="passport_number" value={form.passport_number} onChange={(event) => setForm((prev) => ({ ...prev, passport_number: event.target.value }))} pattern="[A-Za-z0-9\\s/-]+" required /></label>
-                  <label>Labour ID<input name="labour_id" value={form.labour_id} onChange={(event) => setForm((prev) => ({ ...prev, labour_id: event.target.value }))} pattern="[A-Za-z0-9\\s/-]+" /></label>
+                  <label>ID Number<input name="id_number" value={form.id_number} onChange={(event) => setForm((prev) => ({ ...prev, id_number: event.target.value }))} /></label>
+                  <label>Passport Number *<input name="passport_number" value={form.passport_number} onChange={(event) => setForm((prev) => ({ ...prev, passport_number: event.target.value }))} required /></label>
+                  <label>Labour ID<input name="labour_id" value={form.labour_id} onChange={(event) => setForm((prev) => ({ ...prev, labour_id: event.target.value }))} /></label>
                   <label>Mobile Number *<input name="mobile_number" value={form.mobile_number} onChange={(event) => setForm((prev) => ({ ...prev, mobile_number: event.target.value }))} inputMode="tel" placeholder="+251900000001" required /></label>
                   {ageRestrictionError ? <p className="error-message employee-step-note">{ageRestrictionError}</p> : null}
                 </div>
@@ -3013,7 +3208,7 @@ export default function EmployeesPage() {
               {activeStep === 2 ? (
                 <div className="employee-step-grid">
                   <label>Contact person name<input name="contact_person_name" value={form.contact_person_name} onChange={(event) => setForm((prev) => ({ ...prev, contact_person_name: event.target.value }))} required /></label>
-                  <label>Contact person ID.No<input name="contact_person_id_number" value={form.contact_person_id_number} onChange={(event) => setForm((prev) => ({ ...prev, contact_person_id_number: event.target.value }))} pattern="[A-Za-z0-9\\s/-]+" /></label>
+                  <label>Contact person ID.No<input name="contact_person_id_number" value={form.contact_person_id_number} onChange={(event) => setForm((prev) => ({ ...prev, contact_person_id_number: event.target.value }))} /></label>
                   <label>Contact person mobile<input name="contact_person_mobile" value={form.contact_person_mobile} onChange={(event) => setForm((prev) => ({ ...prev, contact_person_mobile: event.target.value }))} inputMode="tel" placeholder="+251900000002" required /></label>
                   <label>Email<input name="email" type="email" value={form.email} onChange={(event) => setForm((prev) => ({ ...prev, email: event.target.value }))} placeholder="name@example.com" /></label>
                   <label>Secondary phone<input name="phone" value={form.phone} onChange={(event) => setForm((prev) => ({ ...prev, phone: event.target.value }))} inputMode="tel" placeholder="+251900000003" /></label>
@@ -3028,14 +3223,20 @@ export default function EmployeesPage() {
                   <div className="employee-span-two attachment-grid">
                     {ATTACHMENT_FIELDS.map((attachment) => {
                       const inputId = `employee-attachment-${attachment.key}`;
+                      const hasAttachment = Boolean(
+                        attachmentFiles[attachment.key] || existingAttachmentDocs[attachment.key]?.file_url
+                      )
 
                       return (
-                        <div key={attachment.key} className="attachment-box">
-                          <span className="attachment-box-title">{attachment.label}</span>
+                        <div key={attachment.key} className={`attachment-box attachment-box--slot${hasAttachment ? ' is-filled' : ''}`}>
+                          <span className="attachment-box-title attachment-box-title--slot">
+                            {attachment.label}
+                            {hasAttachment ? <span className="attachment-box-badge attachment-box-badge--slot" aria-label="File attached" title="File attached">*</span> : null}
+                          </span>
                           {attachment.key.startsWith('att_option_') ? <input type="text" value={attachmentLabels[attachment.key] || ''} onChange={(event) => setAttachmentLabels((prev) => ({ ...prev, [attachment.key]: event.target.value }))} placeholder="Attachment name" /> : null}
                           {attachment.expiryField ? <input name={attachment.expiryField} type="date" value={form[attachment.expiryField]} onChange={(event) => setForm((prev) => ({ ...prev, [attachment.expiryField]: event.target.value }))} /> : null}
                           <div className="attachment-file-row">
-                            <span className="attachment-file-name">
+                            <span className="attachment-file-name attachment-file-name--slot">
                               {attachmentFiles[attachment.key]?.name
                                 || attachmentDisplayName(existingAttachmentDocs[attachment.key], attachmentLabels)
                                 || 'No file selected'}
@@ -3671,7 +3872,7 @@ export default function EmployeesPage() {
               <h2 id="employee-scan-title">Scan from document</h2>
             </div>
             <p className="app-confirm-message">
-              Choose how you want to bring the document in before the OCR autofill wiring is added.
+              Choose how you want to bring the document in, then use Auto fill to let the backend extract matching employee fields.
             </p>
             <div className="notification-reminder-options employee-scan-option-grid">
               <button
@@ -3700,6 +3901,7 @@ export default function EmployeesPage() {
               </button>
             </div>
             <div className="app-confirm-actions">
+              <button type="button" className="btn-secondary" onClick={openOcrSetupModal}>OCR setup</button>
               <button type="button" className="btn-secondary" onClick={closeScanImportModal}>Cancel</button>
             </div>
           </div>
@@ -3749,10 +3951,14 @@ export default function EmployeesPage() {
             onClick={(event) => event.stopPropagation()}
           >
             <div className="app-confirm-header">
-              <h2 id="employee-upload-title">Upload a document</h2>
+              <h2 id="employee-upload-title">
+                {uploadDocumentPurpose === 'attachment' ? 'Upload a generic document' : 'Upload a document'}
+              </h2>
             </div>
             <p className="app-confirm-message">
-              Select or drop a PDF or image document, then continue to stage it for OCR.
+              {uploadDocumentPurpose === 'attachment'
+                ? 'Select or drop a PDF or image document, then continue to adjust and attach the visible area to employee attachment slots.'
+                : 'Select or drop a PDF or image document, then continue to stage it for OCR.'}
             </p>
             <div
               className={`employee-upload-dropzone${uploadDragActive ? ' is-dragging' : ''}${uploadDraftFile ? ' has-file' : ''}`}
@@ -3791,9 +3997,17 @@ export default function EmployeesPage() {
             />
             {uploadError ? <p className="error-message employee-modal-error">{uploadError}</p> : null}
             <div className="app-confirm-actions">
-              <button type="button" className="btn-secondary" onClick={backToScanOptionsFromUpload}>Back</button>
-              <button type="button" className="btn-secondary" onClick={closeUploadDocumentModal}>Cancel</button>
-              <button type="button" onClick={submitUploadDocument} disabled={!uploadDraftFile}>Use document</button>
+              {uploadDocumentPurpose === 'attachment' ? (
+                <button type="button" className="btn-secondary" onClick={closeUploadDocumentModal}>Cancel</button>
+              ) : (
+                <>
+                  <button type="button" className="btn-secondary" onClick={backToScanOptionsFromUpload}>Back</button>
+                  <button type="button" className="btn-secondary" onClick={closeUploadDocumentModal}>Cancel</button>
+                </>
+              )}
+              <button type="button" onClick={submitUploadDocument} disabled={!uploadDraftFile}>
+                {uploadDocumentPurpose === 'attachment' ? 'Use for attachments' : 'Use document'}
+              </button>
             </div>
           </div>
         </div>
@@ -3868,22 +4082,21 @@ export default function EmployeesPage() {
             onClick={(event) => event.stopPropagation()}
           >
             <div className="app-confirm-header">
-              <h2 id="employee-scan-attach-title">Attach from scan</h2>
+              <h2 id="employee-scan-attach-title">Attach from document</h2>
             </div>
             <p className="app-confirm-message">
-              Adjust the scanned document and choose which attachment records should receive this image.
+              Adjust the document and choose which attachment records should receive this image.
             </p>
             <div className="employee-scan-attach-workspace">
               <div className="employee-scan-attach-preview">
-                {ocrImportPreviewUrl && ocrImportFile?.type?.startsWith('image/') ? (
+                {scanAttachmentSourcePreviewUrl && scanAttachmentSourceFile?.type?.startsWith('image/') ? (
                   <div
                     ref={scanAttachmentFrameRef}
                     className={`employee-scan-attach-image-frame${scanAttachmentZoom > 1 ? ' is-zoomed' : ''}${scanAttachmentDragging ? ' is-dragging' : ''}`}
-                    onWheel={handleScanAttachmentWheel}
                     onMouseDown={handleScanAttachmentPointerDown}
                   >
                     <img
-                      src={ocrImportPreviewUrl}
+                      src={scanAttachmentSourcePreviewUrl}
                       alt="Scanned document preview"
                       draggable="false"
                       style={{
@@ -3891,8 +4104,8 @@ export default function EmployeesPage() {
                       }}
                     />
                   </div>
-                ) : ocrImportPreviewUrl ? (
-                  <embed src={ocrImportPreviewUrl} title="Scanned document preview" />
+                ) : scanAttachmentSourcePreviewUrl ? (
+                  <embed src={scanAttachmentSourcePreviewUrl} title="Scanned document preview" />
                 ) : (
                   <div className="employee-camera-placeholder">No scanned preview is available.</div>
                 )}
@@ -3913,7 +4126,7 @@ export default function EmployeesPage() {
                     })}>Zoom out</button>
                     <button type="button" className="btn-secondary" onClick={resetScanAttachmentView}>Reset view</button>
                   </div>
-                  {ocrImportFile?.type?.startsWith('image/') ? (
+                  {scanAttachmentSourceFile?.type?.startsWith('image/') ? (
                     <p className="muted-text employee-step-note">Use the mouse wheel to zoom from the cursor, then drag the image to frame the part you want. Attach selected saves what is currently visible.</p>
                   ) : (
                     <p className="muted-text employee-step-note">PDF scans can be attached directly. Crop, rotate, and flip are available for image scans.</p>
@@ -3940,6 +4153,38 @@ export default function EmployeesPage() {
             <div className="app-confirm-actions">
               <button type="button" className="btn-secondary" onClick={closeScanAttachmentModal}>Cancel</button>
               <button type="button" onClick={attachSelectedFromScan} disabled={scanAttachmentKeys.length === 0}>Attach selected</button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+      {ocrSetupModalOpen ? (
+        <div className="app-confirm-backdrop" role="presentation" onClick={closeOcrSetupModal}>
+          <div
+            className="app-confirm-dialog notification-reminder-dialog employee-scan-modal employee-ocr-setup-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="employee-ocr-setup-title"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="app-confirm-header">
+              <h2 id="employee-ocr-setup-title">OCR setup</h2>
+            </div>
+            <p className="app-confirm-message">
+              Make sure the configured OCR service is running and reachable from this portal backend, then check again so employee document autofill can run.
+            </p>
+            <div className={`employee-scanner-status employee-scanner-status--${ocrStatus.ready ? 'ready' : 'service-missing'}`}>
+              <strong>{ocrStatus.ready ? 'OCR service is ready' : 'OCR service is not ready'}</strong>
+              <span>{ocrStatusLoading ? 'Checking OCR service...' : (ocrStatus.message || 'Start the configured OCR service, then check again.')}</span>
+            </div>
+            {!ocrStatus.ready ? (
+              <div className="employee-scanner-service-actions">
+                <button type="button" onClick={checkOcrStatus} disabled={ocrStatusLoading}>
+                  {ocrStatusLoading ? 'Checking...' : 'I started it - check again'}
+                </button>
+              </div>
+            ) : null}
+            <div className="app-confirm-actions">
+              <button type="button" className="btn-secondary" onClick={closeOcrSetupModal}>Close</button>
             </div>
           </div>
         </div>

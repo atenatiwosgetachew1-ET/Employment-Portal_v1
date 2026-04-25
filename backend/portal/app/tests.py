@@ -15,6 +15,7 @@ from django.test import Client, TestCase, override_settings
 from django.utils import timezone
 from rest_framework.test import APIClient
 
+from .employee_ocr import build_field_candidates, extract_employee_document_fields
 from .licensing import get_user_organization
 from .models import (
     AuditLog,
@@ -1156,6 +1157,147 @@ class EmployeeManagementTests(TestCase):
         self.assertIn("Saudi Arabia", response.data["destination_countries"])
         self.assertIn("2400.00", response.data["salary_options_by_country"]["Saudi Arabia"])
         self.assertTrue(any(option["id"] == agent.id for option in response.data["agent_options"]))
+
+    @patch("app.employee_views.extract_employee_document_fields")
+    def test_employee_ocr_endpoint_returns_backend_updates(self, mocked_extract):
+        superadmin = self._create_user("owner-ocr", Profile.ROLE_SUPERADMIN)
+        self.client.force_authenticate(user=superadmin)
+        mocked_extract.return_value = {
+            "text": "Passport Number EQ2380846",
+            "updates": {
+                "passport_number": "EQ2380846",
+                "first_name": "Temima",
+                "last_name": "Hedeto",
+            },
+        }
+
+        uploaded_file = SimpleUploadedFile("passport.jpg", b"fake-image-bytes", content_type="image/jpeg")
+        response = self.client.post(
+            "/api/employees/ocr/",
+            {
+                "file": uploaded_file,
+                "step_index": "0",
+                "form_options": json.dumps({"destination_countries": ["Saudi Arabia"]}),
+            },
+            format="multipart",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["updates"]["passport_number"], "EQ2380846")
+        self.assertEqual(response.data["updates"]["first_name"], "Temima")
+
+    @patch("app.employee_views.get_ocr_status")
+    def test_employee_ocr_status_endpoint_returns_setup_state(self, mocked_status):
+        superadmin = self._create_user("owner-ocr-status", Profile.ROLE_SUPERADMIN)
+        self.client.force_authenticate(user=superadmin)
+        mocked_status.return_value = {
+            "ready": False,
+            "message": "Backend OCR is not configured yet.",
+            "command": "",
+        }
+
+        response = self.client.get("/api/employees/ocr/status/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(response.data["ready"])
+        self.assertIn("not configured", response.data["message"].lower())
+
+    def test_build_field_candidates_prefers_passport_specific_values(self):
+        passport_text = """
+        PASSPORT
+        Surname
+        HEDETO
+        Given Name
+        TEMIMA ALIYI
+        Nationality
+        ETHIOPIAN
+        Sex
+        F
+        Date of Birth
+        29 NOV O1
+        Place of Birth
+        HASASA
+        Passport No
+        EQ2380846
+
+        PQETHHEDETO<<TEMIMA<ALIYI<<<<<<<<<<<<<<<<<<<<
+        EQ23808467ETH0111296F30101160<<<<<<<<<<<<<<02
+        """
+
+        candidates = build_field_candidates(passport_text)
+
+        self.assertEqual(candidates["first_name"], "Temima")
+        self.assertEqual(candidates["middle_name"], "Aliyi")
+        self.assertEqual(candidates["last_name"], "Hedeto")
+        self.assertEqual(candidates["passport_number"], "EQ2380846")
+        self.assertEqual(candidates["date_of_birth"], "2001-11-29")
+        self.assertEqual(candidates["gender"], "Female")
+        self.assertEqual(candidates["birth_place"], "HASASA")
+        self.assertEqual(candidates["mobile_number"], "")
+
+    @patch("app.employee_ocr.fetch_service_json")
+    def test_extract_employee_document_fields_prefers_structured_passport_fields(self, mocked_fetch):
+        mocked_fetch.return_value = {
+            "ok": True,
+            "status": 200,
+            "message": "OCR completed.",
+            "engine": "PaddleOCR",
+            "document_type": "passport",
+            "file_name": "passport.jpg",
+            "content_type": "image/jpeg",
+            "text": "messy fallback text",
+            "raw_text": "raw fallback text",
+            "fields": {
+                "passport_number": "EP8221925",
+                "surname": "ARARISSA",
+                "given_names": "GETACHEW DADI",
+                "nationality": "ETHIOPIAN",
+                "sex": "M",
+                "date_of_birth": "28MAR71",
+                "place_of_birth": "SELALE",
+            },
+            "warnings": ["low confidence expiry"],
+        }
+
+        uploaded_file = SimpleUploadedFile("passport.jpg", b"fake-image-bytes", content_type="image/jpeg")
+
+        step_zero_result = extract_employee_document_fields(uploaded_file, step_index=0, form_options={})
+        step_one_result = extract_employee_document_fields(uploaded_file, step_index=1, form_options={})
+
+        self.assertEqual(step_zero_result["document_type"], "passport")
+        self.assertEqual(step_zero_result["fields"]["passport_number"], "EP8221925")
+        self.assertEqual(step_zero_result["warnings"], ["low confidence expiry"])
+        self.assertEqual(step_zero_result["updates"]["passport_number"], "EP8221925")
+        self.assertEqual(step_zero_result["updates"]["date_of_birth"], "1971-03-28")
+        self.assertEqual(step_zero_result["updates"]["gender"], "Male")
+        self.assertEqual(step_one_result["updates"]["nationality"], "Ethiopian")
+        self.assertEqual(step_one_result["updates"]["birth_place"], "Selale")
+
+    @patch("app.employee_ocr.fetch_service_json")
+    def test_extract_employee_document_fields_falls_back_to_text_when_fields_missing(self, mocked_fetch):
+        mocked_fetch.return_value = {
+            "ok": True,
+            "status": 200,
+            "message": "OCR completed.",
+            "engine": "PaddleOCR",
+            "document_type": "generic",
+            "file_name": "scan.jpg",
+            "content_type": "image/jpeg",
+            "text": "Passport Number EQ2380846\nGiven Name Temima Aliyi\nSurname Hedeto",
+            "raw_text": "",
+            "fields": {},
+            "warnings": [],
+        }
+
+        uploaded_file = SimpleUploadedFile("scan.jpg", b"fake-image-bytes", content_type="image/jpeg")
+
+        result = extract_employee_document_fields(uploaded_file, step_index=0, form_options={})
+
+        self.assertEqual(result["document_type"], "generic")
+        self.assertEqual(result["updates"]["passport_number"], "EQ2380846")
+        self.assertEqual(result["updates"]["first_name"], "Temima")
+        self.assertEqual(result["updates"]["middle_name"], "Aliyi")
+        self.assertEqual(result["updates"]["last_name"], "Hedeto")
 
     def test_agent_can_select_employee_and_org_can_filter_selected_employees(self):
         superadmin = self._create_user("owner-select", Profile.ROLE_SUPERADMIN)

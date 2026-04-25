@@ -8573,4 +8573,49 @@ html[data-theme='light'][data-accent='natural'] .employee-review-modal .return-r
   box-shadow: none !important;
 }
 
+.employee-modal {
+  box-shadow: none !important;
+}
+
+.attachment-box {
+  position: relative;
+  border: 1px solid color-mix(in oklch, var(--color-border) 88%, transparent) !important;
+  box-shadow: none !important;
+}
+
+.attachment-box.is-filled {
+  border-color: rgb(var(--accent-active, 59 130 246) / 0.72) !important;
+  background: color-mix(in oklch, rgb(var(--accent-active, 59 130 246)) 10%, var(--color-surface) 90%) !important;
+}
+
+.attachment-box-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.attachment-box-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.35rem;
+  height: 1.35rem;
+  padding: 0 0.3rem;
+  border-radius: 999px;
+  border: 1px solid rgb(var(--accent-active, 59 130 246) / 0.28);
+  background: rgb(var(--accent-active, 59 130 246) / 0.14);
+  color: rgb(var(--accent-active, 59 130 246));
+  font-size: 0.82rem;
+  line-height: 1;
+  font-weight: 700;
+}
+
+.attachment-box,
+.attachment-box:hover,
+.attachment-box:focus-within,
+.attachment-box:active {
+  box-shadow: none !important;
+}
+
 

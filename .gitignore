@@ -40,6 +40,7 @@ backend/portal/staticfiles/
 backend/portal/media/
 backend/portal/*.sqlite3
 backend/portal/test_*.sqlite3
+backend/ocr-sidecar/
 
 # Node / frontend
 node_modules/
@@ -59,5 +60,6 @@ pnpm-debug.log*
 
 # Local tool/cache files
 .cache/
+.paddlex/
 tmp/
 temp/

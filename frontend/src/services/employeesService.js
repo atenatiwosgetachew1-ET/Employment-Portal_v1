@@ -57,6 +57,45 @@ export async function fetchEmployeeFormOptions() {
   }
 }
 
+export async function extractEmployeeDocumentFields(file, stepIndex, formOptions = {}) {
+  const formData = new FormData()
+  formData.append('file', file)
+  formData.append('step_index', String(stepIndex))
+  formData.append('form_options', JSON.stringify(formOptions || {}))
+
+  const response = await apiFetch('/api/employees/ocr/', {
+    method: 'POST',
+    body: formData
+  })
+  const data = await response.json().catch(() => ({}))
+  if (!response.ok) {
+    throw new Error(responseError(data, 'Failed to extract document fields'))
+  }
+  return {
+    text: typeof data.text === 'string' ? data.text : '',
+    rawText: typeof data.raw_text === 'string' ? data.raw_text : '',
+    documentType: typeof data.document_type === 'string' ? data.document_type : '',
+    fields: data.fields && typeof data.fields === 'object' ? data.fields : {},
+    warnings: Array.isArray(data.warnings) ? data.warnings : [],
+    updatesByStep: data.updates_by_step && typeof data.updates_by_step === 'object' ? data.updates_by_step : {},
+    updates: data.updates && typeof data.updates === 'object' ? data.updates : {}
+  }
+}
+
+export async function fetchEmployeeOcrStatus() {
+  const response = await apiFetch('/api/employees/ocr/status/')
+  const data = await response.json().catch(() => ({}))
+  if (!response.ok) {
+    throw new Error(responseError(data, 'Failed to check OCR setup'))
+  }
+  return {
+    ready: Boolean(data.ready),
+    message: typeof data.message === 'string' ? data.message : '',
+    command: typeof data.command === 'string' ? data.command : '',
+    engine: typeof data.engine === 'string' ? data.engine : ''
+  }
+}
+
 export async function createEmployee(payload) {
   const response = await apiFetch('/api/employees/', {
     method: 'POST',
