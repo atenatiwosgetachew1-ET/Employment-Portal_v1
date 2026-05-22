@@ -43,7 +43,7 @@ export default function OperationsConceptPage({
 
   return (
     <section className="dashboard-panel concept-page">
-      <div className="users-management-header">
+      <div className="page-panel-header">
         <div>
           <h1>{title}</h1>
           <p className="muted-text">{description}</p>

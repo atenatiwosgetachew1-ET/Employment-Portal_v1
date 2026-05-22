@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Navigate } from 'react-router-dom'
+import { Navigate, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { useUiFeedback } from '../context/UiFeedbackContext'
 import {
@@ -100,6 +100,17 @@ const EMPLOYEE_OCR_FIELD_LABELS = {
   references: 'References',
   notes: 'Notes'
 }
+const OCR_UNREACHABLE_MESSAGE = 'OCR service is not reachable. Please try again later.'
+
+function normalizeOcrStatusMessage(message) {
+  if (!message) return OCR_UNREACHABLE_MESSAGE
+  const normalized = String(message).trim()
+  if (!normalized) return OCR_UNREACHABLE_MESSAGE
+  if (normalized.toLowerCase().includes('ocr service is not reachable')) {
+    return OCR_UNREACHABLE_MESSAGE
+  }
+  return normalized
+}
 
 function readCssCustomProperty(name) {
   if (typeof window === 'undefined') return ''
@@ -133,6 +144,7 @@ const EMPLOYEE_TAG_FILTER_OPTIONS = [
   { value: 'suspended', label: 'Suspended' },
   { value: 'selected', label: 'Selected' },
   { value: 'under_process', label: 'Under process' },
+  { value: 'traveled', label: 'Traveled' },
   { value: 'employed', label: 'Employed' },
   { value: 'returned', label: 'Returned' }
 ]
@@ -162,6 +174,7 @@ const emptyForm = {
   weight_kg: '', height_cm: '', contact_person_name: '', contact_person_id_number: '',
   contact_person_mobile: '', did_travel: false, departure_date: '', return_ticket_date: '',
   passport_expires_on: '', medical_expires_on: '', contract_expires_on: '', visa_expires_on: '',
+  employee_id_expires_on: '', contact_person_id_expires_on: '',
   competency_certificate_expires_on: '', clearance_expires_on: '', insurance_expires_on: '',
   status: 'pending',
   is_active: true
@@ -313,25 +326,62 @@ function isEmployeeReturned(employee) {
   )
 }
 
+function normalizedTravelStatus(employee) {
+  return String(employee?.travel_status || '').trim().toLowerCase().replace(/\s+/g, '_')
+}
+
+function isEmployeeTravelled(employee) {
+  const travelStatus = normalizedTravelStatus(employee)
+  return Boolean(
+    !isEmployeeReturned(employee) &&
+    !employee?.did_travel &&
+    ['traveled', 'travelled'].includes(travelStatus)
+  )
+}
+
 function isEmployeeEmployed(employee) {
   return Boolean(
     !isEmployeeReturned(employee) &&
+    !isEmployeeTravelled(employee) &&
     employee?.did_travel
+  )
+}
+
+function isEmployeeUnderProcess(employee) {
+  return Boolean(
+    !isEmployeeReturned(employee) &&
+    !isEmployeeTravelled(employee) &&
+    !isEmployeeEmployed(employee) &&
+    employee?.selection_state?.selection?.status === 'under_process'
   )
 }
 
 function isEmployeeReadyForEmploymentStage(employee) {
   return Boolean(
-    !isEmployeeReturned(employee) &&
-    employee?.selection_state?.selection?.status === 'under_process' &&
-    employee?.progress_override_complete
+    isEmployeeUnderProcess(employee) &&
+    employee?.progress_override_complete &&
+    !employee?.did_travel
   )
 }
 
 function isEmployeeTravelConfirmationPending(employee) {
   return Boolean(
     isEmployeeReadyForEmploymentStage(employee) &&
-    !employee?.did_travel
+    !isEmployeeTravelled(employee)
+  )
+}
+
+function isEmployeeSelected(employee) {
+  return Boolean(
+    !isEmployeeReturned(employee) &&
+    !isEmployeeTravelled(employee) &&
+    !isEmployeeEmployed(employee) &&
+    !isEmployeeUnderProcess(employee) &&
+    (
+      employee?.selection_state?.selected_by_current_agent ||
+      employee?.selection_state?.is_selected ||
+      employee?.selection_state?.selection?.status === 'selected'
+    )
   )
 }
 
@@ -379,11 +429,23 @@ function patchEmployeeCollection(list, employeeId, changes) {
 }
 
 function isEmployeeInEmployedStage(employee) {
-  return isEmployeeEmployed(employee) || isEmployeeTravelConfirmationPending(employee)
+  return isEmployeeTravelled(employee) || isEmployeeEmployed(employee)
 }
 
 function isEmployeeEmployedInView(employee) {
   return isEmployeeEmployed(employee)
+}
+
+function employeeWorkflowState(employee) {
+  if (isEmployeeReturned(employee)) return 'returned'
+  if (isEmployeeEmployed(employee)) return 'employed'
+  if (isEmployeeTravelled(employee)) return 'traveled'
+  if (isEmployeeUnderProcess(employee)) return 'under_process'
+  if (isEmployeeSelected(employee)) return 'selected'
+  if (employee?.status === 'approved') return 'approved'
+  if (employee?.status === 'suspended') return 'suspended'
+  if (employee?.status === 'rejected') return 'rejected'
+  return 'pending'
 }
 
 async function fetchAllEmployeePages(params = {}) {
@@ -410,71 +472,89 @@ function prettyStatus(value, fallback = '--') {
   return String(value).replaceAll('_', ' ')
 }
 
-function employeeAvailability(employee, currentView = '') {
-  if (isEmployeeReturned(employee)) return 'Returned'
-  if (isEmployeeEmployedInView(employee)) return 'Employed'
-  if (currentView === 'employed' && isEmployeeTravelConfirmationPending(employee)) return 'Travel confirmation pending'
-  if (employee.selection_state?.selection?.status === 'under_process') return 'Under process'
-  return employee.is_active ? 'Available' : 'Not available'
+function employeeAvailability(employee) {
+  const workflowState = employeeWorkflowState(employee)
+  return ['approved', 'selected'].includes(workflowState) ? 'Available' : 'Not available'
 }
 
-function employeeStatusLabel(employee, currentView = '') {
-  if (isEmployeeReturned(employee)) return 'Returned'
-  if (isEmployeeEmployedInView(employee)) return 'Employed'
-  if (currentView === 'employed' && isEmployeeTravelConfirmationPending(employee)) return 'Travel confirmation pending'
-  if (employee.selection_state?.selection?.status === 'under_process') return 'Under process'
-  if (employee.status === 'suspended') return 'Suspended'
-  if (employee.status === 'rejected') return 'Rejected'
-  if (employee.status === 'pending') return 'Pending approval'
-  return employeeAvailability(employee, currentView)
+function employeeStatusLabel(employee) {
+  switch (employeeWorkflowState(employee)) {
+    case 'approved':
+      return 'Approved'
+    case 'selected':
+      return 'Selected'
+    case 'under_process':
+      return 'Under process'
+    case 'traveled':
+      return 'Traveled'
+    case 'employed':
+      return 'Employed'
+    case 'returned':
+      return 'Returned'
+    case 'suspended':
+      return 'Suspended'
+    case 'rejected':
+      return 'Rejected'
+    default:
+      return 'Pending approval'
+  }
 }
 
-function employeeStatusBadgeClass(employee, currentView = '') {
-  if (isEmployeeReturned(employee)) return 'badge-muted'
-  if (isEmployeeEmployedInView(employee)) return 'badge-success'
-  if (currentView === 'employed' && isEmployeeTravelConfirmationPending(employee)) return 'badge-warning'
-  if (employee.selection_state?.selection?.status === 'under_process') return 'badge-info'
-  if (employee.status === 'approved') return employee.is_active ? 'badge-success' : 'badge-danger'
-  if (employee.status === 'pending') return 'badge-warning'
-  if (employee.status === 'rejected' || employee.status === 'suspended') return 'badge-danger'
-  if (!employee.is_active) return 'badge-danger'
-  return 'badge-success'
+function employeeStatusBadgeClass(employee) {
+  switch (employeeWorkflowState(employee)) {
+    case 'approved':
+      return 'badge-success'
+    case 'selected':
+      return 'badge-info'
+    case 'under_process':
+      return 'badge-info'
+    case 'traveled':
+      return 'badge-warning'
+    case 'employed':
+      return 'badge-success'
+    case 'returned':
+      return 'badge-muted'
+    case 'suspended':
+    case 'rejected':
+      return 'badge-danger'
+    default:
+      return 'badge-warning'
+  }
 }
 
-function employeeStatusBadgeVariantClass(employee, currentView = '') {
-  if (isEmployeeEmployedInView(employee)) return 'employee-card-status-badge--employed'
+function employeeStatusBadgeVariantClass(employee) {
+  if (['traveled', 'employed'].includes(employeeWorkflowState(employee))) return 'employee-card-status-badge--employed'
   return ''
 }
 
-function employeeMatchesTagFilter(employee, tag, currentView = '') {
+function employeeMatchesTagFilter(employee, tag) {
   const normalizedTag = String(tag || '').trim().toLowerCase()
   if (!normalizedTag) return true
+  const workflowState = employeeWorkflowState(employee)
 
   switch (normalizedTag) {
     case 'available':
-      return employeeAvailability(employee, currentView) === 'Available'
+      return employeeAvailability(employee) === 'Available'
     case 'not_available':
-      return employeeAvailability(employee, currentView) !== 'Available'
+      return employeeAvailability(employee) !== 'Available'
     case 'pending':
-      return employee?.status === 'pending'
+      return workflowState === 'pending'
     case 'approved':
-      return employee?.status === 'approved'
+      return workflowState === 'approved'
     case 'rejected':
-      return employee?.status === 'rejected'
+      return workflowState === 'rejected'
     case 'suspended':
-      return employee?.status === 'suspended'
+      return workflowState === 'suspended'
     case 'selected':
-      return Boolean(
-        employee?.selection_state?.selected_by_current_agent ||
-        employee?.selection_state?.is_selected ||
-        employee?.selection_state?.selection?.status === 'selected'
-      )
+      return workflowState === 'selected'
     case 'under_process':
-      return employee?.selection_state?.selection?.status === 'under_process'
+      return workflowState === 'under_process'
+    case 'traveled':
+      return workflowState === 'traveled'
     case 'employed':
-      return isEmployeeInEmployedStage(employee)
+      return workflowState === 'employed'
     case 'returned':
-      return isEmployeeReturned(employee)
+      return workflowState === 'returned'
     default:
       return true
   }
@@ -483,7 +563,7 @@ function employeeMatchesTagFilter(employee, tag, currentView = '') {
 function statusTone(status) {
   const normalized = String(status || '').trim().toLowerCase().replace(/\s+/g, '_')
   if (!normalized) return ''
-  if (['pending', 'requested', 'pending_approval', 'travel_confirmation_pending'].includes(normalized)) return 'pending'
+  if (['pending', 'requested', 'pending_approval', 'traveled'].includes(normalized)) return 'pending'
   if (['approved', 'active', 'fully_signed', 'success', 'employed', 'returned'].includes(normalized)) return 'success'
   if (normalized === 'selected') return 'selected'
   if (normalized === 'settled') return 'settled'
@@ -492,7 +572,7 @@ function statusTone(status) {
 }
 
 function employedEmployeesHelpText() {
-  return 'Employees who either already travelled or completed 100% progress and are waiting for travel confirmation are listed here.'
+  return 'Employees whose travel was recorded or whose employment is already active are listed here.'
 }
 
 function returnedEmployeesHelpText() {
@@ -855,6 +935,7 @@ function buildEmployeePayload(form, editingEmployeeId) {
 export default function EmployeesPage() {
   const { user } = useAuth()
   const { showToast, confirm } = useUiFeedback()
+  const [searchParams, setSearchParams] = useSearchParams()
   const [employeesData, setEmployeesData] = useState(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -873,6 +954,7 @@ export default function EmployeesPage() {
   const [attachmentFiles, setAttachmentFiles] = useState({})
   const [attachmentLabels, setAttachmentLabels] = useState({})
   const [existingAttachmentDocs, setExistingAttachmentDocs] = useState({})
+  const [attachmentPreviewUrls, setAttachmentPreviewUrls] = useState({})
   const [savedTemplate, setSavedTemplate] = useState(null)
   const [processAgentAssignments, setProcessAgentAssignments] = useState({})
   const [openedEmployeeId, setOpenedEmployeeId] = useState(null)
@@ -894,9 +976,9 @@ export default function EmployeesPage() {
   const [travelConfirmationDeclinedIds, setTravelConfirmationDeclinedIds] = useState(() => readTravelConfirmationDeclinedIds())
   const [travelConfirmationConfirmedIds, setTravelConfirmationConfirmedIds] = useState(() => readTravelConfirmationConfirmedIds())
   const [settledCommissionIds, setSettledCommissionIds] = useState([])
-  const [travelPendingOpen, setTravelPendingOpen] = useState(false)
-  const [currentView, setCurrentView] = useState('list')
   const [activeStep, setActiveStep] = useState(0)
+  const [dragOverAttachmentKey, setDragOverAttachmentKey] = useState('')
+  const [otherDocumentsModalOpen, setOtherDocumentsModalOpen] = useState(false)
   const [scanImportModalOpen, setScanImportModalOpen] = useState(false)
   const [cameraCaptureModalOpen, setCameraCaptureModalOpen] = useState(false)
   const [cameraStream, setCameraStream] = useState(null)
@@ -942,6 +1024,7 @@ export default function EmployeesPage() {
   const scanAttachmentFrameRef = useRef(null)
   const scanAttachmentDragRef = useRef({ startX: 0, startY: 0, originX: 0, originY: 0 })
   const previewDragRef = useRef({ startX: 0, startY: 0, originX: 0, originY: 0 })
+  const hasLoadedOnceRef = useRef(false)
 
   const canManageEmployees = Boolean(user?.feature_flags?.employees_enabled)
   const readOnly = Boolean(user?.is_read_only || user?.is_suspended)
@@ -952,6 +1035,31 @@ export default function EmployeesPage() {
   const canOverrideProgress = canManageOrganizationProcesses
   const selectedScope = isAgentSideUser ? 'mine' : 'organization'
   const age = computeAge(form.date_of_birth)
+
+  const allowedEmployeeViewIds = useMemo(() => {
+    return EMPLOYEE_VIEW_TABS
+      .filter((tab) => {
+        if (tab.id === 'selected') return isAgentSideUser
+        if (tab.id === 'register') return canEditEmployeeRecords
+        return true
+      })
+      .map((tab) => tab.id)
+  }, [canEditEmployeeRecords, isAgentSideUser])
+
+  const currentView = useMemo(() => {
+    const raw = (searchParams.get('view') || '').trim()
+    if (raw && allowedEmployeeViewIds.includes(raw)) return raw
+    if (allowedEmployeeViewIds.includes('list')) return 'list'
+    return allowedEmployeeViewIds[0] || 'list'
+  }, [allowedEmployeeViewIds, searchParams])
+
+  const setView = useCallback((nextView, { replace = false } = {}) => {
+    const next = new URLSearchParams(searchParams)
+    const current = (searchParams.get('view') || '').trim()
+    if (current === nextView) return
+    next.set('view', nextView)
+    setSearchParams(next, { replace })
+  }, [searchParams, setSearchParams])
   const stopCameraCapture = useCallback(() => {
     if (scanCameraStreamRef.current) {
       scanCameraStreamRef.current.getTracks().forEach((track) => track.stop())
@@ -979,11 +1087,12 @@ export default function EmployeesPage() {
     : ''
 
   const loadEmployees = useCallback(async (
-    viewOverride = currentView,
+    viewOverride,
     declinedIdsOverride = travelConfirmationDeclinedIds,
     confirmedIdsOverride = travelConfirmationConfirmedIds
   ) => {
-    setLoading(true)
+    const shouldShowLoading = !hasLoadedOnceRef.current
+    if (shouldShowLoading) setLoading(true)
     setPageError('')
     try {
       const isDeclinedById = (employee) => declinedIdsOverride.includes(employee?.id)
@@ -1007,8 +1116,8 @@ export default function EmployeesPage() {
         const visibleProcessEmployees = baseEmployees.map(applyTravelOverrides).filter(
           (employee) =>
             isVisibleForCurrentAgent(employee) &&
-            employee?.selection_state?.selection?.status === 'under_process' &&
-            (!isEmployeeReadyForEmploymentStage(employee) || isDeclinedById(employee))
+            isEmployeeUnderProcess(employee) &&
+            !isDeclinedById(employee)
         )
         setEmployeesData({
           count: visibleProcessEmployees.length,
@@ -1019,25 +1128,29 @@ export default function EmployeesPage() {
         return
       }
 
-      if (viewOverride === 'list' && (isAgentSideUser || filters.tag)) {
+      if (viewOverride === 'list') {
         const baseEmployees = await fetchAllEmployeePages({
-          q: filters.q,
-          isActive: isAgentSideUser ? '' : filters.isActive
+          q: filters.q
         })
         let visibleListEmployees = baseEmployees.map(applyTravelOverrides)
 
         if (isAgentSideUser) {
           visibleListEmployees = visibleListEmployees.filter((employee) =>
-            !isEmployeeReturned(employee) &&
-            !isEmployeeInEmployedStage(employee) &&
-            employee?.selection_state?.selection?.status !== 'under_process' &&
-            employeeAvailability(employee, 'list') === 'Available'
+            employeeAvailability(employee) === 'Available'
           )
+        }
+
+        if (filters.isActive === 'true') {
+          visibleListEmployees = visibleListEmployees.filter((employee) => employeeAvailability(employee) === 'Available')
+        }
+
+        if (filters.isActive === 'false') {
+          visibleListEmployees = visibleListEmployees.filter((employee) => employeeAvailability(employee) === 'Not available')
         }
 
         if (filters.tag) {
           visibleListEmployees = visibleListEmployees.filter((employee) =>
-            employeeMatchesTagFilter(employee, filters.tag, 'list')
+            employeeMatchesTagFilter(employee, filters.tag)
           )
         }
 
@@ -1069,11 +1182,11 @@ export default function EmployeesPage() {
         const stageEmployees = new Map()
         baseEmployees
           .map(applyTravelOverrides)
-          .filter((employee) => isVisibleForCurrentAgent(employee) && isEmployeeEmployed(employee))
+          .filter((employee) => isVisibleForCurrentAgent(employee) && isEmployeeInEmployedStage(employee))
           .forEach((employee) => stageEmployees.set(employee.id, employee))
         processEmployees
           .map(applyTravelOverrides)
-          .filter((employee) => isVisibleForCurrentAgent(employee) && isEmployeeTravelConfirmationPending(employee))
+          .filter((employee) => isVisibleForCurrentAgent(employee) && isEmployeeInEmployedStage(employee))
           .forEach((employee) => {
             if (!stageEmployees.has(employee.id)) {
               stageEmployees.set(employee.id, employee)
@@ -1097,20 +1210,8 @@ export default function EmployeesPage() {
         })
         const visibleSelectedEmployees = baseEmployees
           .map(applyTravelOverrides)
-          .filter((employee) => {
-            const remainsInSharedMarket =
-              !isEmployeeReturned(employee) &&
-              !isEmployeeInEmployedStage(employee) &&
-              employee?.selection_state?.selection?.status !== 'under_process'
-
-            return remainsInSharedMarket && (
-              Boolean(employee?.selection_state?.selected_by_current_agent) ||
-              (
-                Boolean(employee?.selection_state?.is_selected) &&
-                isVisibleForCurrentAgent(employee)
-              )
-            )
-          })
+          .filter((employee) => isEmployeeSelected(employee))
+          .filter((employee) => isVisibleForCurrentAgent(employee))
         setEmployeesData({
           count: visibleSelectedEmployees.length,
           results: visibleSelectedEmployees,
@@ -1139,20 +1240,21 @@ export default function EmployeesPage() {
       const data = await employeesService.fetchEmployees({
         page,
         q: filters.q,
-        isActive: viewOverride === 'selected' || viewOverride === 'under-process' || viewOverride === 'employed' || viewOverride === 'returned' ? '' : filters.isActive,
+        isActive: '',
         selectedScope: viewOverride === 'selected' ? selectedScope : '',
         processScope: viewOverride === 'under-process' ? (isAgentSideUser ? 'mine' : 'organization') : '',
         employedScope: viewOverride === 'employed' ? (isAgentSideUser ? 'mine' : 'organization') : '',
         returnedScope: viewOverride === 'returned' ? (isAgentSideUser ? 'mine' : 'organization') : ''
       })
       setEmployeesData(data)
+      hasLoadedOnceRef.current = true
     } catch (err) {
       setPageError(err.message || 'Failed to load employees')
       setEmployeesData(null)
     } finally {
-      setLoading(false)
+      if (shouldShowLoading) setLoading(false)
     }
-  }, [currentView, filters, isAgentSideUser, page, selectedScope, travelConfirmationDeclinedIds, travelConfirmationConfirmedIds])
+  }, [filters, isAgentSideUser, page, selectedScope, travelConfirmationDeclinedIds, travelConfirmationConfirmedIds])
 
   const loadFormOptions = useCallback(async () => {
     try {
@@ -1164,18 +1266,16 @@ export default function EmployeesPage() {
 
   useEffect(() => {
     if (canManageEmployees) {
-      loadEmployees()
       loadFormOptions()
     } else {
       setLoading(false)
     }
-  }, [canManageEmployees, loadEmployees, loadFormOptions])
+  }, [canManageEmployees, loadFormOptions])
 
   useEffect(() => {
-    if (!canEditEmployeeRecords && currentView === 'register') {
-      setCurrentView('list')
-    }
-  }, [canEditEmployeeRecords, currentView])
+    if (!canManageEmployees) return
+    loadEmployees(currentView)
+  }, [canManageEmployees, currentView, loadEmployees])
 
   const loadReturnRequestEmployees = useCallback(async (search = '') => {
     setReturnRequestLoading(true)
@@ -1290,6 +1390,30 @@ export default function EmployeesPage() {
       URL.revokeObjectURL(ocrImportPreviewUrl)
     }
   }, [ocrImportPreviewUrl])
+
+  useEffect(() => {
+    if (typeof URL === 'undefined') return () => {}
+    const nextUrls = {}
+    for (const [key, file] of Object.entries(attachmentFiles || {})) {
+      if (!file) continue
+      nextUrls[key] = URL.createObjectURL(file)
+    }
+
+    setAttachmentPreviewUrls((prev) => {
+      for (const url of Object.values(prev || {})) {
+        if (!url) continue
+        URL.revokeObjectURL(url)
+      }
+      return nextUrls
+    })
+
+    return () => {
+      for (const url of Object.values(nextUrls)) {
+        if (!url) continue
+        URL.revokeObjectURL(url)
+      }
+    }
+  }, [attachmentFiles])
 
   useEffect(() => () => {
     if (attachmentStagePreviewUrl && typeof URL !== 'undefined') {
@@ -1472,7 +1596,8 @@ export default function EmployeesPage() {
     setNotice('')
     setScanImportModalOpen(false)
     clearScannedDocument()
-    setCurrentView('register')
+    setPage(1)
+    setView('register')
   }
 
   const handleSaveTemplate = () => {
@@ -1481,7 +1606,7 @@ export default function EmployeesPage() {
     if (typeof window !== 'undefined') {
       window.localStorage.setItem(REGISTRATION_TEMPLATE_STORAGE_KEY, JSON.stringify(nextTemplate))
     }
-    setNotice('Registration template saved. New registrations will start with these values.')
+    setNotice('')
     setModalNotice('Registration template saved for future new employees.')
   }
 
@@ -1490,7 +1615,7 @@ export default function EmployeesPage() {
     if (typeof window !== 'undefined') {
       window.localStorage.removeItem(REGISTRATION_TEMPLATE_STORAGE_KEY)
     }
-    setNotice('Registration template cleared.')
+    setNotice('')
     setModalNotice('Registration template cleared.')
   }
 
@@ -1518,14 +1643,17 @@ export default function EmployeesPage() {
     setOcrStatusLoading(true)
     try {
       const status = await employeesService.fetchEmployeeOcrStatus()
-      setOcrStatus(status)
-      if (status.ready) {
+      const normalizedStatus = status.ready
+        ? status
+        : { ...status, message: normalizeOcrStatusMessage(status.message) }
+      setOcrStatus(normalizedStatus)
+      if (normalizedStatus.ready) {
         setOcrSetupModalOpen(false)
         setModalNotice('OCR service is ready. Try Auto fill again.')
       }
-      return status
+      return normalizedStatus
     } catch (err) {
-      const status = { ready: false, message: err?.message || 'Could not check OCR setup.' }
+      const status = { ready: false, message: normalizeOcrStatusMessage(err?.message) }
       setOcrStatus(status)
       return status
     } finally {
@@ -1846,9 +1974,10 @@ export default function EmployeesPage() {
       )
     } catch (err) {
       setModalNotice('')
-      const message = err?.message || 'OCR could not read this scanned document.'
+      const rawMessage = err?.message || 'OCR could not read this scanned document.'
+      const message = normalizeOcrStatusMessage(rawMessage)
       setModalError(message)
-      if (message.includes('Backend OCR is not configured yet')) {
+      if (rawMessage.includes('Backend OCR is not configured yet') || rawMessage.toLowerCase().includes('ocr service is not reachable')) {
         setOcrStatus({ ready: false, message })
         await openOcrSetupModal()
       }
@@ -1889,9 +2018,10 @@ export default function EmployeesPage() {
       )
     } catch (err) {
       setModalNotice('')
-      const message = err?.message || 'OCR could not read this scanned document.'
+      const rawMessage = err?.message || 'OCR could not read this scanned document.'
+      const message = normalizeOcrStatusMessage(rawMessage)
       setModalError(message)
-      if (message.includes('Backend OCR is not configured yet')) {
+      if (rawMessage.includes('Backend OCR is not configured yet') || rawMessage.toLowerCase().includes('ocr service is not reachable')) {
         setOcrStatus({ ready: false, message })
         await openOcrSetupModal()
       }
@@ -2129,7 +2259,8 @@ export default function EmployeesPage() {
       await uploadPendingAttachments(employee.id)
       if (editingEmployeeId) {
         setNotice('Employee updated successfully.')
-        setCurrentView('list')
+        setPage(1)
+        setView('list')
         resetForm()
       } else {
         setNotice('Employee registered successfully.')
@@ -2141,9 +2272,10 @@ export default function EmployeesPage() {
         setExistingAttachmentDocs({})
         setActiveStep(0)
         clearScannedDocument()
-        setCurrentView('register')
+        setPage(1)
+        setView('register')
       }
-      await Promise.all([loadEmployees(), loadFormOptions()])
+      await Promise.all([loadEmployees(currentView), loadFormOptions()])
     } catch (err) {
       const nextError = err.message || 'Could not save employee'
       setModalError(nextError)
@@ -2179,7 +2311,8 @@ export default function EmployeesPage() {
       setAttachmentFiles({})
       setActiveStep(0)
       clearScannedDocument()
-      setCurrentView('register')
+      setPage(1)
+      setView('register')
     } catch (err) {
       setPageError(err.message || 'Could not load employee details')
     } finally {
@@ -2202,7 +2335,7 @@ export default function EmployeesPage() {
       await employeesService.deleteEmployee(employee.id)
       if (editingEmployeeId === employee.id) resetForm()
       setNotice('Employee removed.')
-      await loadEmployees()
+      await loadEmployees(currentView)
     } catch (err) {
       setPageError(err.message || 'Could not delete employee')
     }
@@ -2214,7 +2347,7 @@ export default function EmployeesPage() {
     try {
       await employeesService.deleteEmployeeDocument(documentId)
       setNotice('Document removed.')
-      await loadEmployees()
+      await loadEmployees(currentView)
     } catch (err) {
       setPageError(err.message || 'Could not delete document')
     }
@@ -2272,7 +2405,7 @@ export default function EmployeesPage() {
       })
       setNotice('Return request submitted successfully.')
       closeReturnRequestModal()
-      await Promise.all([loadEmployees(), loadRequestedReturns()])
+      await Promise.all([loadEmployees(currentView), loadRequestedReturns()])
     } catch (err) {
       setReturnRequestError(err.message || 'Could not create return request')
     } finally {
@@ -2411,32 +2544,7 @@ export default function EmployeesPage() {
     try {
       await employeesService.updateEmployee(employee.id, { status: nextStatus })
       setNotice(`Employee ${actionLabel.toLowerCase()} successfully.`)
-      await loadEmployees()
-    } catch (err) {
-      setPageError(err.message || `Could not ${actionLabel.toLowerCase()} employee`)
-    } finally {
-      setActionBusyId(null)
-    }
-  }
-
-  const handleEmployeeAvailabilityToggle = async (employee, nextActive, actionLabel) => {
-    setActionBusyId(employee.id)
-    setPageError('')
-    setNotice('')
-    try {
-      await employeesService.updateEmployee(employee.id, { is_active: nextActive })
-      patchEmployeeCollections(employee.id, (current) => {
-        const nextEmployee = {
-          ...current,
-          is_active: nextActive
-        }
-
-        if (currentView === 'list' && filters.isActive === 'true' && !nextActive) return null
-        if (currentView === 'list' && filters.isActive === 'false' && nextActive) return null
-        if (currentView === 'list' && filters.tag && !employeeMatchesTagFilter(nextEmployee, filters.tag, currentView)) return null
-        return nextEmployee
-      })
-      setNotice(`Employee ${actionLabel.toLowerCase()} successfully.`)
+      await loadEmployees(currentView)
     } catch (err) {
       setPageError(err.message || `Could not ${actionLabel.toLowerCase()} employee`)
     } finally {
@@ -2503,7 +2611,7 @@ export default function EmployeesPage() {
       if (currentView !== 'under-process') {
         setOpenedEmployeeId((prev) => (prev === employee.id ? null : prev))
       }
-      await loadEmployees()
+      await loadEmployees(currentView)
     } catch (err) {
       setPageError(err.message || 'Could not start employee process')
     } finally {
@@ -2530,7 +2638,7 @@ export default function EmployeesPage() {
       if (currentView === 'under-process') {
         setOpenedEmployeeId((prev) => (prev === employee.id ? null : prev))
       }
-      await loadEmployees()
+      await loadEmployees(currentView)
     } catch (err) {
       setPageError(err.message || 'Could not decline employee process')
     } finally {
@@ -2671,12 +2779,7 @@ export default function EmployeesPage() {
     ...employee,
     settled_commission: employee?.settled_commission || settledCommissionIds.includes(String(employee.id))
   }))
-  const travelConfirmationPendingEmployees = currentView === 'employed'
-    ? visibleEmployees.filter((employee) => isEmployeeTravelConfirmationPending(employee))
-    : []
-  const primaryVisibleEmployees = currentView === 'employed'
-    ? visibleEmployees.filter((employee) => !isEmployeeTravelConfirmationPending(employee))
-    : visibleEmployees
+  const primaryVisibleEmployees = visibleEmployees
   const total = employeesData?.count ?? employees.length
   const hasNext = Boolean(employeesData?.next)
   const hasPrev = Boolean(employeesData?.previous)
@@ -2858,7 +2961,7 @@ export default function EmployeesPage() {
 
   return (
     <section className="dashboard-panel employees-page">
-      <div className="users-management-header">
+      <div className="page-panel-header">
         <div>
           <h1>Employees</h1>
           <p className="muted-text">
@@ -2871,27 +2974,6 @@ export default function EmployeesPage() {
         <div className="employees-header-actions">
           <button type="button" className="btn-secondary" onClick={loadEmployees} disabled={loading}>Refresh</button>
         </div>
-      </div>
-      <div className="employee-subtabs" role="tablist" aria-label="Employee views">
-        {visibleTabs.map((tab) => (
-          <button
-            key={tab.id}
-            type="button"
-            className={`employee-subtab${currentView === tab.id ? ' is-active' : ''}`}
-            aria-selected={currentView === tab.id}
-            onClick={() => {
-              if (tab.id === 'register') {
-                openCreateModal()
-                return
-              }
-              setPage(1)
-              setCurrentView(tab.id)
-            }}
-            disabled={readOnly ? tab.id === 'register' : (isAgentSideUser && tab.id === 'register')}
-          >
-            {tab.label}
-          </button>
-        ))}
       </div>
       {currentView !== 'register' ? (
         <form className="form-grid employees-filter-grid" onSubmit={(event) => { event.preventDefault(); setPage(1); setFilters((prev) => ({ ...prev, q: searchInput.trim() })) }}>
@@ -2919,157 +3001,236 @@ export default function EmployeesPage() {
         </form>
       ) : null}
       {pageError ? <p className="error-message">{pageError}</p> : null}
-      {notice ? <p className="muted-text message-block--mb-16">{notice}</p> : null}
+      {notice && currentView !== 'register' ? <p className="muted-text message-block--mb-16">{notice}</p> : null}
       {currentView === 'register' ? (
         <div className="users-table-wrap employee-registration-surface">
           <div ref={registrationRef} className="employee-modal employee-modal--flat" aria-labelledby="employee-modal-title">
-            <div className="employee-modal-header">
-              <div>
-                <p className="employee-modal-eyebrow">Register employee</p>
-                <h2 id="employee-modal-title">{editingEmployeeId ? 'Update employee' : 'New employee registration'}</h2>
-                <p className="muted-text">{REGISTRATION_STEPS[activeStep].label} step of {REGISTRATION_STEPS.length}</p>
-              </div>
-            </div>
             {!editingEmployeeId ? (
-              <div className="employee-template-bar">
-                <p className="muted-text">
-                  {hasSavedTemplate
-                    ? 'Saved template is applied automatically to each new registration. Employee identity fields and file uploads stay blank.'
-                    : 'Save the repeatable registration values as a template to prefill the next employees.'}
-                </p>
-                <div className="employee-template-actions">
-                  <button type="button" className="btn-secondary" onClick={handleSaveTemplate} disabled={saving}>
-                    Save current values as template
-                  </button>
-                  <button type="button" className="btn-secondary" onClick={handleResetRegistrationToTemplate} disabled={saving}>
-                    Reset registration
-                  </button>
-                  {hasSavedTemplate ? (
-                    <button type="button" className="btn-secondary" onClick={handleClearTemplate} disabled={saving}>
-                      Clear template
-                    </button>
-                  ) : null}
-                </div>
-              </div>
+              null
             ) : null}
-            <div className="employee-step-tabs" role="tablist" aria-label="Registration steps">
-              {REGISTRATION_STEPS.map((step, index) => (
-                <button key={step.id} type="button" className={`employee-step-tab${index === activeStep ? ' is-active' : ''}`} onClick={() => setActiveStep(index)}>
-                  <span>{index + 1}</span>
-                  {step.label}
-                </button>
-              ))}
-            </div>
-            {activeStep === 0 ? (
-              <div
-                className="employee-scan-launch-card"
-                role="button"
-                tabIndex={0}
-                onClick={openScanImportModal}
-                onKeyDown={(event) => {
-                  if (event.key === 'Enter' || event.key === ' ') {
-                    event.preventDefault()
-                    openScanImportModal()
-                  }
-                }}
-              >
-                <div className="employee-scan-launch-copy">
-                  <p className="employee-modal-eyebrow">Scan from document</p>
-                  <h3>Scan from document</h3>
-                  <p className="muted-text">
-                    Open OCR import options for scanning from a device or uploading a document, so the next OCR step can map detected values into the employee fields.
-                  </p>
-                  {ocrImportFileName ? (
-                    <p className="employee-scan-launch-meta">
-                      Last selected: {ocrImportFileName}
-                      {ocrImportSource ? ` (${
-                        ocrImportSource === 'camera'
-                          ? 'From camera'
-                          : ocrImportSource === 'scanner'
-                            ? 'From scanner'
-                            : 'Upload a document'
-                      })` : ''}
-                    </p>
+            <div className="employee-registration-layout">
+              <aside className="employee-registration-sidebar">
+                <div className="employee-registration-sidebar-header">
+                  <div>
+                    <h2 id="employee-modal-title">Employee Registration</h2>
+                    <p className="muted-text">Step {activeStep + 1} of {REGISTRATION_STEPS.length}</p>
+                  </div>
+                  <div className="employee-registration-progress">
+                    <div className="employee-registration-progress-bar" aria-hidden="true">
+                      <span style={{ width: `${Math.round(((activeStep + 1) / REGISTRATION_STEPS.length) * 100)}%` }} />
+                    </div>
+                    <span className="muted-text">
+                      {Math.round(((activeStep + 1) / REGISTRATION_STEPS.length) * 100)}% complete
+                    </span>
+                  </div>
+                </div>
+
+                <div className="employee-registration-step-list" role="tablist" aria-label="Registration steps">
+                  {REGISTRATION_STEPS.map((step, index) => {
+                    const description =
+                      step.id === 'personal'
+                        ? 'Basic identity details'
+                        : step.id === 'profile'
+                          ? 'Professional information'
+                          : step.id === 'contact'
+                            ? 'Address and contact details'
+                            : step.id === 'application'
+                              ? 'Job and application details'
+                              : step.id === 'attachments'
+                                ? 'Upload required documents'
+                                : 'Review and submit'
+
+                    return (
+                      <button
+                        key={step.id}
+                        type="button"
+                        className={`employee-registration-step${index === activeStep ? ' is-active' : ''}`}
+                        aria-selected={index === activeStep}
+                        onClick={() => setActiveStep(index)}
+                      >
+                        <span className="employee-registration-step-index" aria-hidden="true">{index + 1}</span>
+                        <span className="employee-registration-step-copy">
+                          <strong>{step.label}</strong>
+                          <span className="muted-text">{description}</span>
+                        </span>
+                      </button>
+                    )
+                  })}
+                </div>
+
+                <div className="employee-registration-help">
+                  <strong>Need help</strong>
+                  <p className="muted-text">If you need further assistance, please contact the Organization Admin.</p>
+                  <div className="employee-registration-help-tooltip" role="tooltip" aria-label="OCR tips">
+                    <p className="employee-modal-eyebrow">Tips for best results</p>
+                    <ul className="employee-registration-help-tooltip-list">
+                      <li>Use a clear, well-lit image</li>
+                      <li>Ensure all corners are visible</li>
+                      <li>Avoid shadows and glare</li>
+                      <li>Supported: JPG, PNG, PDF</li>
+                    </ul>
+                  </div>
+                </div>
+              </aside>
+
+              <div className="employee-registration-main">
+                <div className="employee-registration-top">
+                  {activeStep === 0 ? (
+                    <div className="employee-scan-launch-card">
+                      <div className="employee-scan-launch-copy">
+                        <p className="employee-modal-eyebrow">Quickly fill your details</p>
+                        <h3>Scan passport or ID</h3>
+                        <p className="muted-text">
+                          Upload or scan a clear photo of the passport or ID to auto-fill the form fields.
+                        </p>
+                        {ocrImportFileName ? (
+                          <p className="employee-scan-launch-meta">
+                            Last selected: {ocrImportFileName}
+                            {ocrImportSource ? ` (${
+                              ocrImportSource === 'camera'
+                                ? 'From camera'
+                                : ocrImportSource === 'scanner'
+                                  ? 'From scanner'
+                                  : 'Upload a document'
+                            })` : ''}
+                          </p>
+                        ) : null}
+                      </div>
+                      <div className="employee-scan-launch-actions">
+                        <button
+                          type="button"
+                          className="btn-secondary"
+                          onClick={(event) => {
+                            event.stopPropagation()
+                            handleAnalyzeScan()
+                          }}
+                          disabled={ocrBusy || !ocrImportFileName}
+                        >
+                          {ocrBusy ? 'Analyzing...' : 'Analyze'}
+                        </button>
+                        <button
+                          type="button"
+                          className="btn-secondary"
+                          onClick={(event) => {
+                            event.stopPropagation()
+                            handleAutoFillFromScan()
+                          }}
+                          disabled={ocrBusy || !ocrImportFileName || !hasAnalyzedScan}
+                        >
+                          Auto fill
+                        </button>
+                        <button
+                          type="button"
+                          className="btn-secondary"
+                          onClick={(event) => {
+                            event.stopPropagation()
+                            clearScannedDocument()
+                          }}
+                          disabled={ocrBusy || !ocrImportFileName}
+                        >
+                          Reset
+                        </button>
+                        <button type="button" className="btn-secondary employee-scan-launch-action" onClick={openScanImportModal}>
+                          Scan passport or ID
+                        </button>
+                      </div>
+                    </div>
+                  ) : activeStep > 0 && activeStep < 4 ? (
+                    <div className="employee-scan-step-assist">
+                      <div>
+                        <strong>Auto fill from the scanned document</strong>
+                        <span>{ocrImportFileName ? ocrImportFileName : 'No scanned document selected yet'}</span>
+                      </div>
+                      <div className="employee-scan-step-actions">
+                        <button type="button" className="btn-secondary" onClick={handleAutoFillFromScan} disabled={ocrBusy || !ocrImportFileName || !hasAnalyzedScan}>
+                          Auto fill
+                        </button>
+                      </div>
+                    </div>
+                  ) : activeStep === 4 ? (
+                    <div className="employee-scan-step-assist">
+                      <div>
+                        <strong>Attach documents</strong>
+                        <span>{scanAttachmentSourceFileName ? scanAttachmentSourceFileName : 'No scanned document selected yet'}</span>
+                      </div>
+                      <div className="employee-scan-step-actions">
+                        <button type="button" className="btn-secondary" onClick={() => openScanAttachmentModal('scan')} disabled={!ocrImportFile}>
+                          Attach from scan
+                        </button>
+                        <button type="button" className="btn-secondary" onClick={() => openScanAttachmentModal('upload')} disabled={!attachmentStageFile}>
+                          Attach from upload
+                        </button>
+                        <button type="button" className="btn-secondary" onClick={() => openUploadDocumentModal('attachment')}>
+                          Upload generic document
+                        </button>
+                      </div>
+                    </div>
                   ) : null}
+
+                  <div className="employee-registration-flow" aria-label="Document steps">
+                    <div className="employee-registration-flow-step">
+                      <span className="employee-registration-flow-icon" aria-hidden="true">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                          <path d="M14 2H7a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8l-5-6Z" />
+                          <path d="M14 2v6h6" />
+                        </svg>
+                      </span>
+                      <div>
+                        <strong>Upload document</strong>
+                        <span className="muted-text">Upload a clear photo of your passport or ID</span>
+                      </div>
+                    </div>
+                    <div className="employee-registration-flow-arrow" aria-hidden="true">→</div>
+                    <div className="employee-registration-flow-step">
+                      <span className="employee-registration-flow-icon" aria-hidden="true">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                          <path d="M4 4h16v16H4V4Z" />
+                          <path d="M7 8h10" />
+                          <path d="M7 12h7" />
+                          <path d="M7 16h5" />
+                        </svg>
+                      </span>
+                      <div>
+                        <strong>Extract information</strong>
+                        <span className="muted-text">We’ll extract and verify the details</span>
+                      </div>
+                    </div>
+                    <div className="employee-registration-flow-arrow" aria-hidden="true">→</div>
+                    <div className="employee-registration-flow-step">
+                      <span className="employee-registration-flow-icon" aria-hidden="true">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                          <path d="M20 7 10 17l-5-5" />
+                        </svg>
+                      </span>
+                      <div>
+                        <strong>Review &amp; confirm</strong>
+                        <span className="muted-text">Review the extracted information before saving</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="employee-registration-tips">
+                    <p className="employee-modal-eyebrow">Tips for best results</p>
+                    <ul className="employee-registration-tips-list">
+                      <li>Use a clear, well-lit image</li>
+                      <li>Ensure all corners are visible</li>
+                      <li>Avoid shadows and glare</li>
+                      <li>Supported: JPG, PNG, PDF</li>
+                    </ul>
+                  </div>
                 </div>
-                <div className="employee-scan-launch-actions">
-                  <button
-                    type="button"
-                    className="btn-secondary"
-                    onClick={(event) => {
-                      event.stopPropagation()
-                      handleAnalyzeScan()
-                    }}
-                    disabled={ocrBusy || !ocrImportFileName}
-                  >
-                    {ocrBusy ? 'Analyzing...' : 'Analyze'}
-                  </button>
-                  <button
-                    type="button"
-                    className="btn-secondary"
-                    onClick={(event) => {
-                      event.stopPropagation()
-                      handleAutoFillFromScan()
-                    }}
-                    disabled={ocrBusy || !ocrImportFileName || !hasAnalyzedScan}
-                  >
-                    Auto fill
-                  </button>
-                  <button
-                    type="button"
-                    className="btn-secondary"
-                    onClick={(event) => {
-                      event.stopPropagation()
-                      clearScannedDocument()
-                    }}
-                    disabled={ocrBusy || !ocrImportFileName}
-                  >
-                    Reset
-                  </button>
-                  <span className="btn-secondary employee-scan-launch-action">Open scan options</span>
-                </div>
-              </div>
-            ) : activeStep > 0 && activeStep < 4 ? (
-              <div className="employee-scan-step-assist">
-                <div>
-                  <strong>Auto fill from the scanned document</strong>
-                  <span>{ocrImportFileName ? ocrImportFileName : 'No scanned document selected yet'}</span>
-                </div>
-                <div className="employee-scan-step-actions">
-                  <button type="button" className="btn-secondary" onClick={handleAutoFillFromScan} disabled={ocrBusy || !ocrImportFileName || !hasAnalyzedScan}>
-                    Auto fill
-                  </button>
-                </div>
-              </div>
-            ) : activeStep === 4 ? (
-              <div className="employee-scan-step-assist">
-                <div>
-                  <strong>Attach documents</strong>
-                  <span>{scanAttachmentSourceFileName ? scanAttachmentSourceFileName : 'No scanned document selected yet'}</span>
-                </div>
-                <div className="employee-scan-step-actions">
-                  <button type="button" className="btn-secondary" onClick={() => openScanAttachmentModal('scan')} disabled={!ocrImportFile}>
-                    Attach from scan
-                  </button>
-                  <button type="button" className="btn-secondary" onClick={() => openScanAttachmentModal('upload')} disabled={!attachmentStageFile}>
-                    Attach from upload
-                  </button>
-                  <button type="button" className="btn-secondary" onClick={() => openUploadDocumentModal('attachment')}>
-                    Upload generic document
-                  </button>
-                </div>
-              </div>
-            ) : null}
-            {modalNotice ? <p className="muted-text employee-modal-error">{modalNotice}</p> : null}
-            {modalError ? <p className="error-message employee-modal-error">{modalError}</p> : null}
-            <form className="employee-modal-form" onSubmit={(event) => event.preventDefault()}>
+
+                {modalNotice ? <p className="alert employee-modal-notice">{modalNotice}</p> : null}
+                {modalError ? <p className="error-message employee-modal-error">{modalError}</p> : null}
+
+                <form className="employee-modal-form" onSubmit={(event) => event.preventDefault()}>
               {activeStep === 0 ? (
                 <div className="employee-step-grid">
                   <label>First name *<input name="first_name" value={form.first_name} onChange={(event) => setForm((prev) => ({ ...prev, first_name: event.target.value }))} required /></label>
                   <label>Middle name *<input name="middle_name" value={form.middle_name} onChange={(event) => setForm((prev) => ({ ...prev, middle_name: event.target.value }))} required /></label>
                   <label>Last name *<input name="last_name" value={form.last_name} onChange={(event) => setForm((prev) => ({ ...prev, last_name: event.target.value }))} required /></label>
                   <label>Date of birth *<input name="date_of_birth" type="date" value={form.date_of_birth} onChange={(event) => setForm((prev) => ({ ...prev, date_of_birth: event.target.value }))} required /></label>
-                  <label>Age<input value={age} readOnly /></label>
+                  <label>Age<input value={age} readOnly disabled /></label>
                   <label>
                     Gender *
                     <select name="gender" value={form.gender} onChange={(event) => setForm((prev) => ({ ...prev, gender: event.target.value }))} required>
@@ -3090,8 +3251,16 @@ export default function EmployeesPage() {
                     <span className="employee-group-label">Destination countries *</span>
                     <div className="checkbox-grid">
                       {formOptions.destination_countries.length === 0 ? <span className="muted-text">Create active agent accounts with countries first.</span> : formOptions.destination_countries.map((country) => (
-                        <label key={country} className="checkbox-pill">
-                          <input name="application_countries" type="checkbox" checked={form.application_countries.includes(country)} onChange={() => handleCheckboxList('application_countries', country)} />
+                        <label
+                          key={country}
+                          className={`checkbox-pill${form.application_countries.includes(country) ? ' is-checked' : ''}`}
+                        >
+                          <input
+                            name="application_countries"
+                            type="checkbox"
+                            checked={form.application_countries.includes(country)}
+                            onChange={() => handleCheckboxList('application_countries', country)}
+                          />
                           <span>{country}</span>
                         </label>
                       ))}
@@ -3123,7 +3292,7 @@ export default function EmployeesPage() {
                     <span className="employee-group-label">Skills</span>
                     <div className="checkbox-grid">
                       {availableSkillOptions.length === 0 ? <span className="muted-text">Choose a profession to load matching skills.</span> : availableSkillOptions.map((skill) => (
-                        <label key={skill} className="checkbox-pill">
+                        <label key={skill} className={`checkbox-pill${form.skills.includes(skill) ? ' is-checked' : ''}`}>
                           <input name="skills" type="checkbox" checked={form.skills.includes(skill)} onChange={() => handleCheckboxList('skills', skill)} />
                           <span>{skill}</span>
                         </label>
@@ -3150,7 +3319,7 @@ export default function EmployeesPage() {
                     <span className="employee-group-label">Languages</span>
                     <div className="checkbox-grid">
                       {LANGUAGE_OPTIONS.map((language) => (
-                        <label key={language} className="checkbox-pill">
+                        <label key={language} className={`checkbox-pill${form.languages.includes(language) ? ' is-checked' : ''}`}>
                           <input type="checkbox" checked={form.languages.includes(language)} onChange={() => handleCheckboxList('languages', language)} />
                           <span>{language}</span>
                         </label>
@@ -3220,31 +3389,168 @@ export default function EmployeesPage() {
               {activeStep === 4 ? (
                 <div className="employee-step-grid">
                   <p className="muted-text employee-step-note">Only Portrait photo 3x4 size, Full photo, and Passport are mandatory here. The other dates can stay empty unless you attach their file.</p>
-                  <div className="employee-span-two attachment-grid">
-                    {ATTACHMENT_FIELDS.map((attachment) => {
-                      const inputId = `employee-attachment-${attachment.key}`;
+                  {(() => {
+                    const requiredKeys = new Set(['portrait_photo', 'full_photo', 'passport_document'])
+                    const requiredAttachments = ATTACHMENT_FIELDS.filter((attachment) => requiredKeys.has(attachment.key))
+                    const optionalAttachments = ATTACHMENT_FIELDS.filter((attachment) => !requiredKeys.has(attachment.key))
+
+                    const renderAttachmentSlot = (attachment) => {
+                      const inputId = `employee-attachment-${attachment.key}`
+                      const isRequiredAttachment = requiredKeys.has(attachment.key)
                       const hasAttachment = Boolean(
                         attachmentFiles[attachment.key] || existingAttachmentDocs[attachment.key]?.file_url
                       )
+                      const fileLabel = attachmentFiles[attachment.key]?.name
+                        || attachmentDisplayName(existingAttachmentDocs[attachment.key], attachmentLabels)
+                        || 'Filename here'
+                      const attachedFile = attachmentFiles[attachment.key]
+                      const existingUrl = existingAttachmentDocs[attachment.key]?.file_url || ''
+                      const isImageAttachment = Boolean(
+                        attachedFile?.type?.startsWith('image/')
+                        || (!attachedFile && typeof existingUrl === 'string' && existingUrl.match(/\.(png|jpe?g|webp|gif)(\?|#|$)/i))
+                      )
+                      const isPdfAttachment = Boolean(
+                        attachedFile?.type === 'application/pdf'
+                        || (!attachedFile && typeof existingUrl === 'string' && existingUrl.match(/\.pdf(\?|#|$)/i))
+                      )
+                      const previewUrl = attachedFile
+                        ? (attachmentPreviewUrls[attachment.key] || '')
+                        : (existingUrl || '')
 
                       return (
                         <div key={attachment.key} className={`attachment-box attachment-box--slot${hasAttachment ? ' is-filled' : ''}`}>
-                          <span className="attachment-box-title attachment-box-title--slot">
-                            {attachment.label}
-                            {hasAttachment ? <span className="attachment-box-badge attachment-box-badge--slot" aria-label="File attached" title="File attached">*</span> : null}
-                          </span>
-                          {attachment.key.startsWith('att_option_') ? <input type="text" value={attachmentLabels[attachment.key] || ''} onChange={(event) => setAttachmentLabels((prev) => ({ ...prev, [attachment.key]: event.target.value }))} placeholder="Attachment name" /> : null}
-                          {attachment.expiryField ? <input name={attachment.expiryField} type="date" value={form[attachment.expiryField]} onChange={(event) => setForm((prev) => ({ ...prev, [attachment.expiryField]: event.target.value }))} /> : null}
-                          <div className="attachment-file-row">
-                            <span className="attachment-file-name attachment-file-name--slot">
-                              {attachmentFiles[attachment.key]?.name
-                                || attachmentDisplayName(existingAttachmentDocs[attachment.key], attachmentLabels)
-                                || 'No file selected'}
-                            </span>
-                            <label htmlFor={inputId} className="attachment-file-trigger btn-secondary">
-                              Choose file
-                            </label>
+                          <div className={`attachment-slot-icon${isImageAttachment && previewUrl ? ' has-thumb' : ''}`} aria-hidden="true">
+                            {isImageAttachment && previewUrl ? (
+                              <img className="attachment-slot-thumb" src={previewUrl} alt="" />
+                            ) : null}
+                            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                              <path d="M4 7h4l2-2h4l2 2h4v12H4V7Z" />
+                              <path d="M12 17a4 4 0 1 0 0-8 4 4 0 0 0 0 8Z" />
+                            </svg>
+                            {previewUrl ? (
+                              <div className="attachment-slot-preview-popover">
+                                {isImageAttachment ? (
+                                  <img src={previewUrl} alt={fileLabel} />
+                                ) : (
+                                  <span>{fileLabel}</span>
+                                )}
+                              </div>
+                            ) : null}
                           </div>
+
+                          <div className="attachment-slot-copy">
+                            <div className="attachment-slot-title">
+                              <div className="attachment-slot-title-row">
+                                <strong>{attachment.label}</strong>
+                                {hasAttachment ? <span className="attachment-box-badge attachment-box-badge--slot" aria-label="File attached" title="File attached"></span> : null}
+                              </div>
+                              {attachment.key === 'portrait_photo' ? <span className="muted-text">3x4 size</span> : null}
+                            </div>
+                            <span className="attachment-slot-filename muted-text">{fileLabel}</span>
+                            {attachment.key.startsWith('att_option_') ? (
+                              <input
+                                type="text"
+                                value={attachmentLabels[attachment.key] || ''}
+                                onChange={(event) => setAttachmentLabels((prev) => ({ ...prev, [attachment.key]: event.target.value }))}
+                                placeholder="Attachment name"
+                              />
+                            ) : null}
+                            {attachment.expiryField ? (
+                              <input
+                                name={attachment.expiryField}
+                                type="date"
+                                value={form[attachment.expiryField]}
+                                onChange={(event) => setForm((prev) => ({ ...prev, [attachment.expiryField]: event.target.value }))}
+                              />
+                            ) : null}
+                            {!isRequiredAttachment ? (
+                              <div className="attachment-slot-actions attachment-slot-actions--inline">
+                                <div
+                                  className={`attachment-slot-dropzone${dragOverAttachmentKey === attachment.key ? ' is-dragover' : ''}`}
+                                  role="button"
+                                  tabIndex={0}
+                                  onKeyDown={(event) => {
+                                    if (event.key === 'Enter' || event.key === ' ') {
+                                      event.preventDefault()
+                                      document.getElementById(inputId)?.click()
+                                    }
+                                  }}
+                                  onClick={() => document.getElementById(inputId)?.click()}
+                                  onDragEnter={(event) => {
+                                    event.preventDefault()
+                                    setDragOverAttachmentKey(attachment.key)
+                                  }}
+                                  onDragOver={(event) => {
+                                    event.preventDefault()
+                                    event.dataTransfer.dropEffect = 'copy'
+                                    setDragOverAttachmentKey(attachment.key)
+                                  }}
+                                  onDragLeave={(event) => {
+                                    event.preventDefault()
+                                    setDragOverAttachmentKey('')
+                                  }}
+                                  onDrop={(event) => {
+                                    event.preventDefault()
+                                    setDragOverAttachmentKey('')
+                                    const file = event.dataTransfer?.files?.[0]
+                                    if (!file) return
+                                    handleAttachmentPick(attachment.key, file)
+                                  }}
+                                  aria-label={`Drag and drop or click to choose a file for ${attachment.label}`}
+                                >
+                                  <span className="muted-text">Drag &amp; drop file here</span>
+                                </div>
+
+                                <label htmlFor={inputId} className="attachment-file-trigger btn-secondary">
+                                  Choose file
+                                </label>
+                              </div>
+                            ) : null}
+                          </div>
+
+                          {isRequiredAttachment ? (
+                            <div className="attachment-slot-actions">
+                              <div
+                                className={`attachment-slot-dropzone${dragOverAttachmentKey === attachment.key ? ' is-dragover' : ''}`}
+                                role="button"
+                                tabIndex={0}
+                                onKeyDown={(event) => {
+                                  if (event.key === 'Enter' || event.key === ' ') {
+                                    event.preventDefault()
+                                    document.getElementById(inputId)?.click()
+                                  }
+                                }}
+                                onClick={() => document.getElementById(inputId)?.click()}
+                                onDragEnter={(event) => {
+                                  event.preventDefault()
+                                  setDragOverAttachmentKey(attachment.key)
+                                }}
+                                onDragOver={(event) => {
+                                  event.preventDefault()
+                                  event.dataTransfer.dropEffect = 'copy'
+                                  setDragOverAttachmentKey(attachment.key)
+                                }}
+                                onDragLeave={(event) => {
+                                  event.preventDefault()
+                                  setDragOverAttachmentKey('')
+                                }}
+                                onDrop={(event) => {
+                                  event.preventDefault()
+                                  setDragOverAttachmentKey('')
+                                  const file = event.dataTransfer?.files?.[0]
+                                  if (!file) return
+                                  handleAttachmentPick(attachment.key, file)
+                                }}
+                                aria-label={`Drag and drop or click to choose a file for ${attachment.label}`}
+                              >
+                                <span className="muted-text">Drag &amp; drop file here</span>
+                              </div>
+
+                              <label htmlFor={inputId} className="attachment-file-trigger btn-secondary">
+                                Choose file
+                              </label>
+                            </div>
+                          ) : null}
                           {existingAttachmentDocs[attachment.key]?.file_url && !attachmentFiles[attachment.key] ? (
                             <p className="muted-text employee-step-note">
                               Existing file retained.
@@ -3261,10 +3567,213 @@ export default function EmployeesPage() {
                             onChange={(event) => handleAttachmentPick(attachment.key, event.target.files?.[0] || null)}
                           />
                         </div>
-                      );
-                    })}
+                      )
+                    }
+
+                    const requiredCount = requiredAttachments.length
+                    const requiredFilled = requiredAttachments.filter((attachment) => (
+                      Boolean(attachmentFiles[attachment.key] || existingAttachmentDocs[attachment.key]?.file_url)
+                    )).length
+
+                    return (
+                      <div className="employee-span-two attachment-sections">
+                        <div className="attachment-section attachment-section--required">
+                          <div className="attachment-section-header">
+                            <div className="attachment-section-title">
+                              <strong>Required documents</strong>
+                              <span className="badge badge-muted">{requiredCount} mandatory</span>
+                            </div>
+                            <div className="attachment-section-progress">
+                              <span className="muted-text">{requiredFilled} of {requiredCount} uploaded</span>
+                              <div className="employee-registration-progress-bar" aria-hidden="true">
+                                <span style={{ width: `${requiredCount ? Math.round((requiredFilled / requiredCount) * 100) : 0}%` }} />
+                              </div>
+                            </div>
+                          </div>
+                          <div className="attachment-grid">
+                            {requiredAttachments.map(renderAttachmentSlot)}
+                          </div>
+                        </div>
+
+                        <div className="attachment-section attachment-section--optional">
+                          <div className="attachment-section-header">
+                            <div className="attachment-section-title">
+                              <strong>Other documents</strong>
+                              <span className="badge badge-muted">Optional</span>
+                            </div>
+                            <button
+                              type="button"
+                              className="btn-secondary"
+                              onClick={() => setOtherDocumentsModalOpen(true)}
+                            >
+                              Manage
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    )
+                  })()}
+                </div>
+              ) : null}
+              {otherDocumentsModalOpen ? (
+                <div className="app-confirm-backdrop" role="presentation" onClick={() => setOtherDocumentsModalOpen(false)}>
+                  <div
+                    className="employee-review-modal employee-other-documents-modal"
+                    role="dialog"
+                    aria-modal="true"
+                    aria-label="Other documents"
+                    onClick={(event) => event.stopPropagation()}
+                  >
+                    <div className="employee-other-documents-header">
+                      <div className="employee-review-header">
+                        <h2>Other documents</h2>
+                        <button
+                          type="button"
+                          className="btn-ghost employee-other-documents-close"
+                          onClick={() => setOtherDocumentsModalOpen(false)}
+                        >
+                          Close
+                        </button>
+                      </div>
+                      <p className="muted-text app-confirm-message">
+                        Optional attachments. Add expiry dates or names when needed, then choose a file.
+                      </p>
+                    </div>
+                    <div className="employee-other-documents-body">
+                      <div className="attachment-section attachment-section--optional">
+                        <div className="attachment-grid">
+                      {(() => {
+                        const requiredKeys = new Set(['portrait_photo', 'full_photo', 'passport_document'])
+                        return ATTACHMENT_FIELDS.filter((attachment) => !requiredKeys.has(attachment.key)).map((attachment) => {
+                          const inputId = `employee-attachment-${attachment.key}`
+                          const hasAttachment = Boolean(
+                            attachmentFiles[attachment.key] || existingAttachmentDocs[attachment.key]?.file_url
+                          )
+                          const fileLabel = attachmentFiles[attachment.key]?.name
+                            || attachmentDisplayName(existingAttachmentDocs[attachment.key], attachmentLabels)
+                            || 'Filename here'
+                          const attachedFile = attachmentFiles[attachment.key]
+                          const existingUrl = existingAttachmentDocs[attachment.key]?.file_url || ''
+                          const isImageAttachment = Boolean(
+                            attachedFile?.type?.startsWith('image/')
+                            || (!attachedFile && typeof existingUrl === 'string' && existingUrl.match(/\.(png|jpe?g|webp|gif)(\?|#|$)/i))
+                          )
+                          const previewUrl = attachedFile
+                            ? (attachmentPreviewUrls[attachment.key] || '')
+                            : (existingUrl || '')
+
+                          return (
+                            <div key={attachment.key} className={`attachment-box attachment-box--slot${hasAttachment ? ' is-filled' : ''}`}>
+                              <div className={`attachment-slot-icon${isImageAttachment && previewUrl ? ' has-thumb' : ''}`} aria-hidden="true">
+                                {isImageAttachment && previewUrl ? (
+                                  <img className="attachment-slot-thumb" src={previewUrl} alt="" />
+                                ) : null}
+                                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                  <path d="M4 7h4l2-2h4l2 2h4v12H4V7Z" />
+                                  <path d="M12 17a4 4 0 1 0 0-8 4 4 0 0 0 0 8Z" />
+                                </svg>
+                                {previewUrl ? (
+                                  <div className="attachment-slot-preview-popover">
+                                    {isImageAttachment ? (
+                                      <img src={previewUrl} alt={fileLabel} />
+                                    ) : (
+                                      <span>{fileLabel}</span>
+                                    )}
+                                  </div>
+                                ) : null}
+                              </div>
+
+                              <div className="attachment-slot-copy">
+                                <div className="attachment-slot-title">
+                                  <div className="attachment-slot-title-row">
+                                    <strong>{attachment.label}</strong>
+                                    {hasAttachment ? <span className="attachment-box-badge attachment-box-badge--slot" aria-label="File attached" title="File attached"></span> : null}
+                                  </div>
+                                  {attachment.key === 'portrait_photo' ? <span className="muted-text">3x4 size</span> : null}
+                                </div>
+                                <span className="attachment-slot-filename muted-text">{fileLabel}</span>
+                                {attachment.key.startsWith('att_option_') ? (
+                                  <input
+                                    type="text"
+                                    value={attachmentLabels[attachment.key] || ''}
+                                    onChange={(event) => setAttachmentLabels((prev) => ({ ...prev, [attachment.key]: event.target.value }))}
+                                    placeholder="Attachment name"
+                                  />
+                                ) : null}
+                                {attachment.expiryField ? (
+                                  <input
+                                    name={attachment.expiryField}
+                                    type="date"
+                                    value={form[attachment.expiryField]}
+                                    onChange={(event) => setForm((prev) => ({ ...prev, [attachment.expiryField]: event.target.value }))}
+                                  />
+                                ) : null}
+                                <div className="attachment-slot-actions attachment-slot-actions--inline">
+                                  <div
+                                    className={`attachment-slot-dropzone${dragOverAttachmentKey === attachment.key ? ' is-dragover' : ''}`}
+                                    role="button"
+                                    tabIndex={0}
+                                    onKeyDown={(event) => {
+                                      if (event.key === 'Enter' || event.key === ' ') {
+                                        event.preventDefault()
+                                        document.getElementById(inputId)?.click()
+                                      }
+                                    }}
+                                    onClick={() => document.getElementById(inputId)?.click()}
+                                    onDragEnter={(event) => {
+                                      event.preventDefault()
+                                      setDragOverAttachmentKey(attachment.key)
+                                    }}
+                                    onDragOver={(event) => {
+                                      event.preventDefault()
+                                      event.dataTransfer.dropEffect = 'copy'
+                                      setDragOverAttachmentKey(attachment.key)
+                                    }}
+                                    onDragLeave={(event) => {
+                                      event.preventDefault()
+                                      setDragOverAttachmentKey('')
+                                    }}
+                                    onDrop={(event) => {
+                                      event.preventDefault()
+                                      setDragOverAttachmentKey('')
+                                      const file = event.dataTransfer?.files?.[0]
+                                      if (!file) return
+                                      handleAttachmentPick(attachment.key, file)
+                                    }}
+                                    aria-label={`Drag and drop or click to choose a file for ${attachment.label}`}
+                                  >
+                                    <span className="muted-text">Drag &amp; drop file here</span>
+                                  </div>
+
+                                  <label htmlFor={inputId} className="attachment-file-trigger btn-secondary">
+                                    Choose file
+                                  </label>
+                                </div>
+                              </div>
+
+                              {existingAttachmentDocs[attachment.key]?.file_url && !attachmentFiles[attachment.key] ? (
+                                <p className="muted-text employee-step-note">
+                                  Existing file retained.
+                                  {' '}
+                                  <a href={existingAttachmentDocs[attachment.key].file_url} target="_blank" rel="noreferrer">Open current file</a>
+                                </p>
+                              ) : null}
+                              <input
+                                id={inputId}
+                                name={attachment.key}
+                                type="file"
+                                accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png"
+                                className="visually-hidden-file"
+                                onChange={(event) => handleAttachmentPick(attachment.key, event.target.files?.[0] || null)}
+                              />
+                            </div>
+                          )
+                        })
+                      })()}
+                        </div>
+                      </div>
+                    </div>
                   </div>
-                  <label className="employee-span-two">Certificate notes<textarea value={form.certifications} onChange={(event) => setForm((prev) => ({ ...prev, certifications: event.target.value }))} rows={3} /></label>
                 </div>
               ) : null}
               {activeStep === 5 ? (
@@ -3272,34 +3781,96 @@ export default function EmployeesPage() {
                   <div className="employee-span-two employee-summary-grid">
                     <div className="employee-summary-card">
                       <h3>Identity</h3>
-                      <p><strong>Name:</strong> {[form.first_name, form.middle_name, form.last_name].filter(Boolean).join(' ') || '--'}</p>
-                      <p><strong>Date of birth:</strong> {form.date_of_birth || '--'}</p>
-                      <p><strong>Gender:</strong> {form.gender || '--'}</p>
-                      <p><strong>Passport:</strong> {form.passport_number || '--'}</p>
-                      <p><strong>Mobile:</strong> {form.mobile_number || '--'}</p>
+                      <div className="employee-summary-row">
+                        <span className="employee-summary-label">Name</span>
+                        <span className="employee-summary-value">{[form.first_name, form.middle_name, form.last_name].filter(Boolean).join(' ') || '--'}</span>
+                      </div>
+                      <div className="employee-summary-row">
+                        <span className="employee-summary-label">Date of birth</span>
+                        <span className="employee-summary-value">{form.date_of_birth || '--'}</span>
+                      </div>
+                      <div className="employee-summary-row">
+                        <span className="employee-summary-label">Gender</span>
+                        <span className="employee-summary-value">{form.gender || '--'}</span>
+                      </div>
+                      <div className="employee-summary-row">
+                        <span className="employee-summary-label">Passport</span>
+                        <span className="employee-summary-value">{form.passport_number || '--'}</span>
+                      </div>
+                      <div className="employee-summary-row">
+                        <span className="employee-summary-label">Mobile</span>
+                        <span className="employee-summary-value">{form.mobile_number || '--'}</span>
+                      </div>
                     </div>
                     <div className="employee-summary-card">
                       <h3>Application</h3>
-                      <p><strong>Countries:</strong> {form.application_countries.join(', ') || '--'}</p>
-                      <p><strong>Profession:</strong> {form.profession || '--'}</p>
-                      <p><strong>Type:</strong> {form.employment_type || '--'}</p>
-                      <p><strong>Salary:</strong> {form.application_salary || '--'}</p>
-                      <p><strong>Skills:</strong> {form.skills.join(', ') || '--'}</p>
+                      <div className="employee-summary-row">
+                        <span className="employee-summary-label">Countries</span>
+                        <span className="employee-summary-value">{form.application_countries.join(', ') || '--'}</span>
+                      </div>
+                      <div className="employee-summary-row">
+                        <span className="employee-summary-label">Profession</span>
+                        <span className="employee-summary-value">{form.profession || '--'}</span>
+                      </div>
+                      <div className="employee-summary-row">
+                        <span className="employee-summary-label">Type</span>
+                        <span className="employee-summary-value">{form.employment_type || '--'}</span>
+                      </div>
+                      <div className="employee-summary-row">
+                        <span className="employee-summary-label">Salary</span>
+                        <span className="employee-summary-value">{form.application_salary || '--'}</span>
+                      </div>
+                      <div className="employee-summary-row">
+                        <span className="employee-summary-label">Skills</span>
+                        <span className="employee-summary-value">{form.skills.join(', ') || '--'}</span>
+                      </div>
                     </div>
                     <div className="employee-summary-card">
                       <h3>Profile</h3>
-                      <p><strong>Religion:</strong> {form.religion || '--'}</p>
-                      <p><strong>Marital status:</strong> {form.marital_status || '--'}</p>
-                      <p><strong>Residence:</strong> {form.residence_country || '--'}</p>
-                      <p><strong>Nationality:</strong> {form.nationality || '--'}</p>
-                      <p><strong>Experience:</strong> {form.experiences.filter((item) => item.country || item.years !== '').map((item) => `${item.country || '--'} (${item.years || '--'} yrs)`).join(', ') || '--'}</p>
+                      <div className="employee-summary-row">
+                        <span className="employee-summary-label">Religion</span>
+                        <span className="employee-summary-value">{form.religion || '--'}</span>
+                      </div>
+                      <div className="employee-summary-row">
+                        <span className="employee-summary-label">Marital status</span>
+                        <span className="employee-summary-value">{form.marital_status || '--'}</span>
+                      </div>
+                      <div className="employee-summary-row">
+                        <span className="employee-summary-label">Residence</span>
+                        <span className="employee-summary-value">{form.residence_country || '--'}</span>
+                      </div>
+                      <div className="employee-summary-row">
+                        <span className="employee-summary-label">Nationality</span>
+                        <span className="employee-summary-value">{form.nationality || '--'}</span>
+                      </div>
+                      <div className="employee-summary-row employee-summary-row--wrap">
+                        <span className="employee-summary-label">Experience</span>
+                        <span className="employee-summary-value">
+                          {form.experiences
+                            .filter((item) => item.country || item.years !== '')
+                            .map((item) => `${item.country || '--'} (${item.years || '--'} yrs)`)
+                            .join(', ') || '--'}
+                        </span>
+                      </div>
                     </div>
                     <div className="employee-summary-card">
                       <h3>Contact</h3>
-                      <p><strong>Contact person:</strong> {form.contact_person_name || '--'}</p>
-                      <p><strong>Contact mobile:</strong> {form.contact_person_mobile || '--'}</p>
-                      <p><strong>Email:</strong> {form.email || '--'}</p>
-                      <p><strong>Secondary phone:</strong> {form.phone || '--'}</p>
+                      <div className="employee-summary-row">
+                        <span className="employee-summary-label">Contact person</span>
+                        <span className="employee-summary-value">{form.contact_person_name || '--'}</span>
+                      </div>
+                      <div className="employee-summary-row">
+                        <span className="employee-summary-label">Contact mobile</span>
+                        <span className="employee-summary-value">{form.contact_person_mobile || '--'}</span>
+                      </div>
+                      <div className="employee-summary-row">
+                        <span className="employee-summary-label">Email</span>
+                        <span className="employee-summary-value">{form.email || '--'}</span>
+                      </div>
+                      <div className="employee-summary-row">
+                        <span className="employee-summary-label">Secondary phone</span>
+                        <span className="employee-summary-value">{form.phone || '--'}</span>
+                      </div>
                     </div>
                   </div>
                   <div className="employee-span-two">
@@ -3313,7 +3884,11 @@ export default function EmployeesPage() {
                         <div key={attachment.key} className="employee-attachment-preview-card">
                           <strong>{attachmentLabels[attachment.key] || attachment.label}</strong>
                           {attachmentFiles[attachment.key]?.type?.startsWith('image/') ? (
-                            <img src={URL.createObjectURL(attachmentFiles[attachment.key])} alt={attachment.label} className="employee-attachment-preview-image" />
+                            <img
+                              src={attachmentPreviewUrls[attachment.key] || ''}
+                              alt={attachment.label}
+                              className="employee-attachment-preview-image"
+                            />
                           ) : (
                             <div className="employee-attachment-preview-file">{attachmentFiles[attachment.key]?.name || 'Attached file'}</div>
                           )}
@@ -3324,14 +3899,40 @@ export default function EmployeesPage() {
                 </div>
               ) : null}
               <div className="employee-modal-actions">
-                <button type="button" className="btn-secondary" onClick={goToPreviousStep} disabled={activeStep === 0 || saving}>Back</button>
-                {activeStep < REGISTRATION_STEPS.length - 1 ? (
-                  <button type="button" onClick={goToNextStep} disabled={saving}>Next</button>
-                ) : (
-                  <button type="button" onClick={submitRegistration} disabled={saving || readOnly}>{saving ? 'Saving...' : editingEmployeeId ? 'Update employee' : 'Register employee'}</button>
-                )}
+                <div className="employee-modal-actions-right">
+                  <button type="button" className="btn-secondary" onClick={handleSaveTemplate} disabled={saving}>
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" style={{ stroke: 'currentColor', strokeWidth: 1.5, strokeLinecap: 'round', strokeLinejoin: 'round' }}>
+                      <path d="M4 7a2 2 0 0 1 2-2h11l3 3v12a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7Z" />
+                      <path d="M8 5v6h8V5" />
+                      <path d="M8 22v-7h8v7" />
+                    </svg>
+                    Save Draft
+                  </button>
+                  {hasSavedTemplate ? (
+                    <button type="button" className="btn-secondary" onClick={handleClearTemplate} disabled={saving}>
+                      Clear template
+                    </button>
+                  ) : null}
+                  <button type="button" className="btn-secondary" onClick={handleResetRegistrationToTemplate} disabled={saving}>
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" style={{ stroke: 'currentColor', strokeWidth: 1.5, strokeLinecap: 'round', strokeLinejoin: 'round' }}>
+                      <path d="M6 7h12" />
+                      <path d="M10 11v6" />
+                      <path d="M14 11v6" />
+                      <path d="M9 7 10 5h4l1 2" />
+                      <path d="M7 7l1 14h8l1-14" />
+                    </svg>
+                    Clear
+                  </button>
+                  {activeStep < REGISTRATION_STEPS.length - 1 ? (
+                    <button type="button" onClick={goToNextStep} disabled={saving}>Next</button>
+                  ) : (
+                    <button type="button" onClick={submitRegistration} disabled={saving || readOnly}>{saving ? 'Saving...' : editingEmployeeId ? 'Update employee' : 'Register employee'}</button>
+                  )}
+                </div>
               </div>
             </form>
+              </div>
+            </div>
           </div>
         </div>
       ) : (
@@ -3459,66 +4060,6 @@ export default function EmployeesPage() {
             </p>
           ) : (
             <>
-              {currentView === 'employed' && travelConfirmationPendingEmployees.length > 0 ? (
-                <section className="employee-stage-pending-surface">
-                  <div className="employee-stage-pending-header">
-                    <div>
-                      <h3>Travel confirmation pending</h3>
-                      <p className="muted-text">
-                        {travelConfirmationPendingEmployees.length} employee{travelConfirmationPendingEmployees.length === 1 ? '' : 's'} completed `100%` and are waiting for travel confirmation.
-                      </p>
-                    </div>
-                    <button
-                      type="button"
-                      className="commission-group-toggle-button"
-                      onClick={() => setTravelPendingOpen((prev) => !prev)}
-                      aria-label={travelPendingOpen ? 'Collapse travel confirmation pending' : 'Expand travel confirmation pending'}
-                      aria-expanded={travelPendingOpen}
-                    >
-                      <span className={`commission-group-toggle-icon${travelPendingOpen ? ' is-open' : ''}`}>▸</span>
-                    </button>
-                  </div>
-                  {travelPendingOpen ? (
-                  <div className="employee-stage-pending-list">
-                    {travelConfirmationPendingEmployees.map((employee) => (
-                      <div key={employee.id} className="employee-stage-pending-item">
-                        <button
-                          type="button"
-                          className="employee-stage-pending-main"
-                          onClick={() => {
-                            setOpenedEmployeeMode('full')
-                            setOpenedEmployeeId(employee.id)
-                          }}
-                        >
-                          <span>
-                            <strong>{employee.full_name}</strong>
-                            <span className="return-request-employee-meta">
-                              {employee.profession || employee.professional_title || '--'}
-                            </span>
-                            <span className="return-request-employee-meta">
-                              Progress {employee.progress_status?.overall_completion ?? 0}% | Travel {prettyStatus(employee.travel_status, 'pending')}
-                            </span>
-                          </span>
-                          <span className="return-request-employee-state" data-tone={statusTone(employeeStatusLabel(employee, currentView))}>
-                            {employeeStatusLabel(employee, currentView)}
-                          </span>
-                        </button>
-                        <div className="returned-request-actions">
-                          <button
-                            type="button"
-                            className="btn-info"
-                            onClick={() => handleMarkProgressComplete(employee)}
-                            disabled={readOnly || actionBusyId === employee.id}
-                          >
-                            {actionBusyId === employee.id ? 'Saving...' : 'Confirm travelled'}
-                          </button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                  ) : null}
-                </section>
-              ) : null}
               {primaryVisibleEmployees.length > 0 ? (
             <div className="employee-cards">
               {primaryVisibleEmployees.map((employee) => {
@@ -3526,13 +4067,13 @@ export default function EmployeesPage() {
                 const isOpened = openedEmployeeId === employee.id
                 const selectionState = employee.selection_state || {}
                 const selection = selectionState.selection
-                const isSelected = Boolean(selectionState.is_selected)
                 const isSelectedByCurrentAgent = Boolean(selectionState.selected_by_current_agent)
-                const isUnderProcess = selection?.status === 'under_process'
+                const workflowState = employeeWorkflowState(employee)
+                const isUnderProcess = workflowState === 'under_process'
                 const isEmployedEmployee = isEmployeeEmployedInView(employee)
-                const isTravelConfirmationPending = isEmployeeTravelConfirmationPending(employee)
+                const isTravelledEmployee = workflowState === 'traveled'
                 const isReturnedEmployee = isEmployeeReturned(employee)
-                const isAvailableEmployee = employeeAvailability(employee, currentView) === 'Available'
+                const isAvailableEmployee = employeeAvailability(employee) === 'Available'
                 const assignedAgentId = resolvedProcessAgentId(
                   employee,
                   processAgentAssignments,
@@ -3573,9 +4114,8 @@ export default function EmployeesPage() {
                         </div>
                       </div>
                       <div className="employee-card-header-meta">
-                        {isAgentSideUser && isSelectedByCurrentAgent ? <span className="badge badge-success">Selected</span> : null}
                         {employee.return_request?.status === 'pending' ? <span className="badge badge-warning">Return requested</span> : null}
-                        <span className={`badge employee-card-status-badge ${employeeStatusBadgeClass(employee, currentView)} ${employeeStatusBadgeVariantClass(employee, currentView)}`.trim()}>{employeeStatusLabel(employee, currentView)}</span>
+                        <span className={`badge employee-card-status-badge ${employeeStatusBadgeClass(employee)} ${employeeStatusBadgeVariantClass(employee)}`.trim()}>{employeeStatusLabel(employee)}</span>
                       </div>
                     </div>
                     <p className="muted-text">{employee.application_countries?.join(', ') || 'No destination country'} | {employee.phone || employee.mobile_number || 'No phone'}</p>
@@ -3638,7 +4178,7 @@ export default function EmployeesPage() {
                         )
                       })}
                     </div>
-                    {(!isEmployedEmployee || isTravelConfirmationPending) && !isReturnedEmployee ? (
+                    {(!isEmployedEmployee && !isTravelledEmployee) && !isReturnedEmployee ? (
                     <div className="employee-card-actions">
                       {!isUnderProcess && isAvailableEmployee ? (
                         <button
@@ -3706,7 +4246,7 @@ export default function EmployeesPage() {
                           >
                             {actionBusyId === employee.id
                               ? 'Saving...'
-                              : 'Initiate process'}
+                            : 'Initiate process'}
                           </button>
                         </>
                       ) : null}
@@ -3734,21 +4274,20 @@ export default function EmployeesPage() {
                               : 'Mark progress 100%'}
                         </button>
                       ) : null}
-                      <button type="button" className="btn-success" onClick={(event) => { event.stopPropagation(); handleAvailabilityAction(employee, 'approved', 'Approved') }} disabled={actionBusyId === employee.id || readOnly || isAgentSideUser || employee.status === 'approved'}>
-                        {actionBusyId === employee.id ? 'Saving...' : 'Approve'}
-                      </button>
-                      {isAvailableEmployee ? (
-                        <button
-                          type="button"
-                          className="btn-muted-action"
-                          onClick={(event) => { event.stopPropagation(); handleEmployeeAvailabilityToggle(employee, false, 'Marked as not available') }}
-                          disabled={actionBusyId === employee.id || readOnly || isAgentSideUser || isUnderProcess}
-                        >
-                          {actionBusyId === employee.id ? 'Saving...' : 'Make not available'}
+                      {workflowState === 'pending' ? (
+                        <>
+                          <button type="button" className="btn-success" onClick={(event) => { event.stopPropagation(); handleAvailabilityAction(employee, 'approved', 'Approved') }} disabled={actionBusyId === employee.id || readOnly || isAgentSideUser}>
+                            {actionBusyId === employee.id ? 'Saving...' : 'Approve'}
+                          </button>
+                          <button type="button" className="btn-danger" onClick={(event) => { event.stopPropagation(); handleAvailabilityAction(employee, 'rejected', 'Rejected') }} disabled={actionBusyId === employee.id || readOnly || isAgentSideUser}>Reject</button>
+                          <button type="button" className="btn-warning" onClick={(event) => { event.stopPropagation(); handleAvailabilityAction(employee, 'suspended', 'Suspended') }} disabled={actionBusyId === employee.id || readOnly || isAgentSideUser}>Suspend</button>
+                        </>
+                      ) : null}
+                      {workflowState === 'rejected' || workflowState === 'suspended' ? (
+                        <button type="button" className="btn-secondary" onClick={(event) => { event.stopPropagation(); handleAvailabilityAction(employee, 'pending', 'Moved to pending') }} disabled={actionBusyId === employee.id || readOnly || isAgentSideUser}>
+                          {actionBusyId === employee.id ? 'Saving...' : 'Move to pending'}
                         </button>
                       ) : null}
-                      <button type="button" className="btn-danger" onClick={(event) => { event.stopPropagation(); handleAvailabilityAction(employee, 'rejected', 'Rejected') }} disabled={actionBusyId === employee.id || readOnly || isAgentSideUser || isUnderProcess || employee.status === 'rejected'}>Reject</button>
-                      <button type="button" className="btn-warning" onClick={(event) => { event.stopPropagation(); handleAvailabilityAction(employee, 'suspended', 'Suspended') }} disabled={actionBusyId === employee.id || readOnly || isAgentSideUser || isUnderProcess || employee.status === 'suspended'}>Suspend</button>
                       {canEditEmployeeRecords ? (
                         <button type="button" className="btn-secondary" onClick={(event) => { event.stopPropagation(); handleEdit(employee.id) }} disabled={busyEmployeeId === employee.id || readOnly}>
                         {busyEmployeeId === employee.id ? 'Loading...' : 'Edit'}
@@ -3862,13 +4401,13 @@ export default function EmployeesPage() {
       {scanImportModalOpen ? (
         <div className="app-confirm-backdrop" role="presentation" onClick={closeScanImportModal}>
           <div
-            className="app-confirm-dialog notification-reminder-dialog employee-scan-modal"
+            className="employee-review-modal employee-scan-modal"
             role="dialog"
             aria-modal="true"
             aria-labelledby="employee-scan-title"
             onClick={(event) => event.stopPropagation()}
           >
-            <div className="app-confirm-header">
+            <div className="employee-review-header">
               <h2 id="employee-scan-title">Scan from document</h2>
             </div>
             <p className="app-confirm-message">
@@ -3880,24 +4419,50 @@ export default function EmployeesPage() {
                 className={`notification-reminder-option employee-scan-option-card${ocrImportSource === 'camera' ? ' is-selected' : ''}`}
                 onClick={() => triggerScanImport('camera')}
               >
-                <strong>From camera</strong>
-                <span>Capture a document photo from this device and stage it for OCR.</span>
+                <span className="employee-scan-option-icon" aria-hidden="true">
+                  <svg width="48" height="48" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M4 7h4l2-2h4l2 2h4v12H4V7Z" />
+                    <path d="M12 17a4 4 0 1 0 0-8 4 4 0 0 0 0 8Z" />
+                  </svg>
+                </span>
+                <span className="employee-scan-option-copy">
+                  <strong>From camera</strong>
+                  <span>Capture a document photo from this device and stage it for OCR.</span>
+                </span>
               </button>
               <button
                 type="button"
                 className={`notification-reminder-option employee-scan-option-card${ocrImportSource === 'scanner' ? ' is-selected' : ''}`}
                 onClick={() => triggerScanImport('scanner')}
               >
-                <strong>Scanner</strong>
-                <span>Choose a scanned PDF or image from a scanner workflow on this device.</span>
+                <span className="employee-scan-option-icon" aria-hidden="true">
+                  <svg width="48" height="48" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M6 9V4h12v5" />
+                    <path d="M6 17H4v-6a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v6h-2" />
+                    <path d="M7 14h10v6H7v-6Z" />
+                  </svg>
+                </span>
+                <span className="employee-scan-option-copy">
+                  <strong>Scanner</strong>
+                  <span>Choose a scanned PDF or image from a scanner workflow on this device.</span>
+                </span>
               </button>
               <button
                 type="button"
                 className={`notification-reminder-option employee-scan-option-card${ocrImportSource === 'upload' ? ' is-selected' : ''}`}
                 onClick={() => triggerScanImport('upload')}
               >
-                <strong>Upload a document</strong>
-                <span>Select an existing PDF or image so OCR can later read it and prefill the registration form.</span>
+                <span className="employee-scan-option-icon" aria-hidden="true">
+                  <svg width="48" height="48" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M12 16V4" />
+                    <path d="M8 8l4-4 4 4" />
+                    <path d="M4 20h16" />
+                  </svg>
+                </span>
+                <span className="employee-scan-option-copy">
+                  <strong>Upload a document</strong>
+                  <span>Select an existing PDF or image so OCR can later read it and prefill the registration form.</span>
+                </span>
               </button>
             </div>
             <div className="app-confirm-actions">
@@ -3910,13 +4475,13 @@ export default function EmployeesPage() {
       {cameraCaptureModalOpen ? (
         <div className="app-confirm-backdrop" role="presentation" onClick={closeCameraCapture}>
           <div
-            className="app-confirm-dialog notification-reminder-dialog employee-scan-modal employee-camera-modal"
+            className="employee-review-modal employee-scan-modal employee-camera-modal"
             role="dialog"
             aria-modal="true"
             aria-labelledby="employee-camera-title"
             onClick={(event) => event.stopPropagation()}
           >
-            <div className="app-confirm-header">
+            <div className="employee-review-header">
               <h2 id="employee-camera-title">Capture from camera</h2>
             </div>
             <p className="app-confirm-message">
@@ -3944,13 +4509,13 @@ export default function EmployeesPage() {
       {uploadDocumentModalOpen ? (
         <div className="app-confirm-backdrop" role="presentation" onClick={closeUploadDocumentModal}>
           <div
-            className="app-confirm-dialog notification-reminder-dialog employee-scan-modal employee-upload-modal"
+            className="employee-review-modal employee-scan-modal employee-upload-modal"
             role="dialog"
             aria-modal="true"
             aria-labelledby="employee-upload-title"
             onClick={(event) => event.stopPropagation()}
           >
-            <div className="app-confirm-header">
+            <div className="employee-review-header">
               <h2 id="employee-upload-title">
                 {uploadDocumentPurpose === 'attachment' ? 'Upload a generic document' : 'Upload a document'}
               </h2>
@@ -4015,13 +4580,13 @@ export default function EmployeesPage() {
       {scannerModalOpen ? (
         <div className="app-confirm-backdrop" role="presentation" onClick={closeScannerModal}>
           <div
-            className="app-confirm-dialog notification-reminder-dialog employee-scan-modal employee-scanner-modal"
+            className="employee-review-modal employee-scan-modal employee-scanner-modal"
             role="dialog"
             aria-modal="true"
             aria-labelledby="employee-scanner-title"
             onClick={(event) => event.stopPropagation()}
           >
-            <div className="app-confirm-header">
+            <div className="employee-review-header">
               <h2 id="employee-scanner-title">Scanner</h2>
             </div>
             <p className="app-confirm-message">
@@ -4075,13 +4640,13 @@ export default function EmployeesPage() {
       {scanAttachmentModalOpen ? (
         <div className="app-confirm-backdrop" role="presentation" onClick={closeScanAttachmentModal}>
           <div
-            className="app-confirm-dialog notification-reminder-dialog employee-scan-modal employee-scan-attach-modal"
+            className="employee-review-modal employee-scan-modal employee-scan-attach-modal"
             role="dialog"
             aria-modal="true"
             aria-labelledby="employee-scan-attach-title"
             onClick={(event) => event.stopPropagation()}
           >
-            <div className="app-confirm-header">
+            <div className="employee-review-header">
               <h2 id="employee-scan-attach-title">Attach from document</h2>
             </div>
             <p className="app-confirm-message">
@@ -4160,13 +4725,13 @@ export default function EmployeesPage() {
       {ocrSetupModalOpen ? (
         <div className="app-confirm-backdrop" role="presentation" onClick={closeOcrSetupModal}>
           <div
-            className="app-confirm-dialog notification-reminder-dialog employee-scan-modal employee-ocr-setup-modal"
+            className="employee-review-modal employee-scan-modal employee-ocr-setup-modal"
             role="dialog"
             aria-modal="true"
             aria-labelledby="employee-ocr-setup-title"
             onClick={(event) => event.stopPropagation()}
           >
-            <div className="app-confirm-header">
+            <div className="employee-review-header">
               <h2 id="employee-ocr-setup-title">OCR setup</h2>
             </div>
             <p className="app-confirm-message">
@@ -4174,7 +4739,7 @@ export default function EmployeesPage() {
             </p>
             <div className={`employee-scanner-status employee-scanner-status--${ocrStatus.ready ? 'ready' : 'service-missing'}`}>
               <strong>{ocrStatus.ready ? 'OCR service is ready' : 'OCR service is not ready'}</strong>
-              <span>{ocrStatusLoading ? 'Checking OCR service...' : (ocrStatus.message || 'Start the configured OCR service, then check again.')}</span>
+              <span>{ocrStatusLoading ? 'Checking OCR service...' : normalizeOcrStatusMessage(ocrStatus.message)}</span>
             </div>
             {!ocrStatus.ready ? (
               <div className="employee-scanner-service-actions">
@@ -4234,7 +4799,7 @@ export default function EmployeesPage() {
                 <div>
                   <p className="employee-modal-eyebrow">Employee review</p>
                   <h2 id="employee-review-title">{openedEmployee.full_name}</h2>
-                  <p className="muted-text">{openedEmployee.profession || openedEmployee.professional_title || '--'} | {employeeStatusLabel(openedEmployee, currentView)}</p>
+                  <p className="muted-text">{openedEmployee.profession || openedEmployee.professional_title || '--'} | {employeeStatusLabel(openedEmployee)}</p>
                 </div>
               </div>
               <div className="inline-actions">
@@ -4294,7 +4859,7 @@ export default function EmployeesPage() {
                   <div className="employee-summary-card">
                     <h3>Overview</h3>
                     <p><strong>Age:</strong> {openedEmployee.age || '--'}</p>
-                    <p><strong>Availability:</strong> {employeeAvailability(openedEmployee, currentView)}</p>
+                    <p><strong>Availability:</strong> {employeeAvailability(openedEmployee)}</p>
                     <p><strong>Phone:</strong> {openedEmployee.phone || openedEmployee.mobile_number || '--'}</p>
                     <p><strong>Email:</strong> {openedEmployee.email || '--'}</p>
                     <p><strong>Registered by:</strong> {openedEmployee.registered_by_username || '--'}</p>
@@ -4330,7 +4895,7 @@ export default function EmployeesPage() {
                       <div className="employee-progress-metrics">
                         <p><strong>Fields:</strong> {openedEmployee.progress_status?.field_completion ?? 0}%</p>
                         <p><strong>Documents:</strong> {openedEmployee.progress_status?.document_completion ?? 0}%</p>
-                        <p><strong>Status:</strong> {employeeStatusLabel(openedEmployee, currentView)}</p>
+                        <p><strong>Status:</strong> {employeeStatusLabel(openedEmployee)}</p>
                       </div>
                     </div>
                     <p><strong>Travel:</strong> {prettyStatus(openedEmployee.travel_status, 'pending')}</p>

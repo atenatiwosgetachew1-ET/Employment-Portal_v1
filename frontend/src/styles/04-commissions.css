@@ -1,0 +1,343 @@
+/* ==========================================================================
+   5. COMMISSIONS DOMAIN
+   Timelines, grouped cases, settlements, receipts, request flows.
+   ========================================================================== */
+
+.commission-timeline-list {
+  display: grid;
+  gap: 12px;
+}
+
+.commission-timeline-item.is-drillable {
+  cursor: pointer;
+}
+
+.commission-timeline-item.is-drillable:hover {
+  border-color: color-mix(in oklch, var(--color-ring) 34%, var(--color-border));
+  background: color-mix(in oklch, var(--color-muted) 68%, var(--color-card));
+}
+
+.commission-timeline-meta {
+  display: grid;
+  gap: 4px;
+}
+
+.commission-timeline-meta strong {
+  color: var(--color-foreground);
+}
+
+.commission-timeline-meta span {
+  color: var(--color-muted-foreground);
+  font-size: 0.9rem;
+}
+
+.commission-timeline-bar {
+  position: relative;
+  height: 14px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: color-mix(in oklch, var(--color-muted) 76%, var(--color-card));
+  border: 1px solid color-mix(in oklch, var(--color-border) 74%, transparent);
+}
+
+.commission-timeline-bar-fill {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, rgb(201 133 60) 0%, rgb(134 78 24) 100%);
+}
+
+.commission-timeline-value {
+  color: var(--color-foreground);
+  white-space: nowrap;
+}
+
+.commission-group {
+  border: 1px solid color-mix(in oklch, var(--color-border) 82%, transparent);
+  border-radius: 5px;
+  background: var(--color-card);
+  overflow: hidden;
+}
+
+.commission-group-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 18px 18px 12px;
+}
+
+.commission-group-header h3 {
+  margin: 0 0 4px;
+  color: var(--color-foreground);
+}
+
+.commission-group-toggle-button::before {
+  content: '▸';
+  position: absolute;
+  inset: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1rem;
+  font-weight: 700;
+  line-height: 1;
+  color: var(--color-foreground);
+  transform: rotate(90deg);
+  transition: transform 180ms ease;
+}
+
+.commission-group-toggle-button[aria-expanded='true']::before {
+  transform: rotate(-90deg);
+}
+
+.commission-case-list {
+  display: grid;
+  gap: 14px;
+  padding: 18px;
+}
+
+.commission-case-card {
+  padding: 16px;
+  border: 1px solid color-mix(in oklch, var(--color-border) 76%, transparent);
+  border-radius: 5px;
+  background: color-mix(in oklch, var(--color-card) 92%, var(--color-muted));
+  display: grid;
+  gap: 12px;
+}
+
+.commission-case-topline {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.commission-case-topline p {
+  margin: 6px 0 0;
+}
+
+.commission-case-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 18px;
+  color: var(--color-muted-foreground);
+  font-size: 0.95rem;
+}
+
+.commission-case-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.commission-settlement-surface {
+  display: grid;
+  gap: 18px;
+  padding: 18px;
+}
+
+.commission-settlement-meta {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+}
+
+.commission-settlement-meta .concept-summary-pill {
+  gap: 4px;
+}
+
+.commission-settlement-meta .concept-summary-pill strong {
+  margin-bottom: 0;
+}
+
+.commission-settlement-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.6fr) minmax(280px, 0.8fr);
+  gap: 16px;
+}
+
+.commission-settlement-card {
+  padding: 16px;
+  border: 1px solid color-mix(in oklch, var(--color-border) 74%, transparent);
+  border-radius: 5px;
+  background: color-mix(in oklch, var(--color-card) 90%, var(--color-muted));
+}
+
+.commission-settlement-card h4 {
+  margin: 0 0 12px;
+  color: var(--color-foreground);
+}
+
+.commission-settlement-employee-list,
+.commission-receipt-list {
+  display: grid;
+  gap: 12px;
+}
+
+.commission-settlement-employee-list {
+  max-height: 420px;
+  overflow-y: auto;
+  padding-right: 6px;
+}
+
+.commission-settlement-employees {
+  display: grid;
+  gap: 12px;
+}
+
+.employee-selection-select-all {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+  color: var(--color-foreground);
+  font-weight: 600;
+}
+
+.employee-selection-select-all input {
+  margin: 0;
+}
+
+.settlement-amount-row .settings-form-label {
+  margin: 0;
+  display: inline-block;
+}
+
+.settlement-amount-toggle input {
+  margin: 0;
+  cursor: pointer;
+  flex: 0 0 auto;
+  display: inline-block;
+}
+
+.settlement-amount-toggle span {
+  cursor: pointer;
+  display: inline-block;
+  line-height: 1.1;
+  margin: 0;
+}
+
+.commissions-page .employee-review-modal .settings-form input[type='date'],
+.commissions-page .employee-review-modal .settings-form input[type='number'] {
+  border: 1px solid var(--color-border);
+  border-radius: 5px;
+  box-shadow: none;
+}
+
+.commission-settled-badge {
+  opacity: 0.68;
+}
+
+.commission-settlement-employees-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  color: var(--color-foreground);
+  font-weight: 600;
+}
+
+.commission-receipt-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid color-mix(in oklch, var(--color-border) 72%, transparent);
+  border-radius: 5px;
+  background: color-mix(in oklch, var(--color-card) 88%, var(--color-muted));
+}
+
+.commission-receipt-item p {
+  margin: 4px 0 0;
+}
+
+.commission-receipt-icon {
+  width: 42px;
+  height: 42px;
+  flex: 0 0 42px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 5px;
+  background: color-mix(in oklch, var(--color-muted) 74%, var(--color-card));
+  color: var(--color-foreground);
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+}
+
+.concept-card {
+  padding: 18px;
+  border: 1px solid var(--color-border);
+  border-radius: 5px;
+  background: var(--color-card);
+}
+
+.concept-card h3 {
+  margin: 0 0 10px;
+  color: var(--color-foreground);
+}
+
+.concept-card-kicker {
+  margin: 0 0 10px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-muted-foreground);
+}
+
+.placeholder-card {
+  margin-top: 20px;
+  padding: 20px;
+  border: 1px dashed color-mix(in oklch, var(--color-border) 84%, transparent);
+  border-radius: 5px;
+  background: color-mix(in oklch, var(--color-card) 94%, var(--color-muted));
+  color: var(--color-muted-foreground);
+  font-size: 0.95rem;
+}
+
+@media (max-width: 640px) {
+  .dashboard-shell {
+    flex-direction: column;
+  }
+
+  .dashboard-sidebar {
+    width: 100%;
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    padding: 12px;
+  }
+
+  .dashboard-brand {
+    width: 100%;
+    border-bottom: none;
+    padding-bottom: 8px;
+    margin-bottom: 0;
+  }
+
+  .dashboard-nav {
+    flex-direction: row;
+    flex-wrap: wrap;
+    width: 100%;
+  }
+
+  .dashboard-nav-link {
+    flex: 1 1 auto;
+    text-align: center;
+    min-width: 120px;
+  }
+}
+
+.loading-screen {
+  min-height: 40vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-muted-foreground);
+  font-size: 1rem;
+}
+

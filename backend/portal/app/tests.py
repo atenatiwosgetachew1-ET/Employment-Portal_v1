@@ -26,6 +26,7 @@ from .models import (
     PlatformSettings,
     Profile,
 )
+from .travel_service import search_flight_availabilities as proxy_search_flight_availabilities, search_travel_locations as proxy_search_travel_locations
 
 
 @override_settings(EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend")
@@ -1201,6 +1202,289 @@ class EmployeeManagementTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertFalse(response.data["ready"])
         self.assertIn("not configured", response.data["message"].lower())
+
+    @patch("app.travel_views.get_travel_status")
+    def test_travel_status_endpoint_returns_setup_state(self, mocked_status):
+        superadmin = self._create_user("owner-travel-status", Profile.ROLE_SUPERADMIN)
+        self.client.force_authenticate(user=superadmin)
+        mocked_status.return_value = {
+            "ready": True,
+            "message": "Travel service is using the portal's built-in provider fallback.",
+            "command": "built-in fallback",
+            "source": "portal-fallback",
+        }
+
+        response = self.client.get("/api/travel/status/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.data["ready"])
+        self.assertIn("fallback", response.data["message"].lower())
+
+    @patch("app.travel_views.search_flight_availabilities")
+    def test_travel_flight_availability_endpoint_returns_provider_results(self, mocked_search):
+        superadmin = self._create_user("owner-travel-search", Profile.ROLE_SUPERADMIN)
+        self.client.force_authenticate(user=superadmin)
+        mocked_search.return_value = {
+            "provider": "local-flight-index",
+            "meta": {
+                "count": 1,
+                "originLocationCode": "ADD",
+                "destinationLocationCode": "DXB",
+                "departureDate": "2026-05-12",
+                "adults": 1,
+            },
+            "data": [
+                {
+                    "id": "1",
+                    "routeSummary": "ADD -> DXB",
+                    "carrierCodes": ["ET"],
+                    "departureAt": "2026-05-12T09:00:00",
+                    "arrivalAt": "2026-05-12T13:30:00",
+                    "segments": [],
+                }
+            ],
+            "raw": [],
+        }
+
+        response = self.client.post(
+            "/api/travel/flight-availabilities/",
+            data=json.dumps(
+                {
+                    "originLocationCode": "ADD",
+                    "destinationLocationCode": "DXB",
+                    "departureDate": "2026-05-12",
+                    "adults": 1,
+                }
+            ),
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["provider"], "local-flight-index")
+        self.assertEqual(response.data["meta"]["count"], 1)
+        mocked_search.assert_called_once()
+
+    @patch("app.travel_views.search_travel_locations")
+    def test_travel_location_endpoint_returns_provider_results(self, mocked_search):
+        superadmin = self._create_user("owner-travel-locations", Profile.ROLE_SUPERADMIN)
+        self.client.force_authenticate(user=superadmin)
+        mocked_search.return_value = {
+            "provider": "local-airport-index",
+            "meta": {"count": 1, "keyword": "ADD"},
+            "data": [
+                {
+                    "id": "AADD",
+                    "subType": "AIRPORT",
+                    "name": "BOLE INTERNATIONAL",
+                    "iataCode": "ADD",
+                    "cityName": "ADDIS ABABA",
+                    "countryName": "ETHIOPIA",
+                }
+            ],
+            "raw": [],
+        }
+
+        response = self.client.get("/api/travel/locations/", {"q": "ADD"})
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["provider"], "local-airport-index")
+        self.assertEqual(response.data["meta"]["count"], 1)
+        mocked_search.assert_called_once_with(keyword="ADD")
+
+    @override_settings(
+        TRAVEL_SERVICE_URL="http://127.0.0.1:8001",
+        TRAVEL_SERVICE_CLIENT_ID="portal-client",
+        TRAVEL_SERVICE_CLIENT_SECRET="portal-secret",
+        TRAVEL_SERVICE_SOURCE_SYSTEM="employment_portal",
+    )
+    @patch("app.travel_service.fetch_authenticated_travel_service_json")
+    def test_travel_service_proxy_maps_flight_search_contract(self, mocked_fetch):
+        mocked_fetch.return_value = {
+            "searchId": "search-123",
+            "totalResults": 1,
+            "flights": [
+                {
+                    "id": "flt-1",
+                    "provider": "mock",
+                    "searchRequestId": "search-123",
+                    "carrierCodes": ["ET"],
+                    "originIataCode": "ADD",
+                    "destinationIataCode": "DXB",
+                    "departureAt": "2026-05-12T09:00:00",
+                    "arrivalAt": "2026-05-12T13:30:00",
+                    "duration": "PT4H30M",
+                    "routeSummary": "ADD -> DXB",
+                    "segments": [],
+                    "price": 420,
+                    "availability": 5,
+                }
+            ],
+        }
+
+        response = proxy_search_flight_availabilities(
+            origin_location_code="ADD",
+            destination_location_code="DXB",
+            departure_date="2026-05-12",
+            adults=2,
+        )
+
+        self.assertEqual(response["meta"]["searchId"], "search-123")
+        self.assertEqual(response["meta"]["adults"], 2)
+        self.assertEqual(response["data"][0]["originIataCode"], "ADD")
+        mocked_fetch.assert_called_once_with(
+            "/api/flights/search",
+            payload={
+                "origin": "ADD",
+                "destination": "DXB",
+                "departureDate": "2026-05-12",
+                "passengers": 2,
+                "sourceSystem": "employment_portal",
+            },
+        )
+
+    @override_settings(TRAVEL_SERVICE_URL="http://127.0.0.1:8001")
+    @patch("app.travel_service.fetch_travel_service_json")
+    def test_travel_service_proxy_wraps_location_results(self, mocked_fetch):
+        mocked_fetch.return_value = [
+            {
+                "id": "ADD",
+                "subType": "AIRPORT",
+                "name": "Bole International Airport",
+                "iataCode": "ADD",
+                "cityName": "Addis Ababa",
+                "countryName": "Ethiopia",
+            }
+        ]
+
+        response = proxy_search_travel_locations(keyword="ADD")
+
+        self.assertEqual(response["provider"], "external-travel-service")
+        self.assertEqual(response["meta"]["count"], 1)
+        self.assertEqual(response["data"][0]["iataCode"], "ADD")
+        mocked_fetch.assert_called_once_with("/api/locations/search", query_params={"q": "ADD", "limit": 8})
+
+    def test_employee_travel_booking_is_saved_in_database(self):
+        superadmin = self._create_user("travel-booking-admin", Profile.ROLE_SUPERADMIN)
+        self.client.force_authenticate(user=superadmin)
+        employee = Employee.objects.create(
+            organization=get_user_organization(superadmin),
+            registered_by=superadmin,
+            updated_by=superadmin,
+            first_name="Liya",
+            middle_name="Bekele",
+            last_name="Tadesse",
+            full_name="Liya Bekele Tadesse",
+            date_of_birth="1997-04-12",
+            passport_number="ET1234567",
+            mobile_number="+251911111111",
+            application_countries=["Saudi Arabia"],
+            profession="Waiter",
+            employment_type="Contract",
+            languages=["English"],
+            application_salary="1800.00",
+            skills=["Service"],
+            religion="Christianity",
+            marital_status="Single",
+            residence_country="Ethiopia",
+            contact_person_name="Marta",
+            contact_person_mobile="+251922222222",
+            status=Employee.STATUS_APPROVED,
+            progress_override_complete=True,
+        )
+        EmployeeSelection.objects.create(
+            organization=employee.organization,
+            employee=employee,
+            agent=superadmin,
+            selected_by=superadmin,
+            status=EmployeeSelection.STATUS_UNDER_PROCESS,
+        )
+
+        response = self.client.post(
+            f"/api/employees/{employee.pk}/travel-booking/",
+            {
+                "ticketNumber": "1760000001",
+                "pnr": "ABC123",
+                "airline": "Ethiopian",
+                "origin": "ADD",
+                "destination": "DXB",
+                "departureDate": "2026-05-12",
+                "departureTime": "09:15",
+                "arrivalDate": "2026-05-12",
+                "arrivalTime": "13:45",
+                "routeSummary": "ADD -> DXB",
+                "notes": "Window seat",
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        employee.refresh_from_db()
+        self.assertIsNotNone(employee.travel_booking)
+        self.assertEqual(employee.travel_booking.ticket_number, "1760000001")
+        self.assertEqual(employee.travel_booking.pnr, "ABC123")
+        self.assertEqual(str(employee.departure_date), "2026-05-12")
+        self.assertEqual(response.data["travel_booking"]["ticketNumber"], "1760000001")
+        self.assertEqual(response.data["travel_booking"]["pnr"], "ABC123")
+
+    def test_employee_travel_booking_patch_updates_only_pnr(self):
+        superadmin = self._create_user("travel-booking-update-admin", Profile.ROLE_SUPERADMIN)
+        self.client.force_authenticate(user=superadmin)
+        employee = Employee.objects.create(
+            organization=get_user_organization(superadmin),
+            registered_by=superadmin,
+            updated_by=superadmin,
+            first_name="Sara",
+            middle_name="Ali",
+            last_name="Omar",
+            full_name="Sara Ali Omar",
+            date_of_birth="1995-08-10",
+            passport_number="ET7654321",
+            mobile_number="+251933333333",
+            application_countries=["UAE"],
+            profession="Cleaner",
+            employment_type="Contract",
+            languages=["English"],
+            application_salary="1500.00",
+            skills=["Cleaning"],
+            religion="Islam",
+            marital_status="Single",
+            residence_country="Ethiopia",
+            contact_person_name="Hawa",
+            contact_person_mobile="+251944444444",
+            status=Employee.STATUS_APPROVED,
+            progress_override_complete=True,
+            departure_date="2026-05-20",
+        )
+        EmployeeSelection.objects.create(
+            organization=employee.organization,
+            employee=employee,
+            agent=superadmin,
+            selected_by=superadmin,
+            status=EmployeeSelection.STATUS_UNDER_PROCESS,
+        )
+        self.client.post(
+            f"/api/employees/{employee.pk}/travel-booking/",
+            {
+                "ticketNumber": "1760000002",
+                "pnr": "OLD111",
+                "origin": "ADD",
+                "destination": "DXB",
+                "departureDate": "2026-05-20",
+            },
+            format="json",
+        )
+
+        response = self.client.patch(
+            f"/api/employees/{employee.pk}/travel-booking/",
+            {"pnr": "NEW222"},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        employee.refresh_from_db()
+        self.assertEqual(employee.travel_booking.pnr, "NEW222")
+        self.assertEqual(employee.travel_booking.ticket_number, "1760000002")
+        self.assertEqual(response.data["travel_booking"]["pnr"], "NEW222")
 
     def test_build_field_candidates_prefers_passport_specific_values(self):
         passport_text = """

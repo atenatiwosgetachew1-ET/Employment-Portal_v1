@@ -1131,7 +1131,7 @@ export default function ReportsPage() {
 
   return (
     <section className="dashboard-panel reports-page">
-      <div className="users-management-header">
+      <div className="page-panel-header">
         <div>
           <h1>Reports</h1>
           <p className="muted-text">

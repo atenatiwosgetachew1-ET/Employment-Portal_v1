@@ -1884,7 +1884,7 @@ export default function CommissionsPage() {
 
   return (
     <section className="dashboard-panel commissions-page">
-      <div className="users-management-header">
+      <div className="page-panel-header">
         <div>
           <h1>Commissions</h1>
           <p className="muted-text">
@@ -1915,6 +1915,11 @@ export default function CommissionsPage() {
               ? 'Payment registration is available only for your own employed employees whose commission your agent side must pay.'
               : 'Payment registration is handled from the payer side and appears here to the organization as a collection ledger.'}
           </p>
+        </div>
+        <div className="employees-header-actions">
+          <button type="button" className="btn-secondary" onClick={loadCommissionBoard} disabled={loading}>
+            {loading ? 'Refreshing...' : 'Refresh'}
+          </button>
         </div>
       </div>
 
@@ -1951,7 +1956,7 @@ export default function CommissionsPage() {
         </div>
       </div>
 
-      <div className="commission-toolbar">
+      <div className="commissions-filter-grid">
         <label className="commission-search">
           Search {currentView === 'requests' ? (isAgentSideUser ? 'payment requests' : 'collection requests') : currentView === 'agents' ? 'agents' : currentView === 'collected' ? 'collection analytics' : 'commission cases'}
           <input
@@ -1971,9 +1976,6 @@ export default function CommissionsPage() {
               Register payment
             </button>
           ) : null}
-          <button type="button" className="btn-secondary" onClick={loadCommissionBoard} disabled={loading}>
-            {loading ? 'Refreshing...' : 'Refresh'}
-          </button>
         </div>
       </div>
 

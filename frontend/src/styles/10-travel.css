@@ -1,0 +1,447 @@
+.travel-page {
+  display: grid;
+  gap: 18px;
+}
+
+.travel-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 16px;
+}
+
+.employees-filter-grid.travel-filter-grid {
+  display: grid;
+  grid-template-columns: minmax(180px, 1.1fr) minmax(180px, 0.95fr) minmax(170px, 0.95fr) minmax(170px, 0.95fr) auto;
+  align-items: end;
+  gap: 12px;
+}
+
+.employees-filter-grid.travel-filter-grid .travel-filter-actions {
+  display: flex;
+  align-items: end;
+  justify-content: flex-end;
+}
+
+.employees-filter-grid.travel-filter-grid > label,
+.employees-filter-grid.travel-filter-grid > .travel-filter-actions {
+  min-width: 0;
+  margin: 0;
+}
+
+.travel-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  margin: 14px 0 0;
+}
+
+.travel-summary-grid .employee-summary-card {
+  margin: 0;
+  min-height: 0;
+}
+
+.travel-summary-grid strong {
+  display: block;
+  font-size: 1.35rem;
+  margin-bottom: 6px;
+}
+
+.travel-ticket-list {
+  display: grid;
+  gap: 12px;
+  margin-top: 14px;
+}
+
+.travel-page .table-scroll {
+  overflow-x: auto;
+  overflow-y: auto;
+}
+
+.travel-page .activity-log-table td.travel-actions-cell,
+.travel-page .activity-log-table th:last-child {
+  width: 1%;
+  white-space: nowrap;
+}
+
+.travel-actions-row {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.travel-bulk-passenger-table {
+  margin-top: 14px;
+}
+
+.travel-bulk-passenger-table .users-table {
+  width: 100%;
+}
+
+.travel-bulk-passenger-table .travel-input-cell {
+  min-width: 220px;
+}
+
+.travel-bulk-passenger-table input {
+  width: 100%;
+  min-width: 200px;
+  box-sizing: border-box;
+}
+
+.travel-bulk-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 14px;
+}
+
+.travel-bulk-toolbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.travel-ticket-card {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  border: 1px solid var(--color-border);
+  border-radius: 5px;
+  background: color-mix(in oklch, var(--color-card) 96%, var(--color-muted));
+}
+
+.travel-ticket-card.is-selected {
+  border-color: color-mix(in oklch, var(--color-primary) 55%, var(--color-border));
+  box-shadow: 0 0 0 1px color-mix(in oklch, var(--color-primary) 28%, transparent);
+}
+
+.travel-ticket-card h3,
+.travel-ticket-card p {
+  margin: 0;
+}
+
+.travel-ticket-card h3 {
+  margin-bottom: 2px;
+}
+
+.travel-ticket-actions {
+  display: grid;
+  justify-items: end;
+  gap: 6px;
+}
+
+.travel-ticket-preview {
+  display: grid;
+  gap: 4px;
+}
+
+.travel-ticket-heading {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.travel-ticket-summary {
+  flex: 1 1 420px;
+}
+
+.travel-ticket-select {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.82rem;
+  font-weight: 650;
+  color: var(--color-foreground);
+}
+
+.travel-ticket-select input {
+  margin: 0;
+}
+
+.travel-ticket-preview p {
+  margin: 0;
+}
+
+.app-confirm-dialog.travel-booking-dialog {
+  width: min(1280px, calc(100vw - 40px)) !important;
+  max-width: none;
+  gap: 22px;
+  padding: 30px 32px;
+}
+
+.travel-booking-dialog .travel-live-search .travel-booking-form {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.travel-booking-dialog > .travel-booking-form {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.travel-booking-dialog .employee-span-two {
+  grid-column: 1 / -1;
+}
+
+.travel-booking-form {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px 14px;
+  margin-top: 14px;
+  padding: 14px 16px;
+  border: 1px solid color-mix(in oklch, var(--color-border) 68%, transparent);
+  border-radius: 5px;
+  background: color-mix(in oklch, var(--color-card) 92%, var(--color-muted));
+}
+
+.travel-booking-form label {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+  color: var(--color-foreground);
+  font-size: 0.84rem;
+  font-weight: 650;
+}
+
+.travel-booking-form input,
+.travel-booking-form textarea {
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+.travel-booking-form textarea {
+  resize: vertical;
+}
+
+.travel-airport-field {
+  position: relative;
+}
+
+.travel-airport-suggestion-panel {
+  display: grid;
+  gap: 8px;
+}
+
+.travel-airport-hint {
+  margin: 0;
+  font-size: 0.76rem;
+  color: var(--color-muted-foreground);
+}
+
+.travel-airport-suggestion-list {
+  display: grid;
+  gap: 8px;
+  max-height: 220px;
+  overflow-y: auto;
+  padding: 8px;
+  border: 1px solid color-mix(in oklch, var(--color-border) 72%, transparent);
+  border-radius: 5px;
+  background: color-mix(in oklch, var(--color-card) 98%, var(--color-muted));
+}
+
+.travel-airport-suggestion {
+  display: grid;
+  justify-items: start;
+  gap: 2px;
+  width: 100%;
+  padding: 9px 10px;
+  border: 1px solid color-mix(in oklch, var(--color-border) 70%, transparent);
+  border-radius: 5px;
+  background: color-mix(in oklch, var(--color-surface) 92%, var(--color-card));
+  color: var(--color-foreground);
+  text-align: left;
+}
+
+.travel-airport-suggestion span {
+  font-size: 0.78rem;
+  color: var(--color-muted-foreground);
+}
+
+.travel-airport-suggestion:hover,
+.travel-airport-suggestion:focus-visible {
+  border-color: color-mix(in oklch, var(--color-primary) 54%, var(--color-border));
+  background: color-mix(in oklch, var(--color-primary) 10%, var(--color-card));
+}
+
+.travel-live-search {
+  display: grid;
+  gap: 12px;
+  margin-top: 14px;
+}
+
+.travel-live-search-header h3,
+.travel-live-search-header p {
+  margin: 0;
+}
+
+.travel-live-search-actions {
+  display: flex;
+  justify-content: flex-start;
+}
+
+.travel-live-result-list {
+  display: grid;
+  gap: 10px;
+}
+
+.travel-live-result-card {
+  display: flex;
+  justify-content: space-between;
+  align-items: start;
+  gap: 12px;
+  padding: 12px 14px;
+  border: 1px solid var(--color-border);
+  border-radius: 5px;
+  background: color-mix(in oklch, var(--color-card) 96%, var(--color-muted));
+}
+
+.travel-live-result-card strong,
+.travel-live-result-card p {
+  margin: 0;
+}
+
+.travel-doc-chip-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.travel-calendar-list {
+  display: grid;
+  gap: 14px;
+}
+
+.travel-bulk-passenger-list {
+  display: grid;
+  gap: 12px;
+  margin-top: 14px;
+}
+
+.travel-bulk-passenger-card {
+  padding: 14px 16px;
+  border: 1px solid var(--color-border);
+  border-radius: 5px;
+  background: color-mix(in oklch, var(--color-card) 96%, var(--color-muted));
+}
+
+.travel-bulk-passenger-card strong,
+.travel-bulk-passenger-card p {
+  margin: 0;
+}
+
+.travel-bulk-passenger-card .travel-booking-form {
+  margin-top: 12px;
+}
+
+.text-danger {
+  color: var(--color-destructive);
+}
+
+.travel-support-list {
+  display: grid;
+  gap: 12px;
+  margin-top: 14px;
+}
+
+.travel-support-item {
+  padding: 12px 14px;
+  border: 1px solid var(--color-border);
+  border-radius: 5px;
+  background: color-mix(in oklch, var(--color-card) 96%, var(--color-muted));
+}
+
+.travel-support-item strong,
+.travel-support-item p {
+  display: block;
+  margin: 0;
+}
+
+.travel-support-item p {
+  margin-top: 6px;
+}
+
+.travel-checklist {
+  margin: 14px 0 0;
+  padding-left: 18px;
+  display: grid;
+  gap: 8px;
+}
+
+@media (max-width: 960px) {
+  .travel-filter-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .travel-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .travel-summary-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .travel-ticket-card {
+    flex-direction: column;
+  }
+
+  .travel-ticket-heading {
+    flex-direction: column;
+    align-items: start;
+    gap: 2px;
+  }
+
+  .travel-bulk-toolbar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .travel-bulk-toolbar-actions {
+    justify-content: space-between;
+  }
+
+  .travel-booking-form {
+    grid-template-columns: 1fr;
+  }
+
+  .app-confirm-dialog.travel-booking-dialog {
+    width: min(100vw - 24px, 980px) !important;
+    padding: 24px 22px;
+  }
+
+  .travel-booking-dialog .travel-live-search .travel-booking-form,
+  .travel-booking-dialog > .travel-booking-form {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .travel-live-result-card {
+    flex-direction: column;
+  }
+
+  .travel-ticket-actions {
+    width: 100%;
+    justify-items: start;
+  }
+}
+
+@media (max-width: 640px) {
+  .travel-filter-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .travel-summary-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .travel-booking-dialog .travel-live-search .travel-booking-form,
+  .travel-booking-dialog > .travel-booking-form {
+    grid-template-columns: 1fr;
+  }
+
+  .app-confirm-dialog.travel-booking-dialog {
+    padding: 20px 18px;
+  }
+}

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import * as platformSettingsService from '../services/platformSettingsService'
 import * as preferencesService from '../services/preferencesService'
 import { useAuth } from '../context/AuthContext'
+import { applyDensity, DENSITY_VALUES, getStoredDensity } from '../utils/density'
 import { ACCENT_VALUES, applyAccent, applyTheme, getStoredAccent, getStoredTheme, storeAccent } from '../utils/theme'
 
 const TIMEZONES = [
@@ -20,6 +21,10 @@ const THEME_LABELS = {
 const ACCENT_LABELS = {
   natural: 'Natural',
   orange: 'Orange'
+}
+const DENSITY_LABELS = {
+  compact: 'Compact',
+  comfortable: 'Comfortable'
 }
 const SETTINGS_TABS = [
   { id: 'organization', label: 'Organization' },
@@ -42,6 +47,7 @@ export default function SettingsPage() {
   const [platformSettings, setPlatformSettings] = useState(null)
   const [theme, setTheme] = useState(getStoredTheme())
   const [accent, setAccent] = useState(getStoredAccent())
+  const [density, setDensity] = useState(getStoredDensity())
   const [currentTab, setCurrentTab] = useState(organization ? 'organization' : 'preferences')
   const isSuperadmin = user?.role === 'superadmin'
   const permissionOptions = [
@@ -145,6 +151,7 @@ export default function SettingsPage() {
       applyTheme(theme)
       storeAccent(accent)
       applyAccent(accent)
+      applyDensity(density)
       setSaved(true)
     } catch (err) {
       setError(err.message || 'Could not save')
@@ -262,6 +269,16 @@ export default function SettingsPage() {
                 {ACCENT_VALUES.map((value) => (
                   <option key={value} value={value}>
                     {ACCENT_LABELS[value] || value}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              Density
+              <select value={density} onChange={(e) => setDensity(e.target.value)}>
+                {DENSITY_VALUES.map((value) => (
+                  <option key={value} value={value}>
+                    {DENSITY_LABELS[value] || value}
                   </option>
                 ))}
               </select>

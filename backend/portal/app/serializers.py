@@ -23,6 +23,7 @@ from .models import (
     EmployeeReturnRequest,
     EmployeeSelection,
     EmployeeSelectionInterest,
+    EmployeeTravelBooking,
     LicenseEvent,
     Notification,
     Organization,
@@ -1123,6 +1124,77 @@ class EmployeeReturnRequestSerializer(serializers.ModelSerializer):
         return self._build_file_url(obj, "evidence_file_3")
 
 
+class EmployeeTravelBookingSerializer(serializers.ModelSerializer):
+    employeeId = serializers.IntegerField(source="employee_id", read_only=True)
+    ticketNumber = serializers.CharField(source="ticket_number")
+    departureDate = serializers.DateField(source="departure_date", allow_null=True, required=False)
+    departureTime = serializers.TimeField(
+        source="departure_time",
+        allow_null=True,
+        required=False,
+        format="%H:%M",
+        input_formats=["%H:%M", "%H:%M:%S"],
+    )
+    arrivalDate = serializers.DateField(source="arrival_date", allow_null=True, required=False)
+    arrivalTime = serializers.TimeField(
+        source="arrival_time",
+        allow_null=True,
+        required=False,
+        format="%H:%M",
+        input_formats=["%H:%M", "%H:%M:%S"],
+    )
+    routeSummary = serializers.CharField(source="route_summary", allow_blank=True, required=False)
+    savedAt = serializers.DateTimeField(source="updated_at", read_only=True)
+
+    class Meta:
+        model = EmployeeTravelBooking
+        fields = (
+            "employeeId",
+            "ticketNumber",
+            "pnr",
+            "airline",
+            "origin",
+            "destination",
+            "departureDate",
+            "departureTime",
+            "arrivalDate",
+            "arrivalTime",
+            "routeSummary",
+            "notes",
+            "savedAt",
+        )
+        read_only_fields = ("employeeId", "savedAt")
+
+    def validate(self, attrs):
+        attrs = super().validate(attrs)
+        instance = getattr(self, "instance", None)
+        next_ticket_number = attrs.get("ticket_number", getattr(instance, "ticket_number", ""))
+        next_pnr = attrs.get("pnr", getattr(instance, "pnr", ""))
+        next_origin = attrs.get("origin", getattr(instance, "origin", ""))
+        next_destination = attrs.get("destination", getattr(instance, "destination", ""))
+        next_departure_date = attrs.get("departure_date", getattr(instance, "departure_date", None))
+
+        if not str(next_ticket_number or "").strip():
+            raise serializers.ValidationError({"ticketNumber": "Ticket number is required."})
+        if not str(next_pnr or "").strip():
+            raise serializers.ValidationError({"pnr": "PNR is required."})
+        if not str(next_origin or "").strip():
+            raise serializers.ValidationError({"origin": "Origin airport is required."})
+        if not str(next_destination or "").strip():
+            raise serializers.ValidationError({"destination": "Destination airport is required."})
+        if not next_departure_date:
+            raise serializers.ValidationError({"departureDate": "Departure date is required."})
+
+        if "pnr" in attrs:
+            attrs["pnr"] = str(attrs["pnr"] or "").strip().upper()
+        if "ticket_number" in attrs:
+            attrs["ticket_number"] = str(attrs["ticket_number"] or "").strip()
+        for field_name in ("airline", "origin", "destination", "route_summary", "notes"):
+            if field_name in attrs:
+                attrs[field_name] = str(attrs[field_name] or "").strip()
+        return attrs
+
+
 def build_employee_selection_payload(employee, request):
     process_selection = getattr(employee, "selection", None)
     interests = list(getattr(employee, "selection_interests", []).all()) if hasattr(getattr(employee, "selection_interests", None), "all") else []
@@ -1165,6 +1237,7 @@ class EmployeeListSerializer(serializers.ModelSerializer):
     urgency_alerts = serializers.SerializerMethodField()
     selection_state = serializers.SerializerMethodField()
     return_request = serializers.SerializerMethodField()
+    travel_booking = serializers.SerializerMethodField()
     returned_recorded_by_username = serializers.CharField(
         source="returned_recorded_by.username",
         read_only=True,
@@ -1192,6 +1265,7 @@ class EmployeeListSerializer(serializers.ModelSerializer):
             "return_status",
             "urgency_alerts",
             "selection_state",
+            "travel_booking",
             "return_request",
             "returned_from_employment",
             "returned_recorded_by_username",
@@ -1230,6 +1304,12 @@ class EmployeeListSerializer(serializers.ModelSerializer):
             context=self.context,
         ).data
 
+    def get_travel_booking(self, obj):
+        booking = getattr(obj, "travel_booking", None)
+        if not booking:
+            return None
+        return EmployeeTravelBookingSerializer(booking, context=self.context).data
+
 
 class EmployeeSerializer(serializers.ModelSerializer):
     status = serializers.ChoiceField(choices=Employee.STATUS_CHOICES, required=False)
@@ -1260,6 +1340,7 @@ class EmployeeSerializer(serializers.ModelSerializer):
     urgency_alerts = serializers.SerializerMethodField()
     selection_state = serializers.SerializerMethodField()
     return_request = serializers.SerializerMethodField()
+    travel_booking = serializers.SerializerMethodField()
     returned_recorded_by_username = serializers.CharField(
         source="returned_recorded_by.username",
         read_only=True,
@@ -1328,6 +1409,7 @@ class EmployeeSerializer(serializers.ModelSerializer):
             "return_status",
             "urgency_alerts",
             "selection_state",
+            "travel_booking",
             "return_request",
             "returned_recorded_by_username",
             "registered_by_username",
@@ -1551,6 +1633,12 @@ class EmployeeSerializer(serializers.ModelSerializer):
             request_obj,
             context=self.context,
         ).data
+
+    def get_travel_booking(self, obj):
+        booking = getattr(obj, "travel_booking", None)
+        if not booking:
+            return None
+        return EmployeeTravelBookingSerializer(booking, context=self.context).data
 
 
 class EmployeeDocumentCreateSerializer(serializers.ModelSerializer):

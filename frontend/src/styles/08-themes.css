@@ -1,0 +1,1739 @@
+/* ==========================================================================
+   9. FINAL BASE ORGANIZATION LAYER
+   Shared surfaces, shared controls, shared hover rules, shared typography.
+   Theme/accent enforcement remains in App.css, not here.
+   ========================================================================== */
+
+/* Active overrides merged from frontend/src/styles/overrides.css */
+
+/* Final visual overrides
+   Keep recent cross-workspace normalizations in one place instead of
+   appending more late-stage fixes to App.css. */
+
+:root {
+  --preview-contrast-dark: #241913;
+  --preview-contrast-light: #f7efe8;
+  --preview-window-screen-bg: #111111;
+  --preview-window-paper-bg: #ffffff;
+  --subtab-active-background: rgb(var(--accent-active));
+  --subtab-active-foreground: #ffffff;
+  --subtab-active-border: rgb(var(--accent-active-border) / 0.92);
+  --progress-tone-high: #16a34a;
+  --progress-tone-mid: #2563eb;
+  --progress-tone-low: #ea580c;
+  --tag-accent-fg: #ffffff;
+  --tag-orange-bg: #d97706;
+  --tag-green-bg: #16a34a;
+  --tag-red-bg: #dc2626;
+  --tag-gold-bg: #c69214;
+}
+
+/* Category: Light + Natural text contract
+   Achromatic range only:
+   - primary text: near-black
+   - secondary text: readable gray
+   - disabled text: light gray with safe contrast */
+
+/* Category: Dark + Natural text contract
+   Achromatic inverse:
+   - primary text: near-white
+   - secondary text: soft gray
+   - disabled text: muted medium gray */
+
+html[data-theme='dark'][data-accent='natural'] {
+  --color-foreground: #f2f2f2;
+  --color-card-foreground: #f2f2f2;
+  --color-sidebar-foreground: #f2f2f2;
+  --color-secondary-foreground: #f2f2f2;
+  --color-muted-foreground: #b3b3b3;
+  --subtab-active-background: rgb(var(--accent-active));
+  --subtab-active-foreground: #111111;
+  --subtab-active-border: rgb(var(--accent-active-border) / 0.92);
+}
+
+html[data-theme='dark'][data-accent='natural'] body,
+html[data-theme='dark'][data-accent='natural'] .dashboard-panel,
+html[data-theme='dark'][data-accent='natural'] .users-table-wrap,
+html[data-theme='dark'][data-accent='natural'] .employee-card,
+html[data-theme='dark'][data-accent='natural'] .employee-summary-card,
+html[data-theme='dark'][data-accent='natural'] .employee-modal,
+html[data-theme='dark'][data-accent='natural'] .employee-review-modal,
+html[data-theme='dark'][data-accent='natural'] .document-preview-modal,
+html[data-theme='dark'][data-accent='natural'] .notification-dropdown,
+html[data-theme='dark'][data-accent='natural'] .concept-card,
+html[data-theme='dark'][data-accent='natural'] .commission-group,
+html[data-theme='dark'][data-accent='natural'] .commission-case-card,
+html[data-theme='dark'][data-accent='natural'] .returned-request-item,
+html[data-theme='dark'][data-accent='natural'] .return-request-employee-option {
+  color: #f2f2f2;
+}
+
+html[data-theme='dark'][data-accent='natural'] .muted-text,
+html[data-theme='dark'][data-accent='natural'] .dashboard-header-user,
+html[data-theme='dark'][data-accent='natural'] .dashboard-header-username,
+html[data-theme='dark'][data-accent='natural'] .notification-item-body,
+html[data-theme='dark'][data-accent='natural'] .notification-item-time,
+html[data-theme='dark'][data-accent='natural'] .commission-case-meta,
+html[data-theme='dark'][data-accent='natural'] .concept-eyebrow,
+html[data-theme='dark'][data-accent='natural'] .concept-card-kicker,
+html[data-theme='dark'][data-accent='natural'] .settings-section-hint,
+html[data-theme='dark'][data-accent='natural'] .activity-log-meta,
+html[data-theme='dark'][data-accent='natural'] .card-description,
+html[data-theme='dark'][data-accent='natural'] .form-help,
+html[data-theme='dark'][data-accent='natural'] .employee-modal-eyebrow,
+html[data-theme='dark'][data-accent='natural'] .employee-card p,
+html[data-theme='dark'][data-accent='natural'] .employee-summary-card p,
+html[data-theme='dark'][data-accent='natural'] .users-table-wrap p,
+html[data-theme='dark'][data-accent='natural'] .return-request-employee-meta {
+  color: #b3b3b3;
+}
+
+html[data-theme='dark'][data-accent='natural'] .auth-links a,
+html[data-theme='dark'][data-accent='natural'] .link-button,
+html[data-theme='dark'][data-accent='natural'] .employee-card-detail-links a,
+html[data-theme='dark'][data-accent='natural'] .employee-doc-preview-popover a,
+html[data-theme='dark'][data-accent='natural'] .notification-mark-all {
+  color: #d6d6d6;
+}
+
+html[data-theme='dark'][data-accent='natural'] button:disabled,
+html[data-theme='dark'][data-accent='natural'] input:disabled,
+html[data-theme='dark'][data-accent='natural'] select:disabled,
+html[data-theme='dark'][data-accent='natural'] textarea:disabled,
+html[data-theme='dark'][data-accent='natural'] .btn:disabled,
+html[data-theme='dark'][data-accent='natural'] .btn-secondary:disabled,
+html[data-theme='dark'][data-accent='natural'] .attachment-file-trigger:disabled,
+html[data-theme='dark'][data-accent='natural'] .dashboard-logout:disabled,
+html[data-theme='dark'][data-accent='natural'] .profiles-agent-card.is-disabled,
+html[data-theme='dark'][data-accent='natural'] .profiles-agent-card:disabled {
+  color: #7a7a7a;
+}
+
+html[data-theme='light'][data-accent='natural'] {
+  --color-foreground: #1a1a1a;
+  --color-card-foreground: #1a1a1a;
+  --color-sidebar-foreground: #1a1a1a;
+  --color-secondary-foreground: #1a1a1a;
+  --color-muted-foreground: #595959;
+  --subtab-active-background: #111111;
+  --subtab-active-foreground: #ffffff;
+  --subtab-active-border: #111111;
+}
+
+html[data-theme='light'][data-accent='natural'] body,
+html[data-theme='light'][data-accent='natural'] .dashboard-panel,
+html[data-theme='light'][data-accent='natural'] .users-table-wrap,
+html[data-theme='light'][data-accent='natural'] .employee-card,
+html[data-theme='light'][data-accent='natural'] .employee-summary-card,
+html[data-theme='light'][data-accent='natural'] .employee-modal,
+html[data-theme='light'][data-accent='natural'] .employee-review-modal,
+html[data-theme='light'][data-accent='natural'] .document-preview-modal,
+html[data-theme='light'][data-accent='natural'] .notification-dropdown,
+html[data-theme='light'][data-accent='natural'] .concept-card,
+html[data-theme='light'][data-accent='natural'] .commission-group,
+html[data-theme='light'][data-accent='natural'] .commission-case-card,
+html[data-theme='light'][data-accent='natural'] .returned-request-item,
+html[data-theme='light'][data-accent='natural'] .return-request-employee-option {
+  color: #1a1a1a;
+}
+
+html[data-theme='light'][data-accent='natural'] .muted-text,
+html[data-theme='light'][data-accent='natural'] .dashboard-header-user,
+html[data-theme='light'][data-accent='natural'] .dashboard-header-username,
+html[data-theme='light'][data-accent='natural'] .notification-item-body,
+html[data-theme='light'][data-accent='natural'] .notification-item-time,
+html[data-theme='light'][data-accent='natural'] .commission-case-meta,
+html[data-theme='light'][data-accent='natural'] .concept-eyebrow,
+html[data-theme='light'][data-accent='natural'] .concept-card-kicker,
+html[data-theme='light'][data-accent='natural'] .settings-section-hint,
+html[data-theme='light'][data-accent='natural'] .activity-log-meta,
+html[data-theme='light'][data-accent='natural'] .card-description,
+html[data-theme='light'][data-accent='natural'] .form-help,
+html[data-theme='light'][data-accent='natural'] .employee-modal-eyebrow,
+html[data-theme='light'][data-accent='natural'] .employee-card p,
+html[data-theme='light'][data-accent='natural'] .employee-summary-card p,
+html[data-theme='light'][data-accent='natural'] .users-table-wrap p,
+html[data-theme='light'][data-accent='natural'] .return-request-employee-meta {
+  color: #595959;
+}
+
+html[data-theme='light'][data-accent='natural'] .auth-links a,
+html[data-theme='light'][data-accent='natural'] .link-button,
+html[data-theme='light'][data-accent='natural'] .employee-card-detail-links a,
+html[data-theme='light'][data-accent='natural'] .employee-doc-preview-popover a,
+html[data-theme='light'][data-accent='natural'] .notification-mark-all {
+  color: #333333;
+}
+
+html[data-theme='light'][data-accent='natural'] button:disabled,
+html[data-theme='light'][data-accent='natural'] input:disabled,
+html[data-theme='light'][data-accent='natural'] select:disabled,
+html[data-theme='light'][data-accent='natural'] textarea:disabled,
+html[data-theme='light'][data-accent='natural'] .btn:disabled,
+html[data-theme='light'][data-accent='natural'] .btn-secondary:disabled,
+html[data-theme='light'][data-accent='natural'] .attachment-file-trigger:disabled,
+html[data-theme='light'][data-accent='natural'] .dashboard-logout:disabled,
+html[data-theme='light'][data-accent='natural'] .profiles-agent-card.is-disabled,
+html[data-theme='light'][data-accent='natural'] .profiles-agent-card:disabled {
+  color: #9e9e9e;
+}
+
+/* Category: Shared surfaces
+   Cards, panels, modals, page shells, and neutral containers. */
+
+html[data-accent='natural'] .dashboard-panel,
+html[data-accent='natural'] .employees-page,
+html[data-accent='natural'] .commissions-page,
+html[data-accent='natural'] .concept-page,
+html[data-accent='natural'] .notifications-page,
+html[data-accent='natural'] .auth-form,
+html[data-accent='natural'] .card,
+html[data-accent='natural'] .users-table-wrap,
+html[data-accent='natural'] .user-create-card,
+html[data-accent='natural'] .table-scroll,
+html[data-accent='natural'] .employee-modal,
+html[data-accent='natural'] .employee-review-modal,
+html[data-accent='natural'] .document-preview-modal,
+html[data-accent='natural'] .employee-card,
+html[data-accent='natural'] .employee-summary-card,
+html[data-accent='natural'] .employee-employed-block,
+html[data-accent='natural'] .employee-attachment-preview-card,
+html[data-accent='natural'] .concept-card,
+html[data-accent='natural'] .concept-summary-pill,
+html[data-accent='natural'] .commission-group,
+html[data-accent='natural'] .commission-case-card,
+html[data-accent='natural'] .commission-settlement-card,
+html[data-accent='natural'] .commission-receipt-item,
+html[data-accent='natural'] .notification-dropdown,
+html[data-accent='natural'] .notifications-page-list,
+html[data-accent='natural'] .notification-item,
+html[data-accent='natural'] .notification-item.is-unread,
+html[data-accent='natural'] .returned-list-surface,
+html[data-accent='natural'] .returned-request-surface,
+html[data-accent='natural'] .returned-request-item,
+html[data-accent='natural'] .return-request-employee-option,
+html[data-accent='natural'] .attachment-box,
+html[data-accent='natural'] .attachment-file-name,
+html[data-accent='natural'] .checkbox-pill,
+html[data-accent='natural'] .input-suffix span,
+html[data-accent='natural'] .employee-doc-preview-popover,
+html[data-accent='natural'] .placeholder-card,
+html[data-accent='natural'] .demo-box,
+html[data-accent='natural'] .oauth-block,
+html[data-accent='natural'] .oauth-error {
+  background: var(--color-card);
+  color: var(--color-card-foreground);
+  border-color: var(--surface-border-adaptive);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+html[data-accent='natural'] .employee-registration-surface .checkbox-pill {
+  border-color: transparent;
+  border-radius: 3px;
+  box-shadow: none;
+  background: transparent;
+}
+
+html[data-accent='natural'] .employee-registration-surface .checkbox-pill:hover {
+  background: #2625264a;
+}
+
+html[data-accent='natural'] .employee-registration-surface .checkbox-pill.is-checked {
+  background: color-mix(in oklch, #2625264a 78%, rgba(255, 255, 255, 0.712) 22%);
+}
+
+/* Category: Surface-adjacent controls
+   Tiles, avatars, pills, readonly chips, and small neutral controls. */
+
+html[data-accent='natural'] .employee-card-avatar,
+html[data-accent='natural'] .employee-doc-preview-tile,
+html[data-accent='natural'] .employee-modal-document-tile,
+html[data-accent='natural'] .employee-attachment-preview-file,
+html[data-accent='natural'] .employee-attachment-preview-image,
+html[data-accent='natural'] .return-request-employee-state,
+html[data-accent='natural'] .employee-template-bar,
+html[data-accent='natural'] .employee-step-tab,
+html[data-accent='natural'] .employee-subtab,
+html[data-accent='natural'] .activity-code,
+html[data-accent='natural'] .commission-group-toggle-button,
+html[data-accent='natural'] .commission-rate-popover,
+html[data-accent='natural'] .commission-rate-graph-bar,
+html[data-accent='natural'] .settings-form input.settings-readonly {
+  background: color-mix(in oklch, var(--color-muted) 40%, transparent);
+  color: var(--color-foreground);
+  border-color: color-mix(in oklch, var(--color-border) 48%, transparent);
+  box-shadow: none;
+}
+
+/* Category: Headers and structural chrome
+   Modal heads, table heads, dropdown heads, and other framing surfaces. */
+
+html[data-accent='natural'] .dashboard-header,
+html[data-accent='natural'] .employee-modal-header,
+html[data-accent='natural'] .employee-review-header,
+html[data-accent='natural'] .document-preview-toolbar,
+html[data-accent='natural'] .notification-dropdown-header,
+html[data-accent='natural'] .users-table th,
+html[data-accent='natural'] .activity-log-table thead th,
+html[data-accent='natural'] .card-header {
+  background: color-mix(in oklch, var(--color-card) 94%, var(--color-muted));
+  color: var(--color-foreground);
+  border-color: var(--color-border);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+/* Category: Shared hoverable containers
+   Generic card, row, request-item, and list-entry hover treatment. */
+
+html[data-accent='natural'] .employee-card:hover,
+html[data-accent='natural'] .employee-summary-card:hover,
+html[data-accent='natural'] .return-request-employee-option:hover,
+html[data-accent='natural'] .returned-request-item:hover,
+html[data-accent='natural'] .notification-item.is-unread:hover,
+html[data-accent='natural'] .notifications-page-item.is-unread:hover,
+html[data-accent='natural'] .commission-case-card:hover,
+html[data-accent='natural'] .concept-card:hover,
+html[data-accent='natural'] .profiles-agent-card:hover,
+html[data-accent='natural'] .profiles-side-user-item:hover,
+html[data-accent='natural'] .profiles-user-group-card:hover,
+html[data-accent='natural'] .users-table tbody tr:hover,
+html[data-accent='natural'] .activity-log-table tbody tr:hover {
+  background: color-mix(in oklch, var(--color-card) 82%, rgb(var(--accent-active-border) / 0.12));
+  border-color: color-mix(in oklch, var(--color-border) 72%, rgb(var(--accent-active-border) / 0.18));
+  box-shadow: none;
+}
+
+html[data-theme='light'][data-accent='natural'] .employee-employed-block {
+  border-color: color-mix(in oklch, var(--color-border) 42%, rgb(var(--accent-active-border) / 0.16));
+}
+
+html[data-theme='dark'][data-accent='natural'] .employee-employed-block {
+  border-color: color-mix(in oklch, var(--color-border) 70%, rgb(var(--accent-active-border) / 0.34));
+}
+
+html[data-theme='dark'][data-accent='natural'] .employee-card:hover,
+html[data-theme='dark'][data-accent='natural'] .employee-summary-card:hover,
+html[data-theme='dark'][data-accent='natural'] .return-request-employee-option:hover,
+html[data-theme='dark'][data-accent='natural'] .returned-request-item:hover,
+html[data-theme='dark'][data-accent='natural'] .notification-item.is-unread:hover,
+html[data-theme='dark'][data-accent='natural'] .notifications-page-item.is-unread:hover,
+html[data-theme='dark'][data-accent='natural'] .commission-case-card:hover,
+html[data-theme='dark'][data-accent='natural'] .concept-card:hover,
+html[data-theme='dark'][data-accent='natural'] .profiles-agent-card:hover,
+html[data-theme='dark'][data-accent='natural'] .profiles-side-user-item:hover,
+html[data-theme='dark'][data-accent='natural'] .profiles-user-group-card:hover,
+html[data-theme='dark'][data-accent='natural'] .users-table tbody tr:hover,
+html[data-theme='dark'][data-accent='natural'] .activity-log-table tbody tr:hover {
+  background: color-mix(in oklch, var(--color-card) 72%, rgb(var(--accent-active-border) / 0.16));
+  border-color: color-mix(in oklch, var(--color-border) 64%, rgb(var(--accent-active-border) / 0.22));
+}
+
+/* Employees popup hover tuning: solid dark hover fill for cards. */
+html[data-theme='dark'][data-accent='natural'] .employee-review-modal .employee-card:hover,
+html[data-theme='dark'][data-accent='natural'] .employee-review-modal .employee-summary-card:hover {
+  background: rgba(0, 0, 0, 0.7);
+  background-color: rgba(0, 0, 0, 0.7);
+  border-color: var(--surface-border-adaptive);
+}
+
+html[data-theme='dark'] .employee-review-modal .return-request-picker-option,
+html[data-theme='dark'] .employee-review-modal .return-request-employee-option {
+  background: transparent;
+  background-color: transparent;
+  border-color: var(--surface-border-adaptive);
+}
+
+html[data-theme='dark'] .employee-review-modal .return-request-picker-option:hover,
+html[data-theme='dark'] .employee-review-modal .return-request-employee-option:hover {
+  background: rgba(0, 0, 0, 0.7);
+  background-color: rgba(0, 0, 0, 0.7);
+  border-color: var(--surface-border-adaptive);
+}
+
+html[data-theme='dark'] .employee-review-modal .employee-summary-card {
+  padding: 22px 18px;
+}
+
+html[data-theme='dark'] .employee-review-modal .employee-summary-card h3 {
+  margin-bottom: 10px;
+}
+
+html[data-theme='dark'] .employee-review-modal .employee-summary-card p {
+  margin-bottom: 6px;
+}
+
+html[data-theme='light'][data-accent='natural'] .employee-card:hover,
+html[data-theme='light'][data-accent='natural'] .employee-summary-card:hover,
+html[data-theme='light'][data-accent='natural'] .return-request-employee-option:hover,
+html[data-theme='light'][data-accent='natural'] .returned-request-item:hover,
+html[data-theme='light'][data-accent='natural'] .notification-item.is-unread:hover,
+html[data-theme='light'][data-accent='natural'] .notifications-page-item.is-unread:hover,
+html[data-theme='light'][data-accent='natural'] .commission-case-card:hover,
+html[data-theme='light'][data-accent='natural'] .concept-card:hover,
+html[data-theme='light'][data-accent='natural'] .profiles-agent-card:hover,
+html[data-theme='light'][data-accent='natural'] .profiles-side-user-item:hover,
+html[data-theme='light'][data-accent='natural'] .profiles-user-group-card:hover,
+html[data-theme='light'][data-accent='natural'] .users-table tbody tr:hover,
+html[data-theme='light'][data-accent='natural'] .activity-log-table tbody tr:hover {
+  background: color-mix(in oklch, var(--color-card) 80%, rgb(var(--accent-active-border) / 0.1));
+  border-color: color-mix(in oklch, var(--color-border) 62%, rgb(var(--accent-active-border) / 0.2));
+  box-shadow: 0 0 0 1px rgb(var(--accent-active-border) / 0.05);
+}
+
+html[data-theme='dark'] .commission-group:hover {
+  background: rgba(20, 20, 20, 0.5);
+  background-color: rgba(20, 20, 20, 0.5);
+}
+
+html[data-theme='dark'][data-accent='natural'] .employee-doc-preview:hover .employee-doc-preview-tile,
+html[data-theme='dark'][data-accent='natural'] .employee-doc-preview:focus-within .employee-doc-preview-tile {
+  background: color-mix(in oklch, var(--color-card) 70%, rgb(var(--accent-active-border) / 0.18));
+  border-color: color-mix(in oklch, var(--color-border) 62%, rgb(var(--accent-active-border) / 0.22));
+}
+
+html[data-theme='light'][data-accent='natural'] .employee-doc-preview:hover .employee-doc-preview-tile,
+html[data-theme='light'][data-accent='natural'] .employee-doc-preview:focus-within .employee-doc-preview-tile {
+  background: color-mix(in oklch, var(--color-card) 82%, rgb(var(--accent-active-border) / 0.1));
+  border-color: color-mix(in oklch, var(--color-border) 62%, rgb(var(--accent-active-border) / 0.18));
+}
+
+/* Category: Shared typography
+   Promoted headings and muted/supporting copy. */
+
+html[data-accent='natural'] .dashboard-panel h1,
+html[data-accent='natural'] .users-table-wrap h2,
+html[data-accent='natural'] .employee-card h3,
+html[data-accent='natural'] .employee-summary-card h3,
+html[data-accent='natural'] .employee-modal-header h2,
+html[data-accent='natural'] .employee-review-header h2,
+html[data-accent='natural'] .concept-card h3,
+html[data-accent='natural'] .concept-section h2,
+html[data-accent='natural'] .commission-group-header h3,
+html[data-accent='natural'] .notification-item-title {
+  color: var(--color-foreground);
+}
+
+html[data-accent='natural'] .muted-text,
+html[data-accent='natural'] .dashboard-header-user,
+html[data-accent='natural'] .employee-card p,
+html[data-accent='natural'] .employee-doc-preview strong,
+html[data-accent='natural'] .notification-item-body,
+html[data-accent='natural'] .notification-item-time,
+html[data-accent='natural'] .commission-case-meta,
+html[data-accent='natural'] .concept-eyebrow,
+html[data-accent='natural'] .concept-card-kicker,
+html[data-accent='natural'] .settings-section-hint,
+html[data-accent='natural'] .activity-log-meta,
+html[data-accent='natural'] .card-description,
+html[data-accent='natural'] .form-help,
+html[data-accent='natural'] .employee-modal-eyebrow {
+  color: var(--color-muted-foreground);
+}
+
+/* Category: Theme-level page backgrounds
+   Natural-only theme organization.
+   Dark and light stay separated here so the two skins can evolve cleanly. */
+
+/* Theme: Dark + Natural
+   Baseline dark page/background behavior. */
+
+html[data-accent='natural'] body,
+html[data-theme='dark'][data-accent='natural'] body {
+  background: var(--color-background);
+}
+
+/* Theme: Light + Natural
+   Light page wash and lighter surface tuning. */
+
+html[data-theme='light'] body {
+  background:
+    radial-gradient(circle at top left, rgb(var(--accent-glow-1) / 0.28) 0%, transparent 32%),
+    radial-gradient(circle at top right, rgb(var(--accent-glow-2) / 0.22) 0%, transparent 28%),
+    linear-gradient(
+      180deg,
+      color-mix(in oklch, var(--color-background) 90%, white 10%) 0%,
+      var(--color-background) 100%
+    );
+}
+
+html[data-theme='light'][data-accent='natural'] .dashboard-panel,
+html[data-theme='light'][data-accent='natural'] .employee-summary-card,
+html[data-theme='light'][data-accent='natural'] .employee-card,
+html[data-theme='light'][data-accent='natural'] .employee-modal,
+html[data-theme='light'][data-accent='natural'] .document-preview-modal,
+html[data-theme='light'][data-accent='natural'] .user-create-card,
+html[data-theme='light'][data-accent='natural'] .notification-dropdown,
+html[data-theme='light'][data-accent='natural'] .commission-group,
+html[data-theme='light'][data-accent='natural'] .commission-case-card,
+html[data-theme='light'][data-accent='natural'] .returned-list-surface,
+html[data-theme='light'][data-accent='natural'] .returned-request-surface,
+html[data-theme='light'][data-accent='natural'] .returned-request-item {
+  background: color-mix(in oklch, var(--color-card) 94%, white 6%);
+  border-color: color-mix(in oklch, var(--color-border) 86%, white 14%);
+  box-shadow:
+    0 10px 24px rgb(85 63 36 / 0.06),
+    0 2px 6px rgb(85 63 36 / 0.04);
+}
+
+html[data-theme='light'][data-accent='natural'] .dashboard-header,
+html[data-theme='light'][data-accent='natural'] .employee-modal-header,
+html[data-theme='light'][data-accent='natural'] .document-preview-toolbar,
+html[data-theme='light'][data-accent='natural'] .notification-dropdown-header,
+html[data-theme='light'][data-accent='natural'] .users-table th,
+html[data-theme='light'][data-accent='natural'] .activity-log-table thead th {
+  background: color-mix(in oklch, var(--color-card) 82%, var(--color-muted));
+}
+html[data-accent='natural'] .settings-form,
+html[data-accent='natural'] .settings-form > div,
+html[data-accent='natural'] .settings-form > *:not(button),
+html[data-accent='natural'] .settings-form label,
+html[data-accent='natural'] .settings-form .form-group,
+html[data-accent='natural'] .settings-form .form-grid,
+html[data-accent='natural'] .commissions-page .employee-review-modal .settings-form,
+html[data-accent='natural'] .commissions-page .employee-review-modal .settings-form > div,
+html[data-accent='natural'] .commissions-page .employee-review-modal .settings-form > *:not(button),
+html[data-accent='natural'] .commissions-page .employee-review-modal .settings-form label {
+  background: transparent;
+  background-color: transparent;
+  background-image: none;
+  border-color: transparent;
+  box-shadow: none;
+}
+
+/* Dark theme layout tuning
+   - Panels become transparent so content sits on the shell background.
+   - Shell uses an explicit gradient background (no flat color fill). */
+html[data-theme='dark'] .dashboard-panel {
+  background: #1717175e;
+  background-color: #1717175e;
+}
+
+html[data-theme='dark'] {
+  --surface-border-adaptive: #1e1e1ebd;
+}
+
+html[data-theme='dark'] .users-table-wrap {
+  background: #1717175e;
+  background-color: #1717175e;
+}
+
+html[data-theme='dark'] .user-create-card {
+  box-shadow: none !important;
+  border: none !important;
+}
+
+html[data-theme='dark'] .employee-template-bar {
+  background: color-mix(in oklch, #11111100 92%, #000000);
+  background-color: color-mix(in oklch, #11111100 92%, #000000);
+  border-color: color-mix(in oklch, #2b2b2b00 68%, transparent);
+}
+
+/* Concept pages (Chats / Compliances): match the dark surface logic even outside natural accent. */
+html[data-theme='dark'] .concept-page,
+html[data-theme='dark'] .concept-card,
+html[data-theme='dark'] .concept-summary-pill {
+  background: transparent;
+  background-color: transparent;
+  border-color: var(--surface-border-adaptive);
+  box-shadow: none;
+}
+
+html[data-theme='dark'] .concept-card:hover {
+  background: rgba(20, 20, 20, 0.5);
+  background-color: rgba(20, 20, 20, 0.5);
+  border-color: var(--surface-border-adaptive);
+}
+
+/* Dark theme form controls: unify input surfaces across all pages + popups. */
+html[data-theme='dark'] input:not([type='checkbox']):not([type='radio']),
+html[data-theme='dark'] select,
+html[data-theme='dark'] textarea,
+html[data-theme='dark'] .form-group input,
+html[data-theme='dark'] .form-grid input,
+html[data-theme='dark'] .form-grid select,
+html[data-theme='dark'] .settings-form select,
+html[data-theme='dark'] .settings-form input[type='text'],
+html[data-theme='dark'] .settings-form input[type='date'],
+html[data-theme='dark'] .settings-form input[type='number'],
+html[data-theme='dark'] .employees-page .user-create-card textarea,
+html[data-theme='dark'] .employee-modal-form textarea,
+html[data-theme='dark'] .users-table select,
+html[data-theme='dark'] .commission-search input {
+  background: #11111169;
+  border: 1px solid rgb(72 72 72 / 45%);
+  box-shadow: none;
+}
+
+/* Compact: summary cards should not inherit the global stack spacing. */
+html .employee-summary-card > * + * {
+  margin-top: 0 !important;
+}
+
+html[data-theme='dark'] input:not([type='checkbox']):not([type='radio']):disabled,
+html[data-theme='dark'] select:disabled,
+html[data-theme='dark'] textarea:disabled {
+  border-color: transparent;
+  box-shadow: none;
+}
+
+html[data-theme='dark'] input:not([type='checkbox']):not([type='radio']):hover:not(:focus):not(:focus-visible):not(:disabled):not([readonly]),
+html[data-theme='dark'] select:hover:not(:focus):not(:focus-visible):not(:disabled),
+html[data-theme='dark'] textarea:hover:not(:focus):not(:focus-visible):not(:disabled):not([readonly]) {
+  background: color-mix(in oklch, #11111169 92%, white 8%);
+}
+
+html[data-theme='dark'] input:not([type='checkbox']):not([type='radio']):focus,
+html[data-theme='dark'] input:not([type='checkbox']):not([type='radio']):focus-visible,
+html[data-theme='dark'] select:focus,
+html[data-theme='dark'] select:focus-visible,
+html[data-theme='dark'] textarea:focus,
+html[data-theme='dark'] textarea:focus-visible {
+  background: #000;
+}
+
+html[data-theme='dark'] select option {
+  background: #111111;
+  color: var(--color-foreground);
+}
+
+html[data-theme='dark'][data-accent='natural'] .dashboard-panel,
+html[data-theme='dark'][data-accent='natural'] .employees-page,
+html[data-theme='dark'][data-accent='natural'] .commissions-page,
+html[data-theme='dark'][data-accent='natural'] .concept-page,
+html[data-theme='dark'][data-accent='natural'] .notifications-page,
+html[data-theme='dark'][data-accent='natural'] .auth-form,
+html[data-theme='dark'][data-accent='natural'] .card,
+html[data-theme='dark'][data-accent='natural'] .users-table-wrap,
+html[data-theme='dark'][data-accent='natural'] .user-create-card,
+html[data-theme='dark'][data-accent='natural'] .table-scroll,
+html[data-theme='dark'][data-accent='natural'] .employee-modal,
+html[data-theme='dark'][data-accent='natural'] .employee-review-modal,
+html[data-theme='dark'][data-accent='natural'] .document-preview-modal,
+html[data-theme='dark'][data-accent='natural'] .employee-card,
+html[data-theme='dark'][data-accent='natural'] .employee-summary-card,
+html[data-theme='dark'][data-accent='natural'] .employee-employed-block,
+html[data-theme='dark'][data-accent='natural'] .employee-attachment-preview-card,
+html[data-theme='dark'][data-accent='natural'] .concept-card,
+html[data-theme='dark'][data-accent='natural'] .concept-summary-pill,
+html[data-theme='dark'][data-accent='natural'] .commission-group,
+html[data-theme='dark'][data-accent='natural'] .commission-case-card,
+html[data-theme='dark'][data-accent='natural'] .commission-settlement-card,
+html[data-theme='dark'][data-accent='natural'] .commission-receipt-item,
+html[data-theme='dark'][data-accent='natural'] .notification-dropdown,
+html[data-theme='dark'][data-accent='natural'] .notifications-page-list,
+html[data-theme='dark'][data-accent='natural'] .notification-item,
+html[data-theme='dark'][data-accent='natural'] .notification-item.is-unread,
+html[data-theme='dark'][data-accent='natural'] .returned-list-surface,
+html[data-theme='dark'][data-accent='natural'] .returned-request-surface,
+html[data-theme='dark'][data-accent='natural'] .returned-request-item,
+html[data-theme='dark'][data-accent='natural'] .return-request-employee-option,
+html[data-theme='dark'][data-accent='natural'] .attachment-box,
+html[data-theme='dark'][data-accent='natural'] .attachment-file-name,
+html[data-theme='dark'][data-accent='natural'] .checkbox-pill,
+html[data-theme='dark'][data-accent='natural'] .input-suffix span,
+html[data-theme='dark'][data-accent='natural'] .employee-doc-preview-popover,
+html[data-theme='dark'][data-accent='natural'] .placeholder-card,
+html[data-theme='dark'][data-accent='natural'] .demo-box,
+html[data-theme='dark'][data-accent='natural'] .oauth-block,
+html[data-theme='dark'][data-accent='natural'] .oauth-error {
+  background: transparent;
+  background-color: transparent;
+}
+
+html[data-theme='dark'][data-accent='natural'] .commission-group:hover {
+  background: rgba(20, 20, 20, 0.5);
+  background-color: rgba(20, 20, 20, 0.5);
+}
+
+/* Commission analysis + agents tabs: match settlement list surfaces (dark + natural). */
+html[data-theme='dark'][data-accent='natural'] .commission-timeline-card,
+html[data-theme='dark'][data-accent='natural'] .commission-chart-surface,
+html[data-theme='dark'][data-accent='natural'] .commission-agent-card,
+html[data-theme='dark'][data-accent='natural'] .commission-agent-stat,
+html[data-theme='dark'][data-accent='natural'] .commission-agent-card-score,
+html[data-theme='dark'][data-accent='natural'] .commission-request-card,
+html[data-theme='dark'][data-accent='natural'] .commission-request-card .commission-agent-stat {
+  background: transparent;
+  background-color: transparent;
+  border-color: var(--surface-border-adaptive);
+  box-shadow: none;
+}
+
+html[data-theme='dark'][data-accent='natural'] .commission-timeline-item.is-drillable {
+  background: transparent;
+  background-color: transparent;
+  border-color: var(--surface-border-adaptive);
+}
+
+html[data-theme='dark'][data-accent='natural'] .commission-timeline-item.is-drillable:hover,
+html[data-theme='dark'][data-accent='natural'] .commission-agent-card:hover {
+  background: rgba(20, 20, 20, 0.5);
+  background-color: rgba(20, 20, 20, 0.5);
+  border-color: var(--surface-border-adaptive);
+}
+
+/* Reports page: keep the same transparent-surface logic as commissions/employees. */
+html[data-theme='dark'][data-accent='natural'] .reports-chart-card,
+html[data-theme='dark'][data-accent='natural'] .reports-chart-surface,
+html[data-theme='dark'][data-accent='natural'] .reports-chart-empty,
+html[data-theme='dark'][data-accent='natural'] .reports-list-item,
+html[data-theme='dark'][data-accent='natural'] .reports-rank-item,
+html[data-theme='dark'][data-accent='natural'] .reports-page .concept-card {
+  background: transparent;
+  background-color: transparent;
+  border-color: var(--surface-border-adaptive);
+  box-shadow: none;
+}
+
+html[data-theme='dark'][data-accent='natural'] .reports-list-item:hover,
+html[data-theme='dark'][data-accent='natural'] .reports-rank-item:hover,
+html[data-theme='dark'][data-accent='natural'] .reports-page .concept-card:hover {
+  background: rgba(20, 20, 20, 0.5);
+  background-color: rgba(20, 20, 20, 0.5);
+  border-color: var(--surface-border-adaptive);
+}
+
+/* Profiles page: align with transparent-surface dark styling. */
+html[data-theme='dark'] .profiles-profile-card,
+html[data-theme='dark'] .profiles-users-board,
+html[data-theme='dark'] .profiles-user-group-card,
+html[data-theme='dark'] .profiles-side-user-item,
+html[data-theme='dark'] .profiles-agent-card,
+html[data-theme='dark'] .profiles-doc-item,
+html[data-theme='dark'] .profiles-agreement-doc-picker,
+html[data-theme='dark'] .profiles-agreement-doc-group,
+html[data-theme='dark'] .profiles-agreement-selected-tile,
+html[data-theme='dark'] .profiles-agreement-doc-option,
+html[data-theme='dark'] .profiles-signature-card {
+  background: transparent;
+  background-color: transparent;
+  border-color: var(--surface-border-adaptive);
+  box-shadow: none;
+}
+
+html[data-theme='dark'] .profiles-agent-card:hover,
+html[data-theme='dark'] .profiles-side-user-item:hover,
+html[data-theme='dark'] .profiles-user-group-card:hover,
+html[data-theme='dark'] .profiles-agreement-selected-tile.is-previewable:hover {
+  background: rgba(20, 20, 20, 0.5);
+  background-color: rgba(20, 20, 20, 0.5);
+  border-color: var(--surface-border-adaptive);
+}
+
+html[data-theme='dark'] .profiles-page .employee-summary-card.profiles-profile-card,
+html[data-theme='dark'] .profiles-page .employee-summary-card.profiles-users-board,
+html[data-theme='dark'] .profiles-page .employee-summary-card {
+  background: transparent;
+  background-color: transparent;
+  border-color: var(--surface-border-adaptive);
+  box-shadow: none;
+}
+
+html[data-theme='dark'] .profiles-page .employee-summary-card.profiles-profile-card:hover,
+html[data-theme='dark'] .profiles-page .employee-summary-card.profiles-users-board:hover,
+html[data-theme='dark'] .profiles-page .employee-summary-card:hover {
+  background: rgba(20, 20, 20, 0.5);
+  background-color: rgba(20, 20, 20, 0.5);
+  border-color: var(--surface-border-adaptive);
+}
+
+/* Profiles document preview header actions: keep buttons horizontal (override primitives grid). */
+html[data-theme='dark'] .profiles-page .document-preview-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 8px;
+}
+
+html[data-theme='dark'] .profiles-page .document-preview-actions > button,
+html[data-theme='dark'] .profiles-page .document-preview-actions > a {
+  width: auto;
+}
+
+html[data-theme='dark'] .profiles-page .document-preview-canvas {
+  background: rgba(255, 255, 255, 0.04);
+  border: 0;
+  box-shadow: none;
+}
+
+/* Settings + Activity log: reuse the commissions/employees filter container styling. */
+html[data-theme='dark'] .settings-page .settings-tab-card {
+  background: transparent;
+  background-color: transparent;
+  border-color: var(--surface-border-adaptive);
+  box-shadow: none;
+}
+
+html[data-theme='dark'] .settings-page .settings-tab-card:hover {
+  background: rgba(20, 20, 20, 0.5);
+  background-color: rgba(20, 20, 20, 0.5);
+  border-color: var(--surface-border-adaptive);
+}
+
+html[data-theme='dark'] .activity-log-page .form-grid.form-grid--align-end {
+  padding: 14px 16px;
+  border: 1px solid color-mix(in oklch, #2b2b2b00 68%, transparent);
+  border-radius: 5px;
+  background: color-mix(in oklch, #11111100 92%, #000000);
+}
+
+html[data-theme='dark'] .activity-log-page .activity-log-table tbody tr {
+  background: transparent;
+}
+
+html[data-theme='dark'] .activity-log-page .activity-log-table tbody tr:hover {
+  background: rgba(20, 20, 20, 0.5);
+}
+
+/* Travel page: align surfaces + hovers with the rest of the dark theme. */
+html[data-theme='dark'] .travel-page .employee-summary-card,
+html[data-theme='dark'] .travel-page .travel-ticket-card,
+html[data-theme='dark'] .travel-page .travel-live-result-card,
+html[data-theme='dark'] .travel-page .travel-bulk-passenger-card,
+html[data-theme='dark'] .travel-page .travel-support-item,
+html[data-theme='dark'] .travel-page .travel-airport-suggestion,
+html[data-theme='dark'] .travel-page .travel-airport-suggestion-list,
+html[data-theme='dark'] .travel-page .travel-booking-form {
+  background: transparent;
+  background-color: transparent;
+  border-color: var(--surface-border-adaptive);
+  box-shadow: none;
+}
+
+html[data-theme='dark'] .travel-page .travel-ticket-card:hover,
+html[data-theme='dark'] .travel-page .travel-live-result-card:hover,
+html[data-theme='dark'] .travel-page .travel-bulk-passenger-card:hover,
+html[data-theme='dark'] .travel-page .travel-support-item:hover,
+html[data-theme='dark'] .travel-page .travel-airport-suggestion:hover,
+html[data-theme='dark'] .travel-page .travel-airport-suggestion:focus-visible,
+html[data-theme='dark'] .travel-page .employee-summary-card:hover {
+  background: rgba(20, 20, 20, 0.5);
+  background-color: rgba(20, 20, 20, 0.5);
+  border-color: var(--surface-border-adaptive);
+}
+
+html[data-theme='dark'][data-accent='natural'] .commission-group-toggle-button:hover,
+html[data-theme='dark'][data-accent='natural'] .commission-group-toggle-button:focus-visible {
+  background: rgba(60, 60, 60, 0.5);
+  background-color: rgba(60, 60, 60, 0.5);
+  border-color: var(--surface-border-adaptive);
+  outline: none;
+}
+
+html[data-theme='dark'] .dashboard-shell {
+  background: linear-gradient(163deg, #161616, #000000);
+}
+
+html[data-theme='dark'] .dashboard-sidebar {
+  background: #15151500;
+  border-right: 1px solid #2b2b2b38;
+}
+
+html[data-theme='dark'] .employee-review-header {
+  background: transparent;
+  background-color: transparent;
+  background-image: none;
+}
+
+/* Align all popups/dialogs with the employees review modal look:
+   transparent surfaces + transparent headers in dark mode. */
+html[data-theme='dark'] .employee-modal,
+html[data-theme='dark'] .employee-review-modal,
+html[data-theme='dark'] .document-preview-modal,
+html[data-theme='dark'] .notification-dropdown,
+html[data-theme='dark'] .employee-doc-preview-popover,
+html[data-theme='dark'] .app-confirm-dialog,
+html[data-theme='dark'] .commission-rate-popover,
+html[data-theme='dark'] .notification-reminder-dialog,
+html[data-theme='dark'] .employee-scan-modal,
+html[data-theme='dark'] .app-toast {
+  background: transparent;
+  background-color: transparent;
+  background-image: none;
+  border-color: var(--surface-border-adaptive);
+  color: var(--color-foreground);
+}
+
+/* Dark theme: toast notifications should be readable (less transparent). */
+html[data-theme='dark'] .app-toast {
+  background: rgb(0 0 0 / 0.86);
+  background-color: rgb(0 0 0 / 0.86);
+  border-color: var(--surface-border-adaptive);
+}
+
+html[data-theme='dark'] .document-preview-modal {
+  border: 1px solid var(--surface-border-adaptive);
+}
+
+/* Users table: allow actions/buttons to render without clipping. */
+html .users-management .users-table-wrap {
+  overflow: visible !important;
+}
+
+html .users-management .table-scroll {
+  overflow-x: auto !important;
+  overflow-y: visible !important;
+}
+
+html[data-theme='dark'] .notification-reminder-target,
+html[data-theme='dark'] .notification-reminder-option,
+html[data-theme='dark'] .notification-reminder-custom {
+  background: transparent;
+  background-color: transparent;
+  border-color: var(--surface-border-adaptive);
+  box-shadow: none;
+}
+
+html[data-theme='dark'] .notification-reminder-option:hover,
+html[data-theme='dark'] .notification-reminder-option.is-selected {
+  background: rgba(20, 20, 20, 0.5);
+  background-color: rgba(20, 20, 20, 0.5);
+  border-color: var(--surface-border-adaptive);
+  box-shadow: none;
+}
+
+/* Travel booking dialog (app-confirm) inner surfaces */
+html[data-theme='dark'] .app-confirm-dialog .travel-booking-form,
+html[data-theme='dark'] .app-confirm-dialog .travel-airport-suggestion-list,
+html[data-theme='dark'] .app-confirm-dialog .travel-airport-suggestion,
+html[data-theme='dark'] .app-confirm-dialog .travel-live-result-card,
+html[data-theme='dark'] .app-confirm-dialog .travel-bulk-passenger-card,
+html[data-theme='dark'] .app-confirm-dialog .travel-support-item {
+  background: transparent;
+  background-color: transparent;
+  border-color: var(--surface-border-adaptive);
+  box-shadow: none;
+}
+
+html[data-theme='dark'] .app-confirm-dialog .travel-airport-suggestion:hover,
+html[data-theme='dark'] .app-confirm-dialog .travel-airport-suggestion:focus-visible,
+html[data-theme='dark'] .app-confirm-dialog .travel-live-result-card:hover,
+html[data-theme='dark'] .app-confirm-dialog .travel-support-item:hover {
+  background: rgba(0, 0, 0, 0.7);
+  background-color: rgba(0, 0, 0, 0.7);
+  border-color: var(--surface-border-adaptive);
+  box-shadow: none;
+}
+
+html[data-theme='dark'] .app-confirm-header,
+html[data-theme='dark'] .employee-modal-header,
+html[data-theme='dark'] .employee-review-header,
+html[data-theme='dark'] .document-preview-toolbar,
+html[data-theme='dark'] .notification-dropdown-header {
+  background: transparent;
+  background-color: transparent;
+  background-image: none;
+  border-color: transparent;
+}
+
+html[data-theme='dark'] .employee-card {
+  background: #1717175e;
+  background-color: #1717175e;
+}
+
+/* Employee registration step tabs: active state uses a light gradient, so force dark text. */
+html[data-theme='dark'] .employee-step-tab.is-active,
+html[data-theme='dark'] .employee-step-tab.is-active:hover:not(:disabled) {
+  color: #111111 !important;
+}
+
+html[data-theme='dark'] .employee-step-tab.is-active span,
+html[data-theme='dark'] .employee-step-tab.is-active:hover:not(:disabled) span {
+  color: #111111 !important;
+}
+
+/* Employees: modal error surface (ensure it wins over primitives). */
+html[data-theme='dark'] .error-message.employee-modal-error {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px 14px;
+  background: rgb(255 0 0 / 0.12);
+  border: 1px solid rgb(255 0 0 / 0.28);
+  color: rgb(255 85 85);
+  border-radius: 5px;
+}
+
+html[data-theme='dark'] .error-message.employee-modal-error::before {
+  content: '';
+  flex: 0 0 auto;
+  width: 18px;
+  height: 18px;
+  margin-top: 1px;
+  background-color: currentColor;
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='black' d='M12 2 1 21h22L12 2Zm0 6c.6 0 1 .4 1 1v5a1 1 0 1 1-2 0V9c0-.6.4-1 1-1Zm0 11a1.25 1.25 0 1 1 0-2.5A1.25 1.25 0 0 1 12 19Z'/%3E%3C/svg%3E") no-repeat center / contain;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='black' d='M12 2 1 21h22L12 2Zm0 6c.6 0 1 .4 1 1v5a1 1 0 1 1-2 0V9c0-.6.4-1 1-1Zm0 11a1.25 1.25 0 1 1 0-2.5A1.25 1.25 0 0 1 12 19Z'/%3E%3C/svg%3E") no-repeat center / contain;
+}
+
+/* Employee modal notice should not inherit the generic `.alert` surface box. */
+html .alert.employee-modal-notice {
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+}
+
+/* Category: Sidebar shell normalization
+   Shared sidebar structure before theme-specific natural refinements. */
+
+.dashboard-shell {
+  align-items: stretch;
+}
+
+.dashboard-sidebar {
+  position: fixed;
+  inset: 0 auto 0 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  gap: 0;
+  width: 224px;
+  min-width: 224px;
+  height: 100dvh;
+  padding: 0;
+  background: var(--color-sidebar);
+  color: var(--color-sidebar-foreground);
+  border-right: 1px solid var(--color-sidebar-border);
+  box-sizing: border-box;
+  overflow-x: hidden;
+  overflow-y: hidden;
+  z-index: 40;
+}
+
+.dashboard-main {
+  margin-left: 224px;
+  width: calc(100% - 224px);
+  min-height: 100dvh;
+  height: 100dvh;
+}
+
+.dashboard-sidebar-top {
+  position: relative;
+  top: auto;
+  left: auto;
+  width: 100%;
+  display: flex;
+  align-items: stretch;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  border-bottom: 0;
+  min-height: 132px;
+}
+
+.dashboard-sidebar-top:hover {
+  background: transparent;
+  border: 0;
+  border-color: transparent;
+  box-shadow: none;
+}
+
+.dashboard-profile-menu {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: stretch;
+  width: 100%;
+  min-height: 100%;
+  margin: 0;
+  padding: 0;
+  background: linear-gradient(
+    25deg,
+    rgb(var(--accent-active) / 0.18) 0%,
+    rgb(var(--accent-active-border) / 0.22) 100%
+  );
+  box-shadow: none;
+  border: 0;
+  border-color: transparent;
+  border-radius: 0;
+}
+
+.dashboard-profile-trigger {
+  position: relative;
+  display: flex;
+  align-items: flex-end;
+  align-self: stretch;
+  gap: 10px;
+  cursor: default;
+  user-select: none;
+  width: 100%;
+  min-width: 100%;
+  min-height: 100%;
+  height: 100%;
+  padding: 14px 12px;
+  margin: 0;
+  border-radius: 0;
+  background: transparent;
+  border: 0;
+  border-color: transparent;
+  box-shadow: none;
+  outline: none;
+  overflow: hidden;
+}
+
+.dashboard-profile-trigger:hover,
+.dashboard-profile-trigger.is-open {
+  background: transparent;
+  border: 0;
+  border-color: transparent;
+  box-shadow: none;
+  filter: none;
+  transform: none;
+  opacity: 1;
+}
+
+.dashboard-profile-trigger:focus,
+.dashboard-profile-trigger:focus-visible,
+.dashboard-profile-trigger:focus-within,
+.dashboard-profile-trigger.is-open:focus,
+.dashboard-profile-trigger.is-open:focus-visible {
+  outline: none;
+  border: 0;
+  border-color: transparent;
+  box-shadow: none;
+}
+
+/* Theme: Dark + Natural sidebar/profile */
+
+html[data-theme='dark'][data-accent='natural'] .dashboard-profile-menu {
+  background: linear-gradient(
+    25deg,
+    rgb(var(--accent-active) / 0.14) 0%,
+    rgb(var(--accent-active-border) / 0.18) 100%
+  );
+}
+
+html[data-theme='dark'][data-accent='natural'] .dashboard-profile-trigger,
+html[data-theme='dark'][data-accent='natural'] .dashboard-profile-trigger.has-image,
+html[data-theme='light'][data-accent='natural'] .dashboard-profile-trigger,
+html[data-theme='light'][data-accent='natural'] .dashboard-profile-trigger.has-image {
+  border: 0;
+  border-color: transparent;
+  box-shadow: none;
+}
+
+html[data-theme='dark'][data-accent='natural'] .dashboard-profile-trigger:hover,
+html[data-theme='dark'][data-accent='natural'] .dashboard-profile-trigger:focus,
+html[data-theme='dark'][data-accent='natural'] .dashboard-profile-trigger:focus-visible,
+html[data-theme='dark'][data-accent='natural'] .dashboard-profile-trigger.is-open,
+html[data-theme='light'][data-accent='natural'] .dashboard-profile-trigger:hover,
+html[data-theme='light'][data-accent='natural'] .dashboard-profile-trigger:focus,
+html[data-theme='light'][data-accent='natural'] .dashboard-profile-trigger:focus-visible,
+html[data-theme='light'][data-accent='natural'] .dashboard-profile-trigger.is-open {
+  border: 0;
+  border-color: transparent;
+  box-shadow: none;
+  outline: none;
+}
+
+.dashboard-profile-trigger-bg {
+  position: absolute;
+  inset: 0;
+  display: block;
+  pointer-events: none;
+  z-index: 0;
+}
+
+html[data-theme='dark'][data-accent='natural'] .dashboard-profile-trigger.has-image .dashboard-profile-trigger-bg {
+  background:
+    linear-gradient(
+      180deg,
+      rgb(0 0 0 / 0.64) 0%,
+      rgb(0 0 0 / 0.74) 38%,
+      color-mix(in oklch, black 96%, rgb(var(--accent-active-border) / 0.06)) 100%
+    ),
+    linear-gradient(
+      135deg,
+      rgb(var(--accent-surface-strong) / 0.14) 0%,
+      rgb(var(--accent-active-border) / 0.08) 100%
+    ),
+    var(--profile-trigger-image) center / cover no-repeat;
+  filter: saturate(0.44) contrast(1.05) brightness(0.94) blur(0.8px);
+}
+
+html[data-theme='dark'][data-accent='natural'] .dashboard-profile-trigger.has-image:hover .dashboard-profile-trigger-bg,
+html[data-theme='dark'][data-accent='natural'] .dashboard-profile-trigger.has-image.is-open .dashboard-profile-trigger-bg {
+  background:
+    linear-gradient(
+      180deg,
+      rgb(0 0 0 / 0.58) 0%,
+      rgb(0 0 0 / 0.68) 38%,
+      color-mix(in oklch, black 92%, rgb(var(--accent-active-border) / 0.06)) 100%
+    ),
+    linear-gradient(
+      135deg,
+      rgb(var(--accent-surface-strong) / 0.12) 0%,
+      rgb(var(--accent-active-border) / 0.07) 100%
+    ),
+    var(--profile-trigger-image) center / cover no-repeat;
+  filter: saturate(0.48) contrast(1.06) brightness(0.98) blur(0.6px);
+}
+
+html[data-theme='dark'][data-accent='natural'] .dashboard-profile-trigger.has-image:active .dashboard-profile-trigger-bg {
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in oklch, black 82%, rgb(var(--accent-glow-1) / 0.05)) 0%,
+      color-mix(in oklch, black 90%, rgb(var(--accent-active-border) / 0.08)) 100%
+    ),
+    linear-gradient(135deg, rgb(var(--accent-surface-strong) / 0.22) 0%, rgb(var(--accent-active-border) / 0.14) 100%),
+    var(--profile-trigger-image) center / cover no-repeat;
+}
+
+html[data-theme='dark'][data-accent='natural'] .dashboard-brand {
+  background: color-mix(in oklch, black 95%, rgb(var(--accent-active-border) / 0.05));
+  border-bottom: 1px solid #2b2b2b38;
+  border-color: #2b2b2b38;
+  color: color-mix(in oklch, var(--color-sidebar-foreground) 90%, rgb(var(--accent-active) / 0.05));
+}
+
+/* Theme: Light + Natural sidebar/profile */
+
+html[data-theme='light'][data-accent='natural'] .dashboard-profile-menu {
+  background: linear-gradient(
+    25deg,
+    rgb(var(--accent-active) / 0.06) 0%,
+    rgb(var(--accent-active-border) / 0.08) 100%
+  );
+}
+
+html[data-theme='light'][data-accent='natural'] .dashboard-profile-trigger.has-image .dashboard-profile-trigger-bg {
+  background:
+    linear-gradient(
+      180deg,
+      rgb(255 255 255 / 0.05) 0%,
+      rgb(255 255 255 / 0.025) 38%,
+      color-mix(in oklch, white 96%, rgb(var(--accent-active-border) / 0.06)) 100%
+    ),
+    linear-gradient(
+      135deg,
+      rgb(var(--accent-surface-strong) / 0.06) 0%,
+      rgb(var(--accent-active-border) / 0.04) 100%
+    ),
+    var(--profile-trigger-image) center / cover no-repeat;
+  filter: saturate(0.58) contrast(1.03) brightness(1.02) blur(0.7px);
+}
+
+html[data-theme='light'][data-accent='natural'] .dashboard-profile-trigger.has-image:hover .dashboard-profile-trigger-bg,
+html[data-theme='light'][data-accent='natural'] .dashboard-profile-trigger.has-image.is-open .dashboard-profile-trigger-bg {
+  background:
+    linear-gradient(
+      180deg,
+      rgb(255 255 255 / 0.035) 0%,
+      rgb(255 255 255 / 0.015) 38%,
+      color-mix(in oklch, white 92%, rgb(var(--accent-active-border) / 0.06)) 100%
+    ),
+    linear-gradient(
+      135deg,
+      rgb(var(--accent-surface-strong) / 0.05) 0%,
+      rgb(var(--accent-active-border) / 0.03) 100%
+    ),
+    var(--profile-trigger-image) center / cover no-repeat;
+  filter: saturate(0.62) contrast(1.04) brightness(1.04) blur(0.55px);
+}
+
+html[data-theme='light'][data-accent='natural'] .dashboard-profile-avatar {
+  background: linear-gradient(
+    135deg,
+    color-mix(in oklch, var(--color-card) 78%, white 22%) 0%,
+    color-mix(in oklch, var(--color-card) 84%, rgb(var(--accent-tile-muted) / 0.18)) 100%
+  );
+  box-shadow: 0 4px 14px rgb(15 23 42 / 0.06);
+}
+
+html[data-theme='light'][data-accent='natural'] .dashboard-profile-copy strong {
+  color: color-mix(in oklch, var(--color-foreground) 98%, black 2%);
+}
+
+html[data-theme='light'][data-accent='natural'] .dashboard-profile-copy span {
+  color: color-mix(in oklch, var(--color-muted-foreground) 96%, var(--color-foreground) 4%);
+}
+
+html[data-theme='light'][data-accent='natural'] .dashboard-brand {
+  background: color-mix(in oklch, white 95%, rgb(var(--accent-active-border) / 0.05));
+  color: color-mix(in oklch, var(--color-foreground) 94%, rgb(var(--accent-active-border) / 0.06));
+}
+
+html[data-theme='light'][data-accent='natural'] .dashboard-nav-link,
+html[data-theme='light'][data-accent='natural'] .dashboard-nav-trigger {
+  color: color-mix(in oklch, var(--color-sidebar-foreground) 92%, var(--color-muted-foreground) 8%);
+}
+
+html[data-theme='light'][data-accent='natural'] .dashboard-nav-link:hover:not(.is-active),
+html[data-theme='light'][data-accent='natural'] .dashboard-nav-trigger:hover:not(.is-active) {
+  color: color-mix(in oklch, var(--color-sidebar-foreground) 98%, black 2%);
+  background: color-mix(in oklch, var(--color-card) 70%, rgb(var(--accent-active-border) / 0.12));
+  border-color: color-mix(in oklch, var(--color-border) 56%, rgb(var(--accent-active-border) / 0.28));
+  box-shadow: 0 0 0 1px rgb(var(--accent-active-border) / 0.06);
+}
+
+html[data-theme='light'][data-accent='natural'] .employee-progress-donut-label strong {
+  color: var(--color-foreground);
+}
+
+html[data-theme='light'][data-accent='natural'] .employee-progress-donut-label span {
+  color: var(--color-muted-foreground);
+}
+
+html[data-theme='light'][data-accent='natural'] .employee-summary-card p {
+  color: color-mix(in oklch, var(--color-muted-foreground) 92%, var(--color-foreground) 8%);
+}
+
+html[data-theme='light'][data-accent='natural'] .employee-summary-card p strong,
+html[data-theme='light'][data-accent='natural'] .employee-progress-metrics p strong {
+  color: var(--color-foreground);
+}
+
+.dashboard-profile-avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  flex-shrink: 0;
+  position: relative;
+  z-index: 1;
+  width: 44px;
+  height: 44px;
+  min-width: 44px;
+  border-radius: 5px;
+  opacity: 0.82;
+  transition: opacity 0.18s ease, transform 0.22s ease;
+}
+
+.dashboard-profile-avatar img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
+  image-rendering: auto;
+  transform: translateZ(0);
+}
+
+.dashboard-profile-copy {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: flex-end;
+  flex: 1 1 auto;
+  text-align: left;
+  position: relative;
+  z-index: 1;
+  gap: 2px;
+  min-width: 0;
+  overflow: hidden;
+  opacity: 0.84;
+  transition: opacity 0.18s ease, transform 0.22s ease;
+}
+
+.dashboard-profile-copy strong {
+  font-size: 1rem;
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dashboard-profile-copy span {
+  font-size: 0.82rem;
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dashboard-profile-trigger:hover .dashboard-profile-avatar,
+.dashboard-profile-trigger:hover .dashboard-profile-copy,
+.dashboard-profile-trigger.is-open .dashboard-profile-avatar,
+.dashboard-profile-trigger.is-open .dashboard-profile-copy {
+  transform: translateY(-3px);
+  opacity: 1;
+}
+
+.dashboard-profile-trigger:active .dashboard-profile-avatar,
+.dashboard-profile-trigger:active .dashboard-profile-copy {
+  transform: translateY(-1px);
+  opacity: 1;
+}
+
+.dashboard-brand {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  box-sizing: border-box;
+  min-height: 42px;
+  margin: 0;
+  padding: 10px 12px 8px;
+  font-size: 0.68rem;
+  background: color-mix(in oklch, black 96%, rgb(var(--accent-active-border) / 0.08));
+  border-top: 0;
+  border-bottom: 0;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: color-mix(in oklch, var(--color-sidebar-foreground) 92%, rgb(var(--accent-active) / 0.08));
+}
+
+.dashboard-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px;
+  box-sizing: border-box;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+.dashboard-sidebar-actions {
+  margin-top: auto;
+  padding: 10px;
+  display: grid;
+  gap: 8px;
+  border-top: 1px solid color-mix(in oklch, var(--color-sidebar-border) 76%, transparent);
+  background: color-mix(in oklch, var(--color-sidebar) 88%, var(--color-card));
+}
+
+.dashboard-sidebar-actions-title {
+  margin: 0;
+  padding: 0 2px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-muted-foreground);
+}
+
+.dashboard-sidebar-action {
+  width: 100%;
+  justify-content: center;
+}
+
+.dashboard-nav-link,
+.dashboard-nav-trigger {
+  position: relative;
+  display: flex;
+  align-items: center;
+  min-height: 2.45rem;
+  padding: 0px 10px;
+  gap: 16px;
+  border-radius: 5px;
+  border: 1px solid transparent;
+  text-decoration: none;
+  font-size: 0.84rem;
+  font-weight: 600;
+  justify-content: flex-start;
+  width: 100%;
+  text-align: left;
+  box-sizing: border-box;
+  transition: background 0.18s ease, color 0.18s ease, border-color 0.18s ease;
+}
+
+.dashboard-nav-trigger {
+  background: transparent;
+}
+
+.dashboard-nav-group-link:not(.is-active) {
+  background: transparent;
+  border-color: transparent;
+}
+
+.dashboard-nav-group.is-expanded .dashboard-nav-group-link {
+  background: var(--color-sidebar-accent);
+  color: #fff;
+}
+
+.dashboard-nav-link-copy {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.dashboard-nav-badge {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.8em;
+  min-width: 1.8em;
+  height: 1.8em;
+  padding: 0;
+  border-radius: 50%;
+  font-size: 0.66rem;
+  font-weight: 800;
+  line-height: 1;
+  background: color-mix(in oklch, currentColor 16%, transparent);
+  border: 1px solid color-mix(in oklch, currentColor 26%, transparent);
+  color: inherit;
+}
+
+.dashboard-nav-group {
+  width: 100%;
+}
+
+.dashboard-nav-group-row {
+  display: flex;
+  align-items: stretch;
+  gap: 8px;
+  width: 100%;
+}
+
+.dashboard-nav-group-link {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.dashboard-nav-group-toggle {
+  flex: 0 0 auto;
+  width: 20px;
+  height: 100%;
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  justify-content: center;
+  margin-left: 0;
+  align-self: stretch;
+  display: inline-flex;
+  align-items: center;
+  line-height: 0;
+}
+
+.dashboard-nav-group-toggle:hover {
+  background: transparent;
+}
+
+.dashboard-nav-chevron {
+  width: 16px;
+  height: 16px;
+  stroke: currentColor;
+  stroke-width: 1.35;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  transition: transform 0.18s ease;
+}
+
+.dashboard-nav-chevron.is-expanded {
+  transform: rotate(90deg);
+}
+
+.dashboard-nav-submenu {
+  display: grid;
+  gap: 4px;
+  padding-left: 24px;
+  margin: 2px 0 10px;
+}
+
+.dashboard-nav-sublink {
+  display: flex;
+  align-items: center;
+  min-height: 2.15rem;
+  padding: 6px 10px;
+  border-radius: 5px;
+  border: 1px solid transparent;
+  text-decoration: none;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: color-mix(in oklch, var(--color-sidebar-foreground) 74%, transparent);
+  transition: background 0.18s ease, color 0.18s ease, border-color 0.18s ease;
+  opacity: 0.7;
+}
+
+.dashboard-nav-sublink:hover {
+  background: color-mix(in oklch, var(--color-sidebar-accent) 10%, transparent);
+  color: #fff;
+  opacity: 1;
+}
+
+html[data-theme='dark'] .dashboard-nav-sublink.is-active {
+  background: rgba(30, 30, 30, 1);
+  //border-color: var(--surface-border-adaptive);
+  color: var(--color-foreground);
+  opacity: 1;
+}
+
+.dashboard-nav-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 18px;
+  width: 18px;
+  height: 18px;
+  margin-right: 4px;
+  opacity: 0.92;
+}
+
+.dashboard-nav-icon svg {
+  width: 18px;
+  height: 18px;
+  stroke: currentColor;
+  stroke-width: 1.35;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.dashboard-nav-icon svg path,
+.dashboard-nav-icon svg rect,
+.dashboard-nav-icon svg circle,
+.dashboard-nav-icon svg line,
+.dashboard-nav-icon svg polyline,
+.dashboard-nav-icon svg polygon {
+  vector-effect: non-scaling-stroke;
+}
+
+.dashboard-nav-link:hover:not(.is-active),
+.dashboard-nav-trigger:hover:not(.is-active) {
+  color: var(--color-muted-foreground);
+}
+
+@media (max-width: 900px) {
+  .dashboard-shell {
+    height: auto;
+    min-height: 100dvh;
+    overflow: visible;
+  }
+
+  .dashboard-sidebar {
+    position: relative;
+    inset: auto;
+    width: 100%;
+    min-width: 100%;
+    height: auto;
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    z-index: auto;
+  }
+
+  .dashboard-main {
+    margin-left: 0;
+    width: 100%;
+    min-height: 0;
+    height: auto;
+    overflow: visible;
+  }
+
+  .dashboard-content {
+    min-height: auto;
+  }
+
+  .dashboard-brand {
+    width: 100%;
+    background-color: #000000;
+  }
+
+  .dashboard-nav {
+    flex-direction: row;
+    flex-wrap: wrap;
+    width: 100%;
+  }
+
+  .dashboard-sidebar-actions {
+    width: 100%;
+    margin-top: 0;
+  }
+
+  .dashboard-nav-link,
+  .dashboard-nav-trigger {
+    flex: 1 1 auto;
+    justify-content: center;
+    text-align: center;
+  }
+}
+
+html .employee-registration-surface .employee-modal.employee-modal--flat {
+  box-shadow: none;
+}
+
+html .employee-registration-surface .attachment-box.attachment-box--slot {
+  position: relative;
+  border: 1px solid color-mix(in oklch, var(--color-border) 88%, transparent);
+  background: color-mix(in oklch, var(--color-card) 92%, var(--color-muted));
+  box-shadow: none;
+}
+
+html[data-theme='dark'][data-accent='natural'] .employee-registration-surface .attachment-box.attachment-box--slot {
+  background: transparent;
+  background-color: transparent;
+  border-color: var(--surface-border-adaptive);
+}
+
+html[data-theme='dark'][data-accent='natural'] .employee-registration-surface .attachment-box.attachment-box--slot.is-filled {
+  background: rgba(20, 20, 20, 0.7);
+  background-color: rgba(20, 20, 20, 0.7);
+  border-color: var(--surface-border-adaptive);
+}
+
+html[data-theme='dark'][data-accent='natural'] .employee-registration-surface .attachment-box.attachment-box--slot:hover {
+  background: rgba(20, 20, 20, 0.5);
+  background-color: rgba(20, 20, 20, 0.5);
+  border-color: var(--surface-border-adaptive);
+}
+
+html[data-theme='dark'][data-accent='natural'] .employee-registration-surface .attachment-box.attachment-box--slot.is-filled:hover {
+  background: rgba(20, 20, 20, 0.7);
+  background-color: rgba(20, 20, 20, 0.7);
+  border-color: var(--surface-border-adaptive);
+}
+
+html .employee-registration-surface .attachment-box.attachment-box--slot:hover,
+html .employee-registration-surface .attachment-box.attachment-box--slot:focus-within,
+html .employee-registration-surface .attachment-box.attachment-box--slot:active {
+  box-shadow: none;
+}
+
+html .employee-registration-surface .attachment-box.attachment-box--slot.is-filled {
+  border-color: color-mix(in oklch, var(--color-border) 68%, transparent);
+  background: color-mix(in oklch, var(--color-card) 92%, var(--color-muted));
+}
+
+html .employee-registration-surface .attachment-box-title.attachment-box-title--slot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+html .employee-registration-surface .attachment-box-badge.attachment-box-badge--slot {
+  display: block;
+  align-items: center;
+  justify-content: center;
+  width: 7px;
+  height: 0;
+  padding: 0 0;
+  padding-bottom: 7px;
+  border-radius: 50%;
+  background: #383;
+  color: #ffffff;
+  font-size: 0.85rem;
+  line-height: 1.35rem;
+  font-weight: 700;
+  box-shadow: none;
+  overflow: hidden;
+}
+
+html .employee-registration-surface .attachment-file-name.attachment-file-name--slot {
+  border: 1px solid color-mix(in oklch, var(--color-border) 88%, transparent);
+  box-shadow: none;
+}
+
+html .employee-registration-surface .attachment-box.attachment-box--slot.is-filled .attachment-file-name.attachment-file-name--slot {
+  border-color: rgb(var(--accent-active, 59 130 246) / 0.5);
+  background: color-mix(in oklch, rgb(var(--accent-active, 59 130 246)) 8%, var(--color-card) 92%);
+  color: var(--color-foreground);
+}
+
+/* Attachment slot: date inputs should not stretch full width (override primitives `input { width: 100% }`). */
+html .attachment-box--slot .attachment-slot-copy input[type='date'] {
+  width: 250px !important;
+  max-width: 100% !important;
+  justify-self: start;
+}
+
+html[data-density='compact'] .attachment-box--slot .attachment-slot-copy input[type='date'] {
+  width: 250px !important;
+}
+

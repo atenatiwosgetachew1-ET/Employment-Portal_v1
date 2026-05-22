@@ -2,6 +2,77 @@ import { NavLink, Outlet, useNavigate } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
 import NotificationBell from '../notifications/NotificationBell'
 
+function NavIcon({ name }) {
+  const common = {
+    width: 18,
+    height: 18,
+    viewBox: '0 0 24 24',
+    fill: 'none',
+    xmlns: 'http://www.w3.org/2000/svg',
+    'aria-hidden': 'true',
+    focusable: 'false'
+  }
+
+  switch (name) {
+    case 'dashboard':
+      return (
+        <svg {...common}>
+          <rect x="3" y="3" width="8" height="8" rx="1" />
+          <rect x="13" y="3" width="8" height="5" rx="1" />
+          <rect x="13" y="10" width="8" height="11" rx="1" />
+          <rect x="3" y="13" width="8" height="8" rx="1" />
+        </svg>
+      )
+    case 'employees':
+      return (
+        <svg {...common}>
+          <path d="M16 11a3 3 0 1 0-2.9-3 3 3 0 0 0 2.9 3Z" />
+          <path d="M8 11a3 3 0 1 0-2.9-3A3 3 0 0 0 8 11Z" />
+          <path d="M3.5 20a5.5 5.5 0 0 1 9-4.2" />
+          <path d="M12.5 20a5 5 0 0 1 10 0" />
+        </svg>
+      )
+    case 'users':
+      return (
+        <svg {...common}>
+          <path d="M17 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+          <circle cx="9" cy="7" r="3.5" />
+          <path d="M22 21v-2a3.5 3.5 0 0 0-2.6-3.4" />
+          <path d="M16.5 3.3a3.5 3.5 0 0 1 0 7.4" />
+        </svg>
+      )
+    case 'settings':
+      return (
+        <svg {...common}>
+          <path d="M12 15.5a3.5 3.5 0 1 0-3.5-3.5 3.5 3.5 0 0 0 3.5 3.5Z" />
+          <path d="M19.4 15a7.8 7.8 0 0 0 .1-1l2-1.2-2-3.5-2.3.7a7.5 7.5 0 0 0-1.7-1L15 6h-6l-.5 2.2a7.5 7.5 0 0 0-1.7 1l-2.3-.7-2 3.5 2 1.2a7.8 7.8 0 0 0 0 2l-2 1.2 2 3.5 2.3-.7a7.5 7.5 0 0 0 1.7 1L9 22h6l.5-2.2a7.5 7.5 0 0 0 1.7-1l2.3.7 2-3.5-2-1.2Z" />
+        </svg>
+      )
+    case 'activity':
+      return (
+        <svg {...common}>
+          <path d="M12 22a10 10 0 1 0-10-10 10 10 0 0 0 10 10Z" />
+          <path d="M12 6v6l4 2" />
+        </svg>
+      )
+    default:
+      return (
+        <svg {...common}>
+          <path d="M5 12h14" />
+        </svg>
+      )
+  }
+}
+
+function iconForRoute(to) {
+  if (to === '/dashboard') return 'dashboard'
+  if (to.startsWith('/dashboard/employees')) return 'employees'
+  if (to.startsWith('/dashboard/users')) return 'users'
+  if (to.startsWith('/dashboard/settings')) return 'settings'
+  if (to.startsWith('/dashboard/activity')) return 'activity'
+  return 'dashboard'
+}
+
 export default function DashboardLayout() {
   const { user, signOut } = useAuth()
   const navigate = useNavigate()
@@ -50,7 +121,10 @@ export default function DashboardLayout() {
                 `dashboard-nav-link${isActive ? ' is-active' : ''}`
               }
             >
-              {label}
+              <span className="dashboard-nav-icon">
+                <NavIcon name={iconForRoute(to)} />
+              </span>
+              <span className="dashboard-nav-link-copy">{label}</span>
             </NavLink>
           ))}
         </nav>

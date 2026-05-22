@@ -1496,7 +1496,7 @@ export default function ProfilesPage() {
 
   return (
     <section className="dashboard-panel profiles-page">
-      <div className="users-management-header">
+      <div className="page-panel-header">
         <div>
           <h1>Profiles</h1>
           <p className="muted-text">

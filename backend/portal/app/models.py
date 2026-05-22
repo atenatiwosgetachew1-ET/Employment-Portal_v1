@@ -787,3 +787,49 @@ class EmployeeReturnRequest(models.Model):
 
     def __str__(self):
         return f"Return request for {self.employee.full_name}"
+
+
+class EmployeeTravelBooking(models.Model):
+    organization = models.ForeignKey(
+        Organization,
+        on_delete=models.CASCADE,
+        related_name="employee_travel_bookings",
+    )
+    employee = models.OneToOneField(
+        Employee,
+        on_delete=models.CASCADE,
+        related_name="travel_booking",
+    )
+    ticket_number = models.CharField(max_length=120, blank=True, default="")
+    pnr = models.CharField(max_length=32, blank=True, default="")
+    airline = models.CharField(max_length=120, blank=True, default="")
+    origin = models.CharField(max_length=16, blank=True, default="")
+    destination = models.CharField(max_length=16, blank=True, default="")
+    departure_date = models.DateField(null=True, blank=True)
+    departure_time = models.TimeField(null=True, blank=True)
+    arrival_date = models.DateField(null=True, blank=True)
+    arrival_time = models.TimeField(null=True, blank=True)
+    route_summary = models.CharField(max_length=255, blank=True, default="")
+    notes = models.TextField(blank=True, default="")
+    created_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="employee_travel_bookings_created",
+    )
+    updated_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="employee_travel_bookings_updated",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-updated_at"]
+
+    def __str__(self):
+        return f"Travel booking for {self.employee.full_name}"

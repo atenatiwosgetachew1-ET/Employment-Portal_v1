@@ -22,13 +22,15 @@ import SubscriptionPlansPage from './pages/SubscriptionPlansPage'
 import ProfilesPage from './pages/ProfilesPage'
 import TravelPage from './pages/TravelPage'
 import ProtectedRoute from './routes/ProtectedRoute'
+import { applyDensity, getStoredDensity } from './utils/density'
 import { applyAccent, applyTheme, getStoredAccent, getStoredTheme } from './utils/theme'
-import './new.css'
+import './App.css'
 
 function AppRoutes() {
   useEffect(() => {
     applyTheme(getStoredTheme())
     applyAccent(getStoredAccent())
+    applyDensity(getStoredDensity())
   }, [])
 
   return (

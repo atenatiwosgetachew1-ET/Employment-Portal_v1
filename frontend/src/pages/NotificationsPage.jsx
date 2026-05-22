@@ -288,9 +288,15 @@ export default function NotificationsPage() {
             <div className="app-confirm-header">
               <h2 id="notification-reminder-title">Schedule reminder</h2>
             </div>
-            <p className="app-confirm-message">
-              Choose when you want to be reminded about "{reminderTarget.title}".
-            </p>
+            <div className="notification-reminder-summary">
+              <p className="app-confirm-message">
+                Choose when you want to be reminded about this notification.
+              </p>
+              <div className="notification-reminder-target">
+                <strong>{reminderTarget.title}</strong>
+                {reminderTarget.body ? <span>{reminderTarget.body}</span> : null}
+              </div>
+            </div>
             <div className="notification-reminder-options" role="radiogroup" aria-label="Reminder time options">
               {[
                 ['1h', 'In 1 hour'],
@@ -307,7 +313,7 @@ export default function NotificationsPage() {
                     checked={reminderOption === value}
                     onChange={() => setReminderOption(value)}
                   />
-                  <span>{label}</span>
+                  <span className="notification-reminder-option-copy">{label}</span>
                 </label>
               ))}
             </div>

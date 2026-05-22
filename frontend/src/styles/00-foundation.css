@@ -1,0 +1,204 @@
+/* Base stylesheet extracted from App.css.
+
+   Brutal categorization map
+   1. Foundation: page, cards, auth, links, generic text
+   2. Shell: dashboard layout, header, sidebar, brand, nav
+   3. Analytics + concept surfaces: concept, commission overview, charts
+   4. Profiles domain: profile layout, agreements, side panels, signatures
+   5. Commissions domain: cases, settlements, receipts, timelines
+   6. Users + settings domain: users management, settings, activity
+   7. Employees domain: forms, cards, modals, previews, progress, returned flow
+   8. Theme bridges + skin history: legacy base layers and refactors
+   9. Final base organization layer: shared surfaces, shared controls, shared typography
+ */
+
+/* ==========================================================================
+   1. FOUNDATION
+   Generic app primitives before any dashboard/domain styling.
+   ========================================================================== */
+
+:root {
+  --density-page-padding: 28px;
+  --density-surface-padding: 24px;
+  --density-card-padding: 18px;
+  --density-section-gap: 16px;
+  --density-grid-gap: 18px;
+  --density-control-padding-y: 11px;
+  --density-control-padding-x: 10px;
+  --density-control-min-height: 43px;
+  --density-step-tab-min-height: 83px;
+  --density-textarea-min-height: 93px;
+  --density-chip-padding-y: 11px;
+  --density-chip-padding-x: 10px;
+}
+
+html[data-density='comfortable'] {
+  --density-page-padding: 28px;
+  --density-surface-padding: 24px;
+  --density-card-padding: 18px;
+  --density-section-gap: 16px;
+  --density-grid-gap: 18px;
+  --density-control-padding-y: 11px;
+  --density-control-padding-x: 10px;
+  --density-control-min-height: 43px;
+  --density-step-tab-min-height: 83px;
+  --density-textarea-min-height: 93px;
+  --density-chip-padding-y: 11px;
+  --density-chip-padding-x: 10px;
+}
+
+html[data-density='compact'] {
+  --density-page-padding: 12px;
+  --density-surface-padding: 12px;
+  --density-card-padding: 9px;
+  --density-section-gap: 8px;
+  --density-grid-gap: 10px;
+  --density-control-padding-y: 7px;
+  --density-control-padding-x: 8px;
+  --density-control-min-height: 33px;
+  --density-step-tab-min-height: 53px;
+  --density-textarea-min-height: 57px;
+  --density-chip-padding-y: 7px;
+  --density-chip-padding-x: 7px;
+}
+
+.page {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  box-sizing: border-box;
+}
+
+.centered-page {
+  background: var(--color-background);
+}
+
+.card,
+.auth-form {
+  width: 100%;
+  max-width: 420px;
+  box-sizing: border-box;
+  text-align: left;
+}
+
+.auth-form h1,
+.card h1 {
+  margin: 0 0 20px;
+  font-size: 1.75rem;
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.form-group label {
+  font-weight: 600;
+  font-size: 0.95rem;
+}
+
+.form-group input {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+button {
+  font: inherit;
+  cursor: pointer;
+}
+
+button:disabled {
+  opacity: 0.15;
+  cursor: not-allowed;
+}
+
+.error-message {
+  margin: 0 0 14px;
+  color: var(--color-destructive);
+  background: color-mix(in oklch, var(--color-destructive) 10%, var(--color-card));
+  border: 1px solid color-mix(in oklch, var(--color-destructive) 24%, var(--color-border));
+  border-radius: 5px;
+  padding: 8px 10px;
+  font-size: 0.9rem;
+}
+
+.auth-links {
+  margin-top: 16px;
+  font-size: 0.9rem;
+}
+
+.auth-links a {
+  color: var(--color-primary);
+  text-decoration: none;
+}
+
+.auth-links a:hover {
+  text-decoration: underline;
+}
+
+.link-button {
+  background: none;
+  border: none;
+  padding: 0;
+  margin: 0;
+  font: inherit;
+  color: var(--color-primary);
+  cursor: pointer;
+  text-decoration: none;
+}
+
+.link-button:hover:not(:disabled) {
+  text-decoration: underline;
+}
+
+.link-button:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+
+.oauth-block {
+  width: 100%;
+  max-width: 420px;
+  margin-top: 8px;
+}
+
+.oauth-divider {
+  text-align: center;
+  margin: 0 0 12px;
+}
+
+.google-signin-wrap {
+  display: flex;
+  justify-content: center;
+  width: 100%;
+}
+
+.oauth-error {
+  max-width: 420px;
+  width: 100%;
+  margin: 12px auto 0;
+}
+
+.demo-box {
+  margin-top: 20px;
+  border-radius: 5px;
+  background: color-mix(in oklch, var(--color-card) 90%, var(--color-muted));
+  padding: 10px 12px;
+  font-size: 0.9rem;
+}
+
+.welcome-text {
+  margin: 0 0 8px;
+  font-size: 1rem;
+}
+
+.muted-text {
+  margin: 0 0 5px;
+  color: var(--color-muted-foreground);
+}
+

@@ -18,6 +18,7 @@ from .employee_views import (
     EmployeeReturnRequestView,
     EmployeeRetrieveUpdateDestroyView,
     EmployeeSelectionView,
+    EmployeeTravelBookingView,
 )
 from .registration_views import (
     company_superadmin_reset_token_consume,
@@ -35,6 +36,7 @@ from .sync_views import (
     sync_plan_view,
     sync_subscription_view,
 )
+from .travel_views import TravelFlightAvailabilitySearchView, TravelLocationSearchView, TravelStatusView
 from .platform_views import (
     AuditLogListView,
     CurrentOrganizationView,
@@ -92,8 +94,12 @@ urlpatterns = [
     path("employees/<int:employee_pk>/return-request/", EmployeeReturnRequestView.as_view(), name="employees-return-request"),
     path("employees/<int:employee_pk>/return-request/approve/", EmployeeReturnRequestApproveView.as_view(), name="employees-return-request-approve"),
     path("employees/<int:employee_pk>/return-request/refuse/", EmployeeReturnRequestRefuseView.as_view(), name="employees-return-request-refuse"),
+    path("employees/<int:employee_pk>/travel-booking/", EmployeeTravelBookingView.as_view(), name="employees-travel-booking"),
     path("employees/<int:employee_pk>/documents/", EmployeeDocumentUploadView.as_view(), name="employees-document-upload"),
     path("employee-documents/<int:pk>/", EmployeeDocumentDeleteView.as_view(), name="employees-document-delete"),
+    path("travel/status/", TravelStatusView.as_view(), name="travel-status"),
+    path("travel/locations/", TravelLocationSearchView.as_view(), name="travel-locations"),
+    path("travel/flight-availabilities/", TravelFlightAvailabilitySearchView.as_view(), name="travel-flight-availabilities"),
     path("users/", UserListCreateView.as_view(), name="users-list"),
     path("users/staff-side-options/", StaffSideOptionsView.as_view(), name="users-staff-side-options"),
     path("users/<int:pk>/reset-password/", UserPasswordResetView.as_view(), name="users-reset-password"),

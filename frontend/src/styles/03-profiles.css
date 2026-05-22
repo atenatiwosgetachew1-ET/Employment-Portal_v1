@@ -1,0 +1,540 @@
+/* ==========================================================================
+   4. PROFILES DOMAIN
+   Profile workspace, side panels, agents, agreements, signatures.
+   ========================================================================== */
+
+.profiles-page-stack {
+  display: grid;
+  gap: 20px;
+  margin-top: 18px;
+}
+
+.profiles-layout {
+  display: grid;
+  grid-template-columns: minmax(320px, 420px) minmax(0, 1fr);
+  gap: 20px;
+  align-items: start;
+}
+
+.profiles-profile-card,
+.profiles-page .employee-summary-card {
+  text-align: left;
+}
+
+.profiles-profile-head {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 18px;
+}
+
+.profiles-agent-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 12px;
+  margin-top: 14px;
+}
+
+.profiles-side-panels {
+  display: grid;
+  gap: 20px;
+}
+
+.profiles-users-board {
+  margin-top: 0;
+}
+
+.profiles-users-board-sections {
+  display: grid;
+  gap: 20px;
+}
+
+.profiles-users-board-section {
+  display: grid;
+  gap: 14px;
+}
+
+.profiles-users-board-section h3 {
+  margin: 0;
+}
+
+.profiles-grouped-user-sections {
+  display: grid;
+  gap: 14px;
+  margin-top: 14px;
+}
+
+.profiles-user-group-card {
+  display: grid;
+  gap: 14px;
+  padding: 14px;
+  border: 1px solid var(--color-border);
+  border-radius: 5px;
+  background: color-mix(in oklch, var(--color-card) 96%, var(--color-muted));
+}
+
+.profiles-user-group-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.profiles-user-group-header h4 {
+  margin: 0;
+  color: var(--color-foreground);
+}
+
+.profiles-agent-grid--compact {
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+}
+
+.profiles-side-user-list {
+  display: grid;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.profiles-side-user-item {
+  display: block;
+  width: 100%;
+  padding: 4px 8px;
+  border: 1px solid var(--color-border);
+  border-radius: 5px;
+  background: color-mix(in oklch, var(--color-card) 96%, var(--color-muted));
+  text-align: left;
+  cursor: default;
+  opacity: 0.94;
+}
+
+.profiles-side-user-item .profiles-agent-card-head {
+  gap: 8px;
+  flex-wrap: nowrap;
+}
+
+.profiles-side-user-inline {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-width: 0;
+}
+
+.profiles-side-user-inline strong,
+.profiles-side-user-inline span,
+.profiles-side-user-inline .badge {
+  margin: 0;
+  line-height: 1.1;
+}
+
+.profiles-agent-card,
+.profiles-doc-item {
+  display: grid;
+  gap: 8px;
+  padding: 14px;
+  border: 1px solid var(--color-border);
+  border-radius: 5px;
+  background: color-mix(in oklch, var(--color-card) 94%, var(--color-muted));
+}
+
+.profiles-agent-card {
+  width: 100%;
+  text-align: left;
+  cursor: pointer;
+}
+
+.profiles-agent-card:hover {
+  border-color: color-mix(in oklch, var(--color-ring) 34%, var(--color-border));
+  background: color-mix(in oklch, var(--color-card) 88%, var(--color-muted));
+}
+
+.profiles-agent-card.is-disabled,
+.profiles-agent-card:disabled {
+  cursor: default;
+  opacity: 0.72;
+}
+
+.profiles-agent-card.is-disabled:hover,
+.profiles-agent-card:disabled:hover {
+  border-color: var(--color-border);
+  background: color-mix(in oklch, var(--color-card) 94%, var(--color-muted));
+}
+
+.profiles-agent-card-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.profiles-avatar-button:disabled {
+  cursor: default;
+  opacity: 1;
+}
+
+.profiles-admin-badge {
+  margin-top: 6px;
+  margin-left: 0;
+}
+
+.profiles-agreement-status {
+  margin-top: 0;
+}
+
+.profiles-doc-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.profiles-doc-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none;
+}
+
+.profiles-agreements-layout {
+  grid-template-columns: minmax(320px, 420px) minmax(0, 1fr);
+}
+
+.profiles-agreement-doc-picker {
+  display: grid;
+  gap: 10px;
+}
+
+.profiles-agreement-doc-picker-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.profiles-agreement-doc-options {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  max-height: 420px;
+  overflow: auto;
+}
+
+.profiles-page .document-preview-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 8px;
+}
+
+.profiles-page .document-preview-actions > button,
+.profiles-page .document-preview-actions > a {
+  width: auto;
+}
+
+.profiles-agreement-doc-group {
+  display: grid;
+  gap: 8px;
+}
+
+.profiles-agreement-doc-group > .employee-modal-eyebrow {
+  margin: 0;
+}
+
+.profiles-agreement-selected-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(90px, 90px));
+  gap: 10px;
+}
+
+.profiles-agreement-selected-tile {
+  position: relative;
+  display: grid;
+  gap: 6px;
+  justify-items: center;
+  align-content: start;
+  padding: 10px 8px 8px;
+  border: 1px solid var(--color-border);
+  border-radius: 5px;
+  background: color-mix(in oklch, var(--color-card) 94%, var(--color-muted));
+  text-align: center;
+}
+
+.profiles-agreement-selected-tile.is-previewable {
+  cursor: pointer;
+}
+
+.profiles-agreement-selected-tile.is-previewable:hover {
+  border-color: color-mix(in oklch, var(--color-ring) 34%, var(--color-border));
+  background: color-mix(in oklch, var(--color-card) 88%, var(--color-muted));
+}
+
+.profiles-agreement-selected-thumb {
+  width: 54px;
+  height: 54px;
+  border-radius: 5px;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: color-mix(in oklch, var(--color-muted) 76%, var(--color-card));
+  border: 1px solid color-mix(in oklch, var(--color-border) 80%, var(--color-muted));
+}
+
+.profiles-agreement-selected-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.profiles-agreement-selected-thumb span {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--color-muted-foreground);
+}
+
+.profiles-agreement-selected-tile strong,
+.profiles-agreement-selected-tile small {
+  width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.profiles-agreement-selected-tile strong {
+  font-size: 0.74rem;
+  color: var(--color-foreground);
+}
+
+.profiles-agreement-selected-tile small {
+  font-size: 0.68rem;
+  color: var(--color-muted-foreground);
+}
+
+.profiles-agreement-doc-option {
+  position: relative;
+  display: grid;
+  gap: 2px;
+  padding: 10px 12px;
+  border: 1px solid var(--color-border);
+  border-radius: 5px;
+  background: color-mix(in oklch, var(--color-card) 94%, var(--color-muted));
+  cursor: pointer;
+}
+
+.profiles-agreement-doc-option input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.profiles-agreement-doc-option:has(input:checked) {
+  border-color: color-mix(in oklch, var(--color-ring) 44%, var(--color-border));
+  background: color-mix(in oklch, var(--color-card) 82%, var(--color-muted));
+}
+
+.profiles-agreement-doc-option span {
+  font-weight: 600;
+  color: var(--color-foreground);
+}
+
+.profiles-agreement-doc-option small {
+  color: var(--color-muted-foreground);
+}
+
+.profiles-agreement-list {
+  display: grid;
+  gap: 16px;
+  margin-top: 14px;
+}
+
+.profiles-agreement-board-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.profiles-agreement-item {
+  display: grid;
+  gap: 14px;
+  padding: 16px;
+  border: 1px solid var(--color-border);
+  border-radius: 5px;
+  background: color-mix(in oklch, var(--color-card) 95%, var(--color-muted));
+}
+
+.profiles-agreement-item--signed {
+  padding: 0;
+}
+
+.profiles-agreement-item--signed .commission-group-header {
+  align-items: start;
+  padding: 18px 18px 12px;
+}
+
+.profiles-agreement-head-copy {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.profiles-agreement-head-copy .employee-modal-eyebrow,
+.profiles-agreement-head-copy .muted-text {
+  margin: 0;
+}
+
+.profiles-agreement-signed-content {
+  display: grid;
+  gap: 14px;
+  padding: 0 16px 16px;
+}
+
+.profiles-agreement-toolbar {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.profiles-agreement-head {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.profiles-agreement-head-actions {
+  display: grid;
+  justify-items: end;
+  gap: 8px;
+}
+
+.profiles-agreement-head h3 {
+  margin: 0 0 4px;
+  overflow-wrap: anywhere;
+}
+
+.profiles-agreement-item .commission-group-toggle-button {
+  width: 36px;
+  height: 36px;
+  min-width: 36px;
+  min-height: 36px;
+}
+
+.profiles-agreement-item--signed .commission-group-toggle-button {
+  width: 36px;
+  height: 36px;
+  min-width: 36px;
+  min-height: 36px;
+}
+
+.profiles-agreement-item--signed .commission-group-toggle-icon {
+  font-size: 0;
+}
+
+.profiles-agreement-item--signed .commission-group-toggle-icon::before {
+  content: 'â–¸';
+  font-size: 1rem;
+  line-height: 1;
+}
+
+.profiles-agreement-details {
+  padding: 12px 14px;
+  border: 1px solid color-mix(in oklch, var(--color-border) 74%, var(--color-muted));
+  border-radius: 5px;
+  background: color-mix(in oklch, var(--color-card) 97%, var(--color-muted));
+}
+
+.profiles-agreement-details p {
+  margin: 0;
+  white-space: pre-wrap;
+}
+
+.profiles-agreement-doc-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 10px;
+}
+
+.profiles-signature-board {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.profiles-signature-card {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid color-mix(in oklch, var(--color-border) 74%, var(--color-muted));
+  border-radius: 5px;
+  background: color-mix(in oklch, var(--color-card) 97%, var(--color-muted));
+}
+
+.profiles-signature-card strong {
+  color: var(--color-foreground);
+}
+
+.profiles-signature-consent input {
+  float: right;
+  margin: 0;
+}
+
+.profiles-signature-pad {
+  min-height: 140px;
+  display: flex;
+  align-items: stretch;
+  justify-content: center;
+  padding: 10px;
+  border: 1px dashed color-mix(in oklch, var(--color-ring) 34%, var(--color-border));
+  border-radius: 5px;
+  background:
+    linear-gradient(180deg, transparent 0%, transparent 74%, color-mix(in oklch, var(--color-ring) 22%, transparent) 74%, color-mix(in oklch, var(--color-ring) 22%, transparent) 76%, transparent 76%);
+  color: var(--color-muted-foreground);
+  font-style: italic;
+}
+
+.profiles-signature-pad canvas {
+  width: 100%;
+  height: 140px;
+  display: block;
+  cursor: crosshair;
+  touch-action: none;
+}
+
+.profiles-signature-pad span {
+  display: flex;
+  align-items: end;
+  width: 100%;
+}
+
+.profiles-signature-preview {
+  padding: 8px;
+  border: 1px solid color-mix(in oklch, var(--color-border) 74%, var(--color-muted));
+  border-radius: 5px;
+  background: color-mix(in oklch, var(--color-card) 98%, var(--color-muted));
+}
+
+.profiles-signature-preview img {
+  display: block;
+  width: 100%;
+  max-height: 120px;
+  object-fit: contain;
+}
+
+@media (max-width: 980px) {
+  .profiles-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .profiles-doc-list {
+    grid-template-columns: 1fr;
+  }
+
+  .profiles-signature-board {
+    grid-template-columns: 1fr;
+  }
+
+  .profiles-agreement-doc-options {
+    grid-template-columns: 1fr;
+  }
+}
+

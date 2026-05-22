@@ -195,6 +195,15 @@ LOGIN_MAX_FAILED_ATTEMPTS = int(os.getenv("LOGIN_MAX_FAILED_ATTEMPTS", "5") or "
 LOGIN_LOCKOUT_MINUTES = int(os.getenv("LOGIN_LOCKOUT_MINUTES", "15") or "15")
 EMPLOYEE_OCR_SERVICE_URL = (os.getenv("EMPLOYEE_OCR_SERVICE_URL") or "").strip().rstrip("/")
 EMPLOYEE_OCR_SERVICE_TIMEOUT_SECONDS = int(os.getenv("EMPLOYEE_OCR_SERVICE_TIMEOUT_SECONDS", "60") or "60")
+TRAVEL_SERVICE_URL = (os.getenv("TRAVEL_SERVICE_URL") or "").strip().rstrip("/")
+TRAVEL_SERVICE_TIMEOUT_SECONDS = int(os.getenv("TRAVEL_SERVICE_TIMEOUT_SECONDS", "30") or "30")
+TRAVEL_SERVICE_STATUS_PATH = (os.getenv("TRAVEL_SERVICE_STATUS_PATH") or "/health").strip()
+TRAVEL_SERVICE_AUTH_PATH = (os.getenv("TRAVEL_SERVICE_AUTH_PATH") or "/api/auth/service-token").strip()
+TRAVEL_SERVICE_FLIGHT_SEARCH_PATH = (os.getenv("TRAVEL_SERVICE_FLIGHT_SEARCH_PATH") or "/api/flights/search").strip()
+TRAVEL_SERVICE_LOCATION_SEARCH_PATH = (os.getenv("TRAVEL_SERVICE_LOCATION_SEARCH_PATH") or "/api/locations/search").strip()
+TRAVEL_SERVICE_CLIENT_ID = (os.getenv("TRAVEL_SERVICE_CLIENT_ID") or "").strip()
+TRAVEL_SERVICE_CLIENT_SECRET = (os.getenv("TRAVEL_SERVICE_CLIENT_SECRET") or "").strip()
+TRAVEL_SERVICE_SOURCE_SYSTEM = (os.getenv("TRAVEL_SERVICE_SOURCE_SYSTEM") or "employment_portal").strip() or "employment_portal"
 
 
 def _env_strip(key: str, default: str = "") -> str:

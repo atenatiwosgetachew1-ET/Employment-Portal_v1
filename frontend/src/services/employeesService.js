@@ -203,6 +203,41 @@ export async function declineEmployeeProcess(id) {
   return data
 }
 
+export async function saveEmployeeTravelBooking(id, payload) {
+  const response = await apiFetch(`/api/employees/${id}/travel-booking/`, {
+    method: 'POST',
+    body: JSON.stringify(payload)
+  })
+  const data = await response.json().catch(() => ({}))
+  if (!response.ok) {
+    throw new Error(responseError(data, 'Failed to save travel booking'))
+  }
+  return data
+}
+
+export async function updateEmployeeTravelBooking(id, payload) {
+  const response = await apiFetch(`/api/employees/${id}/travel-booking/`, {
+    method: 'PATCH',
+    body: JSON.stringify(payload)
+  })
+  const data = await response.json().catch(() => ({}))
+  if (!response.ok) {
+    throw new Error(responseError(data, 'Failed to update travel booking'))
+  }
+  return data
+}
+
+export async function deleteEmployeeTravelBooking(id) {
+  const response = await apiFetch(`/api/employees/${id}/travel-booking/`, {
+    method: 'DELETE'
+  })
+  const data = await response.json().catch(() => ({}))
+  if (!response.ok) {
+    throw new Error(responseError(data, 'Failed to delete travel booking'))
+  }
+  return data
+}
+
 export async function createEmployeeReturnRequest(id, { remark, evidenceFiles = [] } = {}) {
   const formData = new FormData()
   formData.append('remark', remark || '')
