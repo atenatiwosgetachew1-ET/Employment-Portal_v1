@@ -422,6 +422,41 @@ textarea:focus,
   box-shadow: 0 0 0 1px color-mix(in oklch, var(--color-ring) 14%, transparent);
 }
 
+input[aria-invalid='true']:focus,
+select[aria-invalid='true']:focus,
+textarea[aria-invalid='true']:focus,
+.form-group input[aria-invalid='true']:focus,
+.form-grid input[aria-invalid='true']:focus,
+.form-grid select[aria-invalid='true']:focus,
+.settings-form select[aria-invalid='true']:focus,
+.settings-form input[type='text'][aria-invalid='true']:focus,
+.employees-page .user-create-card textarea[aria-invalid='true']:focus,
+.employee-modal-form textarea[aria-invalid='true']:focus,
+.users-table select[aria-invalid='true']:focus,
+.commission-search input[aria-invalid='true']:focus {
+  border: 1px solid var(--color-destructive) !important;
+  box-shadow: 0 0 0 2px color-mix(in oklch, var(--color-destructive) 32%, transparent) !important;
+}
+
+input:invalid:focus,
+select:invalid:focus,
+textarea:invalid:focus,
+input:user-invalid,
+select:user-invalid,
+textarea:user-invalid,
+.form-group input:invalid:focus,
+.form-grid input:invalid:focus,
+.form-grid select:invalid:focus,
+.settings-form select:invalid:focus,
+.settings-form input[type='text']:invalid:focus,
+.employees-page .user-create-card textarea:invalid:focus,
+.employee-modal-form textarea:invalid:focus,
+.users-table select:invalid:focus,
+.commission-search input:invalid:focus {
+  border-color: var(--color-destructive);
+  box-shadow: 0 0 0 1px color-mix(in oklch, var(--color-destructive) 28%, transparent);
+}
+
 input:hover:not(:focus):not(:focus-visible):not(:disabled):not([readonly]),
 select:hover:not(:focus):not(:focus-visible):not(:disabled),
 textarea:hover:not(:focus):not(:focus-visible):not(:disabled):not([readonly]) {

@@ -748,7 +748,7 @@ function isValidEmailAddress(value) {
 
 function getValidationStep(errorMessage) {
   const target = getValidationTarget(errorMessage)
-  return target ? target.step : null
+  return target && target.selector ? target.step : null
 }
 
 function getValidationTarget(errorMessage) {
@@ -762,6 +762,10 @@ function getValidationTarget(errorMessage) {
   if (message.includes('middle name')) return { step: 0, selector: '[name="middle_name"]' }
   if (message.includes('last name')) return { step: 0, selector: '[name="last_name"]' }
   if (message.includes('date of birth')) return { step: 0, selector: '[name="date_of_birth"]' }
+  if (
+    message.includes('years old') ||
+    (message.includes('at least') && message.includes('year'))
+  ) return { step: 0, selector: '[name="date_of_birth"]' }
   if (message.includes('gender')) return { step: 0, selector: '[name="gender"]' }
   if (message.includes('passport number')) return { step: 0, selector: '[name="passport_number"]' }
   if (message.includes('mobile number')) return { step: 0, selector: '[name="mobile_number"]' }
@@ -816,7 +820,7 @@ function getValidationTarget(errorMessage) {
   if (message.includes('insurance') || message.includes('insurance_expires_on')) return { step: 4, selector: '[name="insurance_expires_on"]' }
   if (message.includes('attachment')) return { step: 4, selector: '[name="portrait_photo"]' }
 
-  return { step: 0, selector: null }
+  return null
 }
 
 function validateEmployeeForm(form) {
@@ -982,6 +986,8 @@ export default function EmployeesPage() {
   const [otherDocumentsModalOpen, setOtherDocumentsModalOpen] = useState(false)
   const [floatingAttachmentPreview, setFloatingAttachmentPreview] = useState(null)
   const floatingAttachmentPreviewCloseTimer = useRef(null)
+  const employeeModalFormRef = useRef(null)
+  const [invalidStepIndex, setInvalidStepIndex] = useState(null)
   const [scanImportModalOpen, setScanImportModalOpen] = useState(false)
   const [cameraCaptureModalOpen, setCameraCaptureModalOpen] = useState(false)
   const [cameraStream, setCameraStream] = useState(null)
@@ -2798,20 +2804,174 @@ export default function EmployeesPage() {
     return validateStepFields(form, stepIndex, ageRestrictionError, validateAttachmentDates)
   }
 
+  const syncEmployeeModalFieldValidity = useCallback((formEl, stepIndex) => {
+    if (!formEl) return
+
+    const setValidity = (fieldName, message) => {
+      if (!fieldName) return
+      const el = formEl.querySelector(`[name="${CSS.escape(fieldName)}"]`)
+      if (el && typeof el.setCustomValidity === 'function') {
+        el.setCustomValidity(message || '')
+      }
+    }
+
+    // Clear previous custom validity.
+    ;[
+      'mobile_number',
+      'passport_number',
+      'id_number',
+      'labour_id',
+      'contact_person_mobile',
+      'phone',
+      'email',
+      'contact_person_id_number'
+    ].forEach((name) => setValidity(name, ''))
+
+    if (stepIndex === 0) {
+      if (ageRestrictionError) {
+        setValidity('date_of_birth', ageRestrictionError)
+      }
+      if (form.mobile_number.trim() && !isValidPhoneNumber(form.mobile_number)) {
+        setValidity('mobile_number', 'Enter a valid mobile number.')
+      }
+      if (form.passport_number.trim() && !isValidDocumentNumber(form.passport_number)) {
+        setValidity('passport_number', 'Passport number is invalid.')
+      }
+      if (form.id_number.trim() && !isValidDocumentNumber(form.id_number)) {
+        setValidity('id_number', 'ID number is invalid.')
+      }
+      if (form.labour_id.trim() && !isValidDocumentNumber(form.labour_id)) {
+        setValidity('labour_id', 'Labour ID is invalid.')
+      }
+    }
+
+    if (stepIndex === 2) {
+      if (!isValidPhoneNumber(form.phone)) {
+        setValidity('phone', 'Enter a valid secondary phone number.')
+      }
+      if ((form.contact_person_mobile || '').trim() && !isValidPhoneNumber(form.contact_person_mobile)) {
+        setValidity('contact_person_mobile', 'Enter a valid contact person mobile number.')
+      }
+      if (!isValidEmailAddress(form.email)) {
+        setValidity('email', 'Enter a valid email address.')
+      }
+      if (!isValidDocumentNumber(form.contact_person_id_number)) {
+        setValidity('contact_person_id_number', 'Contact person ID number is invalid.')
+      }
+    }
+  }, [form])
+
+  const getValidationFieldForStep = useCallback((message, stepIndex) => {
+    if (!message) return ''
+    const normalized = String(message).toLowerCase()
+
+    if (stepIndex === 0) {
+      if (normalized.includes('first name is required')) return 'first_name'
+      if (normalized.includes('middle name is required')) return 'middle_name'
+      if (normalized.includes('last name is required')) return 'last_name'
+      if (normalized.includes('date of birth is required')) return 'date_of_birth'
+      if (normalized.includes('at least') && normalized.includes('age')) return 'date_of_birth'
+      if (normalized.includes('gender is required')) return 'gender'
+      if (normalized.includes('passport number is required')) return 'passport_number'
+      if (normalized.includes('mobile number is required')) return 'mobile_number'
+      if (normalized.includes('valid mobile number')) return 'mobile_number'
+      if (normalized.includes('passport number may only')) return 'passport_number'
+      if (normalized.includes('id number may only')) return 'id_number'
+      if (normalized.includes('labour id may only')) return 'labour_id'
+      return ''
+    }
+
+    if (stepIndex === 1) {
+      if (normalized.includes('religion is required')) return 'religion'
+      if (normalized.includes('marital status is required')) return 'marital_status'
+      if (normalized.includes('residence country is required')) return 'residence_country'
+      if (normalized.includes('weight cannot be negative')) return 'weight_kg'
+      if (normalized.includes('height cannot be negative')) return 'height_cm'
+      if (normalized.includes('children count cannot be negative')) return 'children_count'
+      return ''
+    }
+
+    if (stepIndex === 2) {
+      if (normalized.includes('contact person name is required')) return 'contact_person_name'
+      if (normalized.includes('contact person mobile is required')) return 'contact_person_mobile'
+      if (normalized.includes('valid secondary phone')) return 'phone'
+      if (normalized.includes('valid contact person mobile')) return 'contact_person_mobile'
+      if (normalized.includes('valid email')) return 'email'
+      if (normalized.includes('contact person id number')) return 'contact_person_id_number'
+      return ''
+    }
+
+    if (stepIndex === 3) {
+      if (normalized.includes('destination country')) return 'application_countries'
+      if (normalized.includes('profession is required')) return 'profession'
+      if (normalized.includes('type is required')) return 'employment_type'
+      if (normalized.includes('salary is required')) return 'application_salary'
+      if (normalized.includes('select at least one skill')) return 'skills'
+      if (normalized.includes('fill in years')) return 'experiences'
+      if (normalized.includes('salary cannot be negative')) return 'application_salary'
+      return ''
+    }
+
+    return ''
+  }, [])
+
+  const highlightEmployeeModalValidationTarget = useCallback((message, stepIndex) => {
+    const formEl = employeeModalFormRef.current
+    if (!formEl) return
+
+    // Clear existing invalid markers first.
+    formEl.querySelectorAll('[aria-invalid="true"]').forEach((el) => el.removeAttribute('aria-invalid'))
+
+    syncEmployeeModalFieldValidity(formEl, stepIndex)
+    const fieldName = getValidationFieldForStep(message, stepIndex)
+    if (!fieldName) return
+
+    const target = formEl.querySelector(`[name="${CSS.escape(fieldName)}"]`)
+    if (!(target instanceof HTMLElement)) return
+    target.setAttribute('aria-invalid', 'true')
+    if (typeof target.focus === 'function') target.focus()
+  }, [getValidationFieldForStep, syncEmployeeModalFieldValidity])
+
+  useEffect(() => {
+    const formEl = employeeModalFormRef.current
+    if (!formEl) return
+    const handler = (event) => {
+      const target = event.target
+      if (!(target instanceof HTMLElement)) return
+      if (!(target.matches('input, select, textarea'))) return
+      if (!target.hasAttribute('aria-invalid')) return
+      if (typeof target.checkValidity === 'function' && target.checkValidity()) {
+        target.removeAttribute('aria-invalid')
+      }
+    }
+    formEl.addEventListener('input', handler, true)
+    formEl.addEventListener('change', handler, true)
+    return () => {
+      formEl.removeEventListener('input', handler, true)
+      formEl.removeEventListener('change', handler, true)
+    }
+  }, [])
+
   const goToNextStep = () => {
     const stepError = validateStep(activeStep)
     if (stepError) {
       setModalError(stepError)
       const targetStep = getValidationStep(stepError)
       if (targetStep !== null) setActiveStep(targetStep)
+      setInvalidStepIndex(targetStep ?? activeStep)
+      requestAnimationFrame(() => {
+        highlightEmployeeModalValidationTarget(stepError, targetStep ?? activeStep)
+      })
       return
     }
     setModalError('')
+    setInvalidStepIndex(null)
     setActiveStep((prev) => Math.min(REGISTRATION_STEPS.length - 1, prev + 1))
   }
 
   const goToPreviousStep = () => {
     setModalError('')
+    setInvalidStepIndex(null)
     setActiveStep((prev) => Math.max(0, prev - 1))
   }
 
@@ -3091,6 +3251,13 @@ export default function EmployeesPage() {
                         aria-selected={index === activeStep}
                         onClick={() => setActiveStep(index)}
                       >
+                        {invalidStepIndex === index ? (
+                          <span
+                            className="employee-registration-step-badge"
+                            aria-label="Step has invalid fields"
+                            title="This step has an invalid field"
+                          />
+                        ) : null}
                         <span className="employee-registration-step-index" aria-hidden="true">{index + 1}</span>
                         <span className="employee-registration-step-copy">
                           <strong>{step.label}</strong>
@@ -3266,7 +3433,7 @@ export default function EmployeesPage() {
                 {modalNotice ? <p className="alert employee-modal-notice">{modalNotice}</p> : null}
                 {modalError ? <p className="error-message employee-modal-error">{modalError}</p> : null}
 
-                <form className="employee-modal-form" onSubmit={(event) => event.preventDefault()}>
+                <form ref={employeeModalFormRef} className="employee-modal-form" onSubmit={(event) => event.preventDefault()}>
               {activeStep === 0 ? (
                 <div className="employee-step-grid">
                   <label>First name *<input name="first_name" value={form.first_name} onChange={(event) => setForm((prev) => ({ ...prev, first_name: event.target.value }))} required /></label>
@@ -3285,7 +3452,6 @@ export default function EmployeesPage() {
                   <label>Passport Number *<input name="passport_number" value={form.passport_number} onChange={(event) => setForm((prev) => ({ ...prev, passport_number: event.target.value }))} required /></label>
                   <label>Labour ID<input name="labour_id" value={form.labour_id} onChange={(event) => setForm((prev) => ({ ...prev, labour_id: event.target.value }))} /></label>
                   <label>Mobile Number *<input name="mobile_number" value={form.mobile_number} onChange={(event) => setForm((prev) => ({ ...prev, mobile_number: event.target.value }))} inputMode="tel" placeholder="+251900000001" required /></label>
-                  {ageRestrictionError ? <p className="error-message employee-step-note">{ageRestrictionError}</p> : null}
                 </div>
               ) : null}
               {activeStep === 3 ? (
@@ -3397,7 +3563,7 @@ export default function EmployeesPage() {
                   </label>
                   <label>Nationality<input name="nationality" value={form.nationality} onChange={(event) => setForm((prev) => ({ ...prev, nationality: event.target.value }))} /></label>
                   <label>Birth place<input name="birth_place" value={form.birth_place} onChange={(event) => setForm((prev) => ({ ...prev, birth_place: event.target.value }))} /></label>
-                  <label className="employee-span-two">Address<input value={form.address} onChange={(event) => setForm((prev) => ({ ...prev, address: event.target.value }))} /></label>
+                  <label>Address<input value={form.address} onChange={(event) => setForm((prev) => ({ ...prev, address: event.target.value }))} /></label>
                   <label>
                     Weight
                     <div className="input-suffix">

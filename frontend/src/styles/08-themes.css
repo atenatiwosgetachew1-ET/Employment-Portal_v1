@@ -15,6 +15,7 @@
   --preview-contrast-light: #f7efe8;
   --preview-window-screen-bg: #111111;
   --preview-window-paper-bg: #ffffff;
+  --color-destructive: #900000;
   --subtab-active-background: rgb(var(--accent-active));
   --subtab-active-foreground: #ffffff;
   --subtab-active-border: rgb(var(--accent-active-border) / 0.92);
@@ -570,6 +571,39 @@ html[data-theme='dark'] .commission-search input {
   background: #11111169;
   border: 1px solid rgb(72 72 72 / 45%);
   box-shadow: none;
+}
+
+/* Dark theme warning/error border (when a field is marked). */
+html[data-theme='dark'] input:not([type='checkbox']):not([type='radio']).error,
+html[data-theme='dark'] textarea.error,
+html[data-theme='dark'] select.error,
+html[data-theme='dark'] input:not([type='checkbox']):not([type='radio'])[aria-invalid='true'],
+html[data-theme='dark'] textarea[aria-invalid='true'],
+html[data-theme='dark'] select[aria-invalid='true'] {
+  border: 1px solid var(--color-destructive) !important;
+  box-shadow: 0 0 0 2px color-mix(in oklch, var(--color-destructive) 32%, transparent) !important;
+}
+
+/* Fallback: native HTML validation (required/type/etc.). Prefer :user-invalid to avoid pre-marking untouched fields. */
+html[data-theme='dark'] input:not([type='checkbox']):not([type='radio']):user-invalid,
+html[data-theme='dark'] textarea:user-invalid,
+html[data-theme='dark'] select:user-invalid {
+  border-color: var(--color-destructive) !important;
+}
+
+html[data-theme='dark'] input:not([type='checkbox']):not([type='radio']):invalid:focus,
+html[data-theme='dark'] textarea:invalid:focus,
+html[data-theme='dark'] select:invalid:focus {
+  border: 1px solid var(--color-destructive) !important;
+  box-shadow: 0 0 0 2px color-mix(in oklch, var(--color-destructive) 32%, transparent) !important;
+}
+
+/* Extra fallback for cases where :invalid doesn't match as expected (e.g. custom widgets): red when required + not valid. */
+html[data-theme='dark'] input:not([type='checkbox']):not([type='radio']):required:focus:not(:valid),
+html[data-theme='dark'] textarea:required:focus:not(:valid),
+html[data-theme='dark'] select:required:focus:not(:valid) {
+  border: 1px solid var(--color-destructive) !important;
+  box-shadow: 0 0 0 2px color-mix(in oklch, var(--color-destructive) 32%, transparent) !important;
 }
 
 /* Compact: summary cards should not inherit the global stack spacing. */
