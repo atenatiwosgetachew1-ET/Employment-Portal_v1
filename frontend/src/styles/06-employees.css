@@ -53,12 +53,19 @@
   gap: 8px;
 }
 
+.checkbox-grid[aria-invalid='true'] {
+  outline: 1px solid var(--color-destructive);
+  outline-offset: 3px;
+  border-radius: 3px;
+  margin: 10px 0;
+}
+
 .checkbox-pill {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  margin: 5px 2px;
-  padding: 8px 10px;
+  margin: 0px 2px;
+  padding: 0 10px;
   border: 1px dashed #1f1f1f;
   border-radius: 999px;
   background: transparent;
@@ -152,6 +159,10 @@
   border: 1px solid color-mix(in oklch, var(--color-border) 82%, transparent);
   border-radius: 5px;
   background: var(--color-card);
+}
+
+.attachment-section--required .attachment-box--slot:not(.is-filled) {
+  border-color: var(--color-destructive);
 }
 
 .attachment-box--slot .attachment-slot-badge {

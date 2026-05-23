@@ -784,6 +784,7 @@ function getValidationTarget(errorMessage) {
   if (message.includes('type is required') || message.includes('employment type')) return { step: 3, selector: '[name="employment_type"]' }
   if (message.includes('salary')) return { step: 3, selector: '[name="application_salary"]' }
   if (message.includes('skill')) return { step: 3, selector: '[name="skills"]' }
+  if (message.includes('language')) return { step: 3, selector: '[name="languages"]' }
   if (message.includes('experience') || message.includes('years')) return { step: 3, selector: '[name^="experience_country_"]' }
 
   if (
@@ -894,6 +895,7 @@ function validateStepFields(form, stepIndex, ageRestrictionError, validateAttach
     if (!form.employment_type) return 'Type is required.'
     if (form.application_salary === '') return 'Salary is required.'
     if (!Array.isArray(form.skills) || form.skills.length === 0) return 'Select at least one skill.'
+    if (!Array.isArray(form.languages) || form.languages.length === 0) return 'Select at least one language.'
     const selectedExperiences = Array.isArray(form.experiences)
       ? form.experiences.filter((item) => (item.country || '').trim())
       : []
@@ -2826,6 +2828,9 @@ export default function EmployeesPage() {
       'email',
       'contact_person_id_number'
     ].forEach((name) => setValidity(name, ''))
+    formEl.querySelectorAll('input[name^="experience_years_"]').forEach((el) => {
+      if (el && typeof el.setCustomValidity === 'function') el.setCustomValidity('')
+    })
 
     if (stepIndex === 0) {
       if (ageRestrictionError) {
@@ -2907,6 +2912,7 @@ export default function EmployeesPage() {
       if (normalized.includes('type is required')) return 'employment_type'
       if (normalized.includes('salary is required')) return 'application_salary'
       if (normalized.includes('select at least one skill')) return 'skills'
+      if (normalized.includes('select at least one language')) return 'languages'
       if (normalized.includes('fill in years')) return 'experiences'
       if (normalized.includes('salary cannot be negative')) return 'application_salary'
       return ''
@@ -2926,9 +2932,34 @@ export default function EmployeesPage() {
     const fieldName = getValidationFieldForStep(message, stepIndex)
     if (!fieldName) return
 
-    const target = formEl.querySelector(`[name="${CSS.escape(fieldName)}"]`)
+    let target = formEl.querySelector(`[name="${CSS.escape(fieldName)}"]`)
+
+    // Special-case: "Experiences" validation is about the *years* input for the first selected country.
+    if (fieldName === 'experiences') {
+      const rows = Array.from(formEl.querySelectorAll('.experience-row'))
+      const firstInvalidYears = rows
+        .map((row) => ({
+          country: row.querySelector('select[name^="experience_country_"]'),
+          years: row.querySelector('input[name^="experience_years_"]')
+        }))
+        .find(({ country, years }) => {
+          const countryValue = country && 'value' in country ? String(country.value || '').trim() : ''
+          const yearsValue = years && 'value' in years ? String(years.value || '').trim() : ''
+          return countryValue && !yearsValue
+        })?.years
+
+      if (firstInvalidYears instanceof HTMLElement) {
+        target = firstInvalidYears
+        if (typeof target.setCustomValidity === 'function') {
+          target.setCustomValidity('Years is required.')
+        }
+      }
+    }
+
     if (!(target instanceof HTMLElement)) return
     target.setAttribute('aria-invalid', 'true')
+    const checkboxGrid = target.closest('.checkbox-grid')
+    if (checkboxGrid instanceof HTMLElement) checkboxGrid.setAttribute('aria-invalid', 'true')
     if (typeof target.focus === 'function') target.focus()
   }, [getValidationFieldForStep, syncEmployeeModalFieldValidity])
 
@@ -3529,7 +3560,7 @@ export default function EmployeesPage() {
                     <div className="checkbox-grid">
                       {LANGUAGE_OPTIONS.map((language) => (
                         <label key={language} className={`checkbox-pill${form.languages.includes(language) ? ' is-checked' : ''}`}>
-                          <input type="checkbox" checked={form.languages.includes(language)} onChange={() => handleCheckboxList('languages', language)} />
+                          <input name="languages" type="checkbox" checked={form.languages.includes(language)} onChange={() => handleCheckboxList('languages', language)} />
                           <span>{language}</span>
                         </label>
                       ))}
