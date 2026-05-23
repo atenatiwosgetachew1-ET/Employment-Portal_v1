@@ -228,8 +228,8 @@ html[data-density='compact'] button {
 }
 
 html[data-density='compact'] .employee-modal-actions {
-  margin-top: 0;
-  padding-top: 10px;
+  margin-top: 20px;
+  padding-top: 20px;
 }
 
 html[data-density='compact'] .employee-modal-actions button,

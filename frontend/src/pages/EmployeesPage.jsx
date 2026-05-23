@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { Navigate, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { useUiFeedback } from '../context/UiFeedbackContext'
@@ -979,6 +980,8 @@ export default function EmployeesPage() {
   const [activeStep, setActiveStep] = useState(0)
   const [dragOverAttachmentKey, setDragOverAttachmentKey] = useState('')
   const [otherDocumentsModalOpen, setOtherDocumentsModalOpen] = useState(false)
+  const [floatingAttachmentPreview, setFloatingAttachmentPreview] = useState(null)
+  const floatingAttachmentPreviewCloseTimer = useRef(null)
   const [scanImportModalOpen, setScanImportModalOpen] = useState(false)
   const [cameraCaptureModalOpen, setCameraCaptureModalOpen] = useState(false)
   const [cameraStream, setCameraStream] = useState(null)
@@ -1014,6 +1017,46 @@ export default function EmployeesPage() {
   const [scanAttachmentZoom, setScanAttachmentZoom] = useState(1)
   const [scanAttachmentOffset, setScanAttachmentOffset] = useState({ x: 0, y: 0 })
   const [scanAttachmentDragging, setScanAttachmentDragging] = useState(false)
+
+  const openFloatingAttachmentPreview = useCallback((anchorEl, url, label) => {
+    if (!anchorEl || !url) return
+    const rect = anchorEl.getBoundingClientRect()
+    const POPUP_WIDTH = 260
+    const POPUP_HEIGHT = 190
+    const OFFSET = 10
+    const EDGE = 8
+
+    let left = rect.left + rect.width / 2 - POPUP_WIDTH / 2
+    left = Math.max(EDGE, Math.min(left, window.innerWidth - EDGE - POPUP_WIDTH))
+
+    let top = rect.bottom + OFFSET
+    if (top + POPUP_HEIGHT > window.innerHeight - EDGE) {
+      top = rect.top - OFFSET - POPUP_HEIGHT
+    }
+    top = Math.max(EDGE, Math.min(top, window.innerHeight - EDGE - POPUP_HEIGHT))
+
+    setFloatingAttachmentPreview({
+      url,
+      label: label || '',
+      left,
+      top,
+      width: POPUP_WIDTH
+    })
+  }, [])
+
+  const cancelFloatingAttachmentPreviewClose = useCallback(() => {
+    if (floatingAttachmentPreviewCloseTimer.current) {
+      window.clearTimeout(floatingAttachmentPreviewCloseTimer.current)
+      floatingAttachmentPreviewCloseTimer.current = null
+    }
+  }, [])
+
+  const scheduleFloatingAttachmentPreviewClose = useCallback(() => {
+    cancelFloatingAttachmentPreviewClose()
+    floatingAttachmentPreviewCloseTimer.current = window.setTimeout(() => {
+      setFloatingAttachmentPreview(null)
+    }, 120)
+  }, [cancelFloatingAttachmentPreviewClose])
   const [scanAttachmentError, setScanAttachmentError] = useState('')
   const registrationRef = useRef(null)
   const scanUploadInputRef = useRef(null)
@@ -3423,26 +3466,55 @@ export default function EmployeesPage() {
                             {isImageAttachment && previewUrl ? (
                               <img className="attachment-slot-thumb" src={previewUrl} alt="" />
                             ) : null}
+                            {hasAttachment ? (
+                              <button
+                                type="button"
+                                className="attachment-slot-remove"
+                                aria-label={`Remove ${attachment.label}`}
+                                onClick={(event) => {
+                                  event.preventDefault()
+                                  event.stopPropagation()
+                                  handleAttachmentPick(attachment.key, null)
+                                  setExistingAttachmentDocs((prev) => ({ ...prev, [attachment.key]: null }))
+                                }}
+                              >
+                                −
+                              </button>
+                            ) : null}
                             <svg width="28" height="28" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                               <path d="M4 7h4l2-2h4l2 2h4v12H4V7Z" />
                               <path d="M12 17a4 4 0 1 0 0-8 4 4 0 0 0 0 8Z" />
                             </svg>
-                            {previewUrl ? (
-                              <div className="attachment-slot-preview-popover">
-                                {isImageAttachment ? (
-                                  <img src={previewUrl} alt={fileLabel} />
-                                ) : (
-                                  <span>{fileLabel}</span>
-                                )}
-                              </div>
+                            {isImageAttachment && previewUrl ? (
+                              <span
+                                className="attachment-slot-preview-anchor"
+                                onMouseEnter={(event) => {
+                                  cancelFloatingAttachmentPreviewClose()
+                                  openFloatingAttachmentPreview(event.currentTarget, previewUrl, fileLabel)
+                                }}
+                                onMouseLeave={scheduleFloatingAttachmentPreviewClose}
+                                onFocus={(event) => {
+                                  cancelFloatingAttachmentPreviewClose()
+                                  openFloatingAttachmentPreview(event.currentTarget, previewUrl, fileLabel)
+                                }}
+                                onBlur={scheduleFloatingAttachmentPreviewClose}
+                                tabIndex={0}
+                                aria-label={`Preview ${attachment.label}`}
+                              />
                             ) : null}
                           </div>
+                          {hasAttachment ? (
+                            <span
+                              className="attachment-box-badge attachment-box-badge--slot attachment-slot-badge"
+                              aria-label="File attached"
+                              title="File attached"
+                            />
+                          ) : null}
 
                           <div className="attachment-slot-copy">
                             <div className="attachment-slot-title">
                               <div className="attachment-slot-title-row">
                                 <strong>{attachment.label}</strong>
-                                {hasAttachment ? <span className="attachment-box-badge attachment-box-badge--slot" aria-label="File attached" title="File attached"></span> : null}
                               </div>
                               {attachment.key === 'portrait_photo' ? <span className="muted-text">3x4 size</span> : null}
                             </div>
@@ -3575,6 +3647,11 @@ export default function EmployeesPage() {
                       Boolean(attachmentFiles[attachment.key] || existingAttachmentDocs[attachment.key]?.file_url)
                     )).length
 
+                    const optionalCount = optionalAttachments.length
+                    const optionalFilled = optionalAttachments.filter((attachment) => (
+                      Boolean(attachmentFiles[attachment.key] || existingAttachmentDocs[attachment.key]?.file_url)
+                    )).length
+
                     return (
                       <div className="employee-span-two attachment-sections">
                         <div className="attachment-section attachment-section--required">
@@ -3596,18 +3673,17 @@ export default function EmployeesPage() {
                         </div>
 
                         <div className="attachment-section attachment-section--optional">
-                          <div className="attachment-section-header">
-                            <div className="attachment-section-title">
-                              <strong>Other documents</strong>
-                              <span className="badge badge-muted">Optional</span>
+                          <div className="attachment-section-header attachment-section-header--right">
+                            <div className="attachment-section-title attachment-section-title--right">
+                              <strong>Other documents ({optionalFilled}/{optionalCount})</strong>
+                              <button
+                                type="button"
+                                className="btn-secondary"
+                                onClick={() => setOtherDocumentsModalOpen(true)}
+                              >
+                                Manage
+                              </button>
                             </div>
-                            <button
-                              type="button"
-                              className="btn-secondary"
-                              onClick={() => setOtherDocumentsModalOpen(true)}
-                            >
-                              Manage
-                            </button>
                           </div>
                         </div>
                       </div>
@@ -3638,10 +3714,27 @@ export default function EmployeesPage() {
                       <p className="muted-text app-confirm-message">
                         Optional attachments. Add expiry dates or names when needed, then choose a file.
                       </p>
+                      {(() => {
+                        const requiredKeys = new Set(['portrait_photo', 'full_photo', 'passport_document'])
+                        const optionalAttachments = ATTACHMENT_FIELDS.filter((attachment) => !requiredKeys.has(attachment.key))
+                        const optionalCount = optionalAttachments.length
+                        const optionalFilled = optionalAttachments.filter((attachment) => (
+                          Boolean(attachmentFiles[attachment.key] || existingAttachmentDocs[attachment.key]?.file_url)
+                        )).length
+                        const percent = optionalCount ? Math.round((optionalFilled / optionalCount) * 100) : 0
+                        return (
+                          <div className="attachment-section-progress employee-other-documents-progress" aria-label="Optional attachments progress">
+                            <span className="muted-text">{optionalFilled} of {optionalCount} uploaded</span>
+                            <div className="employee-registration-progress-bar" aria-hidden="true">
+                              <span style={{ width: `${percent}%` }} />
+                            </div>
+                          </div>
+                        )
+                      })()}
                     </div>
                     <div className="employee-other-documents-body">
                       <div className="attachment-section attachment-section--optional">
-                        <div className="attachment-grid">
+                        <div className="attachment-grid employee-other-documents-grid" role="list">
                       {(() => {
                         const requiredKeys = new Set(['portrait_photo', 'full_photo', 'passport_document'])
                         return ATTACHMENT_FIELDS.filter((attachment) => !requiredKeys.has(attachment.key)).map((attachment) => {
@@ -3649,9 +3742,6 @@ export default function EmployeesPage() {
                           const hasAttachment = Boolean(
                             attachmentFiles[attachment.key] || existingAttachmentDocs[attachment.key]?.file_url
                           )
-                          const fileLabel = attachmentFiles[attachment.key]?.name
-                            || attachmentDisplayName(existingAttachmentDocs[attachment.key], attachmentLabels)
-                            || 'Filename here'
                           const attachedFile = attachmentFiles[attachment.key]
                           const existingUrl = existingAttachmentDocs[attachment.key]?.file_url || ''
                           const isImageAttachment = Boolean(
@@ -3661,107 +3751,133 @@ export default function EmployeesPage() {
                           const previewUrl = attachedFile
                             ? (attachmentPreviewUrls[attachment.key] || '')
                             : (existingUrl || '')
-
+                          const fileLabel = attachmentFiles[attachment.key]?.name
+                            || attachmentDisplayName(existingAttachmentDocs[attachment.key], attachmentLabels)
+                            || 'No file selected'
                           return (
-                            <div key={attachment.key} className={`attachment-box attachment-box--slot${hasAttachment ? ' is-filled' : ''}`}>
-                              <div className={`attachment-slot-icon${isImageAttachment && previewUrl ? ' has-thumb' : ''}`} aria-hidden="true">
-                                {isImageAttachment && previewUrl ? (
-                                  <img className="attachment-slot-thumb" src={previewUrl} alt="" />
+                            <div key={attachment.key} className="employee-other-documents-item" role="listitem">
+                              <div className={`employee-other-documents-item-surface${hasAttachment ? ' is-filled' : ''}`}>
+                                {hasAttachment ? (
+                                  <span className="attachment-box-badge attachment-box-badge--slot employee-other-documents-attachment-badge" aria-label="File attached" title="File attached"></span>
                                 ) : null}
-                                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                                  <path d="M4 7h4l2-2h4l2 2h4v12H4V7Z" />
-                                  <path d="M12 17a4 4 0 1 0 0-8 4 4 0 0 0 0 8Z" />
-                                </svg>
-                                {previewUrl ? (
-                                  <div className="attachment-slot-preview-popover">
-                                    {isImageAttachment ? (
-                                      <img src={previewUrl} alt={fileLabel} />
-                                    ) : (
-                                      <span>{fileLabel}</span>
-                                    )}
+                                <div className="employee-other-documents-item-left" aria-hidden="true">
+                                  <div className="attachment-slot-icon">
+                                    {isImageAttachment && previewUrl ? (
+                                      <img className="attachment-slot-thumb" src={previewUrl} alt="" />
+                                    ) : null}
+                                    {hasAttachment ? (
+                                      <button
+                                        type="button"
+                                        className="attachment-slot-remove"
+                                        aria-label={`Remove ${attachment.label}`}
+                                        onClick={(event) => {
+                                          event.preventDefault()
+                                          event.stopPropagation()
+                                          handleAttachmentPick(attachment.key, null)
+                                          setExistingAttachmentDocs((prev) => ({ ...prev, [attachment.key]: null }))
+                                        }}
+                                      >
+                                        −
+                                      </button>
+                                    ) : null}
+                                    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet">
+                                      <path d="M6 6h12v12H6V6Z" />
+                                      <path d="M8.5 10h7" />
+                                      <path d="M8.5 13h7" />
+                                      <path d="M8.5 16h5" />
+                                    </svg>
+                                    {isImageAttachment && previewUrl ? (
+                                      <span
+                                        className="attachment-slot-preview-anchor"
+                                        onMouseEnter={(event) => {
+                                          cancelFloatingAttachmentPreviewClose()
+                                          openFloatingAttachmentPreview(event.currentTarget, previewUrl, fileLabel)
+                                        }}
+                                        onMouseLeave={scheduleFloatingAttachmentPreviewClose}
+                                        onFocus={(event) => {
+                                          cancelFloatingAttachmentPreviewClose()
+                                          openFloatingAttachmentPreview(event.currentTarget, previewUrl, fileLabel)
+                                        }}
+                                        onBlur={scheduleFloatingAttachmentPreviewClose}
+                                        tabIndex={0}
+                                        aria-label={`Preview ${attachment.label}`}
+                                      />
+                                    ) : null}
                                   </div>
-                                ) : null}
-                              </div>
-
-                              <div className="attachment-slot-copy">
-                                <div className="attachment-slot-title">
-                                  <div className="attachment-slot-title-row">
-                                    <strong>{attachment.label}</strong>
-                                    {hasAttachment ? <span className="attachment-box-badge attachment-box-badge--slot" aria-label="File attached" title="File attached"></span> : null}
-                                  </div>
-                                  {attachment.key === 'portrait_photo' ? <span className="muted-text">3x4 size</span> : null}
                                 </div>
-                                <span className="attachment-slot-filename muted-text">{fileLabel}</span>
-                                {attachment.key.startsWith('att_option_') ? (
-                                  <input
-                                    type="text"
-                                    value={attachmentLabels[attachment.key] || ''}
-                                    onChange={(event) => setAttachmentLabels((prev) => ({ ...prev, [attachment.key]: event.target.value }))}
-                                    placeholder="Attachment name"
-                                  />
-                                ) : null}
-                                {attachment.expiryField ? (
-                                  <input
-                                    name={attachment.expiryField}
-                                    type="date"
-                                    value={form[attachment.expiryField]}
-                                    onChange={(event) => setForm((prev) => ({ ...prev, [attachment.expiryField]: event.target.value }))}
-                                  />
-                                ) : null}
-                                <div className="attachment-slot-actions attachment-slot-actions--inline">
-                                  <div
-                                    className={`attachment-slot-dropzone${dragOverAttachmentKey === attachment.key ? ' is-dragover' : ''}`}
-                                    role="button"
-                                    tabIndex={0}
-                                    onKeyDown={(event) => {
-                                      if (event.key === 'Enter' || event.key === ' ') {
-                                        event.preventDefault()
-                                        document.getElementById(inputId)?.click()
-                                      }
-                                    }}
-                                    onClick={() => document.getElementById(inputId)?.click()}
-                                    onDragEnter={(event) => {
-                                      event.preventDefault()
-                                      setDragOverAttachmentKey(attachment.key)
-                                    }}
-                                    onDragOver={(event) => {
-                                      event.preventDefault()
-                                      event.dataTransfer.dropEffect = 'copy'
-                                      setDragOverAttachmentKey(attachment.key)
-                                    }}
-                                    onDragLeave={(event) => {
-                                      event.preventDefault()
-                                      setDragOverAttachmentKey('')
-                                    }}
-                                    onDrop={(event) => {
-                                      event.preventDefault()
-                                      setDragOverAttachmentKey('')
-                                      const file = event.dataTransfer?.files?.[0]
-                                      if (!file) return
-                                      handleAttachmentPick(attachment.key, file)
-                                    }}
-                                    aria-label={`Drag and drop or click to choose a file for ${attachment.label}`}
-                                  >
-                                    <span className="muted-text">Drag &amp; drop file here</span>
+                                <div className="employee-other-documents-item-right">
+                                  <div className="employee-other-documents-item-right-part employee-other-documents-item-right-part--green">
+                                    <div className="attachment-slot-copy">
+                                      <div className="attachment-slot-title">
+                                        <div className="attachment-slot-title-row">
+                                          <strong>{attachment.label}</strong>
+                                        </div>
+                                        <div className="attachment-slot-filename">
+                                          {fileLabel}
+                                        </div>
+                                      </div>
+                                    </div>
                                   </div>
-
-                                  <label htmlFor={inputId} className="attachment-file-trigger btn-secondary">
-                                    Choose file
-                                  </label>
+                                    <div className="employee-other-documents-item-right-part employee-other-documents-item-right-part--pink">
+                                      <div className="employee-other-documents-item-right-part-pink-left">
+                                        <div
+                                          className={`attachment-slot-dropzone${dragOverAttachmentKey === attachment.key ? ' is-dragover' : ''}`}
+                                          role="button"
+                                          tabIndex={0}
+                                          onKeyDown={(event) => {
+                                            if (event.key === 'Enter' || event.key === ' ') {
+                                              event.preventDefault()
+                                              document.getElementById(inputId)?.click()
+                                            }
+                                          }}
+                                          onClick={() => document.getElementById(inputId)?.click()}
+                                          onDragEnter={(event) => {
+                                            event.preventDefault()
+                                            setDragOverAttachmentKey(attachment.key)
+                                          }}
+                                          onDragOver={(event) => {
+                                            event.preventDefault()
+                                            event.dataTransfer.dropEffect = 'copy'
+                                            setDragOverAttachmentKey(attachment.key)
+                                          }}
+                                          onDragLeave={(event) => {
+                                            event.preventDefault()
+                                            setDragOverAttachmentKey('')
+                                          }}
+                                          onDrop={(event) => {
+                                            event.preventDefault()
+                                            setDragOverAttachmentKey('')
+                                            const file = event.dataTransfer?.files?.[0]
+                                            if (!file) return
+                                            handleAttachmentPick(attachment.key, file)
+                                          }}
+                                          aria-label={`Drag and drop or click to choose a file for ${attachment.label}`}
+                                        >
+                                          <span className="muted-text">Drag &amp; drop file here</span>
+                                        </div>
+                                      </div>
+                                      <div className="employee-other-documents-item-right-part-pink-right">
+                                        <label htmlFor={inputId} className="attachment-file-trigger btn-secondary">
+                                          Choose file
+                                        </label>
+                                      </div>
+                                    </div>
+                                    <div className="employee-other-documents-item-right-part employee-other-documents-item-right-part--blue">
+                                      {attachment.expiryField ? (
+                                        <input
+                                          name={attachment.expiryField}
+                                          type="date"
+                                          value={form[attachment.expiryField]}
+                                          onChange={(event) => setForm((prev) => ({ ...prev, [attachment.expiryField]: event.target.value }))}
+                                        />
+                                      ) : null}
+                                    </div>
+                                  </div>
                                 </div>
-                              </div>
-
-                              {existingAttachmentDocs[attachment.key]?.file_url && !attachmentFiles[attachment.key] ? (
-                                <p className="muted-text employee-step-note">
-                                  Existing file retained.
-                                  {' '}
-                                  <a href={existingAttachmentDocs[attachment.key].file_url} target="_blank" rel="noreferrer">Open current file</a>
-                                </p>
-                              ) : null}
-                              <input
-                                id={inputId}
-                                name={attachment.key}
-                                type="file"
+                                <input
+                                  id={inputId}
+                                  name={attachment.key}
+                                  type="file"
                                 accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png"
                                 className="visually-hidden-file"
                                 onChange={(event) => handleAttachmentPick(attachment.key, event.target.files?.[0] || null)}
@@ -3776,6 +3892,24 @@ export default function EmployeesPage() {
                   </div>
                 </div>
               ) : null}
+              {floatingAttachmentPreview && typeof document !== 'undefined'
+                ? createPortal(
+                  <div
+                    className="attachment-slot-preview-popover is-floating"
+                    style={{
+                      left: `${floatingAttachmentPreview.left}px`,
+                      top: `${floatingAttachmentPreview.top}px`,
+                      width: `${floatingAttachmentPreview.width}px`
+                    }}
+                    onMouseEnter={cancelFloatingAttachmentPreviewClose}
+                    onMouseLeave={scheduleFloatingAttachmentPreviewClose}
+                    role="presentation"
+                  >
+                    <img src={floatingAttachmentPreview.url} alt={floatingAttachmentPreview.label} />
+                  </div>,
+                  document.body
+                )
+                : null}
               {activeStep === 5 ? (
                 <div className="employee-step-grid">
                   <div className="employee-span-two employee-summary-grid">

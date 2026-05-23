@@ -1714,7 +1714,8 @@ html[data-theme='light'] .app-confirm-backdrop {
 }
 
 .app-confirm-message {
-  margin: 0 0 25px;
+  padding: 0 !important;
+  margin: 0 0 8px !important;
   color: var(--color-muted-foreground);
   line-height: 1.55;
 }
