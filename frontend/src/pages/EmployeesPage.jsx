@@ -2836,6 +2836,7 @@ export default function EmployeesPage() {
       'passport_number',
       'id_number',
       'labour_id',
+      'passport_expires_on',
       'contact_person_mobile',
       'phone',
       'email',
@@ -2931,6 +2932,12 @@ export default function EmployeesPage() {
       return ''
     }
 
+    if (stepIndex === 4) {
+      if (normalized.includes('passport date is required')) return 'passport_expires_on'
+      if (normalized.includes('passport expires on')) return 'passport_expires_on'
+      return ''
+    }
+
     return ''
   }, [])
 
@@ -2973,6 +2980,12 @@ export default function EmployeesPage() {
     target.setAttribute('aria-invalid', 'true')
     const checkboxGrid = target.closest('.checkbox-grid')
     if (checkboxGrid instanceof HTMLElement) checkboxGrid.setAttribute('aria-invalid', 'true')
+    if (
+      fieldName === 'passport_expires_on' &&
+      typeof target.setCustomValidity === 'function'
+    ) {
+      target.setCustomValidity(message || 'Passport date is required.')
+    }
     if (typeof target.focus === 'function') target.focus()
   }, [getValidationFieldForStep, syncEmployeeModalFieldValidity])
 

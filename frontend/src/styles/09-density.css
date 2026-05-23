@@ -125,8 +125,8 @@ html[data-density='compact'] .attachment-box--slot {
 }
 
 html[data-density='compact'] .attachment-slot-icon {
-  width: 100px;
-  height: 100px;
+  width: 98px;
+  height: 98px;
 }
 
 html[data-density='compact'] .attachment-slot-icon::before {

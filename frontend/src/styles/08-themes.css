@@ -1713,6 +1713,10 @@ html[data-theme='dark'][data-accent='natural'] .employee-registration-surface .a
   border-color: var(--surface-border-adaptive);
 }
 
+html .employee-registration-surface .attachment-sections.is-validate .attachment-section--required .attachment-box.attachment-box--slot:not(.is-filled) {
+  border-color: var(--color-destructive) !important;
+}
+
 html[data-theme='dark'][data-accent='natural'] .employee-registration-surface .attachment-box.attachment-box--slot.is-filled:hover {
   background: rgba(20, 20, 20, 0.7);
   background-color: rgba(20, 20, 20, 0.7);
