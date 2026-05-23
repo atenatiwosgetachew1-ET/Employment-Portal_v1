@@ -161,7 +161,7 @@
   background: var(--color-card);
 }
 
-.attachment-section--required .attachment-box--slot:not(.is-filled) {
+.attachment-sections.is-validate .attachment-section--required .attachment-box--slot:not(.is-filled) {
   border-color: var(--color-destructive);
 }
 

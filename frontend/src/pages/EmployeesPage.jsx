@@ -989,7 +989,8 @@ export default function EmployeesPage() {
   const [floatingAttachmentPreview, setFloatingAttachmentPreview] = useState(null)
   const floatingAttachmentPreviewCloseTimer = useRef(null)
   const employeeModalFormRef = useRef(null)
-  const [invalidStepIndex, setInvalidStepIndex] = useState(null)
+  const [invalidStepErrors, setInvalidStepErrors] = useState({})
+  const [attemptedRegistrationSteps, setAttemptedRegistrationSteps] = useState({})
   const [scanImportModalOpen, setScanImportModalOpen] = useState(false)
   const [cameraCaptureModalOpen, setCameraCaptureModalOpen] = useState(false)
   const [cameraStream, setCameraStream] = useState(null)
@@ -1550,8 +1551,10 @@ export default function EmployeesPage() {
   }, [scanAttachmentDragging])
 
   useEffect(() => {
-    if (currentView !== 'register' || !modalError) return
-    const target = getValidationTarget(modalError)
+    if (currentView !== 'register') return
+    const stepError = invalidStepErrors[activeStep]
+    if (!stepError) return
+    const target = getValidationTarget(stepError)
     if (!target || target.step !== activeStep || !target.selector || !registrationRef.current) return
     const timer = window.setTimeout(() => {
       const element = registrationRef.current?.querySelector(target.selector)
@@ -1563,7 +1566,7 @@ export default function EmployeesPage() {
       }
     }, 40)
     return () => window.clearTimeout(timer)
-  }, [activeStep, currentView, modalError])
+  }, [activeStep, currentView, invalidStepErrors])
 
   useEffect(() => {
     let cancelled = false
@@ -2806,6 +2809,16 @@ export default function EmployeesPage() {
     return validateStepFields(form, stepIndex, ageRestrictionError, validateAttachmentDates)
   }
 
+  const computeInvalidStepErrors = (attemptedSteps) => {
+    const errors = {}
+    for (let index = 0; index <= 4; index += 1) {
+      if (!attemptedSteps || !attemptedSteps[index]) continue
+      const message = validateStep(index)
+      if (message) errors[index] = message
+    }
+    return errors
+  }
+
   const syncEmployeeModalFieldValidity = useCallback((formEl, stepIndex) => {
     if (!formEl) return
 
@@ -2989,20 +3002,27 @@ export default function EmployeesPage() {
       setModalError(stepError)
       const targetStep = getValidationStep(stepError)
       if (targetStep !== null) setActiveStep(targetStep)
-      setInvalidStepIndex(targetStep ?? activeStep)
+      const nextAttempted = {
+        ...attemptedRegistrationSteps,
+        [activeStep]: true,
+        ...(targetStep !== null ? { [targetStep]: true } : {})
+      }
+      setAttemptedRegistrationSteps(nextAttempted)
+      setInvalidStepErrors(computeInvalidStepErrors(nextAttempted))
       requestAnimationFrame(() => {
         highlightEmployeeModalValidationTarget(stepError, targetStep ?? activeStep)
       })
       return
     }
     setModalError('')
-    setInvalidStepIndex(null)
+    const nextAttempted = { ...attemptedRegistrationSteps, [activeStep]: true }
+    setAttemptedRegistrationSteps(nextAttempted)
+    setInvalidStepErrors(computeInvalidStepErrors(nextAttempted))
     setActiveStep((prev) => Math.min(REGISTRATION_STEPS.length - 1, prev + 1))
   }
 
   const goToPreviousStep = () => {
     setModalError('')
-    setInvalidStepIndex(null)
     setActiveStep((prev) => Math.max(0, prev - 1))
   }
 
@@ -3282,7 +3302,7 @@ export default function EmployeesPage() {
                         aria-selected={index === activeStep}
                         onClick={() => setActiveStep(index)}
                       >
-                        {invalidStepIndex === index ? (
+                        {invalidStepErrors[index] ? (
                           <span
                             className="employee-registration-step-badge"
                             aria-label="Step has invalid fields"
@@ -3462,7 +3482,9 @@ export default function EmployeesPage() {
                 </div>
 
                 {modalNotice ? <p className="alert employee-modal-notice">{modalNotice}</p> : null}
-                {modalError ? <p className="error-message employee-modal-error">{modalError}</p> : null}
+                {invalidStepErrors[activeStep] ? (
+                  <p className="error-message employee-modal-error">{invalidStepErrors[activeStep]}</p>
+                ) : null}
 
                 <form ref={employeeModalFormRef} className="employee-modal-form" onSubmit={(event) => event.preventDefault()}>
               {activeStep === 0 ? (
@@ -3850,7 +3872,7 @@ export default function EmployeesPage() {
                     )).length
 
                     return (
-                      <div className="employee-span-two attachment-sections">
+                      <div className={`employee-span-two attachment-sections${attemptedRegistrationSteps[4] ? ' is-validate' : ''}`}>
                         <div className="attachment-section attachment-section--required">
                           <div className="attachment-section-header">
                             <div className="attachment-section-title">
