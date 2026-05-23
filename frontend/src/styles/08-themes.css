@@ -228,11 +228,16 @@ html[data-accent='natural'] .oauth-error {
   -webkit-backdrop-filter: none;
 }
 
+html[data-accent='natural'] .checkbox-pill {
+  border: 1px dashed #1f1f1f;
+}
+
 html[data-accent='natural'] .employee-registration-surface .checkbox-pill {
-  border-color: transparent;
+  border: 1px dashed #1f1f1f;
   border-radius: 3px;
   box-shadow: none;
   background: transparent;
+  color: color-mix(in oklch, var(--color-foreground) 78%, transparent);
 }
 
 html[data-accent='natural'] .employee-registration-surface .checkbox-pill:hover {
@@ -241,6 +246,7 @@ html[data-accent='natural'] .employee-registration-surface .checkbox-pill:hover 
 
 html[data-accent='natural'] .employee-registration-surface .checkbox-pill.is-checked {
   background: color-mix(in oklch, #2625264a 78%, rgba(255, 255, 255, 0.712) 22%);
+  color: var(--color-foreground);
 }
 
 /* Category: Surface-adjacent controls
