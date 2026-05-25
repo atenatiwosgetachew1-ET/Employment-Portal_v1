@@ -4,11 +4,34 @@ function responseError(data, fallback) {
   if (typeof data?.detail === 'string') return data.detail
   if (typeof data?.message === 'string') return data.message
   if (data && typeof data === 'object') {
-    return Object.entries(data)
+    const entries = Object.entries(data)
+    if (entries.length === 1) {
+      const onlyValue = entries[0][1]
+      if (typeof onlyValue === 'string' && onlyValue.trim()) return onlyValue.trim()
+      if (Array.isArray(onlyValue) && typeof onlyValue[0] === 'string') return onlyValue.join(', ')
+    }
+    return entries
       .map(([key, value]) => `${key}: ${Array.isArray(value) ? value.join(', ') : value}`)
       .join(' ')
   }
+  if (typeof data === 'string' && data.trim()) {
+    const text = data.trim()
+    return text.length > 300 ? `${text.slice(0, 300)}…` : text
+  }
   return fallback
+}
+
+async function readResponseBody(response) {
+  try {
+    return await response.clone().json()
+  } catch {
+    try {
+      const text = await response.text()
+      return text || {}
+    } catch {
+      return {}
+    }
+  }
 }
 
 export async function fetchEmployees({
@@ -101,7 +124,7 @@ export async function createEmployee(payload) {
     method: 'POST',
     body: JSON.stringify(payload)
   })
-  const data = await response.json().catch(() => ({}))
+  const data = await readResponseBody(response)
   if (!response.ok) {
     throw new Error(responseError(data, 'Failed to create employee'))
   }
@@ -122,7 +145,7 @@ export async function updateEmployee(id, payload) {
     method: 'PATCH',
     body: JSON.stringify(payload)
   })
-  const data = await response.json().catch(() => ({}))
+  const data = await readResponseBody(response)
   if (!response.ok) {
     throw new Error(responseError(data, 'Failed to update employee'))
   }
@@ -148,7 +171,7 @@ export async function uploadEmployeeDocument(employeeId, documentType, label, fi
     method: 'POST',
     body: formData
   })
-  const data = await response.json().catch(() => ({}))
+  const data = await readResponseBody(response)
   if (!response.ok) {
     throw new Error(responseError(data, 'Failed to upload document'))
   }
@@ -158,7 +181,7 @@ export async function uploadEmployeeDocument(employeeId, documentType, label, fi
 export async function deleteEmployeeDocument(id) {
   const response = await apiFetch(`/api/employee-documents/${id}/`, { method: 'DELETE' })
   if (!response.ok && response.status !== 204) {
-    const data = await response.json().catch(() => ({}))
+    const data = await readResponseBody(response)
     throw new Error(responseError(data, 'Failed to delete document'))
   }
 }

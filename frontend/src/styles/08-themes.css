@@ -1,7 +1,6 @@
 /* ==========================================================================
-   9. FINAL BASE ORGANIZATION LAYER
-   Shared surfaces, shared controls, shared hover rules, shared typography.
-   Theme/accent enforcement remains in App.css, not here.
+   8. THEMES
+   Theme + accent tokens, plus small theme-specific tuning.
    ========================================================================== */
 
 /* Active overrides merged from frontend/src/styles/overrides.css */
@@ -11,13 +10,46 @@
    appending more late-stage fixes to App.css. */
 
 :root {
+  /* Default to the app defaults (dark + natural) to avoid a pre-hydration flash. */
+  color-scheme: dark;
+
   --preview-contrast-dark: #241913;
   --preview-contrast-light: #f7efe8;
   --preview-window-screen-bg: #111111;
   --preview-window-paper-bg: #ffffff;
   --color-destructive: #900000;
+
+  --color-background: #111111;
+  --color-foreground: #efefef;
+  --color-card: #171717;
+  --color-card-foreground: #efefef;
+  --color-muted: #262626;
+  --color-muted-foreground: #a3a3a3;
+  --color-border: #2b2b2b;
+  --color-sidebar: #151515;
+  --color-sidebar-foreground: #f5f5f5;
+  --color-sidebar-border: #2b2b2b;
+  --color-sidebar-accent: rgb(var(--accent-active) / 0.18);
+  --color-sidebar-accent-foreground: #f5f5f5;
+  --color-secondary: #f5f5f5;
+  --color-secondary-foreground: #151515;
+  --color-ring: rgb(var(--accent-active));
+
+  --accent-bg-start: 247 247 245;
+  --accent-bg-end: 239 239 237;
+  --accent-glow-1: 229 229 226;
+  --accent-glow-2: 214 214 209;
+  --accent-active: 198 198 194;
+  --accent-active-border: 146 146 141;
+  --accent-tile-muted: 43 43 41;
+  --accent-tile-hover: 54 54 51;
+  --accent-border: 92 92 88;
+  --accent-surface-strong: 164 164 159;
+
+  --color-primary: rgb(var(--accent-active));
+  --color-primary-foreground: #ffffff;
   --subtab-active-background: rgb(var(--accent-active));
-  --subtab-active-foreground: #ffffff;
+  --subtab-active-foreground: #111111;
   --subtab-active-border: rgb(var(--accent-active-border) / 0.92);
   --progress-tone-high: #16a34a;
   --progress-tone-mid: #2563eb;
@@ -29,155 +61,86 @@
   --tag-gold-bg: #c69214;
 }
 
-/* Category: Light + Natural text contract
-   Achromatic range only:
-   - primary text: near-black
-   - secondary text: readable gray
-   - disabled text: light gray with safe contrast */
+html[data-theme='light'] {
+  color-scheme: light;
+  --color-background: #efefef;
+  --color-foreground: #1b1b1b;
+  --color-card: #fafafa;
+  --color-card-foreground: #171717;
+  --color-muted: #e5e5e5;
+  --color-muted-foreground: #6a6a6a;
+  --color-border: #d7d7d7;
+  --color-sidebar: #efefef;
+  --color-sidebar-foreground: #1b1b1b;
+  --color-sidebar-border: #d7d7d7;
+  --color-sidebar-accent-foreground: #1b1b1b;
+  --color-secondary: #e2e2e2;
+  --color-secondary-foreground: #1b1b1b;
+  --subtab-active-background: #111111;
+  --subtab-active-foreground: #ffffff;
+}
 
-/* Category: Dark + Natural text contract
-   Achromatic inverse:
-   - primary text: near-white
-   - secondary text: soft gray
-   - disabled text: muted medium gray */
+html[data-theme='dark'] {
+  color-scheme: dark;
+  --color-primary-foreground: #ffffff;
+}
+
+/* Accent family tokens only.
+   Do not place theme-specific foreground/background tokens here. */
+html[data-accent='natural'] {
+  --accent-bg-start: 247 247 245;
+  --accent-bg-end: 239 239 237;
+  --accent-glow-1: 229 229 226;
+  --accent-glow-2: 214 214 209;
+  --accent-active: 128 128 125;
+  --accent-active-border: 56 56 54;
+  --accent-tile-muted: 237 237 233;
+  --accent-tile-hover: 226 226 220;
+  --accent-border: 198 198 191;
+  --accent-surface-strong: 84 84 82;
+}
 
 html[data-theme='dark'][data-accent='natural'] {
-  --color-foreground: #f2f2f2;
-  --color-card-foreground: #f2f2f2;
-  --color-sidebar-foreground: #f2f2f2;
-  --color-secondary-foreground: #f2f2f2;
-  --color-muted-foreground: #b3b3b3;
-  --subtab-active-background: rgb(var(--accent-active));
-  --subtab-active-foreground: #111111;
-  --subtab-active-border: rgb(var(--accent-active-border) / 0.92);
+  --accent-bg-start: 17 17 17;
+  --accent-bg-end: 17 17 17;
+  --accent-glow-1: 56 56 54;
+  --accent-glow-2: 44 44 42;
+  --accent-active: 198 198 194;
+  --accent-active-border: 146 146 141;
+  --accent-tile-muted: 43 43 41;
+  --accent-tile-hover: 54 54 51;
+  --accent-border: 92 92 88;
+  --accent-surface-strong: 164 164 159;
 }
 
-html[data-theme='dark'][data-accent='natural'] body,
-html[data-theme='dark'][data-accent='natural'] .dashboard-panel,
-html[data-theme='dark'][data-accent='natural'] .users-table-wrap,
-html[data-theme='dark'][data-accent='natural'] .employee-card,
-html[data-theme='dark'][data-accent='natural'] .employee-summary-card,
-html[data-theme='dark'][data-accent='natural'] .employee-modal,
-html[data-theme='dark'][data-accent='natural'] .employee-review-modal,
-html[data-theme='dark'][data-accent='natural'] .document-preview-modal,
-html[data-theme='dark'][data-accent='natural'] .notification-dropdown,
-html[data-theme='dark'][data-accent='natural'] .concept-card,
-html[data-theme='dark'][data-accent='natural'] .commission-group,
-html[data-theme='dark'][data-accent='natural'] .commission-case-card,
-html[data-theme='dark'][data-accent='natural'] .returned-request-item,
-html[data-theme='dark'][data-accent='natural'] .return-request-employee-option {
-  color: #f2f2f2;
+html[data-accent='orange'] {
+  --accent-bg-start: 246 242 237;
+  --accent-bg-end: 239 233 227;
+  --accent-glow-1: 235 223 209;
+  --accent-glow-2: 221 205 189;
+  --accent-active: 157 97 46;
+  --accent-active-border: 97 57 24;
+  --accent-tile-muted: 239 231 222;
+  --accent-tile-hover: 228 216 203;
+  --accent-border: 203 182 161;
+  --accent-surface-strong: 95 59 30;
 }
 
-html[data-theme='dark'][data-accent='natural'] .muted-text,
-html[data-theme='dark'][data-accent='natural'] .dashboard-header-user,
-html[data-theme='dark'][data-accent='natural'] .dashboard-header-username,
-html[data-theme='dark'][data-accent='natural'] .notification-item-body,
-html[data-theme='dark'][data-accent='natural'] .notification-item-time,
-html[data-theme='dark'][data-accent='natural'] .commission-case-meta,
-html[data-theme='dark'][data-accent='natural'] .concept-eyebrow,
-html[data-theme='dark'][data-accent='natural'] .concept-card-kicker,
-html[data-theme='dark'][data-accent='natural'] .settings-section-hint,
-html[data-theme='dark'][data-accent='natural'] .activity-log-meta,
-html[data-theme='dark'][data-accent='natural'] .card-description,
-html[data-theme='dark'][data-accent='natural'] .form-help,
-html[data-theme='dark'][data-accent='natural'] .employee-modal-eyebrow,
-html[data-theme='dark'][data-accent='natural'] .employee-card p,
-html[data-theme='dark'][data-accent='natural'] .employee-summary-card p,
-html[data-theme='dark'][data-accent='natural'] .users-table-wrap p,
-html[data-theme='dark'][data-accent='natural'] .return-request-employee-meta {
-  color: #b3b3b3;
-}
-
-html[data-theme='dark'][data-accent='natural'] .auth-links a,
-html[data-theme='dark'][data-accent='natural'] .link-button,
-html[data-theme='dark'][data-accent='natural'] .employee-card-detail-links a,
-html[data-theme='dark'][data-accent='natural'] .employee-doc-preview-popover a,
-html[data-theme='dark'][data-accent='natural'] .notification-mark-all {
-  color: #d6d6d6;
-}
-
-html[data-theme='dark'][data-accent='natural'] button:disabled,
-html[data-theme='dark'][data-accent='natural'] input:disabled,
-html[data-theme='dark'][data-accent='natural'] select:disabled,
-html[data-theme='dark'][data-accent='natural'] textarea:disabled,
-html[data-theme='dark'][data-accent='natural'] .btn:disabled,
-html[data-theme='dark'][data-accent='natural'] .btn-secondary:disabled,
-html[data-theme='dark'][data-accent='natural'] .attachment-file-trigger:disabled,
-html[data-theme='dark'][data-accent='natural'] .dashboard-logout:disabled,
-html[data-theme='dark'][data-accent='natural'] .profiles-agent-card.is-disabled,
-html[data-theme='dark'][data-accent='natural'] .profiles-agent-card:disabled {
-  color: #7a7a7a;
+html[data-theme='dark'][data-accent='orange'] {
+  --accent-bg-start: 17 17 17;
+  --accent-bg-end: 17 17 17;
 }
 
 html[data-theme='light'][data-accent='natural'] {
-  --color-foreground: #1a1a1a;
-  --color-card-foreground: #1a1a1a;
-  --color-sidebar-foreground: #1a1a1a;
-  --color-secondary-foreground: #1a1a1a;
-  --color-muted-foreground: #595959;
-  --subtab-active-background: #111111;
-  --subtab-active-foreground: #ffffff;
-  --subtab-active-border: #111111;
+  --color-primary-foreground: #111111;
 }
 
-html[data-theme='light'][data-accent='natural'] body,
-html[data-theme='light'][data-accent='natural'] .dashboard-panel,
-html[data-theme='light'][data-accent='natural'] .users-table-wrap,
-html[data-theme='light'][data-accent='natural'] .employee-card,
-html[data-theme='light'][data-accent='natural'] .employee-summary-card,
-html[data-theme='light'][data-accent='natural'] .employee-modal,
-html[data-theme='light'][data-accent='natural'] .employee-review-modal,
-html[data-theme='light'][data-accent='natural'] .document-preview-modal,
-html[data-theme='light'][data-accent='natural'] .notification-dropdown,
-html[data-theme='light'][data-accent='natural'] .concept-card,
-html[data-theme='light'][data-accent='natural'] .commission-group,
-html[data-theme='light'][data-accent='natural'] .commission-case-card,
-html[data-theme='light'][data-accent='natural'] .returned-request-item,
-html[data-theme='light'][data-accent='natural'] .return-request-employee-option {
-  color: #1a1a1a;
+html[data-theme='light'][data-accent='orange'] {
+  --color-primary-foreground: #ffffff;
 }
 
-html[data-theme='light'][data-accent='natural'] .muted-text,
-html[data-theme='light'][data-accent='natural'] .dashboard-header-user,
-html[data-theme='light'][data-accent='natural'] .dashboard-header-username,
-html[data-theme='light'][data-accent='natural'] .notification-item-body,
-html[data-theme='light'][data-accent='natural'] .notification-item-time,
-html[data-theme='light'][data-accent='natural'] .commission-case-meta,
-html[data-theme='light'][data-accent='natural'] .concept-eyebrow,
-html[data-theme='light'][data-accent='natural'] .concept-card-kicker,
-html[data-theme='light'][data-accent='natural'] .settings-section-hint,
-html[data-theme='light'][data-accent='natural'] .activity-log-meta,
-html[data-theme='light'][data-accent='natural'] .card-description,
-html[data-theme='light'][data-accent='natural'] .form-help,
-html[data-theme='light'][data-accent='natural'] .employee-modal-eyebrow,
-html[data-theme='light'][data-accent='natural'] .employee-card p,
-html[data-theme='light'][data-accent='natural'] .employee-summary-card p,
-html[data-theme='light'][data-accent='natural'] .users-table-wrap p,
-html[data-theme='light'][data-accent='natural'] .return-request-employee-meta {
-  color: #595959;
-}
-
-html[data-theme='light'][data-accent='natural'] .auth-links a,
-html[data-theme='light'][data-accent='natural'] .link-button,
-html[data-theme='light'][data-accent='natural'] .employee-card-detail-links a,
-html[data-theme='light'][data-accent='natural'] .employee-doc-preview-popover a,
-html[data-theme='light'][data-accent='natural'] .notification-mark-all {
-  color: #333333;
-}
-
-html[data-theme='light'][data-accent='natural'] button:disabled,
-html[data-theme='light'][data-accent='natural'] input:disabled,
-html[data-theme='light'][data-accent='natural'] select:disabled,
-html[data-theme='light'][data-accent='natural'] textarea:disabled,
-html[data-theme='light'][data-accent='natural'] .btn:disabled,
-html[data-theme='light'][data-accent='natural'] .btn-secondary:disabled,
-html[data-theme='light'][data-accent='natural'] .attachment-file-trigger:disabled,
-html[data-theme='light'][data-accent='natural'] .dashboard-logout:disabled,
-html[data-theme='light'][data-accent='natural'] .profiles-agent-card.is-disabled,
-html[data-theme='light'][data-accent='natural'] .profiles-agent-card:disabled {
-  color: #9e9e9e;
-}
+/* Theme + accent tokens are defined at the top of this file.
+   Component-level theme tweaks begin below. */
 
 /* Category: Shared surfaces
    Cards, panels, modals, page shells, and neutral containers. */
@@ -215,7 +178,6 @@ html[data-accent='natural'] .returned-request-item,
 html[data-accent='natural'] .return-request-employee-option,
 html[data-accent='natural'] .attachment-box,
 html[data-accent='natural'] .attachment-file-name,
-html[data-accent='natural'] .checkbox-pill,
 html[data-accent='natural'] .input-suffix span,
 html[data-accent='natural'] .employee-doc-preview-popover,
 html[data-accent='natural'] .placeholder-card,
@@ -227,27 +189,6 @@ html[data-accent='natural'] .oauth-error {
   border-color: var(--surface-border-adaptive);
   backdrop-filter: none;
   -webkit-backdrop-filter: none;
-}
-
-html[data-accent='natural'] .checkbox-pill {
-  border: 1px dashed #1f1f1f;
-}
-
-html[data-accent='natural'] .employee-registration-surface .checkbox-pill {
-  border: 1px dashed #1f1f1f;
-  border-radius: 3px;
-  box-shadow: none;
-  background: transparent;
-  color: color-mix(in oklch, var(--color-foreground) 78%, transparent);
-}
-
-html[data-accent='natural'] .employee-registration-surface .checkbox-pill:hover {
-  background: #2625264a;
-}
-
-html[data-accent='natural'] .employee-registration-surface .checkbox-pill.is-checked {
-  background: color-mix(in oklch, #2625264a 78%, rgba(255, 255, 255, 0.712) 22%);
-  color: var(--color-foreground);
 }
 
 /* Category: Surface-adjacent controls
@@ -388,6 +329,7 @@ html[data-theme='light'][data-accent='natural'] .activity-log-table tbody tr:hov
   border-color: color-mix(in oklch, var(--color-border) 62%, rgb(var(--accent-active-border) / 0.2));
   box-shadow: 0 0 0 1px rgb(var(--accent-active-border) / 0.05);
 }
+
 
 html[data-theme='dark'] .commission-group:hover {
   background: rgba(20, 20, 20, 0.5);
@@ -671,7 +613,6 @@ html[data-theme='dark'][data-accent='natural'] .returned-request-item,
 html[data-theme='dark'][data-accent='natural'] .return-request-employee-option,
 html[data-theme='dark'][data-accent='natural'] .attachment-box,
 html[data-theme='dark'][data-accent='natural'] .attachment-file-name,
-html[data-theme='dark'][data-accent='natural'] .checkbox-pill,
 html[data-theme='dark'][data-accent='natural'] .input-suffix span,
 html[data-theme='dark'][data-accent='natural'] .employee-doc-preview-popover,
 html[data-theme='dark'][data-accent='natural'] .placeholder-card,

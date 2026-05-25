@@ -35,11 +35,11 @@ html[data-density='compact'] .app-confirm-dialog,
 html[data-density='compact'] .notification-dropdown,
 html[data-density='compact'] .notification-reminder-dialog,
 html[data-density='compact'] .employee-scan-modal {
-  padding: 0;
+  padding: 30px;
 }
 
 html[data-density='compact'] .employee-review-modal.employee-scan-modal {
-  padding: 24px;
+  padding: 30px;
 }
 
 html[data-density='compact'] .employee-review-modal.employee-other-documents-modal {
@@ -369,7 +369,7 @@ html[data-density='compact'] .app-confirm-dialog,
 html[data-density='compact'] .notification-dropdown,
 html[data-density='compact'] .notification-reminder-dialog,
 html[data-density='compact'] .employee-scan-modal {
-  padding: 0;
+  padding: 30px;
 }
 
 html[data-density='compact'] .employee-modal-header,

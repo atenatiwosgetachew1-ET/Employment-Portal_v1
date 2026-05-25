@@ -1,4 +1,3 @@
-import { useEffect } from 'react'
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 import { AuthProvider } from './context/AuthContext'
 import { UiFeedbackProvider } from './context/UiFeedbackContext'
@@ -22,17 +21,9 @@ import SubscriptionPlansPage from './pages/SubscriptionPlansPage'
 import ProfilesPage from './pages/ProfilesPage'
 import TravelPage from './pages/TravelPage'
 import ProtectedRoute from './routes/ProtectedRoute'
-import { applyDensity, getStoredDensity } from './utils/density'
-import { applyAccent, applyTheme, getStoredAccent, getStoredTheme } from './utils/theme'
 import './App.css'
 
 function AppRoutes() {
-  useEffect(() => {
-    applyTheme(getStoredTheme())
-    applyAccent(getStoredAccent())
-    applyDensity(getStoredDensity())
-  }, [])
-
   return (
     <BrowserRouter>
       <Routes>

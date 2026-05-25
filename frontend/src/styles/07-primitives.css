@@ -438,24 +438,9 @@ textarea[aria-invalid='true']:focus,
   box-shadow: 0 0 0 2px color-mix(in oklch, var(--color-destructive) 32%, transparent) !important;
 }
 
-input:invalid:focus,
-select:invalid:focus,
-textarea:invalid:focus,
-input:user-invalid,
-select:user-invalid,
-textarea:user-invalid,
-.form-group input:invalid:focus,
-.form-grid input:invalid:focus,
-.form-grid select:invalid:focus,
-.settings-form select:invalid:focus,
-.settings-form input[type='text']:invalid:focus,
-.employees-page .user-create-card textarea:invalid:focus,
-.employee-modal-form textarea:invalid:focus,
-.users-table select:invalid:focus,
-.commission-search input:invalid:focus {
-  border-color: var(--color-destructive);
-  box-shadow: 0 0 0 1px color-mix(in oklch, var(--color-destructive) 28%, transparent);
-}
+/* Validation styles should be driven by explicit app state (`aria-invalid`),
+   not by browser-native `:invalid`, which can mark required/empty inputs as invalid
+   on focus and cause unexpected red outlines. */
 
 input:hover:not(:focus):not(:focus-visible):not(:disabled):not([readonly]),
 select:hover:not(:focus):not(:focus-visible):not(:disabled),
@@ -1303,7 +1288,7 @@ body {
 .notification-dropdown,
 .notification-reminder-dialog,
 .employee-scan-modal {
-  padding: max(0.9rem, var(--density-surface-padding));
+  padding: 30px;
 }
 
 .employee-modal-header,
@@ -1331,10 +1316,17 @@ body {
 .notifications-page-list,
 .app-toast-copy,
 .app-confirm-dialog,
-.notification-reminder-options,
-.document-preview-actions {
+.notification-reminder-options {
   display: grid;
   gap: var(--density-section-gap);
+}
+
+.document-preview-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
 }
 
 .notification-item {

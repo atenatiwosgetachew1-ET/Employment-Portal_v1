@@ -1401,6 +1401,7 @@ class EmployeeSerializer(serializers.ModelSerializer):
             "clearance_expires_on",
             "insurance_expires_on",
             "returned_from_employment",
+            "employment_discontinuation_requested",
             "status",
             "progress_override_complete",
             "is_active",
@@ -1458,6 +1459,10 @@ class EmployeeSerializer(serializers.ModelSerializer):
 
     def validate(self, attrs):
         attrs = super().validate(attrs)
+        request = self.context.get("request")
+        organization = (
+            get_user_organization(getattr(request, "user", None)) if request else None
+        )
         if self.instance and getattr(self, "partial", False):
             status_only_fields = {"status", "is_active"}
             if attrs and set(attrs.keys()).issubset(status_only_fields):
@@ -1504,11 +1509,28 @@ class EmployeeSerializer(serializers.ModelSerializer):
                 raise serializers.ValidationError(
                     {"application_salary": "Salary is required."}
                 )
-            attrs["status"] = attrs.get(
-                "status",
-                getattr(self.instance, "status", Employee.STATUS_PENDING),
-            )
-            return attrs
+                attrs["status"] = attrs.get(
+                    "status",
+                    getattr(self.instance, "status", Employee.STATUS_PENDING),
+                )
+                passport_number = (
+                    (attrs.get("passport_number") or getattr(self.instance, "passport_number", "") or "")
+                    .strip()
+                )
+                if organization and passport_number:
+                    existing = (
+                        Employee.objects.filter(
+                            organization=organization,
+                            passport_number=passport_number,
+                        )
+                        .exclude(pk=getattr(self.instance, "pk", None))
+                        .exists()
+                    )
+                    if existing:
+                        raise serializers.ValidationError(
+                            {"passport_number": "Employee with this passport number already exists."}
+                        )
+                return attrs
         if not (attrs.get("first_name") or getattr(self.instance, "first_name", "")):
             raise serializers.ValidationError({"first_name": "First name is required."})
         if not (attrs.get("middle_name") or getattr(self.instance, "middle_name", "")):
@@ -1532,6 +1554,23 @@ class EmployeeSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError(
                 {"passport_number": "Passport number is required."}
             )
+        passport_number = (
+            (attrs.get("passport_number") or getattr(self.instance, "passport_number", "") or "")
+            .strip()
+        )
+        if organization and passport_number:
+            existing = (
+                Employee.objects.filter(
+                    organization=organization,
+                    passport_number=passport_number,
+                )
+                .exclude(pk=getattr(self.instance, "pk", None))
+                .exists()
+            )
+            if existing:
+                raise serializers.ValidationError(
+                    {"passport_number": "Employee with this passport number already exists."}
+                )
         application_countries = attrs.get(
             "application_countries",
             getattr(self.instance, "application_countries", []),

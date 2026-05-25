@@ -42,6 +42,10 @@ const MANDATORY_ATTACHMENT_KEYS = ['portrait_photo', 'full_photo', 'passport_doc
 const ALLOWED_ATTACHMENT_MIME_TYPES = ['application/pdf', 'image/jpeg', 'image/png']
 const ALLOWED_ATTACHMENT_EXTENSIONS = ['.pdf', '.jpg', '.jpeg', '.png']
 const REGISTRATION_TEMPLATE_STORAGE_KEY = 'employment-portal.employee-registration-template'
+const REGISTRATION_DRAFT_DB_NAME = 'employment-portal-drafts'
+const REGISTRATION_DRAFT_DB_VERSION = 1
+const REGISTRATION_DRAFT_STORE = 'drafts'
+const REGISTRATION_DRAFT_KEY = 'employee-registration'
 const TRAVEL_CONFIRMATION_DECLINED_STORAGE_KEY = 'employment-portal.travel-confirmation-declined'
 const TRAVEL_CONFIRMATION_CONFIRMED_STORAGE_KEY = 'employment-portal.travel-confirmation-confirmed'
 const COMMISSION_SETTLEMENT_STORAGE_KEY = 'employment-portal.commission-settlements'
@@ -251,6 +255,62 @@ function applyRegistrationTemplate(template) {
     languages: Array.isArray(template.languages) ? [...template.languages] : []
   }
 }
+
+function normalizeDraftForm(value) {
+  if (!value || typeof value !== 'object') return { ...emptyForm, experiences: [emptyExperience] }
+  const next = { ...emptyForm, ...value }
+  next.application_countries = Array.isArray(next.application_countries) ? next.application_countries : []
+  next.skills = Array.isArray(next.skills) ? next.skills : []
+  next.languages = Array.isArray(next.languages) ? next.languages : []
+  next.experiences = Array.isArray(next.experiences) && next.experiences.length > 0 ? next.experiences : [emptyExperience]
+  return next
+}
+
+function openRegistrationDraftDb() {
+  if (typeof indexedDB === 'undefined') return Promise.reject(new Error('Draft storage is unavailable in this browser.'))
+  return new Promise((resolve, reject) => {
+    const request = indexedDB.open(REGISTRATION_DRAFT_DB_NAME, REGISTRATION_DRAFT_DB_VERSION)
+    request.onerror = () => reject(new Error('Could not open draft storage.'))
+    request.onupgradeneeded = () => {
+      const db = request.result
+      if (!db.objectStoreNames.contains(REGISTRATION_DRAFT_STORE)) {
+        db.createObjectStore(REGISTRATION_DRAFT_STORE)
+      }
+    }
+    request.onsuccess = () => resolve(request.result)
+  })
+}
+
+async function readRegistrationDraft() {
+  const db = await openRegistrationDraftDb()
+  try {
+    return await new Promise((resolve, reject) => {
+      const tx = db.transaction(REGISTRATION_DRAFT_STORE, 'readonly')
+      const store = tx.objectStore(REGISTRATION_DRAFT_STORE)
+      const request = store.get(REGISTRATION_DRAFT_KEY)
+      request.onerror = () => reject(new Error('Could not read draft.'))
+      request.onsuccess = () => resolve(request.result || null)
+    })
+  } finally {
+    db.close()
+  }
+}
+
+async function writeRegistrationDraft(value) {
+  const db = await openRegistrationDraftDb()
+  try {
+    await new Promise((resolve, reject) => {
+      const tx = db.transaction(REGISTRATION_DRAFT_STORE, 'readwrite')
+      const store = tx.objectStore(REGISTRATION_DRAFT_STORE)
+      const request = store.put(value, REGISTRATION_DRAFT_KEY)
+      request.onerror = () => reject(new Error('Could not save draft.'))
+      request.onsuccess = () => resolve()
+    })
+  } finally {
+    db.close()
+  }
+}
+
 
 function fileLabel(document, attachmentLabels) {
   if (document.label) return document.label
@@ -939,6 +999,24 @@ function buildEmployeePayload(form, editingEmployeeId) {
   return payload
 }
 
+function errorMessage(error, fallback) {
+  if (!error) return fallback
+  if (typeof error === 'string') {
+    const message = error.trim()
+    if (!message) return fallback
+    return message.length > 300 ? `${message.slice(0, 300)}…` : message
+  }
+  if (error instanceof Error) return error.message || fallback
+  if (typeof error?.message === 'string' && error.message.trim()) return error.message.trim()
+  try {
+    const serialized = JSON.stringify(error)
+    if (!serialized || serialized === '{}') return fallback
+    return serialized.length > 300 ? `${serialized.slice(0, 300)}…` : serialized
+  } catch {
+    return fallback
+  }
+}
+
 export default function EmployeesPage() {
   const { user } = useAuth()
   const { showToast, confirm } = useUiFeedback()
@@ -963,6 +1041,7 @@ export default function EmployeesPage() {
   const [existingAttachmentDocs, setExistingAttachmentDocs] = useState({})
   const [attachmentPreviewUrls, setAttachmentPreviewUrls] = useState({})
   const [savedTemplate, setSavedTemplate] = useState(null)
+  const [savedDraftMeta, setSavedDraftMeta] = useState(null)
   const [processAgentAssignments, setProcessAgentAssignments] = useState({})
   const [openedEmployeeId, setOpenedEmployeeId] = useState(null)
   const [openedEmployeeMode, setOpenedEmployeeMode] = useState('full')
@@ -984,6 +1063,14 @@ export default function EmployeesPage() {
   const [travelConfirmationConfirmedIds, setTravelConfirmationConfirmedIds] = useState(() => readTravelConfirmationConfirmedIds())
   const [settledCommissionIds, setSettledCommissionIds] = useState([])
   const [activeStep, setActiveStep] = useState(0)
+  const [openSummarySections, setOpenSummarySections] = useState({
+    identity: false,
+    application: false,
+    profile: false,
+    contact: false,
+    notes: false,
+    attachments: false
+  })
   const [dragOverAttachmentKey, setDragOverAttachmentKey] = useState('')
   const [otherDocumentsModalOpen, setOtherDocumentsModalOpen] = useState(false)
   const [floatingAttachmentPreview, setFloatingAttachmentPreview] = useState(null)
@@ -991,6 +1078,8 @@ export default function EmployeesPage() {
   const employeeModalFormRef = useRef(null)
   const [invalidStepErrors, setInvalidStepErrors] = useState({})
   const [attemptedRegistrationSteps, setAttemptedRegistrationSteps] = useState({})
+  const [pendingValidationHighlight, setPendingValidationHighlight] = useState(null)
+  const prevFormRef = useRef(form)
   const [scanImportModalOpen, setScanImportModalOpen] = useState(false)
   const [cameraCaptureModalOpen, setCameraCaptureModalOpen] = useState(false)
   const [cameraStream, setCameraStream] = useState(null)
@@ -1484,6 +1573,22 @@ export default function EmployeesPage() {
     }
   }, [])
 
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      try {
+        const draft = await readRegistrationDraft()
+        if (cancelled) return
+        setSavedDraftMeta(draft ? { savedAt: draft.savedAt || null } : null)
+      } catch {
+        if (!cancelled) setSavedDraftMeta(null)
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
   const patchEmployeeCollections = useCallback((employeeId, updater) => {
     setEmployeesData((prev) => {
       if (!prev) return prev
@@ -1591,7 +1696,6 @@ export default function EmployeesPage() {
     return Array.from(values)
   }, [form.application_countries, formOptions.salary_options_by_country])
 
-  const hasSavedTemplate = Boolean(savedTemplate)
   const createFormFromTemplate = useCallback(() => applyRegistrationTemplate(savedTemplate), [savedTemplate])
   const activeOcrCacheKey = buildOcrCacheKey(ocrImportFile)
   const hasAnalyzedScan = Boolean(activeOcrCacheKey && ocrCachedResult?.cacheKey === activeOcrCacheKey)
@@ -1654,23 +1758,71 @@ export default function EmployeesPage() {
     setView('register')
   }
 
-  const handleSaveTemplate = () => {
-    const nextTemplate = buildRegistrationTemplate(form)
-    setSavedTemplate(nextTemplate)
-    if (typeof window !== 'undefined') {
-      window.localStorage.setItem(REGISTRATION_TEMPLATE_STORAGE_KEY, JSON.stringify(nextTemplate))
-    }
+  const handleSaveDraft = async () => {
     setNotice('')
-    setModalNotice('Registration template saved for future new employees.')
+    setModalError('')
+    setModalNotice('')
+    try {
+      const payload = {
+        version: 1,
+        savedAt: new Date().toISOString(),
+        editingEmployeeId: editingEmployeeId || null,
+        form,
+        attachmentLabels,
+        existingAttachmentDocs,
+        attachmentFiles: Object.fromEntries(
+          Object.entries(attachmentFiles || {})
+            .filter(([, file]) => file instanceof File)
+            .map(([key, file]) => [
+              key,
+              {
+                name: file.name || key,
+                type: file.type || '',
+                lastModified: file.lastModified || Date.now(),
+                blob: file
+              }
+            ])
+        )
+      }
+      await writeRegistrationDraft(payload)
+      setSavedDraftMeta({ savedAt: payload.savedAt })
+      setModalNotice('Draft saved. You can restore it later.')
+    } catch (err) {
+      setModalError(err?.message || 'Could not save draft.')
+    }
   }
 
-  const handleClearTemplate = () => {
-    setSavedTemplate(null)
-    if (typeof window !== 'undefined') {
-      window.localStorage.removeItem(REGISTRATION_TEMPLATE_STORAGE_KEY)
-    }
+  const handleRestoreDraft = async () => {
     setNotice('')
-    setModalNotice('Registration template cleared.')
+    setModalError('')
+    setModalNotice('')
+    try {
+      const draft = await readRegistrationDraft()
+      if (!draft) {
+        setSavedDraftMeta(null)
+        setModalError('No draft found.')
+        return
+      }
+      setEditingEmployeeId(draft.editingEmployeeId || null)
+      setForm(normalizeDraftForm(draft.form))
+      setAttachmentLabels(draft.attachmentLabels && typeof draft.attachmentLabels === 'object' ? draft.attachmentLabels : {})
+      setExistingAttachmentDocs(draft.existingAttachmentDocs && typeof draft.existingAttachmentDocs === 'object' ? draft.existingAttachmentDocs : {})
+      const nextFiles = {}
+      const fileEntries = draft.attachmentFiles && typeof draft.attachmentFiles === 'object' ? Object.entries(draft.attachmentFiles) : []
+      fileEntries.forEach(([key, stored]) => {
+        if (!stored?.blob) return
+        nextFiles[key] = new File([stored.blob], stored.name || key, {
+          type: stored.type || '',
+          lastModified: stored.lastModified || Date.now()
+        })
+      })
+      setAttachmentFiles(nextFiles)
+      setActiveStep(0)
+      setView('register')
+      setModalNotice('Draft restored.')
+    } catch (err) {
+      setModalError(err?.message || 'Could not restore draft.')
+    }
   }
 
   const handleResetRegistrationToTemplate = () => {
@@ -2291,6 +2443,7 @@ export default function EmployeesPage() {
       setModalError('Only organization-side users can edit employee records.')
       return
     }
+    const isEditing = Boolean(editingEmployeeId)
     if (ageRestrictionError) {
       setModalError(ageRestrictionError)
       setActiveStep(0)
@@ -2311,14 +2464,14 @@ export default function EmployeesPage() {
       const payload = buildEmployeePayload(form, editingEmployeeId)
       const employee = editingEmployeeId ? await employeesService.updateEmployee(editingEmployeeId, payload) : await employeesService.createEmployee(payload)
       await uploadPendingAttachments(employee.id)
-      if (editingEmployeeId) {
+      const viewAfterSave = isEditing ? 'list' : currentView
+      if (isEditing) {
         setNotice('Employee updated successfully.')
         setPage(1)
         setView('list')
         resetForm()
       } else {
         setNotice('Employee registered successfully.')
-        setModalNotice('Employee registered successfully. The form is ready for the next employee.')
         setEditingEmployeeId(null)
         setForm(createFormFromTemplate())
         setAttachmentFiles({})
@@ -2329,12 +2482,24 @@ export default function EmployeesPage() {
         setPage(1)
         setView('register')
       }
-      await Promise.all([loadEmployees(currentView), loadFormOptions()])
+      await Promise.all([loadEmployees(viewAfterSave), loadFormOptions()])
     } catch (err) {
-      const nextError = err.message || 'Could not save employee'
+      console.error('Employee registration failed:', err)
+      const nextError = errorMessage(err, 'Could not save employee')
       setModalError(nextError)
       const targetStep = getValidationStep(nextError)
       if (targetStep !== null) setActiveStep(targetStep)
+      const nextAttempted = {
+        ...attemptedRegistrationSteps,
+        [targetStep ?? activeStep]: true,
+        ...(targetStep !== null ? { [targetStep]: true } : {})
+      }
+      setAttemptedRegistrationSteps(nextAttempted)
+      setInvalidStepErrors((prev) => ({
+        ...computeInvalidStepErrors(nextAttempted),
+        [targetStep ?? activeStep]: nextError
+      }))
+      setPendingValidationHighlight({ message: nextError, stepIndex: targetStep ?? activeStep })
     } finally {
       setSaving(false)
     }
@@ -2892,6 +3057,7 @@ export default function EmployeesPage() {
       if (normalized.includes('at least') && normalized.includes('age')) return 'date_of_birth'
       if (normalized.includes('gender is required')) return 'gender'
       if (normalized.includes('passport number is required')) return 'passport_number'
+      if (normalized.includes('passport number') && normalized.includes('already exists')) return 'passport_number'
       if (normalized.includes('mobile number is required')) return 'mobile_number'
       if (normalized.includes('valid mobile number')) return 'mobile_number'
       if (normalized.includes('passport number may only')) return 'passport_number'
@@ -2996,6 +3162,7 @@ export default function EmployeesPage() {
       const target = event.target
       if (!(target instanceof HTMLElement)) return
       if (!(target.matches('input, select, textarea'))) return
+
       if (!target.hasAttribute('aria-invalid')) return
       if (typeof target.checkValidity === 'function' && target.checkValidity()) {
         target.removeAttribute('aria-invalid')
@@ -3007,7 +3174,36 @@ export default function EmployeesPage() {
       formEl.removeEventListener('input', handler, true)
       formEl.removeEventListener('change', handler, true)
     }
-  }, [])
+  }, [activeStep, getValidationFieldForStep, invalidStepErrors])
+
+  useEffect(() => {
+    const prevForm = prevFormRef.current
+    prevFormRef.current = form
+    if (currentView !== 'register') return
+    const stepError = invalidStepErrors[activeStep]
+    if (!stepError) return
+    const stepField = getValidationFieldForStep(stepError, activeStep)
+    if (!stepField) return
+    if (prevForm?.[stepField] === form?.[stepField]) return
+    setInvalidStepErrors((prev) => {
+      if (!prev[activeStep]) return prev
+      const next = { ...prev }
+      delete next[activeStep]
+      return next
+    })
+    setModalError((prev) => (prev === stepError ? '' : prev))
+  }, [activeStep, currentView, form, getValidationFieldForStep, invalidStepErrors])
+
+  useEffect(() => {
+    if (!pendingValidationHighlight) return
+    if (currentView !== 'register') return
+    const { message, stepIndex } = pendingValidationHighlight
+    // Wait for the step's fields to be rendered before focusing/marking.
+    requestAnimationFrame(() => {
+      highlightEmployeeModalValidationTarget(message, stepIndex)
+      setPendingValidationHighlight(null)
+    })
+  }, [currentView, highlightEmployeeModalValidationTarget, pendingValidationHighlight])
 
   const goToNextStep = () => {
     const stepError = validateStep(activeStep)
@@ -4144,129 +4340,237 @@ export default function EmployeesPage() {
                 : null}
               {activeStep === 5 ? (
                 <div className="employee-step-grid">
-                  <div className="employee-span-two employee-summary-grid">
-                    <div className="employee-summary-card">
-                      <h3>Identity</h3>
-                      <div className="employee-summary-row">
-                        <span className="employee-summary-label">Name</span>
-                        <span className="employee-summary-value">{[form.first_name, form.middle_name, form.last_name].filter(Boolean).join(' ') || '--'}</span>
-                      </div>
-                      <div className="employee-summary-row">
-                        <span className="employee-summary-label">Date of birth</span>
-                        <span className="employee-summary-value">{form.date_of_birth || '--'}</span>
-                      </div>
-                      <div className="employee-summary-row">
-                        <span className="employee-summary-label">Gender</span>
-                        <span className="employee-summary-value">{form.gender || '--'}</span>
-                      </div>
-                      <div className="employee-summary-row">
-                        <span className="employee-summary-label">Passport</span>
-                        <span className="employee-summary-value">{form.passport_number || '--'}</span>
-                      </div>
-                      <div className="employee-summary-row">
-                        <span className="employee-summary-label">Mobile</span>
-                        <span className="employee-summary-value">{form.mobile_number || '--'}</span>
-                      </div>
-                    </div>
-                    <div className="employee-summary-card">
-                      <h3>Application</h3>
-                      <div className="employee-summary-row">
-                        <span className="employee-summary-label">Countries</span>
-                        <span className="employee-summary-value">{form.application_countries.join(', ') || '--'}</span>
-                      </div>
-                      <div className="employee-summary-row">
-                        <span className="employee-summary-label">Profession</span>
-                        <span className="employee-summary-value">{form.profession || '--'}</span>
-                      </div>
-                      <div className="employee-summary-row">
-                        <span className="employee-summary-label">Type</span>
-                        <span className="employee-summary-value">{form.employment_type || '--'}</span>
-                      </div>
-                      <div className="employee-summary-row">
-                        <span className="employee-summary-label">Salary</span>
-                        <span className="employee-summary-value">{form.application_salary || '--'}</span>
-                      </div>
-                      <div className="employee-summary-row">
-                        <span className="employee-summary-label">Skills</span>
-                        <span className="employee-summary-value">{form.skills.join(', ') || '--'}</span>
-                      </div>
-                    </div>
-                    <div className="employee-summary-card">
-                      <h3>Profile</h3>
-                      <div className="employee-summary-row">
-                        <span className="employee-summary-label">Religion</span>
-                        <span className="employee-summary-value">{form.religion || '--'}</span>
-                      </div>
-                      <div className="employee-summary-row">
-                        <span className="employee-summary-label">Marital status</span>
-                        <span className="employee-summary-value">{form.marital_status || '--'}</span>
-                      </div>
-                      <div className="employee-summary-row">
-                        <span className="employee-summary-label">Residence</span>
-                        <span className="employee-summary-value">{form.residence_country || '--'}</span>
-                      </div>
-                      <div className="employee-summary-row">
-                        <span className="employee-summary-label">Nationality</span>
-                        <span className="employee-summary-value">{form.nationality || '--'}</span>
-                      </div>
-                      <div className="employee-summary-row employee-summary-row--wrap">
-                        <span className="employee-summary-label">Experience</span>
-                        <span className="employee-summary-value">
-                          {form.experiences
-                            .filter((item) => item.country || item.years !== '')
-                            .map((item) => `${item.country || '--'} (${item.years || '--'} yrs)`)
-                            .join(', ') || '--'}
-                        </span>
-                      </div>
-                    </div>
-                    <div className="employee-summary-card">
-                      <h3>Contact</h3>
-                      <div className="employee-summary-row">
-                        <span className="employee-summary-label">Contact person</span>
-                        <span className="employee-summary-value">{form.contact_person_name || '--'}</span>
-                      </div>
-                      <div className="employee-summary-row">
-                        <span className="employee-summary-label">Contact mobile</span>
-                        <span className="employee-summary-value">{form.contact_person_mobile || '--'}</span>
-                      </div>
-                      <div className="employee-summary-row">
-                        <span className="employee-summary-label">Email</span>
-                        <span className="employee-summary-value">{form.email || '--'}</span>
-                      </div>
-                      <div className="employee-summary-row">
-                        <span className="employee-summary-label">Secondary phone</span>
-                        <span className="employee-summary-value">{form.phone || '--'}</span>
-                      </div>
-                    </div>
-                  </div>
                   <div className="employee-span-two">
-                    <h3>Attachment preview</h3>
-                    <div className="employee-attachment-preview-grid">
-                      {ATTACHMENT_FIELDS.filter((attachment) => attachmentFiles[attachment.key]).length === 0 ? (
-                        <div className="employee-attachment-preview-card">
-                          <div className="employee-attachment-preview-file">No new files selected in this session.</div>
-                        </div>
-                      ) : ATTACHMENT_FIELDS.filter((attachment) => attachmentFiles[attachment.key]).map((attachment) => (
-                        <div key={attachment.key} className="employee-attachment-preview-card">
-                          <strong>{attachmentLabels[attachment.key] || attachment.label}</strong>
-                          {attachmentFiles[attachment.key]?.type?.startsWith('image/') ? (
-                            <img
-                              src={attachmentPreviewUrls[attachment.key] || ''}
-                              alt={attachment.label}
-                              className="employee-attachment-preview-image"
-                            />
-                          ) : (
-                            <div className="employee-attachment-preview-file">{attachmentFiles[attachment.key]?.name || 'Attached file'}</div>
-                          )}
-                        </div>
-                      ))}
+                    <div className="employee-summary-intro">
+                      <h3>Review</h3>
+                      <p className="muted-text">Confirm details before submitting. Expand a section to review or edit.</p>
+                    </div>
+
+                    <div className="employee-summary-accordion">
+                      {(() => {
+                        const sections = [
+                          {
+                            id: 'identity',
+                            title: 'Identity',
+                            onEdit: () => setActiveStep(0),
+                            rows: [
+                              {
+                                label: 'Name',
+                                value: [form.first_name, form.middle_name, form.last_name].filter(Boolean).join(' ') || '--'
+                              },
+                              { label: 'Date of birth', value: form.date_of_birth || '--' },
+                              { label: 'Gender', value: form.gender || '--' },
+                              { label: 'Passport', value: form.passport_number || '--' },
+                              { label: 'Mobile', value: form.mobile_number || '--' }
+                            ]
+                          },
+                          {
+                            id: 'application',
+                            title: 'Application',
+                            onEdit: () => setActiveStep(3),
+                            rows: [
+                              { label: 'Countries', value: form.application_countries.join(', ') || '--' },
+                              { label: 'Profession', value: form.profession || '--' },
+                              { label: 'Type', value: form.employment_type || '--' },
+                              { label: 'Salary', value: form.application_salary || '--' },
+                              { label: 'Skills', value: form.skills.join(', ') || '--' }
+                            ]
+                          },
+                          {
+                            id: 'profile',
+                            title: 'Profile',
+                            onEdit: () => setActiveStep(1),
+                            rows: [
+                              { label: 'Religion', value: form.religion || '--' },
+                              { label: 'Marital status', value: form.marital_status || '--' },
+                              { label: 'Residence', value: form.residence_country || '--' },
+                              { label: 'Nationality', value: form.nationality || '--' },
+                              {
+                                label: 'Experience',
+                                value:
+                                  form.experiences
+                                    .filter((item) => item.country || item.years !== '')
+                                    .map((item) => `${item.country || '--'} (${item.years || '--'} yrs)`)
+                                    .join(', ') || '--'
+                              }
+                            ]
+                          },
+                          {
+                            id: 'contact',
+                            title: 'Contact',
+                            onEdit: () => setActiveStep(2),
+                            rows: [
+                              { label: 'Contact person', value: form.contact_person_name || '--' },
+                              { label: 'Contact mobile', value: form.contact_person_mobile || '--' },
+                              { label: 'Email', value: form.email || '--' },
+                              { label: 'Secondary phone', value: form.phone || '--' }
+                            ]
+                          }
+                        ]
+
+                        const toggleSection = (sectionId) => {
+                          setOpenSummarySections((prev) => ({ ...prev, [sectionId]: !prev[sectionId] }))
+                        }
+
+                        const attachmentItems = ATTACHMENT_FIELDS.filter(
+                          (attachment) => attachmentFiles[attachment.key] || existingAttachmentDocs[attachment.key]?.file_url
+                        )
+
+                        return (
+                          <>
+                            {sections.map((section) => (
+                              <section key={section.id} className="commission-group employee-summary-group">
+                                <div className="commission-group-header employee-summary-group-header">
+                                  <div>
+                                    <h3>{section.title}</h3>
+                                    <p className="muted-text">{section.rows.length} field{section.rows.length === 1 ? '' : 's'}</p>
+                                  </div>
+                                  <div className="employee-summary-group-actions">
+                                    <button type="button" className="btn-ghost employee-summary-edit" onClick={section.onEdit}>
+                                      Edit
+                                    </button>
+                                    <button
+                                      type="button"
+                                      className="commission-group-toggle-button"
+                                      onClick={() => toggleSection(section.id)}
+                                      aria-label={openSummarySections[section.id] ? `Collapse ${section.title}` : `Expand ${section.title}`}
+                                      aria-expanded={Boolean(openSummarySections[section.id])}
+                                    >
+                                      <span className={`commission-group-toggle-icon${openSummarySections[section.id] ? ' is-open' : ''}`}>▸</span>
+                                    </button>
+                                  </div>
+                                </div>
+
+                                {openSummarySections[section.id] ? (
+                                  <div className="employee-summary-group-body">
+                                    {section.rows.map((row) => (
+                                      <div key={`${section.id}-${row.label}`} className="employee-summary-row">
+                                        <span className="employee-summary-label">{row.label}</span>
+                                        <span className="employee-summary-value">{row.value}</span>
+                                      </div>
+                                    ))}
+                                  </div>
+                                ) : null}
+                              </section>
+                            ))}
+
+                            <section className="commission-group employee-summary-group">
+                              <div className="commission-group-header employee-summary-group-header">
+                                <div>
+                                  <h3>Notes</h3>
+                                  <p className="muted-text">4 fields</p>
+                                </div>
+                                <div className="employee-summary-group-actions">
+                                  <button type="button" className="btn-ghost employee-summary-edit" onClick={() => setActiveStep(1)}>
+                                    Edit
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className="commission-group-toggle-button"
+                                    onClick={() => toggleSection('notes')}
+                                    aria-label={openSummarySections.notes ? 'Collapse Notes' : 'Expand Notes'}
+                                    aria-expanded={Boolean(openSummarySections.notes)}
+                                  >
+                                    <span className={`commission-group-toggle-icon${openSummarySections.notes ? ' is-open' : ''}`}>▸</span>
+                                  </button>
+                                </div>
+                              </div>
+
+                              {openSummarySections.notes ? (
+                                <div className="employee-summary-group-body employee-summary-group-body--notes">
+                                  {[
+                                    { label: 'Professional title', value: form.professional_title || '--' },
+                                    { label: 'Summary', value: form.summary || '--' },
+                                    { label: 'Education', value: form.education || '--' },
+                                    { label: 'Notes', value: form.notes || '--' }
+                                  ].map((row) => (
+                                    <div key={`notes-${row.label}`} className="employee-summary-row employee-summary-row--wrap">
+                                      <span className="employee-summary-label">{row.label}</span>
+                                      <span className="employee-summary-value employee-summary-long">{row.value}</span>
+                                    </div>
+                                  ))}
+                                </div>
+                              ) : null}
+                            </section>
+
+                            <section className="commission-group employee-summary-group">
+                              <div className="commission-group-header employee-summary-group-header">
+                                <div>
+                                  <h3>Attachments</h3>
+                                  <p className="muted-text">{attachmentItems.length} file{attachmentItems.length === 1 ? '' : 's'}</p>
+                                </div>
+                                <div className="employee-summary-group-actions">
+                                  <button type="button" className="btn-ghost employee-summary-edit" onClick={() => setActiveStep(4)}>
+                                    Edit
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className="commission-group-toggle-button"
+                                    onClick={() => toggleSection('attachments')}
+                                    aria-label={openSummarySections.attachments ? 'Collapse Attachments' : 'Expand Attachments'}
+                                    aria-expanded={Boolean(openSummarySections.attachments)}
+                                  >
+                                    <span className={`commission-group-toggle-icon${openSummarySections.attachments ? ' is-open' : ''}`}>▸</span>
+                                  </button>
+                                </div>
+                              </div>
+
+                              {openSummarySections.attachments ? (
+                                <div className="employee-summary-group-body employee-summary-group-body--attachments">
+                                  <div className="employee-attachment-preview-grid employee-attachment-preview-grid--summary">
+                                    {attachmentItems.length === 0 ? (
+                                      <div className="employee-attachment-preview-card">
+                                        <div className="employee-attachment-preview-file">No attachments added yet.</div>
+                                      </div>
+                                    ) : (
+                                      attachmentItems.map((attachment) => {
+                                        const file = attachmentFiles[attachment.key]
+                                        const existingDocument = existingAttachmentDocs[attachment.key]
+                                        const url = file ? attachmentPreviewUrls[attachment.key] : existingDocument?.file_url
+                                        const label = attachmentLabels[attachment.key] || attachment.label
+                                        const isImage = file ? file.type?.startsWith('image/') : isImageDocument(existingDocument)
+
+                                        return (
+                                          <button
+                                            key={attachment.key}
+                                            type="button"
+                                            className="employee-attachment-preview-card employee-attachment-preview-card--button"
+                                            onClick={() =>
+                                              url
+                                                ? openDocumentPreview({
+                                                    url,
+                                                    label,
+                                                    isImage,
+                                                    isPdf: isPdfDocumentUrl(url)
+                                                  })
+                                                : undefined
+                                            }
+                                            disabled={!url}
+                                          >
+                                            <strong>{label}</strong>
+                                            {url && isImage ? (
+                                              <img src={url} alt={label} className="employee-attachment-preview-image" />
+                                            ) : (
+                                              <div className="employee-attachment-preview-file">{file?.name || (url ? (isPdfDocumentUrl(url) ? 'PDF' : 'Attached file') : 'Missing')}</div>
+                                            )}
+                                          </button>
+                                        )
+                                      })
+                                    )}
+                                  </div>
+                                </div>
+                              ) : null}
+                            </section>
+                          </>
+                        )
+                      })()}
                     </div>
                   </div>
                 </div>
               ) : null}
               <div className="employee-modal-actions">
                 <div className="employee-modal-actions-right">
-                  <button type="button" className="btn-secondary" onClick={handleSaveTemplate} disabled={saving}>
+                  <button type="button" className="btn-secondary" onClick={handleSaveDraft} disabled={saving}>
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" style={{ stroke: 'currentColor', strokeWidth: 1.5, strokeLinecap: 'round', strokeLinejoin: 'round' }}>
                       <path d="M4 7a2 2 0 0 1 2-2h11l3 3v12a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7Z" />
                       <path d="M8 5v6h8V5" />
@@ -4274,10 +4578,12 @@ export default function EmployeesPage() {
                     </svg>
                     Save Draft
                   </button>
-                  {hasSavedTemplate ? (
-                    <button type="button" className="btn-secondary" onClick={handleClearTemplate} disabled={saving}>
-                      Clear template
-                    </button>
+                  {savedDraftMeta ? (
+                    <>
+                      <button type="button" className="btn-secondary" onClick={handleRestoreDraft} disabled={saving}>
+                        Restore draft
+                      </button>
+                    </>
                   ) : null}
                   <button type="button" className="btn-secondary" onClick={handleResetRegistrationToTemplate} disabled={saving}>
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" style={{ stroke: 'currentColor', strokeWidth: 1.5, strokeLinecap: 'round', strokeLinejoin: 'round' }}>

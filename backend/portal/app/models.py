@@ -503,6 +503,7 @@ class Employee(models.Model):
     clearance_expires_on = models.DateField(null=True, blank=True)
     insurance_expires_on = models.DateField(null=True, blank=True)
     returned_from_employment = models.BooleanField(default=False)
+    employment_discontinuation_requested = models.BooleanField(default=False)
     returned_recorded_by = models.ForeignKey(
         User,
         on_delete=models.SET_NULL,
