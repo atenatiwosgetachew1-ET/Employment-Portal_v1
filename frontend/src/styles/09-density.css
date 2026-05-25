@@ -557,15 +557,20 @@ html[data-density='compact'] .employee-review-finance-cards {
 
 html[data-density='compact'] .employee-review-finance-card {
   padding: 9px 10px;
-  border-radius: 10px;
+  border-radius: 4px;
 }
 
 html[data-density='compact'] .employee-review-tabs {
-  gap: 5px;
+  gap: 0px;
 }
 
 html[data-density='compact'] .employee-review-tab {
   padding: 6px 8px;
+  font-size: 0.7rem;
+}
+
+html[data-density='compact'] .employee-review-doc-filters .employee-review-tab {
+  padding: 8px 10px;
   font-size: 0.7rem;
 }
 
@@ -583,18 +588,33 @@ html[data-density='compact'] .employee-review-doc-thumb {
 }
 
 html[data-density='compact'] .employee-review-panel--documents .employee-review-doc-card {
-  width: 132px;
-  border-radius: 12px;
+  height: 100px;
+  width: 85px;
+  border-radius: 4px;
 }
 
 html[data-density='compact'] .employee-review-panel--documents .employee-review-doc-thumb {
-  height: 84px;
+  height: 50px;
+  height: 50px;
 }
 
 html[data-density='compact'] .employee-review-doc-scroll-btn {
   width: 30px;
   height: 30px;
-  right: 6px;
+  right: 0px;
+  padding: 0;
+  border: none;
+  box-shadow: 0px 0px 28px rgb(0, 0, 0, 1);
+}
+
+html[data-density='compact'] .employee-review-doc-scroll-btn--left {
+  left: 0px;
+  right: auto;
+}
+
+html[data-density='compact'] .employee-review-doc-scroller-wrap {
+  max-width: 100%;
+  padding-inline: 40px;
 }
 
 html[data-density='compact'] .employee-review-doc-meta {

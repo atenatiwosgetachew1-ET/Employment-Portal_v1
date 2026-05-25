@@ -1047,6 +1047,10 @@ export default function EmployeesPage() {
   const [openedEmployeeMode, setOpenedEmployeeMode] = useState('full')
   const [reviewDocumentsTab, setReviewDocumentsTab] = useState('all')
   const reviewDocsScrollerRef = useRef(null)
+  const [reviewDocsCanScrollLeft, setReviewDocsCanScrollLeft] = useState(false)
+  const [reviewDocsCanScrollRight, setReviewDocsCanScrollRight] = useState(false)
+  const reviewDocsScrollRafRef = useRef(0)
+  const reviewDocsScrollStateRef = useRef({ left: false, right: false })
   const [returnRequestModalOpen, setReturnRequestModalOpen] = useState(false)
   const [returnRequestLoading, setReturnRequestLoading] = useState(false)
   const [returnRequestError, setReturnRequestError] = useState('')
@@ -3263,29 +3267,40 @@ export default function EmployeesPage() {
 
   if (!canManageEmployees) return <Navigate to="/dashboard" replace />
 
-  const employees = employeesData?.results ?? []
-  const visibleEmployees = employees.map((employee) => ({
-    ...employee,
-    settled_commission: employee?.settled_commission || settledCommissionIds.includes(String(employee.id))
-  }))
+  const employees = useMemo(() => employeesData?.results ?? [], [employeesData])
+  const total = useMemo(() => employeesData?.count ?? employees.length, [employeesData, employees.length])
+  const hasNext = useMemo(() => Boolean(employeesData?.next), [employeesData])
+  const hasPrev = useMemo(() => Boolean(employeesData?.previous), [employeesData])
+
+  const visibleEmployees = useMemo(() => {
+    return employees.map((employee) => ({
+      ...employee,
+      settled_commission: employee?.settled_commission || settledCommissionIds.includes(String(employee.id))
+    }))
+  }, [employees, settledCommissionIds])
+
   const primaryVisibleEmployees = visibleEmployees
-  const total = employeesData?.count ?? employees.length
-  const hasNext = Boolean(employeesData?.next)
-  const hasPrev = Boolean(employeesData?.previous)
-  const modalEmployees = [...visibleEmployees, ...requestedReturns]
-  const openedEmployee = openedEmployeeId
-    ? modalEmployees.find((employee) => employee.id === openedEmployeeId) || null
-    : null
-  const visibleTabs = EMPLOYEE_VIEW_TABS.filter((tab) => {
-    if (tab.id === 'selected') return isAgentSideUser
-    if (tab.id === 'register') return canEditEmployeeRecords
-    return true
-  })
-  const openedEmployeeProgress = buildProgressDonut(openedEmployee?.progress_status)
-  const openedEmployeeProfileDocument = employeeProfilePhoto(openedEmployee)
-  const openedEmployeeIsReturned = isEmployeeReturned(openedEmployee)
-  const openedEmployeeIsEmployed = isEmployeeEmployedInView(openedEmployee, currentView)
-  const openedEmployeeReturnRequest = openedEmployee?.return_request || null
+
+  const modalEmployees = useMemo(() => [...visibleEmployees, ...requestedReturns], [requestedReturns, visibleEmployees])
+
+  const openedEmployee = useMemo(() => {
+    if (!openedEmployeeId) return null
+    return modalEmployees.find((employee) => employee.id === openedEmployeeId) || null
+  }, [modalEmployees, openedEmployeeId])
+
+  const visibleTabs = useMemo(() => {
+    return EMPLOYEE_VIEW_TABS.filter((tab) => {
+      if (tab.id === 'selected') return isAgentSideUser
+      if (tab.id === 'register') return canEditEmployeeRecords
+      return true
+    })
+  }, [canEditEmployeeRecords, isAgentSideUser])
+
+  const openedEmployeeProgress = useMemo(() => buildProgressDonut(openedEmployee?.progress_status), [openedEmployee])
+  const openedEmployeeProfileDocument = useMemo(() => employeeProfilePhoto(openedEmployee), [openedEmployee])
+  const openedEmployeeIsReturned = useMemo(() => isEmployeeReturned(openedEmployee), [openedEmployee])
+  const openedEmployeeIsEmployed = useMemo(() => isEmployeeEmployedInView(openedEmployee, currentView), [currentView, openedEmployee])
+  const openedEmployeeReturnRequest = useMemo(() => openedEmployee?.return_request || null, [openedEmployee])
   const canApproveOpenedEmployeeReturn = Boolean(
     openedEmployee &&
     !openedEmployeeIsReturned &&
@@ -3312,16 +3327,68 @@ export default function EmployeesPage() {
     setPreviewDragging(false)
   }, [])
 
+  const updateReviewDocsScrollState = useCallback(() => {
+    const node = reviewDocsScrollerRef.current
+    if (!node) {
+      if (reviewDocsScrollStateRef.current.left || reviewDocsScrollStateRef.current.right) {
+        reviewDocsScrollStateRef.current = { left: false, right: false }
+        setReviewDocsCanScrollLeft(false)
+        setReviewDocsCanScrollRight(false)
+      }
+      return
+    }
+
+    const maxScrollLeft = Math.max(0, node.scrollWidth - node.clientWidth)
+    const left = node.scrollLeft
+    const epsilon = 2
+    const nextLeft = left > epsilon
+    const nextRight = left < maxScrollLeft - epsilon
+    const prev = reviewDocsScrollStateRef.current
+    if (prev.left === nextLeft && prev.right === nextRight) return
+    reviewDocsScrollStateRef.current = { left: nextLeft, right: nextRight }
+    setReviewDocsCanScrollLeft(nextLeft)
+    setReviewDocsCanScrollRight(nextRight)
+  }, [])
+
+  const scheduleReviewDocsScrollStateUpdate = useCallback(() => {
+    if (reviewDocsScrollRafRef.current) return
+    reviewDocsScrollRafRef.current = window.requestAnimationFrame(() => {
+      reviewDocsScrollRafRef.current = 0
+      updateReviewDocsScrollState()
+    })
+  }, [updateReviewDocsScrollState])
+
   const scrollReviewDocumentsNext = useCallback(() => {
     const node = reviewDocsScrollerRef.current
     if (!node) return
-    node.scrollBy({ left: 420, behavior: 'smooth' })
-  }, [])
+    const delta = Math.max(240, Math.floor(node.clientWidth * 0.85))
+    node.scrollBy({ left: delta, behavior: 'smooth' })
+    scheduleReviewDocsScrollStateUpdate()
+  }, [scheduleReviewDocsScrollStateUpdate])
+
+  const scrollReviewDocumentsPrev = useCallback(() => {
+    const node = reviewDocsScrollerRef.current
+    if (!node) return
+    const delta = Math.max(240, Math.floor(node.clientWidth * 0.85))
+    node.scrollBy({ left: -delta, behavior: 'smooth' })
+    scheduleReviewDocsScrollStateUpdate()
+  }, [scheduleReviewDocsScrollStateUpdate])
 
   useEffect(() => {
     setReviewDocumentsTab('all')
     setOpenedEmployeeMode('full')
   }, [openedEmployeeId])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    scheduleReviewDocsScrollStateUpdate()
+    return () => {
+      if (reviewDocsScrollRafRef.current) {
+        window.cancelAnimationFrame(reviewDocsScrollRafRef.current)
+        reviewDocsScrollRafRef.current = 0
+      }
+    }
+  }, [openedEmployeeId, reviewDocumentsTab, scheduleReviewDocsScrollStateUpdate])
 
   const reviewDocumentCategory = useCallback((document) => {
     const rawLabel = fileLabel(document, attachmentLabels)
@@ -3336,6 +3403,70 @@ export default function EmployeesPage() {
     if (haystack.includes('photo') || haystack.includes('portrait') || haystack.includes('full_photo') || haystack.includes('full photo')) return 'photos'
     return 'other'
   }, [attachmentLabels])
+
+  const openedEmployeeDocuments = useMemo(() => openedEmployee?.documents || [], [openedEmployee])
+
+  const reviewDocumentsFiltered = useMemo(() => {
+    if (reviewDocumentsTab === 'all') return openedEmployeeDocuments
+    return openedEmployeeDocuments.filter((document) => reviewDocumentCategory(document) === reviewDocumentsTab)
+  }, [openedEmployeeDocuments, reviewDocumentCategory, reviewDocumentsTab])
+
+  const reviewDocumentsCards = useMemo(() => {
+    return reviewDocumentsFiltered.map((document) => {
+      const label = fileLabel(document, attachmentLabels)
+      const isPdf = isPdfDocumentUrl(document.file_url)
+      const isImage = isImageDocument(document)
+      const kind = isPdf ? 'PDF' : isImage ? 'Image' : 'File'
+
+      const openPayload = {
+        url: document.file_url,
+        label,
+        isImage,
+        isPdf
+      }
+
+      return (
+        <span
+          key={document.id}
+          role="button"
+          tabIndex={0}
+          className="employee-review-doc-card"
+          onClick={() => openDocumentPreview(openPayload)}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter' || event.key === ' ') {
+              event.preventDefault()
+              openDocumentPreview(openPayload)
+            }
+          }}
+        >
+          <div className="employee-review-doc-thumb">
+            {isImage ? (
+              <img
+                src={document.file_url}
+                alt={label}
+                loading="eager"
+                decoding="async"
+              />
+            ) : (
+              <span>{kind}</span>
+            )}
+          </div>
+          <div className="employee-review-doc-meta employee-review-step-copy">
+            <span className="employee-review-step-label" title={label}>{label}</span>
+            <span className="employee-review-step-date muted-text">{kind}</span>
+          </div>
+        </span>
+      )
+    })
+  }, [attachmentLabels, openDocumentPreview, reviewDocumentsFiltered])
+
+  useEffect(() => {
+    const node = reviewDocsScrollerRef.current
+    if (!node) return
+    node.scrollLeft = 0
+    scheduleReviewDocsScrollStateUpdate()
+  }, [openedEmployeeId, reviewDocumentsTab, scheduleReviewDocsScrollStateUpdate])
+
   const closeDocumentPreview = useCallback(() => {
     setPreviewDocument(null)
     setPreviewZoom(1)
@@ -5940,8 +6071,18 @@ export default function EmployeesPage() {
                   </div>
 
                   <section className="employee-review-panel employee-review-panel--documents">
-                    <div className="employee-review-panel-header employee-review-panel-header--split">
-                      <h3>Documents</h3>
+                    <div className="employee-review-panel-header employee-review-panel-header--split employee-review-panel-header--documents">
+                      <h3 className="employee-review-panel-title">
+                        <span className="employee-review-panel-icon" aria-hidden="true">
+                          <svg viewBox="0 0 24 24" width="18" height="18" fill="none">
+                            <path d="M14 2H7a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8l-5-6Z" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" />
+                            <path d="M14 2v6h6" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" />
+                          </svg>
+                        </span>
+                        Documents
+                      </h3>
+                    </div>
+                    <div className="employee-review-doc-filters">
                       <div className="employee-review-tabs" role="tablist" aria-label="Document filters">
                         {[
                           { id: 'all', label: 'All' },
@@ -5951,77 +6092,59 @@ export default function EmployeesPage() {
                           { id: 'photos', label: 'Photos' },
                           { id: 'other', label: 'Other' }
                         ].map((tab) => (
-                          <button
+                          <span
                             key={tab.id}
-                            type="button"
+                            role="tab"
                             className={`employee-review-tab${reviewDocumentsTab === tab.id ? ' is-active' : ''}`}
                             onClick={() => setReviewDocumentsTab(tab.id)}
                             aria-selected={reviewDocumentsTab === tab.id}
+                            tabIndex={0}
+                            onKeyDown={(event) => {
+                              if (event.key === 'Enter' || event.key === ' ') {
+                                event.preventDefault()
+                                setReviewDocumentsTab(tab.id)
+                              }
+                            }}
                           >
                             {tab.label}
-                          </button>
+                          </span>
                         ))}
                       </div>
                     </div>
                     <div className="employee-review-doc-scroller-wrap" aria-label="Employee documents">
-                      {(() => {
-                        const documents = openedEmployee.documents || []
-                        const filtered = reviewDocumentsTab === 'all'
-                          ? documents
-                          : documents.filter((document) => reviewDocumentCategory(document) === reviewDocumentsTab)
-
-                        if (filtered.length === 0) {
-                          return <p className="muted-text employee-review-empty">No documents found.</p>
-                        }
-
-                        return (
-                          <>
-                            <div className="employee-review-doc-scroller" ref={reviewDocsScrollerRef}>
-                              <div className="employee-review-doc-grid">
-                                {filtered.map((document) => {
-                                  const label = fileLabel(document, attachmentLabels)
-                                  const kind = isPdfDocumentUrl(document.file_url) ? 'PDF' : isImageDocument(document) ? 'Image' : 'File'
-                                  return (
-                                    <button
-                                      type="button"
-                                      key={document.id}
-                                      className="employee-review-doc-card"
-                                      onClick={() =>
-                                        openDocumentPreview({
-                                          url: document.file_url,
-                                          label,
-                                          isImage: isImageDocument(document),
-                                          isPdf: isPdfDocumentUrl(document.file_url)
-                                        })
-                                      }
-                                    >
-                                      <div className="employee-review-doc-thumb">
-                                        {isImageDocument(document) ? (
-                                          <img src={document.file_url} alt={label} loading="lazy" />
-                                        ) : (
-                                          <span>{kind}</span>
-                                        )}
-                                      </div>
-                                      <div className="employee-review-doc-meta">
-                                        <strong title={label}>{label}</strong>
-                                        <span className="muted-text">{kind}</span>
-                                      </div>
-                                    </button>
-                                  )
-                                })}
-                              </div>
+                      {reviewDocumentsFiltered.length === 0 ? (
+                        <p className="muted-text employee-review-empty">No documents found.</p>
+                      ) : (
+                        <>
+                          <div className="employee-review-doc-scroller" ref={reviewDocsScrollerRef} onScroll={scheduleReviewDocsScrollStateUpdate}>
+                            <div className="employee-review-doc-grid">
+                              {reviewDocumentsCards}
                             </div>
-                            <button
-                              type="button"
-                              className="employee-review-doc-scroll-btn"
-                              onClick={scrollReviewDocumentsNext}
-                              aria-label="Scroll documents right"
-                            >
-                              <span aria-hidden="true">›</span>
-                            </button>
-                          </>
-                        )
-                      })()}
+                          </div>
+                          <button
+                            type="button"
+                            className="employee-review-doc-scroll-btn employee-review-doc-scroll-btn--left"
+                            onClick={scrollReviewDocumentsPrev}
+                            disabled={!reviewDocsCanScrollLeft}
+                            aria-label="Scroll documents left"
+                          >
+                            <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
+                              <path d="M15 18 9 12l6-6" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+                            </svg>
+                          </button>
+                          <button
+                            type="button"
+                            className="employee-review-doc-scroll-btn"
+                            onClick={scrollReviewDocumentsNext}
+                            disabled={!reviewDocsCanScrollRight}
+                            aria-label="Scroll documents right"
+                          >
+                            <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
+                              <path d="m9 18 6-6-6-6" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+                            </svg>
+                          </button>
+                        </>
+                      )}
                     </div>
                   </section>
 
@@ -6156,6 +6279,7 @@ export default function EmployeesPage() {
                 <img
                   src={previewDocument.url}
                   alt={previewDocument.label}
+                  decoding="async"
                   draggable={false}
                   style={{ transform: `translate(${previewOffset.x}px, ${previewOffset.y}px) scale(${previewZoom})` }}
                 />
