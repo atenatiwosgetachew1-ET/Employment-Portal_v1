@@ -25,7 +25,11 @@ export default function ActivityLogPage() {
     currentUser?.feature_flags?.audit_log_enabled &&
     currentUser?.permissions?.includes('audit.view')
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (event) => {
+    if (event?.preventDefault) {
+      window.location.reload()
+      return
+    }
     setLoading(true)
     setError('')
     try {

@@ -578,7 +578,11 @@ export default function ReportsPage() {
   const [users, setUsers] = useState([])
   const [auditRows, setAuditRows] = useState([])
 
-  const loadReports = useCallback(async () => {
+  const loadReports = useCallback(async (event) => {
+    if (event?.preventDefault) {
+      window.location.reload()
+      return
+    }
     setLoading(true)
     setError('')
     try {

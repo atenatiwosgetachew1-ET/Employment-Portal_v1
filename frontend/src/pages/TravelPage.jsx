@@ -315,7 +315,11 @@ export default function TravelPage() {
   const readOnly = Boolean(user?.is_read_only || user?.is_suspended)
   const isAgentSideUser = user?.role === 'customer'
 
-  const loadTravelEmployees = useCallback(async () => {
+  const loadTravelEmployees = useCallback(async (event) => {
+    if (event?.preventDefault) {
+      window.location.reload()
+      return
+    }
     setLoading(true)
     setPageError('')
     try {

@@ -51,9 +51,9 @@
   --subtab-active-background: rgb(var(--accent-active));
   --subtab-active-foreground: #111111;
   --subtab-active-border: rgb(var(--accent-active-border) / 0.92);
-  --progress-tone-high: #16a34a;
-  --progress-tone-mid: #2563eb;
-  --progress-tone-low: #ea580c;
+  --progress-tone-high: rgb(var(--accent-active));
+  --progress-tone-mid: rgb(var(--accent-active));
+  --progress-tone-low: rgb(var(--accent-active));
   --tag-accent-fg: #ffffff;
   --tag-orange-bg: #d97706;
   --tag-green-bg: #16a34a;
@@ -822,14 +822,12 @@ html[data-theme='dark'] .employee-review-header {
 /* Align all popups/dialogs with the employees review modal look:
    transparent surfaces + transparent headers in dark mode. */
 html[data-theme='dark'] .employee-modal,
-html[data-theme='dark'] .employee-review-modal,
 html[data-theme='dark'] .document-preview-modal,
 html[data-theme='dark'] .notification-dropdown,
 html[data-theme='dark'] .employee-doc-preview-popover,
 html[data-theme='dark'] .app-confirm-dialog,
 html[data-theme='dark'] .commission-rate-popover,
 html[data-theme='dark'] .notification-reminder-dialog,
-html[data-theme='dark'] .employee-scan-modal,
 html[data-theme='dark'] .app-toast {
   background: transparent;
   background-color: transparent;
@@ -838,12 +836,28 @@ html[data-theme='dark'] .app-toast {
   color: var(--color-foreground);
 }
 
+/* Popup windows: unified content surface (all themes). */
+html .employee-modal:not(.employee-modal--flat),
+html .employee-review-modal,
+html .employee-scan-modal,
+html .employee-doc-preview-popover,
+html .document-preview-modal,
+html .app-confirm-dialog,
+html .notification-reminder-dialog,
+html .commission-rate-popover,
+html .notification-dropdown {
+  background: #11111187 !important;
+  background-color: #11111187 !important;
+  background-image: none !important;
+}
+
 /* Dark theme: toast notifications should be readable (less transparent). */
 html[data-theme='dark'] .app-toast {
   background: rgb(0 0 0 / 0.86);
   background-color: rgb(0 0 0 / 0.86);
   border-color: var(--surface-border-adaptive);
 }
+
 
 html[data-theme='dark'] .document-preview-modal {
   border: 1px solid var(--surface-border-adaptive);

@@ -753,7 +753,11 @@ export default function CommissionsPage() {
     })
   }, [])
 
-  const loadCommissionBoard = useCallback(async () => {
+  const loadCommissionBoard = useCallback(async (event) => {
+    if (event?.preventDefault) {
+      window.location.reload()
+      return
+    }
     setLoading(true)
     setError('')
 

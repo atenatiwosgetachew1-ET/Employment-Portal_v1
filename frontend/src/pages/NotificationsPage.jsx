@@ -84,7 +84,11 @@ export default function NotificationsPage() {
   const [customReminderAt, setCustomReminderAt] = useState(() => toLocalInputValue(new Date(Date.now() + 24 * 60 * 60 * 1000)))
   const [reminderSaving, setReminderSaving] = useState(false)
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (event) => {
+    if (event?.preventDefault) {
+      window.location.reload()
+      return
+    }
     setLoading(true)
     setError('')
     try {

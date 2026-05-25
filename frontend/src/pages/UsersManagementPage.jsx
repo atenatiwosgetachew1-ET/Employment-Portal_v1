@@ -181,7 +181,11 @@ export default function UsersManagementPage() {
     }
   }, [currentAgentSideName, isAgentSideUser])
 
-  const loadUsers = useCallback(async () => {
+  const loadUsers = useCallback(async (event) => {
+    if (event?.preventDefault) {
+      window.location.reload()
+      return
+    }
     setLoading(true)
     setError('')
     try {

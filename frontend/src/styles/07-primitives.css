@@ -1723,9 +1723,16 @@ html[data-theme='light'][data-accent='natural'] .employee-registration-surface .
 }
 
 html[data-theme='dark'] .employee-review-backdrop,
-html[data-theme='dark'] .document-preview-backdrop,
-html[data-theme='dark'] .app-confirm-backdrop {
+html[data-theme='dark'] .document-preview-backdrop {
   background: rgb(0 0 0 / 0.68);
+}
+
+html[data-theme='dark'] .app-confirm-backdrop {
+  background: rgb(0 0 0 / 0.62);
+}
+
+html[data-theme='light'] .app-confirm-backdrop {
+  background: rgb(0 0 0 / 0.62);
 }
 
 html[data-theme='light'] .employee-review-backdrop,
