@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { Navigate, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
@@ -106,6 +106,39 @@ const EMPLOYEE_OCR_FIELD_LABELS = {
   notes: 'Notes'
 }
 const OCR_UNREACHABLE_MESSAGE = 'OCR service is not reachable. Please try again later.'
+const EMPLOYEE_CARD_MASONRY_DEBUG_FLAG = '__employeeCardMasonryDebug__'
+const EMPLOYEE_CARD_MASONRY_DEBUG_STORAGE_KEY = 'employment-portal.employee-card-masonry-debug'
+
+function employeeCardMasonryDebugEnabled() {
+  if (typeof window === 'undefined') return false
+  if (Boolean(window[EMPLOYEE_CARD_MASONRY_DEBUG_FLAG])) return true
+  try {
+    return window.localStorage?.getItem(EMPLOYEE_CARD_MASONRY_DEBUG_STORAGE_KEY) === '1'
+  } catch {
+    return false
+  }
+}
+
+function employeeCardMasonryDebugLog(...args) {
+  if (!employeeCardMasonryDebugEnabled()) return
+  // eslint-disable-next-line no-console
+  console.log('[employees:masonry]', ...args)
+}
+
+function employeeCardMasonryAttachScrollLogger(container) {
+  if (!employeeCardMasonryDebugEnabled()) return () => {}
+  if (!container) return () => {}
+  let last = container.scrollTop
+  const handler = () => {
+    const next = container.scrollTop
+    if (Math.abs(next - last) > 40) {
+      employeeCardMasonryDebugLog('scroll', { from: last, to: next })
+    }
+    last = next
+  }
+  container.addEventListener('scroll', handler, { passive: true })
+  return () => container.removeEventListener('scroll', handler)
+}
 
 function normalizeOcrStatusMessage(message) {
   if (!message) return OCR_UNREACHABLE_MESSAGE
@@ -680,6 +713,42 @@ function formatDateTime(value) {
   return parsed.toLocaleString()
 }
 
+function formatShortDate(value) {
+  if (!value) return '--'
+  const parsed = new Date(value)
+  if (Number.isNaN(parsed.getTime())) return '--'
+  return parsed.toLocaleDateString(undefined, { day: '2-digit', month: 'short', year: 'numeric' })
+}
+
+function formatShortTime(value) {
+  if (!value) return '--'
+  const parsed = new Date(value)
+  if (Number.isNaN(parsed.getTime())) return '--'
+  return parsed.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })
+}
+
+function resolveLatestDate(items, keys) {
+  if (!Array.isArray(items) || items.length === 0) return ''
+  const keyList = Array.isArray(keys) ? keys : []
+  let latestMs = -1
+  let latestValue = ''
+  for (const item of items) {
+    if (!item) continue
+    for (const key of keyList) {
+      const candidate = item[key]
+      if (!candidate) continue
+      const parsed = new Date(candidate)
+      const ms = parsed.getTime()
+      if (Number.isNaN(ms)) continue
+      if (ms > latestMs) {
+        latestMs = ms
+        latestValue = candidate
+      }
+    }
+  }
+  return latestValue
+}
+
 function employedCommissionLabel(employee) {
   if (employee?.settled_commission) return 'Settled commission'
   return employee?.did_travel ? 'Unsettled commission' : 'Commission pending travel'
@@ -1046,6 +1115,9 @@ export default function EmployeesPage() {
   const [openedEmployeeId, setOpenedEmployeeId] = useState(null)
   const [openedEmployeeMode, setOpenedEmployeeMode] = useState('full')
   const [reviewDocumentsTab, setReviewDocumentsTab] = useState('all')
+  const [expandedEmployeeCardId, setExpandedEmployeeCardId] = useState(null)
+  const employeeCardsGridRef = useRef(null)
+  const employeeCardItemRefs = useRef(new Map())
   const reviewDocsScrollerRef = useRef(null)
   const [reviewDocsCanScrollLeft, setReviewDocsCanScrollLeft] = useState(false)
   const [reviewDocsCanScrollRight, setReviewDocsCanScrollRight] = useState(false)
@@ -3265,8 +3337,6 @@ export default function EmployeesPage() {
     setActiveStep((prev) => Math.max(0, prev - 1))
   }
 
-  if (!canManageEmployees) return <Navigate to="/dashboard" replace />
-
   const employees = useMemo(() => employeesData?.results ?? [], [employeesData])
   const total = useMemo(() => employeesData?.count ?? employees.length, [employeesData, employees.length])
   const hasNext = useMemo(() => Boolean(employeesData?.next), [employeesData])
@@ -3300,6 +3370,29 @@ export default function EmployeesPage() {
   const openedEmployeeProfileDocument = useMemo(() => employeeProfilePhoto(openedEmployee), [openedEmployee])
   const openedEmployeeIsReturned = useMemo(() => isEmployeeReturned(openedEmployee), [openedEmployee])
   const openedEmployeeIsEmployed = useMemo(() => isEmployeeEmployedInView(openedEmployee, currentView), [currentView, openedEmployee])
+  const openedEmployeeWorkflowState = useMemo(() => employeeWorkflowState(openedEmployee), [openedEmployee])
+  const openedEmployeeSelectionState = useMemo(() => openedEmployee?.selection_state || {}, [openedEmployee])
+  const openedEmployeeIsSelectedByCurrentAgent = useMemo(
+    () => Boolean(openedEmployeeSelectionState.selected_by_current_agent),
+    [openedEmployeeSelectionState]
+  )
+  const openedEmployeeIsUnderProcess = openedEmployeeWorkflowState === 'under_process'
+  const openedEmployeeIsTravelled = openedEmployeeWorkflowState === 'traveled'
+  const openedEmployeeIsAvailable = useMemo(
+    () => employeeAvailability(openedEmployee) === 'Available',
+    [openedEmployee]
+  )
+  const openedEmployeeAssignedAgentId = useMemo(
+    () => {
+      if (!openedEmployee) return ''
+      return resolvedProcessAgentId(
+        openedEmployee,
+        processAgentAssignments,
+        formOptions.agent_options
+      )
+    },
+    [formOptions.agent_options, openedEmployee, processAgentAssignments]
+  )
   const openedEmployeeReturnRequest = useMemo(() => openedEmployee?.return_request || null, [openedEmployee])
   const canApproveOpenedEmployeeReturn = Boolean(
     openedEmployee &&
@@ -3374,6 +3467,77 @@ export default function EmployeesPage() {
     scheduleReviewDocsScrollStateUpdate()
   }, [scheduleReviewDocsScrollStateUpdate])
 
+  const toggleEmployeeCardExpanded = useCallback((employeeId) => {
+    employeeCardMasonryDebugLog('toggle expand', { employeeId, prevExpanded: expandedEmployeeCardId })
+    setExpandedEmployeeCardId((prev) => (prev === employeeId ? null : employeeId))
+  }, [expandedEmployeeCardId])
+
+  const reflowEmployeeCardsMasonry = useCallback(() => {
+    const grid = employeeCardsGridRef.current
+    if (!grid) return
+    const computed = window.getComputedStyle(grid)
+    const rowHeight = Number.parseFloat(computed.gridAutoRows) || 10
+    const rowGap = Number.parseFloat(computed.rowGap || computed.gap) || 0
+
+    employeeCardMasonryDebugLog('reflow start', {
+      expandedEmployeeCardId,
+      rowHeight,
+      rowGap,
+      cards: employeeCardItemRefs.current.size,
+      scrollTop:
+        (grid?.closest?.('.dashboard-content') || document.scrollingElement)?.scrollTop ?? null
+    })
+
+    for (const node of employeeCardItemRefs.current.values()) {
+      if (!node) continue
+      const height = node.getBoundingClientRect().height
+      const span = Math.max(1, Math.ceil((height + rowGap) / (rowHeight + rowGap)))
+      node.style.gridRowEnd = `span ${span}`
+    }
+
+    employeeCardMasonryDebugLog('reflow end')
+  }, [])
+
+  useLayoutEffect(() => {
+    if (typeof window === 'undefined') return
+    let rafId = 0
+    const schedule = () => {
+      if (rafId) return
+      rafId = window.requestAnimationFrame(() => {
+        rafId = 0
+        reflowEmployeeCardsMasonry()
+      })
+    }
+
+    const ResizeObserverCtor = window.ResizeObserver
+    const resizeObserver = typeof ResizeObserverCtor === 'function' ? new ResizeObserverCtor(schedule) : null
+    if (resizeObserver) {
+      if (employeeCardsGridRef.current) resizeObserver.observe(employeeCardsGridRef.current)
+      for (const node of employeeCardItemRefs.current.values()) {
+        if (node) resizeObserver.observe(node)
+      }
+    }
+
+    window.addEventListener('resize', schedule)
+    schedule()
+
+    const scrollContainer =
+      employeeCardsGridRef.current?.closest?.('.dashboard-content') || document.scrollingElement
+    const detachScrollLogger = employeeCardMasonryAttachScrollLogger(scrollContainer)
+
+    return () => {
+      window.removeEventListener('resize', schedule)
+      if (resizeObserver) resizeObserver.disconnect()
+      detachScrollLogger()
+      if (rafId) window.cancelAnimationFrame(rafId)
+    }
+  }, [primaryVisibleEmployees.length, reflowEmployeeCardsMasonry])
+
+  useLayoutEffect(() => {
+    if (typeof window === 'undefined') return
+    reflowEmployeeCardsMasonry()
+  }, [expandedEmployeeCardId])
+
   useEffect(() => {
     setReviewDocumentsTab('all')
     setOpenedEmployeeMode('full')
@@ -3391,12 +3555,13 @@ export default function EmployeesPage() {
   }, [openedEmployeeId, reviewDocumentsTab, scheduleReviewDocsScrollStateUpdate])
 
   const reviewDocumentCategory = useCallback((document) => {
-    const rawLabel = fileLabel(document, attachmentLabels)
+    const rawLabel = document?.label || fileLabel(document, attachmentLabels)
     const label = String(rawLabel || '').toLowerCase()
     const type = String(document?.document_type || '').toLowerCase()
 
     const haystack = `${type} ${label}`
 
+    if (haystack.includes('return') || haystack.includes('evidence')) return 'returns'
     if (haystack.includes('passport')) return 'passport'
     if (haystack.includes('contract')) return 'contract'
     if (haystack.includes('medical') || haystack.includes('vaccin') || haystack.includes('lab')) return 'medical'
@@ -3406,17 +3571,47 @@ export default function EmployeesPage() {
 
   const openedEmployeeDocuments = useMemo(() => openedEmployee?.documents || [], [openedEmployee])
 
+  const returnAttachmentDocuments = useMemo(() => {
+    return openedEmployeeDocuments
+      .filter((document) => String(document?.document_type || '') === 'return_ticket')
+      .map((document) => ({
+        ...document,
+        id: document.id ?? `return-attachment-${document.file_url || ''}`,
+        label: fileLabel({ ...document, label: 'Return ticket' }, attachmentLabels),
+        is_return_attachment: true
+      }))
+  }, [attachmentLabels, openedEmployeeDocuments])
+
+  const returnEvidenceDocuments = useMemo(() => {
+    const urls = [
+      openedEmployeeReturnRequest?.evidence_file_1_url,
+      openedEmployeeReturnRequest?.evidence_file_2_url,
+      openedEmployeeReturnRequest?.evidence_file_3_url
+    ].filter(Boolean)
+
+    return urls.map((url, index) => ({
+      id: `return-evidence-${index + 1}`,
+      file_url: url,
+      document_type: 'returns',
+      label: `Return evidence ${index + 1}`,
+      is_return_evidence: true
+    }))
+  }, [openedEmployeeReturnRequest])
+
   const reviewDocumentsFiltered = useMemo(() => {
-    if (reviewDocumentsTab === 'all') return openedEmployeeDocuments
+    if (reviewDocumentsTab === 'returns') return returnAttachmentDocuments.concat(returnEvidenceDocuments)
+    if (reviewDocumentsTab === 'all') return openedEmployeeDocuments.concat(returnEvidenceDocuments)
     return openedEmployeeDocuments.filter((document) => reviewDocumentCategory(document) === reviewDocumentsTab)
-  }, [openedEmployeeDocuments, reviewDocumentCategory, reviewDocumentsTab])
+  }, [openedEmployeeDocuments, reviewDocumentCategory, reviewDocumentsTab, returnAttachmentDocuments, returnEvidenceDocuments])
 
   const reviewDocumentsCards = useMemo(() => {
     return reviewDocumentsFiltered.map((document) => {
-      const label = fileLabel(document, attachmentLabels)
+      const label = document?.label || fileLabel(document, attachmentLabels)
       const isPdf = isPdfDocumentUrl(document.file_url)
-      const isImage = isImageDocument(document)
+      const isImage = document?.is_return_evidence ? !isPdf : isImageDocument(document)
       const kind = isPdf ? 'PDF' : isImage ? 'Image' : 'File'
+      const isReturnMaterial = Boolean(document?.is_return_evidence || document?.is_return_attachment)
+      const returnIsDone = Boolean(openedEmployeeIsReturned || openedEmployeeReturnRequest?.approved_at)
 
       const openPayload = {
         url: document.file_url,
@@ -3427,7 +3622,7 @@ export default function EmployeesPage() {
 
       return (
         <span
-          key={document.id}
+          key={String(document.id)}
           role="button"
           tabIndex={0}
           className="employee-review-doc-card"
@@ -3440,6 +3635,13 @@ export default function EmployeesPage() {
           }}
         >
           <div className="employee-review-doc-thumb">
+            {isReturnMaterial && returnIsDone ? (
+              <span className="employee-review-doc-thumb-badge" aria-hidden="true">
+                <svg viewBox="0 0 24 24" width="14" height="14" fill="none">
+                  <path d="M20 6 9 17l-5-5" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              </span>
+            ) : null}
             {isImage ? (
               <img
                 src={document.file_url}
@@ -3458,7 +3660,7 @@ export default function EmployeesPage() {
         </span>
       )
     })
-  }, [attachmentLabels, openDocumentPreview, reviewDocumentsFiltered])
+  }, [attachmentLabels, openDocumentPreview, openedEmployeeIsReturned, openedEmployeeReturnRequest, reviewDocumentsFiltered])
 
   useEffect(() => {
     const node = reviewDocsScrollerRef.current
@@ -3605,6 +3807,9 @@ export default function EmployeesPage() {
   }, [previewDocument, previewOffset, previewZoom])
 
   return (
+    !canManageEmployees ? (
+      <Navigate to="/dashboard" replace />
+    ) : (
     <section className="dashboard-panel employees-page">
       <div className="page-panel-header">
         <div>
@@ -4918,10 +5123,11 @@ export default function EmployeesPage() {
           ) : (
             <>
               {primaryVisibleEmployees.length > 0 ? (
-            <div className="employee-cards">
+            <div className="employee-cards" ref={employeeCardsGridRef}>
               {primaryVisibleEmployees.map((employee) => {
                 const profilePhoto = employeeProfilePhoto(employee)
                 const isOpened = openedEmployeeId === employee.id
+                const isExpanded = expandedEmployeeCardId === employee.id
                 const selectionState = employee.selection_state || {}
                 const selection = selectionState.selection
                 const isSelectedByCurrentAgent = Boolean(selectionState.selected_by_current_agent)
@@ -4940,21 +5146,49 @@ export default function EmployeesPage() {
                 return (
                   <article
                     key={employee.id}
+                    ref={(node) => {
+                      const map = employeeCardItemRefs.current
+                      if (node) map.set(employee.id, node)
+                      else map.delete(employee.id)
+                    }}
                     className={`employee-card${isOpened ? ' is-open' : ''}`}
                     onClick={() => {
-                      setOpenedEmployeeMode('full')
-                      setOpenedEmployeeId((prev) => prev === employee.id ? null : employee.id)
+                      toggleEmployeeCardExpanded(employee.id)
                     }}
                     role="button"
                     tabIndex={0}
                     onKeyDown={(event) => {
                       if (event.key === 'Enter' || event.key === ' ') {
                         event.preventDefault()
-                        setOpenedEmployeeMode('full')
-                        setOpenedEmployeeId((prev) => prev === employee.id ? null : employee.id)
+                        toggleEmployeeCardExpanded(employee.id)
                       }
                     }}
                   >
+                    <button
+                      type="button"
+                      className="employee-card-collapse-btn"
+                      aria-label={isOpened ? 'Close employee details' : 'Open employee details'}
+                      aria-expanded={isOpened}
+                      onClick={(event) => {
+                        event.stopPropagation()
+                        setOpenedEmployeeMode('full')
+                        setOpenedEmployeeId((prev) => (prev === employee.id ? null : employee.id))
+                      }}
+                      onKeyDown={(event) => {
+                        event.stopPropagation()
+                      }}
+                    >
+                      <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
+                        <path
+                          d={isOpened ? 'M18 6 6 18M6 6l12 12' : 'm9 18 6-6-6-6'}
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2.5"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        />
+                      </svg>
+                    </button>
                     <div className="employee-card-header">
                       <div className="employee-card-identity">
                         <div className="employee-card-avatar">
@@ -4987,172 +5221,45 @@ export default function EmployeesPage() {
                       <p className="muted-text">Return remark: {employee.return_request.remark}</p>
                     ) : null}
                     <p className="muted-text">Progress {employee.progress_status?.overall_completion ?? 0}% | Travel {prettyStatus(employee.travel_status, 'pending')} | Return {prettyStatus(employee.return_status)}</p>
-                    {employee.urgency_alerts?.length ? (
-                      <div className="employee-alert-list">
-                        {employee.urgency_alerts.map((alert) => (
-                          <span key={`${employee.id}-${alert.field}`} className="badge badge-warning">
-                            {alert.label} {alert.days_remaining < 0 ? 'expired' : `${alert.days_remaining}d`}
-                          </span>
-                        ))}
-                      </div>
-                    ) : null}
-                    {(isEmployedEmployee || isReturnedEmployee) ? (
-                      <div className="employee-employed-summary">
-                        <div className="employee-employed-block">
-                          <strong>Commission</strong>
-                          <span className={`badge ${employee?.settled_commission ? 'badge-muted commission-settled-badge' : 'badge-warning'}`.trim()}>
-                            {employedCommissionLabel(employee)}
-                          </span>
-                          <p className="muted-text">Collection from the agent side to the organization is a future settlement concept.</p>
+                    <div className={`employee-card-expand${isExpanded ? ' is-expanded' : ''}`}>
+                      {employee.urgency_alerts?.length ? (
+                        <div className="employee-alert-list">
+                          {employee.urgency_alerts.map((alert) => (
+                            <span key={`${employee.id}-${alert.field}`} className="badge badge-warning">
+                              {alert.label} {alert.days_remaining < 0 ? 'expired' : `${alert.days_remaining}d`}
+                            </span>
+                          ))}
                         </div>
-                      </div>
-                    ) : null}
-                    <div className="employee-card-preview-strip">
-                      {CARD_PREVIEW_DOCUMENTS.map((preview) => {
-                        const document = findEmployeeDocument(employee, preview.types)
-                        const hasImage = document?.file_url && isImageDocument(document)
+                      ) : null}
+                      <div className="employee-card-preview-strip">
+                        {CARD_PREVIEW_DOCUMENTS.map((preview) => {
+                          const document = findEmployeeDocument(employee, preview.types)
+                          const hasImage = document?.file_url && isImageDocument(document)
 
-                        return (
-                          <div key={`${employee.id}-${preview.key}`} className="employee-doc-preview">
-                            <div className="employee-doc-preview-tile">
-                              {hasImage ? (
-                                <img src={document.file_url} alt={`${employee.full_name} ${preview.label}`} />
-                              ) : (
-                                <span>{preview.label}</span>
-                              )}
-                            </div>
-                            <strong>{preview.label}</strong>
-                            {document?.file_url ? (
-                              <div className="employee-doc-preview-popover">
+                          return (
+                            <div key={`${employee.id}-${preview.key}`} className="employee-doc-preview">
+                              <div className="employee-doc-preview-tile">
                                 {hasImage ? (
-                                  <img src={document.file_url} alt={`${employee.full_name} ${preview.label} preview`} />
+                                  <img src={document.file_url} alt={`${employee.full_name} ${preview.label}`} />
                                 ) : (
-                                  <span>{fileLabel(document, attachmentLabels)}</span>
+                                  <span>{preview.label}</span>
                                 )}
                               </div>
-                            ) : null}
-                          </div>
-                        )
-                      })}
+                              <strong>{preview.label}</strong>
+                              {document?.file_url ? (
+                                <div className="employee-doc-preview-popover">
+                                  {hasImage ? (
+                                    <img src={document.file_url} alt={`${employee.full_name} ${preview.label} preview`} />
+                                  ) : (
+                                    <span>{fileLabel(document, attachmentLabels)}</span>
+                                  )}
+                                </div>
+                              ) : null}
+                            </div>
+                          )
+                        })}
+                      </div>
                     </div>
-                    {(!isEmployedEmployee && !isTravelledEmployee) && !isReturnedEmployee ? (
-                    <div className="employee-card-actions">
-                      {!isUnderProcess && isAvailableEmployee ? (
-                        <button
-                          type="button"
-                          className="btn-secondary"
-                          onClick={(event) => { event.stopPropagation(); handleToggleSelectedEmployee(employee) }}
-                          disabled={
-                            readOnly ||
-                            !isAgentSideUser ||
-                            actionBusyId === employee.id
-                          }
-                        >
-                          {actionBusyId === employee.id
-                            ? 'Saving...'
-                            : isSelectedByCurrentAgent
-                              ? 'Unselect employee'
-                              : 'Select employee'}
-                        </button>
-                      ) : null}
-                      {isMainAgentAccount && !isUnderProcess ? (
-                        <button
-                          type="button"
-                          className="btn-secondary"
-                          onClick={(event) => { event.stopPropagation(); handleStartProcess(employee) }}
-                          disabled={
-                            readOnly ||
-                            actionBusyId === employee.id ||
-                            !isSelectedByCurrentAgent ||
-                            employee.status !== 'approved' ||
-                            isUnderProcess
-                          }
-                        >
-                          {actionBusyId === employee.id
-                            ? 'Saving...'
-                            : 'Proceed to process'}
-                        </button>
-                      ) : null}
-                      {canManageOrganizationProcesses && !isUnderProcess ? (
-                        <>
-                          <select
-                            value={assignedAgentId}
-                            onClick={(event) => event.stopPropagation()}
-                            onChange={(event) => {
-                              event.stopPropagation()
-                              setPageError('')
-                              setProcessAgentAssignments((prev) => ({
-                                ...prev,
-                                [employee.id]: event.target.value
-                              }))
-                            }}
-                            disabled={readOnly || actionBusyId === employee.id}
-                          >
-                            <option value="">{formOptions.agent_options.length <= 1 ? 'Agent auto-selected' : 'Select agent'}</option>
-                            {formOptions.agent_options.map((agent) => (
-                              <option key={agent.id} value={String(agent.id)}>
-                                {agent.name || agent.username}
-                              </option>
-                            ))}
-                          </select>
-                          <button
-                            type="button"
-                            className="btn-secondary"
-                            onClick={(event) => { event.stopPropagation(); handleStartProcess(employee) }}
-                            disabled={readOnly || actionBusyId === employee.id || employee.status !== 'approved' || !assignedAgentId}
-                          >
-                            {actionBusyId === employee.id
-                              ? 'Saving...'
-                            : 'Initiate process'}
-                          </button>
-                        </>
-                      ) : null}
-                      {canManageOrganizationProcesses && isUnderProcess ? (
-                        <button
-                          type="button"
-                          className="btn-danger"
-                          onClick={(event) => { event.stopPropagation(); handleDeclineProcess(employee) }}
-                          disabled={readOnly || actionBusyId === employee.id}
-                        >
-                          {actionBusyId === employee.id ? 'Saving...' : 'Decline process'}
-                        </button>
-                      ) : null}
-                      {canOverrideProgress && isUnderProcess && ((employee.progress_status?.overall_completion ?? 0) < 100 || !employee.did_travel) ? (
-                        <button
-                          type="button"
-                          className="btn-info"
-                          onClick={(event) => { event.stopPropagation(); handleMarkProgressComplete(employee) }}
-                          disabled={readOnly || actionBusyId === employee.id}
-                        >
-                          {actionBusyId === employee.id
-                            ? 'Saving...'
-                            : (employee.progress_status?.overall_completion ?? 0) >= 100
-                              ? 'Confirm travelled'
-                              : 'Mark progress 100%'}
-                        </button>
-                      ) : null}
-                      {workflowState === 'pending' ? (
-                        <>
-                          <button type="button" className="btn-success" onClick={(event) => { event.stopPropagation(); handleAvailabilityAction(employee, 'approved', 'Approved') }} disabled={actionBusyId === employee.id || readOnly || isAgentSideUser}>
-                            {actionBusyId === employee.id ? 'Saving...' : 'Approve'}
-                          </button>
-                          <button type="button" className="btn-danger" onClick={(event) => { event.stopPropagation(); handleAvailabilityAction(employee, 'rejected', 'Rejected') }} disabled={actionBusyId === employee.id || readOnly || isAgentSideUser}>Reject</button>
-                          <button type="button" className="btn-warning" onClick={(event) => { event.stopPropagation(); handleAvailabilityAction(employee, 'suspended', 'Suspended') }} disabled={actionBusyId === employee.id || readOnly || isAgentSideUser}>Suspend</button>
-                        </>
-                      ) : null}
-                      {workflowState === 'rejected' || workflowState === 'suspended' ? (
-                        <button type="button" className="btn-secondary" onClick={(event) => { event.stopPropagation(); handleAvailabilityAction(employee, 'pending', 'Moved to pending') }} disabled={actionBusyId === employee.id || readOnly || isAgentSideUser}>
-                          {actionBusyId === employee.id ? 'Saving...' : 'Move to pending'}
-                        </button>
-                      ) : null}
-                      {canEditEmployeeRecords ? (
-                        <button type="button" className="btn-secondary" onClick={(event) => { event.stopPropagation(); handleEdit(employee.id) }} disabled={busyEmployeeId === employee.id || readOnly}>
-                        {busyEmployeeId === employee.id ? 'Loading...' : 'Edit'}
-                        </button>
-                      ) : null}
-                      <button type="button" className="btn-danger" onClick={(event) => { event.stopPropagation(); handleDelete(employee) }} disabled={readOnly || isAgentSideUser || isUnderProcess}>Delete</button>
-                    </div>
-                    ) : null}
                   </article>
                 )
               })}
@@ -5674,66 +5781,183 @@ export default function EmployeesPage() {
                 </div>
 
                 <div className="employee-review-actions" aria-label="Employee actions">
-                  {openedEmployeeReturnRequest ? (
-                    <button
-                      type="button"
-                      className="btn-secondary"
-                      onClick={() => setOpenedEmployeeMode((prev) => (prev === 'request' ? 'full' : 'request'))}
-                    >
-                      {openedEmployeeMode === 'request' ? 'Employee details' : 'Return request'}
-                    </button>
-                  ) : null}
-                  {!readOnly ? (
-                    <button
-                      type="button"
-                      className="btn-secondary"
-                      onClick={() => handleEdit(openedEmployee.id)}
-                      disabled={busyEmployeeId === openedEmployee.id}
-                    >
-                      {busyEmployeeId === openedEmployee.id ? 'Loading...' : 'Edit'}
-                    </button>
-                  ) : null}
-                  {canApproveOpenedEmployeeReturn ? (
-                    <button
-                      type="button"
-                      className="btn-success"
-                      onClick={() => handleApproveEmploymentReturn(openedEmployee)}
-                      disabled={actionBusyId === openedEmployee.id || readOnly}
-                    >
-                      {actionBusyId === openedEmployee.id ? 'Saving...' : 'Approve'}
-                    </button>
-                  ) : null}
-                  {canRefuseOpenedEmployeeReturn ? (
-                    <button
-                      type="button"
-                      className="btn-secondary"
-                      onClick={() => handleRefuseEmployeeReturnRequest(openedEmployee)}
-                      disabled={actionBusyId === openedEmployee.id || readOnly}
-                    >
-                      {actionBusyId === openedEmployee.id ? 'Saving...' : 'Refuse'}
-                    </button>
-                  ) : null}
-                  {canCancelOpenedEmployeeReturnRequest ? (
-                    <button
-                      type="button"
-                      className="btn-secondary"
-                      onClick={() => handleCancelEmployeeReturnRequest(openedEmployee)}
-                      disabled={actionBusyId === openedEmployee.id || readOnly}
-                    >
-                      {actionBusyId === openedEmployee.id ? 'Saving...' : 'Cancel request'}
-                    </button>
-                  ) : null}
-                  {canReinstateOpenedEmployeeEmployment ? (
-                    <button
-                      type="button"
-                      className="btn-secondary"
-                      onClick={() => handleReinstateEmployeeEmployment(openedEmployee)}
-                      disabled={actionBusyId === openedEmployee.id || readOnly}
-                    >
-                      {actionBusyId === openedEmployee.id ? 'Saving...' : 'Reverse to employed'}
-                    </button>
-                  ) : null}
-                  <button type="button" className="btn-secondary" onClick={() => setOpenedEmployeeId(null)}>Close</button>
+                  <div className="employee-review-actions-stack">
+                    <div className="employee-review-actions-secondary">
+                      {canManageOrganizationProcesses &&
+                      !openedEmployeeIsUnderProcess &&
+                      (!openedEmployeeIsEmployed && !openedEmployeeIsTravelled) &&
+                      !openedEmployeeIsReturned ? (
+                        <>
+                          <select
+                            value={openedEmployeeAssignedAgentId}
+                            onChange={(event) => {
+                              setPageError('')
+                              setProcessAgentAssignments((prev) => ({
+                                ...prev,
+                                [openedEmployee.id]: event.target.value
+                              }))
+                            }}
+                            disabled={readOnly || actionBusyId === openedEmployee.id}
+                          >
+                            <option value="">{formOptions.agent_options.length <= 1 ? 'Agent auto-selected' : 'Select agent'}</option>
+                            {formOptions.agent_options.map((agent) => (
+                              <option key={agent.id} value={String(agent.id)}>
+                                {agent.name || agent.username}
+                              </option>
+                            ))}
+                          </select>
+                          <button
+                            type="button"
+                            className="btn-secondary"
+                            onClick={() => handleStartProcess(openedEmployee)}
+                            disabled={readOnly || actionBusyId === openedEmployee.id || openedEmployee.status !== 'approved' || !openedEmployeeAssignedAgentId}
+                          >
+                            {actionBusyId === openedEmployee.id ? 'Saving...' : 'Initiate process'}
+                          </button>
+                        </>
+                      ) : null}
+                      {(!openedEmployeeIsEmployed && !openedEmployeeIsTravelled) &&
+                      !openedEmployeeIsReturned &&
+                      !openedEmployeeIsUnderProcess &&
+                      openedEmployeeIsAvailable ? (
+                        <button
+                          type="button"
+                          className="btn-secondary"
+                          onClick={() => handleToggleSelectedEmployee(openedEmployee)}
+                          disabled={readOnly || !isAgentSideUser || actionBusyId === openedEmployee.id}
+                        >
+                          {actionBusyId === openedEmployee.id
+                            ? 'Saving...'
+                            : openedEmployeeIsSelectedByCurrentAgent
+                              ? 'Unselect employee'
+                              : 'Select employee'}
+                        </button>
+                      ) : null}
+                      {openedEmployeeReturnRequest ? (
+                        <button
+                          type="button"
+                          className="btn-secondary"
+                          onClick={() => setOpenedEmployeeMode((prev) => (prev === 'request' ? 'full' : 'request'))}
+                        >
+                          {openedEmployeeMode === 'request' ? 'Employee details' : 'Return request'}
+                        </button>
+                      ) : null}
+
+                      {(!openedEmployeeIsEmployed && !openedEmployeeIsTravelled) && !openedEmployeeIsReturned ? (
+                        <>
+                          {isMainAgentAccount && !openedEmployeeIsUnderProcess ? (
+                            <button
+                              type="button"
+                              className="btn-secondary"
+                              onClick={() => handleStartProcess(openedEmployee)}
+                              disabled={
+                                readOnly ||
+                                actionBusyId === openedEmployee.id ||
+                                !openedEmployeeIsSelectedByCurrentAgent ||
+                                openedEmployee.status !== 'approved' ||
+                                openedEmployeeIsUnderProcess
+                              }
+                            >
+                              {actionBusyId === openedEmployee.id ? 'Saving...' : 'Proceed to process'}
+                            </button>
+                          ) : null}
+
+                          {canManageOrganizationProcesses && openedEmployeeIsUnderProcess ? (
+                            <button
+                              type="button"
+                              className="btn-danger"
+                              onClick={() => handleDeclineProcess(openedEmployee)}
+                              disabled={readOnly || actionBusyId === openedEmployee.id}
+                            >
+                              {actionBusyId === openedEmployee.id ? 'Saving...' : 'Decline process'}
+                            </button>
+                          ) : null}
+
+                          {canOverrideProgress && openedEmployeeIsUnderProcess && ((openedEmployee.progress_status?.overall_completion ?? 0) < 100 || !openedEmployee.did_travel) ? (
+                            <button
+                              type="button"
+                              className="btn-info"
+                              onClick={() => handleMarkProgressComplete(openedEmployee)}
+                              disabled={readOnly || actionBusyId === openedEmployee.id}
+                            >
+                              {actionBusyId === openedEmployee.id
+                                ? 'Saving...'
+                                : (openedEmployee.progress_status?.overall_completion ?? 0) >= 100
+                                  ? 'Confirm travelled'
+                                  : 'Mark progress 100%'}
+                            </button>
+                          ) : null}
+
+                          {openedEmployeeWorkflowState === 'pending' ? (
+                            <>
+                              <button type="button" className="btn-success" onClick={() => handleAvailabilityAction(openedEmployee, 'approved', 'Approved')} disabled={actionBusyId === openedEmployee.id || readOnly || isAgentSideUser}>
+                                {actionBusyId === openedEmployee.id ? 'Saving...' : 'Approve'}
+                              </button>
+                              <button type="button" className="btn-danger" onClick={() => handleAvailabilityAction(openedEmployee, 'rejected', 'Rejected')} disabled={actionBusyId === openedEmployee.id || readOnly || isAgentSideUser}>Reject</button>
+                              <button type="button" className="btn-warning" onClick={() => handleAvailabilityAction(openedEmployee, 'suspended', 'Suspended')} disabled={actionBusyId === openedEmployee.id || readOnly || isAgentSideUser}>Suspend</button>
+                            </>
+                          ) : null}
+
+                          {openedEmployeeWorkflowState === 'rejected' || openedEmployeeWorkflowState === 'suspended' ? (
+                            <button type="button" className="btn-secondary" onClick={() => handleAvailabilityAction(openedEmployee, 'pending', 'Moved to pending')} disabled={actionBusyId === openedEmployee.id || readOnly || isAgentSideUser}>
+                              {actionBusyId === openedEmployee.id ? 'Saving...' : 'Move to pending'}
+                            </button>
+                          ) : null}
+
+                          {canEditEmployeeRecords ? (
+                            <button type="button" className="btn-secondary" onClick={() => handleEdit(openedEmployee.id)} disabled={busyEmployeeId === openedEmployee.id || readOnly}>
+                              {busyEmployeeId === openedEmployee.id ? 'Loading...' : 'Edit'}
+                            </button>
+                          ) : null}
+
+                          <button type="button" className="btn-danger" onClick={() => handleDelete(openedEmployee)} disabled={readOnly || isAgentSideUser || openedEmployeeIsUnderProcess}>Delete</button>
+                        </>
+                      ) : null}
+
+                      {canApproveOpenedEmployeeReturn ? (
+                        <button
+                          type="button"
+                          className="btn-success"
+                          onClick={() => handleApproveEmploymentReturn(openedEmployee)}
+                          disabled={actionBusyId === openedEmployee.id || readOnly}
+                        >
+                          {actionBusyId === openedEmployee.id ? 'Saving...' : 'Approve'}
+                        </button>
+                      ) : null}
+                      {canRefuseOpenedEmployeeReturn ? (
+                        <button
+                          type="button"
+                          className="btn-secondary"
+                          onClick={() => handleRefuseEmployeeReturnRequest(openedEmployee)}
+                          disabled={actionBusyId === openedEmployee.id || readOnly}
+                        >
+                          {actionBusyId === openedEmployee.id ? 'Saving...' : 'Refuse'}
+                        </button>
+                      ) : null}
+                      {canCancelOpenedEmployeeReturnRequest ? (
+                        <button
+                          type="button"
+                          className="btn-secondary"
+                          onClick={() => handleCancelEmployeeReturnRequest(openedEmployee)}
+                          disabled={actionBusyId === openedEmployee.id || readOnly}
+                        >
+                          {actionBusyId === openedEmployee.id ? 'Saving...' : 'Cancel request'}
+                        </button>
+                      ) : null}
+                      {canReinstateOpenedEmployeeEmployment ? (
+                        <button
+                          type="button"
+                          className="btn-secondary"
+                          onClick={() => handleReinstateEmployeeEmployment(openedEmployee)}
+                          disabled={actionBusyId === openedEmployee.id || readOnly}
+                        >
+                          {actionBusyId === openedEmployee.id ? 'Saving...' : 'Reverse to employed'}
+                        </button>
+                      ) : null}
+
+                      <button type="button" className="btn-secondary" onClick={() => setOpenedEmployeeId(null)}>Close</button>
+                    </div>
+                  </div>
                 </div>
               </header>
 
@@ -5780,37 +6004,15 @@ export default function EmployeesPage() {
                             <div className="employee-review-activity-label">Responded at</div>
                             <div className="employee-review-activity-value">{formatDateTime(openedEmployeeReturnRequest.approved_at)}</div>
                           </div>
-                        </div>
-                        <div className="employee-review-activity-remark">
-                          <div className="employee-review-activity-label">Remark</div>
-                          <div className="employee-review-activity-value">{openedEmployeeReturnRequest.remark || '--'}</div>
-                        </div>
-                        <div className="employee-review-doc-grid employee-review-doc-grid--evidence">
-                          {[openedEmployeeReturnRequest?.evidence_file_1_url, openedEmployeeReturnRequest?.evidence_file_2_url, openedEmployeeReturnRequest?.evidence_file_3_url]
-                            .filter(Boolean)
-                            .map((url, index) => (
-                              <button
-                                type="button"
-                                key={`return-request-evidence-${index}`}
-                                className="employee-review-doc-card"
-                                onClick={() =>
-                                  openDocumentPreview({
-                                    url,
-                                    label: `Evidence ${index + 1}`,
-                                    isImage: !isPdfDocumentUrl(url),
-                                    isPdf: isPdfDocumentUrl(url)
-                                  })
-                                }
-                              >
-                                <div className="employee-review-doc-thumb">
-                                  {isPdfDocumentUrl(url) ? <span>PDF</span> : <img src={url} alt={`Evidence ${index + 1}`} />}
-                                </div>
-                                <div className="employee-review-doc-meta">
-                                  <strong>Evidence {index + 1}</strong>
-                                  <span className="muted-text">{isPdfDocumentUrl(url) ? 'PDF' : 'Image'}</span>
-                                </div>
-                              </button>
-                            ))}
+                          <div>
+                            <div className="employee-review-activity-label">Remark</div>
+                            <div
+                              className="employee-review-activity-value employee-review-activity-value--truncate"
+                              title={openedEmployeeReturnRequest.remark || ''}
+                            >
+                              {openedEmployeeReturnRequest.remark || '--'}
+                            </div>
+                          </div>
                         </div>
                       </div>
                     ) : (
@@ -5990,27 +6192,45 @@ export default function EmployeesPage() {
                             {
                               key: 'profile',
                               label: 'Profile Completed',
-                              done: (openedEmployee.progress_status?.field_completion ?? 0) >= 100
+                              done: (openedEmployee.progress_status?.field_completion ?? 0) >= 100,
+                              date: openedEmployee?.created_at
                             },
                             {
                               key: 'documents',
                               label: 'Documents Verified',
-                              done: (openedEmployee.progress_status?.document_completion ?? 0) >= 100
+                              done: (openedEmployee.progress_status?.document_completion ?? 0) >= 100,
+                              date: resolveLatestDate(openedEmployeeDocuments, ['verified_at', 'updated_at', 'created_at'])
                             },
                             {
                               key: 'selected',
                               label: 'Selected',
-                              done: Boolean(openedEmployee.selection_state?.selection)
+                              done: Boolean(openedEmployee.selection_state?.selection),
+                              date:
+                                openedEmployee.selection_state?.selection?.created_at ||
+                                openedEmployee.selection_state?.selection?.selected_at ||
+                                ''
                             },
                             {
                               key: 'travel',
-                              label: 'Travel Pending',
-                              done: String(openedEmployee.travel_status || 'pending') !== 'pending'
+                              label: 'Traveled',
+                              done: String(openedEmployee.travel_status || 'pending') !== 'pending',
+                              date: openedEmployee.departure_date || openedEmployee.travelled_at || openedEmployee.traveled_at || ''
                             },
                             {
                               key: 'arrived',
                               label: 'Arrived',
-                              done: Boolean(openedEmployee.did_travel) || String(openedEmployee.travel_status || '').includes('arrived')
+                              done: Boolean(openedEmployee.did_travel) || String(openedEmployee.travel_status || '').includes('arrived'),
+                              date: openedEmployee.arrived_at || openedEmployee.arrival_date || ''
+                            },
+                            {
+                              key: 'returned',
+                              label: 'Returned',
+                              done: openedEmployeeIsReturned,
+                              date:
+                                openedEmployee.return_request?.approved_at ||
+                                openedEmployee.returned_at ||
+                                openedEmployee.returned_on ||
+                                ''
                             }
                           ].map((step) => (
                             <li key={step.key} className={`employee-review-step${step.done ? ' is-done' : ''}`}>
@@ -6024,9 +6244,7 @@ export default function EmployeesPage() {
                               <div className="employee-review-step-copy">
                                 <span className="employee-review-step-label">{step.label}</span>
                                 <span className="employee-review-step-date muted-text">
-                                  {openedEmployee?.created_at
-                                    ? new Date(openedEmployee.created_at).toLocaleDateString(undefined, { day: '2-digit', month: 'short', year: 'numeric' })
-                                    : ''}
+                                  {formatShortDate(step.date)}
                                 </span>
                               </div>
                             </li>
@@ -6090,6 +6308,7 @@ export default function EmployeesPage() {
                           { id: 'contract', label: 'Contract' },
                           { id: 'medical', label: 'Medical' },
                           { id: 'photos', label: 'Photos' },
+                          { id: 'returns', label: 'Returns' },
                           { id: 'other', label: 'Other' }
                         ].map((tab) => (
                           <span
@@ -6150,22 +6369,56 @@ export default function EmployeesPage() {
 
                   <section className="employee-review-panel employee-review-panel--activity">
                     <div className="employee-review-panel-header">
-                      <h3>Activity / Return requests</h3>
+                      <h3 className="employee-review-panel-title">
+                        <span className="employee-review-panel-icon" aria-hidden="true">
+                          <svg viewBox="0 0 24 24" width="18" height="18" fill="none">
+                            <path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10Z" stroke="currentColor" strokeWidth="2" />
+                            <path d="M12 6v6l4 2" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                          </svg>
+                        </span>
+                        Activity / Return requests
+                      </h3>
                     </div>
                     {openedEmployeeReturnRequest ? (
                       <div className="employee-review-activity employee-review-activity--timeline">
-                        <div className="employee-review-activity-tick" aria-hidden="true" />
+                        <ol className="employee-review-stepper employee-review-stepper--progress employee-review-stepper--activity" aria-label="Return request activity">
+                          <li className="employee-review-step is-done">
+                            <span className="employee-review-step-icon" aria-hidden="true">
+                              <svg viewBox="0 0 24 24" width="12" height="12" fill="none">
+                                <path d="M20 6 9 17l-5-5" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+                              </svg>
+                            </span>
+                            <div className="employee-review-step-copy">
+                              <span className="employee-review-step-label">{formatShortDate(openedEmployeeReturnRequest.requested_at)}</span>
+                              <span className="employee-review-step-date muted-text">{formatShortTime(openedEmployeeReturnRequest.requested_at)}</span>
+                            </div>
+                          </li>
+                        </ol>
                         <div className="employee-review-activity-body">
                           <div className="employee-review-activity-header">
-                            <span className={`employee-status-pill employee-status-pill--${openedEmployeeReturnRequest.status === 'pending' ? 'warning' : openedEmployeeReturnRequest.status === 'cancelled' || openedEmployeeReturnRequest.status === 'refused' ? 'danger' : 'neutral'}`}>
-                              {prettyStatus(openedEmployeeReturnRequest.status)}
-                            </span>
-                            <span className="muted-text">{formatDateTime(openedEmployeeReturnRequest.requested_at)}</span>
+                            <div className="employee-review-activity-title-row">
+                              <strong className="employee-review-activity-title">Return Request</strong>
+                              <span
+                                className={`employee-status-pill employee-status-pill--${
+                                  openedEmployeeReturnRequest.status === 'pending'
+                                    ? 'warning'
+                                    : openedEmployeeReturnRequest.status === 'cancelled' || openedEmployeeReturnRequest.status === 'refused'
+                                      ? 'danger'
+                                      : 'neutral'
+                                }`}
+                              >
+                                {prettyStatus(openedEmployeeReturnRequest.status)}
+                              </span>
+                            </div>
                           </div>
                           <div className="employee-review-activity-grid">
                             <div>
                               <div className="employee-review-activity-label">Requested by</div>
                               <div className="employee-review-activity-value">{openedEmployeeReturnRequest.requested_by_username || '--'}</div>
+                            </div>
+                            <div>
+                              <div className="employee-review-activity-label">Requested at</div>
+                              <div className="employee-review-activity-value">{formatDateTime(openedEmployeeReturnRequest.requested_at)}</div>
                             </div>
                             <div>
                               <div className="employee-review-activity-label">Responded by</div>
@@ -6181,37 +6434,15 @@ export default function EmployeesPage() {
                                 <div className="employee-review-activity-value">{openedEmployee.returned_recorded_by_username}</div>
                               </div>
                             ) : null}
-                          </div>
-                          <div className="employee-review-activity-remark">
-                            <div className="employee-review-activity-label">Remark</div>
-                            <div className="employee-review-activity-value">{openedEmployeeReturnRequest.remark || '--'}</div>
-                          </div>
-                          <div className="employee-review-doc-grid employee-review-doc-grid--evidence">
-                            {[openedEmployeeReturnRequest.evidence_file_1_url, openedEmployeeReturnRequest.evidence_file_2_url, openedEmployeeReturnRequest.evidence_file_3_url]
-                              .filter(Boolean)
-                              .map((url, index) => (
-                                <button
-                                  type="button"
-                                  key={`last-return-request-evidence-${index}`}
-                                  className="employee-review-doc-card"
-                                  onClick={() =>
-                                    openDocumentPreview({
-                                      url,
-                                      label: `Evidence ${index + 1}`,
-                                      isImage: !isPdfDocumentUrl(url),
-                                      isPdf: isPdfDocumentUrl(url)
-                                    })
-                                  }
-                                >
-                                  <div className="employee-review-doc-thumb">
-                                    {isPdfDocumentUrl(url) ? <span>PDF</span> : <img src={url} alt={`Evidence ${index + 1}`} loading="lazy" />}
-                                  </div>
-                                  <div className="employee-review-doc-meta">
-                                    <strong>Evidence {index + 1}</strong>
-                                    <span className="muted-text">{isPdfDocumentUrl(url) ? 'PDF' : 'Image'}</span>
-                                  </div>
-                                </button>
-                              ))}
+                            <div>
+                              <div className="employee-review-activity-label">Remark</div>
+                              <div
+                                className="employee-review-activity-value employee-review-activity-value--truncate"
+                                title={openedEmployeeReturnRequest.remark || ''}
+                              >
+                                {openedEmployeeReturnRequest.remark || '--'}
+                              </div>
+                            </div>
                           </div>
                         </div>
                       </div>
@@ -6299,5 +6530,6 @@ export default function EmployeesPage() {
         </div>
       ) : null}
     </section>
+    )
   )
 }

@@ -50,6 +50,19 @@ html[data-density='compact'] .dashboard-panel {
   padding: 30px;
 }
 
+html[data-density='compact'] .employee-card {
+  padding: 12px;
+  min-height: 196px;
+}
+
+html[data-density='compact'] .employee-card-collapse-btn {
+  top: auto;
+  bottom: 8px;
+  right: 8px;
+  width: 30px;
+  height: 30px;
+}
+
 html[data-density='compact'] .employee-modal {
   width: min(1240px, 100%);
 }
@@ -528,13 +541,13 @@ html[data-density='compact'] .employee-review-step-label {
 
 html[data-density='compact'] .employee-review-stepper--progress {
   padding-left: 0;
-  padding-top: 1vh;
-  gap: 4px;
+  padding-top: 0;
+  gap: 3px;
 }
 
 html[data-density='compact'] .employee-review-stepper--progress::before {
-  top: 15px;
-  bottom: 15px;
+  top: 9px;
+  bottom: 9px;
 }
 
 html[data-density='compact'] .employee-progress-donut {
@@ -634,8 +647,25 @@ html[data-density='compact'] .employee-review-activity-value {
 }
 
 html[data-density='compact'] .employee-review-activity-remark {
-  padding: 8px 10px;
-  border-radius: 10px;
+  padding: 0;
+  border-radius: 0;
+}
+
+html[data-density='compact'] .employee-review-activity--timeline {
+  grid-template-columns: 132px minmax(0, 1fr);
+  gap: 12px;
+}
+
+html[data-density='compact'] .employee-review-stepper--activity {
+  min-height: 64px;
+}
+
+html[data-density='compact'] .employee-review-activity-body {
+  gap: 8px;
+}
+
+html[data-density='compact'] .employee-review-activity-title {
+  font-size: 0.74rem;
 }
 
 html[data-density='compact'] .employee-modal-header,

@@ -198,7 +198,7 @@
   max-height: 100%;
   border-radius: 8px 0 0 8px;
   border: 1px solid color-mix(in oklch, var(--color-border) 62%, transparent);
-  background: color-mix(in oklch, var(--color-card) 88%, var(--color-muted));
+  background: rgb(57 57 57 / 15%);
   display: grid;
   place-items: center;
   color: var(--color-muted-foreground);
@@ -1849,15 +1849,67 @@ button.employee-registration-step.is-active .employee-registration-step-index {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
   gap: 16px;
+  align-items: start;
+  grid-auto-rows: 10px;
+  grid-auto-flow: row;
+  overflow-anchor: none;
 }
 
 .employee-card {
-  border: 1px solid var(--color-border);
+  width: 100%;
+  margin: 0;
+  align-self: start;
+  min-height: 220px;
+  overflow-anchor: none;
+  border: 1px solid color-mix(in oklch, var(--color-border) 76%, transparent);
   border-radius: 5px;
-  background: color-mix(in oklch, var(--color-card) 92%, var(--color-muted));
-  padding: 44px 18px 18px;
+  background: color-mix(in oklch, var(--color-card) 88%, var(--color-muted));
+  padding: 16px;
   cursor: pointer;
   position: relative;
+  transition: background-color 160ms ease, border-color 160ms ease, box-shadow 160ms ease;
+}
+
+.employee-card-expand {
+  display: none;
+  opacity: 0;
+  transform: translateY(-4px);
+  overflow: hidden;
+  transition: opacity 180ms ease, transform 180ms ease;
+}
+
+.employee-card-expand.is-expanded {
+  display: block;
+  opacity: 1;
+  transform: translateY(0);
+  overflow: visible;
+}
+
+.employee-card-collapse-btn {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  width: 34px;
+  height: 34px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in oklch, var(--color-border) 76%, transparent);
+  background: color-mix(in oklch, var(--color-card) 92%, var(--color-muted));
+  color: var(--color-muted-foreground);
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  padding: 0;
+}
+
+.employee-card-collapse-btn:hover {
+  background: color-mix(in oklch, var(--color-card) 82%, rgb(var(--accent-active-border) / 0.08));
+  border-color: color-mix(in oklch, var(--color-border) 72%, rgb(var(--accent-active-border) / 0.14));
+  color: var(--color-foreground);
+}
+
+.employee-card-collapse-btn:focus-visible {
+  outline: 2px solid color-mix(in oklch, var(--color-ring) 72%, transparent);
+  outline-offset: 3px;
 }
 
 .employee-card-header {
@@ -1873,6 +1925,9 @@ button.employee-registration-step.is-active .employee-registration-step-index {
   flex-direction: column;
   align-items: flex-end;
   gap: 8px;
+  position: absolute;
+  top: 0;
+  right: 0;
 }
 
 .employee-card-identity {
@@ -2534,6 +2589,17 @@ html[data-density='compact'] .employee-review-modal.employee-other-documents-mod
   gap: 10px;
 }
 
+.employee-review-actions-stack {
+  display: block;
+}
+
+.employee-review-actions-secondary {
+  display: flex;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
 .employee-review-dashboard {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr) minmax(0, 1fr);
@@ -2979,6 +3045,7 @@ html[data-density='compact'] .employee-review-modal.employee-other-documents-mod
 }
 
 .employee-review-doc-thumb {
+  position: relative;
   height: 50px;
   width: 50px;
   margin: auto;
@@ -2989,6 +3056,22 @@ html[data-density='compact'] .employee-review-modal.employee-other-documents-mod
   overflow: hidden;
 }
 
+.employee-review-doc-thumb-badge {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  border: 1px solid rgb(255 255 255 / 0.12);
+  background: rgb(0 0 0 / 0.5);
+  color: rgb(255 255 255 / 0.92);
+  box-shadow: 0 10px 24px rgb(0 0 0 / 0.3);
+  z-index: 2;
+}
+
 .employee-review-doc-thumb img {
   width: 100%;
   height: 100%;
@@ -2997,6 +3080,8 @@ html[data-density='compact'] .employee-review-modal.employee-other-documents-mod
   min-width: 100%;
   min-height: 100%;
   display: block;
+  position: relative;
+  z-index: 1;
 }
 
 .employee-review-doc-thumb span {
@@ -3101,23 +3186,39 @@ html[data-density='compact'] .employee-review-modal.employee-other-documents-mod
 .employee-review-activity--timeline {
   position: relative;
   display: grid;
-  grid-template-columns: 14px minmax(0, 1fr);
-  gap: 14px;
-  align-items: start;
+  grid-template-columns: 160px minmax(0, 1fr);
+  gap: 16px;
+  align-items: stretch;
 }
 
-.employee-review-activity-tick {
-  width: 14px;
-  height: 14px;
-  border-radius: 999px;
-  border: 2px solid rgb(var(--accent-active) / 0.5);
-  background: rgb(var(--accent-active) / 0.18);
-  margin-top: 6px;
+/* Activity timeline uses the same stepper styling as Application Progress. */
+.employee-review-stepper--activity {
+  padding-top: 0;
+  height: 100%;
+  min-height: 84px;
+}
+
+.employee-review-stepper--activity .employee-review-step {
+  font-size: 0.9rem;
+}
+
+.employee-review-stepper--activity .employee-review-step-label {
+  font-size: 0.9rem;
+  font-weight: 800;
+}
+
+.employee-review-stepper--activity .employee-review-step-date {
+  font-size: 0.86rem;
 }
 
 .employee-review-activity-body {
   display: grid;
-  gap: 14px;
+  gap: 10px;
+  padding: 0;
+  border-radius: 0;
+  border: none;
+  background: transparent;
+  box-shadow: none;
 }
 
 .employee-review-activity-header {
@@ -3127,32 +3228,65 @@ html[data-density='compact'] .employee-review-modal.employee-other-documents-mod
   gap: 12px;
 }
 
+.employee-review-activity-title-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.employee-review-activity-title {
+  font-size: 0.82rem;
+  font-weight: 600;
+  letter-spacing: 0;
+  color: var(--color-foreground);
+}
+
 .employee-review-activity-grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px 18px;
+  grid-template-columns: repeat(4, minmax(0, 1fr)) minmax(0, 2.2fr);
+  gap: 10px 12px;
+}
+
+.employee-review-activity-value--truncate {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+@media (max-width: 1400px) {
+  .employee-review-activity-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 1100px) {
+  .employee-review-activity-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 .employee-review-activity-label {
-  color: var(--color-muted-foreground);
-  font-size: 0.78rem;
-  font-weight: 800;
-  letter-spacing: 0.02em;
-  text-transform: uppercase;
+  color: var(--color-foreground);
+  font-size: 0.82rem;
+  font-weight: 600;
+  letter-spacing: 0;
+  text-transform: none;
 }
 
 .employee-review-activity-value {
-  color: var(--color-foreground);
-  font-weight: 800;
-  margin-top: 6px;
+  color: var(--color-muted-foreground);
+  font-size: 0.88rem;
+  font-weight: 400;
+  margin-top: 2px;
   word-break: break-word;
 }
 
 .employee-review-activity-remark {
-  padding: 12px 14px;
-  border-radius: 16px;
-  border: 1px solid rgb(255 255 255 / 0.06);
-  background: rgb(255 255 255 / 0.02);
+  padding: 0;
+  border-radius: 0;
+  border: none;
+  background: transparent;
 }
 
 @media (max-width: 960px) {
@@ -3168,6 +3302,14 @@ html[data-density='compact'] .employee-review-modal.employee-other-documents-mod
 
   .employee-review-actions {
     justify-content: flex-start;
+  }
+
+  .employee-review-activity--timeline {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .employee-review-stepper--activity {
+    padding-top: 0;
   }
 }
 
@@ -3648,7 +3790,6 @@ html[data-theme='dark'] .employee-employed-block {
 }
 
 @media (max-width: 680px) {
-  .employee-cards,
   .employee-card-preview-strip {
     grid-template-columns: 1fr;
   }
