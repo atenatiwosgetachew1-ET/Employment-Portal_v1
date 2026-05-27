@@ -54,13 +54,23 @@ html[data-density='compact'] .employee-card {
   padding: 12px;
 }
 
-html[data-density='compact'] .employee-card-collapse-btn,
-html[data-density='compact'] .employee-card-details-btn {
+html[data-density='compact'] .employee-card-menu {
   top: 10px;
-  bottom: auto;
   right: 8px;
-  width: 38px;
-  height: 30px;
+  width: 40px;
+  padding: 0 0 6px 0;
+  gap: 8px
+}
+
+html[data-density='compact'] .employee-card-menu-btn {
+  width: 36px;
+  height: 10px;
+  background-color: transparent;
+}
+
+html[data-density='compact'] .employee-card-menu-item {
+  width: 32px;
+  height: 32px;
 }
 
 html[data-density='compact'] .employee-modal {

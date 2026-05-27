@@ -1155,6 +1155,7 @@ export default function EmployeesPage() {
   const [floatingAttachmentPreview, setFloatingAttachmentPreview] = useState(null)
   const floatingAttachmentPreviewCloseTimer = useRef(null)
   const employeeModalFormRef = useRef(null)
+  const [openEmployeeCardMenuId, setOpenEmployeeCardMenuId] = useState(null)
   const [invalidStepErrors, setInvalidStepErrors] = useState({})
   const [attemptedRegistrationSteps, setAttemptedRegistrationSteps] = useState({})
   const [pendingValidationHighlight, setPendingValidationHighlight] = useState(null)
@@ -3471,8 +3472,39 @@ export default function EmployeesPage() {
   const toggleEmployeeCardExpanded = useCallback((employeeId) => {
     employeeCardMasonryDebugLog('toggle expand', { employeeId, prevExpanded: expandedEmployeeCardId })
     setExpandedEmployeeCardReadyId(null)
+    setOpenEmployeeCardMenuId(null)
     setExpandedEmployeeCardId((prev) => (prev === employeeId ? null : employeeId))
   }, [expandedEmployeeCardId])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    if (!openEmployeeCardMenuId) return
+
+    const handlePointerDown = (event) => {
+      const target = event.target
+      if (!(target instanceof Element)) {
+        setOpenEmployeeCardMenuId(null)
+        return
+      }
+
+      const menuRoot = target.closest?.('.employee-card-menu')
+      const menuIdRaw = menuRoot?.getAttribute?.('data-menu-employee-id') || ''
+      const menuId = Number.parseInt(menuIdRaw, 10)
+      if (menuId && menuId === openEmployeeCardMenuId) return
+      setOpenEmployeeCardMenuId(null)
+    }
+
+    const handleKeyDown = (event) => {
+      if (event.key === 'Escape') setOpenEmployeeCardMenuId(null)
+    }
+
+    window.addEventListener('pointerdown', handlePointerDown, { capture: true })
+    window.addEventListener('keydown', handleKeyDown)
+    return () => {
+      window.removeEventListener('pointerdown', handlePointerDown, { capture: true })
+      window.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [openEmployeeCardMenuId])
 
   const reflowEmployeeCardsMasonry = useCallback(() => {
     const grid = employeeCardsGridRef.current
@@ -5173,6 +5205,7 @@ export default function EmployeesPage() {
                 const profilePhoto = employeeProfilePhoto(employee)
                 const isOpened = openedEmployeeId === employee.id
                 const isExpanded = expandedEmployeeCardId === employee.id
+                const isMenuOpen = isExpanded || openEmployeeCardMenuId === employee.id
                 const selectionState = employee.selection_state || {}
                 const selection = selectionState.selection
                 const isSelectedByCurrentAgent = Boolean(selectionState.selected_by_current_agent)
@@ -5211,42 +5244,88 @@ export default function EmployeesPage() {
                       }
                     }}
                   >
-                    <button
-                      type="button"
-                      className="employee-card-collapse-btn employee-card-details-btn"
-                      aria-label={isOpened ? 'Close employee details' : 'Open employee details'}
-                      aria-expanded={isOpened}
-                      onClick={(event) => {
-                        event.stopPropagation()
-                        setOpenedEmployeeMode('full')
-                        setOpenedEmployeeId((prev) => (prev === employee.id ? null : employee.id))
-                      }}
-                      onKeyDown={(event) => {
-                        event.stopPropagation()
-                      }}
+                    <div
+                      className={`employee-card-menu${isMenuOpen ? ' is-open' : ''}`}
+                      data-menu-employee-id={employee.id}
+                      onClick={(event) => event.stopPropagation()}
+                      onKeyDown={(event) => event.stopPropagation()}
                     >
-                      <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
-                        {isOpened ? (
-                          <path
-                            d="M18 6 6 18M6 6l12 12"
-                            fill="none"
-                            stroke="currentColor"
-                            strokeWidth="2.5"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                          />
-                        ) : (
-                          <path
-                            d="M9 4H4v5M15 4h5v5M9 20H4v-5M15 20h5v-5"
-                            fill="none"
-                            stroke="currentColor"
-                            strokeWidth="2.5"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                          />
-                        )}
-                      </svg>
-                    </button>
+                      <button
+                        type="button"
+                        className="employee-card-menu-btn"
+                        aria-label="Open employee actions"
+                        aria-expanded={isMenuOpen}
+                        onClick={(event) => {
+                          event.preventDefault()
+                          event.stopPropagation()
+                          setOpenEmployeeCardMenuId((prev) => (prev === employee.id ? null : employee.id))
+                        }}
+                      >
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true" xmlns="http://www.w3.org/2000/svg">
+                          <circle cx="5" cy="12" r="1.8" fill="currentColor" />
+                          <circle cx="12" cy="12" r="1.8" fill="currentColor" />
+                          <circle cx="19" cy="12" r="1.8" fill="currentColor" />
+                        </svg>
+                      </button>
+
+                      <div className="employee-card-menu-panel" role="menu" aria-label="Employee actions">
+                        <button
+                          type="button"
+                          className="employee-card-menu-item employee-card-menu-item--details"
+                          role="menuitem"
+                          aria-label={isOpened ? 'Close employee details' : 'Open employee details'}
+                          onClick={(event) => {
+                            event.preventDefault()
+                            event.stopPropagation()
+                            setOpenEmployeeCardMenuId(null)
+                            setOpenedEmployeeMode('full')
+                            setOpenedEmployeeId((prev) => (prev === employee.id ? null : employee.id))
+                          }}
+                        >
+                          <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
+                            {isOpened ? (
+                              <path
+                                d="M18 6 6 18M6 6l12 12"
+                                fill="none"
+                                stroke="currentColor"
+                                strokeWidth="2.5"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                              />
+                            ) : (
+                              <path
+                                d="M9 4H4v5M15 4h5v5M9 20H4v-5M15 20h5v-5"
+                                fill="none"
+                                stroke="currentColor"
+                                strokeWidth="2.5"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                              />
+                            )}
+                          </svg>
+                        </button>
+
+                        {(!isEmployedEmployee && !isTravelledEmployee) && !isReturnedEmployee && !isUnderProcess && isAvailableEmployee ? (
+                          <button
+                            type="button"
+                            className="employee-card-menu-item employee-card-menu-item--select"
+                            role="menuitem"
+                            aria-label={isSelectedByCurrentAgent ? 'Unselect employee' : 'Select employee'}
+                            disabled={readOnly || !isAgentSideUser || actionBusyId === employee.id}
+                            onClick={(event) => {
+                              event.preventDefault()
+                            event.stopPropagation()
+                            setOpenEmployeeCardMenuId(null)
+                            handleToggleSelectedEmployee(employee)
+                          }}
+                        >
+                          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M20 6 9 17l-5-5" style={{ stroke: 'currentColor', strokeWidth: 1.9, strokeLinecap: 'round', strokeLinejoin: 'round' }} />
+                          </svg>
+                        </button>
+                      ) : null}
+                      </div>
+                    </div>
                     <div className="employee-card-header">
                       <div className="employee-card-identity">
                         <div className="employee-card-avatar">
@@ -5302,21 +5381,55 @@ export default function EmployeesPage() {
                           {CARD_PREVIEW_DOCUMENTS.map((preview) => {
                             const document = findEmployeeDocument(employee, preview.types)
                             const hasImage = document?.file_url && isImageDocument(document)
+                            const url = document?.file_url || ''
+                            const canOpenPreview = Boolean(url)
 
                             return (
-                              <div key={`${employee.id}-${preview.key}`} className="employee-doc-preview">
-                                <div className="employee-doc-preview-tile">
+                              <div
+                                key={`${employee.id}-${preview.key}`}
+                                className="employee-doc-preview"
+                              >
+                                <div
+                                  className="employee-doc-preview-tile"
+                                  role={canOpenPreview ? 'button' : undefined}
+                                  tabIndex={canOpenPreview ? 0 : undefined}
+                                  aria-label={canOpenPreview ? `Open ${preview.label} preview` : undefined}
+                                  onClick={(event) => {
+                                    if (!canOpenPreview) return
+                                    event.preventDefault()
+                                    event.stopPropagation()
+                                    openDocumentPreview({
+                                      url,
+                                      label: `${employee.full_name} ${preview.label}`,
+                                      isImage: hasImage,
+                                      isPdf: isPdfDocumentUrl(url)
+                                    })
+                                  }}
+                                  onKeyDown={(event) => {
+                                    if (!canOpenPreview) return
+                                    if (event.key === 'Enter' || event.key === ' ') {
+                                      event.preventDefault()
+                                      event.stopPropagation()
+                                      openDocumentPreview({
+                                        url,
+                                        label: `${employee.full_name} ${preview.label}`,
+                                        isImage: hasImage,
+                                        isPdf: isPdfDocumentUrl(url)
+                                      })
+                                    }
+                                  }}
+                                >
                                   {hasImage ? (
-                                    <img src={document.file_url} alt={`${employee.full_name} ${preview.label}`} />
+                                    <img src={url} alt={`${employee.full_name} ${preview.label}`} />
                                   ) : (
                                     <span>{preview.label}</span>
                                   )}
                                 </div>
                                 <strong>{preview.label}</strong>
-                                {document?.file_url ? (
+                                {url ? (
                                   <div className="employee-doc-preview-popover">
                                     {hasImage ? (
-                                      <img src={document.file_url} alt={`${employee.full_name} ${preview.label} preview`} />
+                                      <img src={url} alt={`${employee.full_name} ${preview.label} preview`} />
                                     ) : (
                                       <span>{fileLabel(document, attachmentLabels)}</span>
                                     )}
