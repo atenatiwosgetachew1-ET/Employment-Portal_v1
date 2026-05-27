@@ -52,14 +52,14 @@ html[data-density='compact'] .dashboard-panel {
 
 html[data-density='compact'] .employee-card {
   padding: 12px;
-  min-height: 196px;
 }
 
-html[data-density='compact'] .employee-card-collapse-btn {
-  top: auto;
-  bottom: 8px;
+html[data-density='compact'] .employee-card-collapse-btn,
+html[data-density='compact'] .employee-card-details-btn {
+  top: 10px;
+  bottom: auto;
   right: 8px;
-  width: 30px;
+  width: 38px;
   height: 30px;
 }
 

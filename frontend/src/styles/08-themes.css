@@ -191,6 +191,10 @@ html[data-accent='natural'] .oauth-error {
   -webkit-backdrop-filter: none;
 }
 
+html[data-accent='natural'] .employee-card {
+  border-color: #2f2f2fbd;
+}
+
 /* Category: Surface-adjacent controls
    Tiles, avatars, pills, readonly chips, and small neutral controls. */
 
@@ -623,6 +627,72 @@ html[data-theme='dark'][data-accent='natural'] .oauth-error {
   background-color: transparent;
 }
 
+html[data-theme='dark'][data-accent='natural'] .employee-card {
+  background: rgb(57 57 57 / 15%);
+  background-color: rgb(57 57 57 / 15%);
+}
+
+html[data-theme='dark'][data-accent='natural'] .employee-card.is-expanded,
+html[data-theme='dark'][data-accent='natural'] .employee-card.is-expanded:hover {
+  background: rgb(255 255 255 / 0.08);
+  background-color: rgb(255 255 255 / 0.08);
+  border-color: color-mix(in oklch, var(--color-border) 70%, rgb(var(--accent-active-border) / 0.22));
+}
+
+html[data-theme='dark'][data-accent='natural'] .employee-card.is-expanded[data-badge='badge-success'] {
+  border-color: var(--tag-green-bg);
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in oklch, var(--tag-green-bg) 10%, transparent) 0%,
+      rgb(0 0 0 / 0.53) 70%
+    ),
+    rgb(255 255 255 / 0.08);
+  background-color: rgb(255 255 255 / 0.08);
+}
+
+html[data-theme='dark'][data-accent='natural'] .employee-card.is-expanded[data-badge='badge-warning'] {
+  border-color: var(--tag-orange-bg);
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in oklch, var(--tag-orange-bg) 10%, transparent) 0%,
+      rgb(0 0 0 / 0.53) 70%
+    ),
+    rgb(255 255 255 / 0.08);
+  background-color: rgb(255 255 255 / 0.08);
+}
+
+html[data-theme='dark'][data-accent='natural'] .employee-card.is-expanded[data-badge='badge-danger'] {
+  border-color: var(--tag-red-bg);
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in oklch, var(--tag-red-bg) 10%, transparent) 0%,
+      rgb(0 0 0 / 0.53) 70%
+    ),
+    rgb(255 255 255 / 0.08);
+  background-color: rgb(255 255 255 / 0.08);
+}
+
+html[data-theme='dark'][data-accent='natural'] .employee-card.is-expanded[data-badge='badge-info'] {
+  border-color: #2563eb;
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in oklch, #2563eb 10%, transparent) 0%,
+      rgb(0 0 0 / 0.53) 70%
+    ),
+    rgb(255 255 255 / 0.08);
+  background-color: rgb(255 255 255 / 0.08);
+}
+
+html[data-theme='dark'][data-accent='natural'] .employee-card.is-expanded[data-badge='badge-muted'] {
+  border-color: rgb(var(--accent-active-border) / 0.4);
+  background: rgb(255 255 255 / 0.08);
+  background-color: rgb(255 255 255 / 0.08);
+}
+
 html[data-theme='dark'][data-accent='natural'] .commission-group:hover {
   background: rgba(20, 20, 20, 0.5);
   background-color: rgba(20, 20, 20, 0.5);
@@ -925,8 +995,8 @@ html[data-theme='dark'] .notification-dropdown-header {
 }
 
 html[data-theme='dark'] .employee-card {
-  background: #1717175e;
-  background-color: #1717175e;
+  background: rgb(57 57 57 / 15%);
+  background-color: rgb(57 57 57 / 15%);
 }
 
 /* Employee registration step tabs: active state uses a light gradient, so force dark text. */

@@ -1116,6 +1116,7 @@ export default function EmployeesPage() {
   const [openedEmployeeMode, setOpenedEmployeeMode] = useState('full')
   const [reviewDocumentsTab, setReviewDocumentsTab] = useState('all')
   const [expandedEmployeeCardId, setExpandedEmployeeCardId] = useState(null)
+  const [expandedEmployeeCardReadyId, setExpandedEmployeeCardReadyId] = useState(null)
   const employeeCardsGridRef = useRef(null)
   const employeeCardItemRefs = useRef(new Map())
   const reviewDocsScrollerRef = useRef(null)
@@ -3469,6 +3470,7 @@ export default function EmployeesPage() {
 
   const toggleEmployeeCardExpanded = useCallback((employeeId) => {
     employeeCardMasonryDebugLog('toggle expand', { employeeId, prevExpanded: expandedEmployeeCardId })
+    setExpandedEmployeeCardReadyId(null)
     setExpandedEmployeeCardId((prev) => (prev === employeeId ? null : employeeId))
   }, [expandedEmployeeCardId])
 
@@ -3478,25 +3480,68 @@ export default function EmployeesPage() {
     const computed = window.getComputedStyle(grid)
     const rowHeight = Number.parseFloat(computed.gridAutoRows) || 10
     const rowGap = Number.parseFloat(computed.rowGap || computed.gap) || 0
+    const columns = Math.max(
+      1,
+      String(computed.gridTemplateColumns || '')
+        .split(' ')
+        .filter(Boolean).length
+    )
 
     employeeCardMasonryDebugLog('reflow start', {
       expandedEmployeeCardId,
       rowHeight,
       rowGap,
+      columns,
       cards: employeeCardItemRefs.current.size,
       scrollTop:
         (grid?.closest?.('.dashboard-content') || document.scrollingElement)?.scrollTop ?? null
     })
 
-    for (const node of employeeCardItemRefs.current.values()) {
+    const orderedNodes = Array.from(grid.querySelectorAll('.employee-card'))
+    const nextRowStartByColumn = Array.from({ length: columns }, () => 1)
+
+    for (let index = 0; index < orderedNodes.length; index += 1) {
+      const node = orderedNodes[index]
       if (!node) continue
+
+      const columnIndex = index % columns
+      const columnStart = columnIndex + 1
+
       const height = node.getBoundingClientRect().height
       const span = Math.max(1, Math.ceil((height + rowGap) / (rowHeight + rowGap)))
+      const rowStart = nextRowStartByColumn[columnIndex]
+
+      node.style.gridColumnStart = String(columnStart)
+      node.style.gridColumnEnd = 'span 1'
+      node.style.gridRowStart = String(rowStart)
       node.style.gridRowEnd = `span ${span}`
+
+      nextRowStartByColumn[columnIndex] = rowStart + span
     }
 
     employeeCardMasonryDebugLog('reflow end')
   }, [])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    if (!expandedEmployeeCardId) return
+
+    const prefersReducedMotion =
+      typeof window.matchMedia === 'function' && window.matchMedia('(prefers-reduced-motion: reduce)').matches
+
+    if (prefersReducedMotion) {
+      setExpandedEmployeeCardReadyId(expandedEmployeeCardId)
+      window.requestAnimationFrame(() => reflowEmployeeCardsMasonry())
+      return
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      setExpandedEmployeeCardReadyId(expandedEmployeeCardId)
+      window.requestAnimationFrame(() => reflowEmployeeCardsMasonry())
+    }, 240)
+
+    return () => window.clearTimeout(timeoutId)
+  }, [expandedEmployeeCardId, reflowEmployeeCardsMasonry])
 
   useLayoutEffect(() => {
     if (typeof window === 'undefined') return
@@ -5132,6 +5177,7 @@ export default function EmployeesPage() {
                 const selection = selectionState.selection
                 const isSelectedByCurrentAgent = Boolean(selectionState.selected_by_current_agent)
                 const workflowState = employeeWorkflowState(employee)
+                const badgeClass = employeeStatusBadgeClass(employee)
                 const isUnderProcess = workflowState === 'under_process'
                 const isEmployedEmployee = isEmployeeEmployedInView(employee)
                 const isTravelledEmployee = workflowState === 'traveled'
@@ -5151,7 +5197,8 @@ export default function EmployeesPage() {
                       if (node) map.set(employee.id, node)
                       else map.delete(employee.id)
                     }}
-                    className={`employee-card${isOpened ? ' is-open' : ''}`}
+                    data-badge={badgeClass}
+                    className={`employee-card${isOpened ? ' is-open' : ''}${isExpanded ? ' is-expanded' : ''}`}
                     onClick={() => {
                       toggleEmployeeCardExpanded(employee.id)
                     }}
@@ -5166,7 +5213,7 @@ export default function EmployeesPage() {
                   >
                     <button
                       type="button"
-                      className="employee-card-collapse-btn"
+                      className="employee-card-collapse-btn employee-card-details-btn"
                       aria-label={isOpened ? 'Close employee details' : 'Open employee details'}
                       aria-expanded={isOpened}
                       onClick={(event) => {
@@ -5179,14 +5226,25 @@ export default function EmployeesPage() {
                       }}
                     >
                       <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
-                        <path
-                          d={isOpened ? 'M18 6 6 18M6 6l12 12' : 'm9 18 6-6-6-6'}
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth="2.5"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                        />
+                        {isOpened ? (
+                          <path
+                            d="M18 6 6 18M6 6l12 12"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="2.5"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          />
+                        ) : (
+                          <path
+                            d="M9 4H4v5M15 4h5v5M9 20H4v-5M15 20h5v-5"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="2.5"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          />
+                        )}
                       </svg>
                     </button>
                     <div className="employee-card-header">
@@ -5221,43 +5279,53 @@ export default function EmployeesPage() {
                       <p className="muted-text">Return remark: {employee.return_request.remark}</p>
                     ) : null}
                     <p className="muted-text">Progress {employee.progress_status?.overall_completion ?? 0}% | Travel {prettyStatus(employee.travel_status, 'pending')} | Return {prettyStatus(employee.return_status)}</p>
-                    <div className={`employee-card-expand${isExpanded ? ' is-expanded' : ''}`}>
-                      {employee.urgency_alerts?.length ? (
-                        <div className="employee-alert-list">
-                          {employee.urgency_alerts.map((alert) => (
-                            <span key={`${employee.id}-${alert.field}`} className="badge badge-warning">
-                              {alert.label} {alert.days_remaining < 0 ? 'expired' : `${alert.days_remaining}d`}
-                            </span>
-                          ))}
-                        </div>
-                      ) : null}
-                      <div className="employee-card-preview-strip">
-                        {CARD_PREVIEW_DOCUMENTS.map((preview) => {
-                          const document = findEmployeeDocument(employee, preview.types)
-                          const hasImage = document?.file_url && isImageDocument(document)
+                    <div
+                      className={`employee-card-expand${isExpanded ? ' is-expanded' : ''}${expandedEmployeeCardReadyId === employee.id ? ' is-ready' : ''}`}
+                      onTransitionEnd={(event) => {
+                        if (event.propertyName !== 'grid-template-rows') return
+                        if (typeof window === 'undefined') return
+                        setExpandedEmployeeCardReadyId(employee.id)
+                        window.requestAnimationFrame(() => reflowEmployeeCardsMasonry())
+                      }}
+                    >
+                      <div className="employee-card-expand-inner">
+                        {employee.urgency_alerts?.length ? (
+                          <div className="employee-alert-list">
+                            {employee.urgency_alerts.map((alert) => (
+                              <span key={`${employee.id}-${alert.field}`} className="badge badge-warning">
+                                {alert.label} {alert.days_remaining < 0 ? 'expired' : `${alert.days_remaining}d`}
+                              </span>
+                            ))}
+                          </div>
+                        ) : null}
+                        <div className="employee-card-preview-strip">
+                          {CARD_PREVIEW_DOCUMENTS.map((preview) => {
+                            const document = findEmployeeDocument(employee, preview.types)
+                            const hasImage = document?.file_url && isImageDocument(document)
 
-                          return (
-                            <div key={`${employee.id}-${preview.key}`} className="employee-doc-preview">
-                              <div className="employee-doc-preview-tile">
-                                {hasImage ? (
-                                  <img src={document.file_url} alt={`${employee.full_name} ${preview.label}`} />
-                                ) : (
-                                  <span>{preview.label}</span>
-                                )}
-                              </div>
-                              <strong>{preview.label}</strong>
-                              {document?.file_url ? (
-                                <div className="employee-doc-preview-popover">
+                            return (
+                              <div key={`${employee.id}-${preview.key}`} className="employee-doc-preview">
+                                <div className="employee-doc-preview-tile">
                                   {hasImage ? (
-                                    <img src={document.file_url} alt={`${employee.full_name} ${preview.label} preview`} />
+                                    <img src={document.file_url} alt={`${employee.full_name} ${preview.label}`} />
                                   ) : (
-                                    <span>{fileLabel(document, attachmentLabels)}</span>
+                                    <span>{preview.label}</span>
                                   )}
                                 </div>
-                              ) : null}
-                            </div>
-                          )
-                        })}
+                                <strong>{preview.label}</strong>
+                                {document?.file_url ? (
+                                  <div className="employee-doc-preview-popover">
+                                    {hasImage ? (
+                                      <img src={document.file_url} alt={`${employee.full_name} ${preview.label} preview`} />
+                                    ) : (
+                                      <span>{fileLabel(document, attachmentLabels)}</span>
+                                    )}
+                                  </div>
+                                ) : null}
+                              </div>
+                            )
+                          })}
+                        </div>
                       </div>
                     </div>
                   </article>
