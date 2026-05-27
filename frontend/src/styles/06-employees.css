@@ -2074,7 +2074,7 @@ button.employee-registration-step.is-active .employee-registration-step-index {
 }
 
 .employee-card-menu.is-open .employee-card-menu-btn:hover {
-  background: rgba(59, 59, 59, 0.76);
+  background: rgba(59, 59, 59, 0.18) !important;
   color: rgb(255 255 255 / 0.7) !important;
 }
 
