@@ -2117,6 +2117,59 @@ button.employee-registration-step.is-active .employee-registration-step-index {
   box-shadow: 0 18px 50px rgb(0 0 0 / 0.34);
 }
 
+.employees-page .employee-card[data-badge='badge-success'] .employee-card-menu.is-open {
+  border-color: color-mix(in oklch, var(--color-border) 70%, transparent);
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in oklch, var(--tag-green-bg) 54%, transparent) 0%,
+      color-mix(in oklch, var(--tag-green-bg) 14%, transparent) 40%,
+      rgb(39 39 39 / 0.15) 90%
+    ),
+    color-mix(in oklch, var(--color-card) 94%, var(--color-muted));
+}
+
+.employees-page .employee-card[data-badge='badge-warning'] .employee-card-menu.is-open {
+  border-color: color-mix(in oklch, var(--color-border) 70%, transparent);
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in oklch, var(--tag-orange-bg) 54%, transparent) 0%,
+      color-mix(in oklch, var(--tag-orange-bg) 14%, transparent) 40%,
+      rgb(0 0 0 / 0.15) 90%
+    ),
+    color-mix(in oklch, var(--color-card) 94%, var(--color-muted));
+}
+
+.employees-page .employee-card[data-badge='badge-danger'] .employee-card-menu.is-open {
+  border-color: color-mix(in oklch, var(--color-border) 70%, transparent);
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in oklch, var(--tag-red-bg) 54%, transparent) 0%,
+      color-mix(in oklch, var(--tag-red-bg) 14%, transparent) 40%,
+      rgb(0 0 0 / 0.15) 90%
+    ),
+    color-mix(in oklch, var(--color-card) 94%, var(--color-muted));
+}
+
+.employees-page .employee-card[data-badge='badge-info'] .employee-card-menu.is-open {
+  border-color: color-mix(in oklch, var(--color-border) 70%, transparent);
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in oklch, #2563eb 54%, transparent) 0%,
+      color-mix(in oklch, #2563eb 14%, transparent) 40%,
+      rgb(0 0 0 / 0.15) 90%
+    ),
+    color-mix(in oklch, var(--color-card) 94%, var(--color-muted));
+}
+
+.employees-page .employee-card[data-badge='badge-muted'] .employee-card-menu.is-open {
+  border-color: color-mix(in oklch, var(--color-border) 70%, transparent);
+  background: color-mix(in oklch, var(--color-card) 92%, var(--color-muted));
+}
+
 .employee-card-menu-item {
   width: 40px;
   height: 40px;
