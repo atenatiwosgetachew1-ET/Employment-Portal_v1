@@ -1881,6 +1881,34 @@ button.employee-registration-step.is-active .employee-registration-step-index {
   transition: background-color 160ms ease, border-color 160ms ease, box-shadow 160ms ease;
 }
 
+.employee-card.is-selected {
+  border-color: rgb(var(--accent-active-border) / 0.55);
+}
+
+.employee-card.is-selected[data-badge='badge-success'] {
+  border-color: var(--tag-green-bg);
+}
+
+.employee-card.is-selected[data-badge='badge-warning'] {
+  border-color: var(--tag-orange-bg);
+}
+
+.employee-card.is-selected[data-badge='badge-danger'] {
+  border-color: var(--tag-red-bg);
+}
+
+.employee-card.is-selected[data-badge='badge-info'] {
+  border-color: #2563eb;
+}
+
+.employee-card.is-selected[data-badge='badge-muted'] {
+  border-color: rgb(var(--accent-active-border) / 0.55);
+}
+
+.employee-card .muted-text strong {
+  color: color-mix(in oklch, var(--color-foreground) 92%, white 8%);
+}
+
 .employee-card:not(.is-expanded) {
   height: 200px;
   overflow: hidden;
@@ -1955,6 +1983,7 @@ button.employee-registration-step.is-active .employee-registration-step-index {
   opacity: 0;
   transform: translateY(-4px);
   overflow: hidden;
+  position: relative;
   transition: grid-template-rows 220ms ease, opacity 180ms ease, transform 180ms ease;
 }
 
@@ -1963,6 +1992,7 @@ button.employee-registration-step.is-active .employee-registration-step-index {
   opacity: 1;
   transform: translateY(0);
   overflow: hidden;
+  z-index: 60;
 }
 
 .employee-card-expand.is-expanded.is-ready {
@@ -2504,7 +2534,7 @@ html[data-theme='light'] .employee-doc-preview:focus-within .employee-doc-previe
     opacity 0.18s ease 0.12s,
     transform 0.18s ease 0.12s,
     visibility 0s linear 0.12s;
-  z-index: 5;
+  z-index: 80;
 }
 
 .employee-doc-preview.is-open .employee-doc-preview-popover,
@@ -2564,6 +2594,60 @@ html[data-theme='light'] .employee-doc-preview:focus-within .employee-doc-previe
   border: 1px solid var(--color-border);
   background: var(--color-card);
   box-shadow: 0 28px 80px rgb(0 0 0 / 0.24);
+}
+
+.employee-review-modal[data-badge='badge-success'] {
+  border-color: var(--tag-green-bg);
+  --employee-progress-tone: var(--tag-green-bg);
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in oklch, var(--tag-green-bg) 8%, transparent) 0%,
+      rgb(0 0 0 / 0.53) 70%
+    ),
+    color-mix(in oklch, var(--color-card) 92%, var(--color-muted));
+}
+
+.employee-review-modal[data-badge='badge-warning'] {
+  border-color: var(--tag-orange-bg);
+  --employee-progress-tone: var(--tag-orange-bg);
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in oklch, var(--tag-orange-bg) 8%, transparent) 0%,
+      rgb(0 0 0 / 0.53) 70%
+    ),
+    color-mix(in oklch, var(--color-card) 92%, var(--color-muted));
+}
+
+.employee-review-modal[data-badge='badge-danger'] {
+  border-color: var(--tag-red-bg);
+  --employee-progress-tone: var(--tag-red-bg);
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in oklch, var(--tag-red-bg) 8%, transparent) 0%,
+      rgb(0 0 0 / 0.53) 70%
+    ),
+    color-mix(in oklch, var(--color-card) 92%, var(--color-muted));
+}
+
+.employee-review-modal[data-badge='badge-info'] {
+  border-color: #2563eb;
+  --employee-progress-tone: #2563eb;
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in oklch, #2563eb 8%, transparent) 0%,
+      rgb(0 0 0 / 0.53) 70%
+    ),
+    color-mix(in oklch, var(--color-card) 92%, var(--color-muted));
+}
+
+.employee-review-modal[data-badge='badge-muted'] {
+  border-color: rgb(var(--accent-active-border) / 0.4);
+  --employee-progress-tone: rgb(var(--accent-active-border) / 0.85);
+  background: color-mix(in oklch, var(--color-card) 92%, var(--color-muted));
 }
 
 .employee-review-modal.employee-scan-modal {

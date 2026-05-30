@@ -1119,11 +1119,13 @@ export default function EmployeesPage() {
   const [expandedEmployeeCardReadyId, setExpandedEmployeeCardReadyId] = useState(null)
   const employeeCardsGridRef = useRef(null)
   const employeeCardItemRefs = useRef(new Map())
+  const employeeCardResizeObserverRef = useRef(null)
   const reviewDocsScrollerRef = useRef(null)
   const [reviewDocsCanScrollLeft, setReviewDocsCanScrollLeft] = useState(false)
   const [reviewDocsCanScrollRight, setReviewDocsCanScrollRight] = useState(false)
   const reviewDocsScrollRafRef = useRef(0)
   const reviewDocsScrollStateRef = useRef({ left: false, right: false })
+  const [selectedEmployeeCardIds, setSelectedEmployeeCardIds] = useState(() => new Set())
   const [returnRequestModalOpen, setReturnRequestModalOpen] = useState(false)
   const [returnRequestLoading, setReturnRequestLoading] = useState(false)
   const [returnRequestError, setReturnRequestError] = useState('')
@@ -3384,6 +3386,7 @@ export default function EmployeesPage() {
     () => employeeAvailability(openedEmployee) === 'Available',
     [openedEmployee]
   )
+  const openedEmployeeBadgeClass = useMemo(() => employeeStatusBadgeClass(openedEmployee), [openedEmployee])
   const openedEmployeeAssignedAgentId = useMemo(
     () => {
       if (!openedEmployee) return ''
@@ -3476,6 +3479,16 @@ export default function EmployeesPage() {
     setExpandedEmployeeCardId((prev) => (prev === employeeId ? null : employeeId))
   }, [expandedEmployeeCardId])
 
+  const toggleEmployeeCardSelected = useCallback((employeeId) => {
+    employeeCardMasonryDebugLog('toggle select', { employeeId })
+    setSelectedEmployeeCardIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(employeeId)) next.delete(employeeId)
+      else next.add(employeeId)
+      return next
+    })
+  }, [])
+
   useEffect(() => {
     if (typeof window === 'undefined') return
     if (!openEmployeeCardMenuId) return
@@ -3512,12 +3525,28 @@ export default function EmployeesPage() {
     const computed = window.getComputedStyle(grid)
     const rowHeight = Number.parseFloat(computed.gridAutoRows) || 10
     const rowGap = Number.parseFloat(computed.rowGap || computed.gap) || 0
-    const columns = Math.max(
-      1,
-      String(computed.gridTemplateColumns || '')
-        .split(' ')
-        .filter(Boolean).length
-    )
+    const columns = (() => {
+      const raw = String(computed.gridTemplateColumns || '').trim()
+      if (!raw) return 1
+      let depth = 0
+      let tracks = 0
+      let hasToken = false
+      for (let i = 0; i < raw.length; i += 1) {
+        const ch = raw[i]
+        if (ch === '(') depth += 1
+        if (ch === ')') depth = Math.max(0, depth - 1)
+        if (depth === 0 && /\s/.test(ch)) {
+          if (hasToken) {
+            tracks += 1
+            hasToken = false
+          }
+          continue
+        }
+        if (!/\s/.test(ch)) hasToken = true
+      }
+      if (hasToken) tracks += 1
+      return Math.max(1, tracks)
+    })()
 
     employeeCardMasonryDebugLog('reflow start', {
       expandedEmployeeCardId,
@@ -3588,6 +3617,7 @@ export default function EmployeesPage() {
 
     const ResizeObserverCtor = window.ResizeObserver
     const resizeObserver = typeof ResizeObserverCtor === 'function' ? new ResizeObserverCtor(schedule) : null
+    employeeCardResizeObserverRef.current = resizeObserver
     if (resizeObserver) {
       if (employeeCardsGridRef.current) resizeObserver.observe(employeeCardsGridRef.current)
       for (const node of employeeCardItemRefs.current.values()) {
@@ -3595,8 +3625,21 @@ export default function EmployeesPage() {
       }
     }
 
+    const mutationObserver = employeeCardsGridRef.current
+      ? new MutationObserver(() => schedule())
+      : null
+    if (mutationObserver && employeeCardsGridRef.current) {
+      mutationObserver.observe(employeeCardsGridRef.current, { childList: true, subtree: true })
+    }
+
     window.addEventListener('resize', schedule)
     schedule()
+
+    const timeoutId = window.setTimeout(schedule, 400)
+    const fontsReady = window.document?.fonts?.ready
+    if (fontsReady && typeof fontsReady.then === 'function') {
+      fontsReady.then(() => schedule()).catch(() => {})
+    }
 
     const scrollContainer =
       employeeCardsGridRef.current?.closest?.('.dashboard-content') || document.scrollingElement
@@ -3605,8 +3648,13 @@ export default function EmployeesPage() {
     return () => {
       window.removeEventListener('resize', schedule)
       if (resizeObserver) resizeObserver.disconnect()
+      if (employeeCardResizeObserverRef.current === resizeObserver) {
+        employeeCardResizeObserverRef.current = null
+      }
+      if (mutationObserver) mutationObserver.disconnect()
       detachScrollLogger()
       if (rafId) window.cancelAnimationFrame(rafId)
+      window.clearTimeout(timeoutId)
     }
   }, [primaryVisibleEmployees.length, reflowEmployeeCardsMasonry])
 
@@ -5206,6 +5254,10 @@ export default function EmployeesPage() {
                 const isOpened = openedEmployeeId === employee.id
                 const isExpanded = expandedEmployeeCardId === employee.id
                 const isMenuOpen = isExpanded || openEmployeeCardMenuId === employee.id
+                const employeeReligion = employee.religion || ''
+                const employeeDateOfBirth = employee.date_of_birth || ''
+                const employeeAge =
+                  employee.age ?? computeAge(employeeDateOfBirth) ?? ''
                 const selectionState = employee.selection_state || {}
                 const selection = selectionState.selection
                 const isSelectedByCurrentAgent = Boolean(selectionState.selected_by_current_agent)
@@ -5227,18 +5279,39 @@ export default function EmployeesPage() {
                     key={employee.id}
                     ref={(node) => {
                       const map = employeeCardItemRefs.current
-                      if (node) map.set(employee.id, node)
-                      else map.delete(employee.id)
+                      const prevNode = map.get(employee.id)
+                      const resizeObserver = employeeCardResizeObserverRef.current
+                      if (prevNode && prevNode !== node && resizeObserver) {
+                        resizeObserver.unobserve(prevNode)
+                      }
+
+                      if (node) {
+                        map.set(employee.id, node)
+                        if (resizeObserver) resizeObserver.observe(node)
+                      } else {
+                        map.delete(employee.id)
+                      }
                     }}
                     data-badge={badgeClass}
-                    className={`employee-card${isOpened ? ' is-open' : ''}${isExpanded ? ' is-expanded' : ''}`}
-                    onClick={() => {
+                    className={`employee-card${isOpened ? ' is-open' : ''}${isExpanded ? ' is-expanded' : ''}${selectedEmployeeCardIds.has(employee.id) ? ' is-selected' : ''}`}
+                    onClick={(event) => {
+                      if (event.ctrlKey || event.metaKey) {
+                        event.preventDefault()
+                        toggleEmployeeCardSelected(employee.id)
+                        return
+                      }
                       toggleEmployeeCardExpanded(employee.id)
                     }}
                     role="button"
                     tabIndex={0}
                     onKeyDown={(event) => {
-                      if (event.key === 'Enter' || event.key === ' ') {
+                      const isActivationKey = event.key === 'Enter' || event.key === ' '
+                      if (isActivationKey && (event.ctrlKey || event.metaKey)) {
+                        event.preventDefault()
+                        toggleEmployeeCardSelected(employee.id)
+                        return
+                      }
+                      if (isActivationKey) {
                         event.preventDefault()
                         toggleEmployeeCardExpanded(employee.id)
                       }
@@ -5334,32 +5407,26 @@ export default function EmployeesPage() {
                           ) : (
                             <span>{employee.full_name?.charAt(0) || '?'}</span>
                           )}
-                        </div>
+                      </div>
                         <div>
                           <h3>{employee.full_name}</h3>
                           <p className="muted-text">{employee.profession || employee.professional_title || 'No profession set'}</p>
-                          <p className="muted-text">Registered by {employee.registered_by_username || '--'}</p>
+                        <p className="muted-text"><strong>{employeeReligion || '--'}</strong></p>
                         </div>
                       </div>
-                      <div className="employee-card-header-meta">
-                        {employee.return_request?.status === 'pending' ? <span className="badge badge-warning">Return requested</span> : null}
-                        <span className={`badge employee-card-status-badge ${employeeStatusBadgeClass(employee)} ${employeeStatusBadgeVariantClass(employee)}`.trim()}>{employeeStatusLabel(employee)}</span>
-                      </div>
+                    <div className="employee-card-header-meta">
+                      {employee.return_request?.status === 'pending' ? <span className="badge badge-warning">Return requested</span> : null}
+                      <span className={`badge employee-card-status-badge ${employeeStatusBadgeClass(employee)} ${employeeStatusBadgeVariantClass(employee)}`.trim()}>{employeeStatusLabel(employee)}</span>
                     </div>
-                    <p className="muted-text">{employee.application_countries?.join(', ') || 'No destination country'} | {employee.phone || employee.mobile_number || 'No phone'}</p>
-                    {selection ? (
-                      <p className="muted-text">
-                        {selection.status === 'under_process' ? 'Process owned by ' : 'Selected in market by '}
-                        {selection.agent_name || '--'}
-                        {selection.selected_by_username ? ` via ${selection.selected_by_username}` : ''}
-                      </p>
-                    ) : null}
-                    {employee.return_request?.status === 'approved' && employee.return_request?.remark ? (
-                      <p className="muted-text">Return remark: {employee.return_request.remark}</p>
-                    ) : null}
-                    <p className="muted-text">Progress {employee.progress_status?.overall_completion ?? 0}% | Travel {prettyStatus(employee.travel_status, 'pending')} | Return {prettyStatus(employee.return_status)}</p>
-                    <div
-                      className={`employee-card-expand${isExpanded ? ' is-expanded' : ''}${expandedEmployeeCardReadyId === employee.id ? ' is-ready' : ''}`}
+                  </div>
+                  <p className="muted-text">{employee.application_countries?.join(', ') || 'No destination country'} | {employee.phone || employee.mobile_number || 'No phone'}</p>
+                  <p className="muted-text"><strong>Age</strong> <strong>{employeeAge || '--'}</strong></p>
+                  {employee.return_request?.status === 'approved' && employee.return_request?.remark ? (
+                    <p className="muted-text">Return remark: {employee.return_request.remark}</p>
+                  ) : null}
+                  <p className="muted-text">Progress {employee.progress_status?.overall_completion ?? 0}% | Travel {prettyStatus(employee.travel_status, 'pending')} | Return {prettyStatus(employee.return_status)}</p>
+                  <div
+                    className={`employee-card-expand${isExpanded ? ' is-expanded' : ''}${expandedEmployeeCardReadyId === employee.id ? ' is-ready' : ''}`}
                       onTransitionEnd={(event) => {
                         if (event.propertyName !== 'grid-template-rows') return
                         if (typeof window === 'undefined') return
@@ -5901,7 +5968,14 @@ export default function EmployeesPage() {
       ) : null}
       {openedEmployee ? (
         <div className="employee-review-backdrop" role="presentation" onClick={() => setOpenedEmployeeId(null)}>
-          <div className="employee-review-modal" role="dialog" aria-modal="true" aria-labelledby="employee-review-title" onClick={(event) => event.stopPropagation()}>
+          <div
+            className="employee-review-modal"
+            data-badge={openedEmployeeBadgeClass}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="employee-review-title"
+            onClick={(event) => event.stopPropagation()}
+          >
             <div className="employee-review-shell">
               <header className="employee-review-profile">
                 <div className="employee-review-profile-left">
@@ -5949,7 +6023,9 @@ export default function EmployeesPage() {
                       {openedEmployee.profession || openedEmployee.professional_title || '--'}
                     </p>
                     <div className="employee-review-pills" aria-label="Employee status">
-                      <span className="employee-status-pill employee-status-pill--success">{employeeStatusLabel(openedEmployee)}</span>
+                      <span className={`badge employee-card-status-badge ${openedEmployeeBadgeClass} ${employeeStatusBadgeVariantClass(openedEmployee)}`.trim()}>
+                        {employeeStatusLabel(openedEmployee)}
+                      </span>
                       <span className="employee-status-pill employee-status-pill--neutral">
                         {(openedEmployee.application_countries || [])[0] || '—'}
                       </span>
@@ -6321,7 +6397,7 @@ export default function EmployeesPage() {
                                 cy="60"
                                 r={openedEmployeeProgress.radius}
                                 className="employee-progress-value"
-                                stroke={openedEmployeeProgress.tone}
+                                style={{ stroke: `var(--employee-progress-tone, ${openedEmployeeProgress.tone})` }}
                                 strokeDasharray={openedEmployeeProgress.circumference}
                                 strokeDashoffset={openedEmployeeProgress.dashOffset}
                               />

@@ -195,6 +195,26 @@ html[data-accent='natural'] .employee-card {
   border-color: #2f2f2fbd;
 }
 
+html[data-accent='natural'] .employee-card.is-selected[data-badge='badge-success'] {
+  border-color: var(--tag-green-bg) !important;
+}
+
+html[data-accent='natural'] .employee-card.is-selected[data-badge='badge-warning'] {
+  border-color: var(--tag-orange-bg) !important;
+}
+
+html[data-accent='natural'] .employee-card.is-selected[data-badge='badge-danger'] {
+  border-color: var(--tag-red-bg) !important;
+}
+
+html[data-accent='natural'] .employee-card.is-selected[data-badge='badge-info'] {
+  border-color: #2563eb !important;
+}
+
+html[data-accent='natural'] .employee-card.is-selected[data-badge='badge-muted'] {
+  border-color: rgb(var(--accent-active-border) / 0.55) !important;
+}
+
 /* Category: Surface-adjacent controls
    Tiles, avatars, pills, readonly chips, and small neutral controls. */
 
@@ -918,6 +938,85 @@ html .commission-rate-popover,
 html .notification-dropdown {
   background: #11111187 !important;
   background-color: #11111187 !important;
+  background-image: none !important;
+}
+
+/* Employee review modal: follow employee card status tint. */
+html .employee-review-modal[data-badge='badge-success'] {
+  border-color: var(--tag-green-bg) !important;
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in oklch, var(--tag-green-bg) 8%, transparent) 0%,
+      rgb(0 0 0 / 0.53) 70%
+    ),
+    color-mix(in oklch, var(--color-card) 92%, var(--color-muted)) !important;
+  background-image:
+    linear-gradient(
+      180deg,
+      color-mix(in oklch, var(--tag-green-bg) 8%, transparent) 0%,
+      rgb(0 0 0 / 0.53) 70%
+    ),
+    none !important;
+}
+
+html .employee-review-modal[data-badge='badge-warning'] {
+  border-color: var(--tag-orange-bg) !important;
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in oklch, var(--tag-orange-bg) 8%, transparent) 0%,
+      rgb(0 0 0 / 0.53) 70%
+    ),
+    color-mix(in oklch, var(--color-card) 92%, var(--color-muted)) !important;
+  background-image:
+    linear-gradient(
+      180deg,
+      color-mix(in oklch, var(--tag-orange-bg) 8%, transparent) 0%,
+      rgb(0 0 0 / 0.53) 70%
+    ),
+    none !important;
+}
+
+html .employee-review-modal[data-badge='badge-danger'] {
+  border-color: var(--tag-red-bg) !important;
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in oklch, var(--tag-red-bg) 8%, transparent) 0%,
+      rgb(0 0 0 / 0.53) 70%
+    ),
+    color-mix(in oklch, var(--color-card) 92%, var(--color-muted)) !important;
+  background-image:
+    linear-gradient(
+      180deg,
+      color-mix(in oklch, var(--tag-red-bg) 8%, transparent) 0%,
+      rgb(0 0 0 / 0.53) 70%
+    ),
+    none !important;
+}
+
+html .employee-review-modal[data-badge='badge-info'] {
+  border-color: #2563eb !important;
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in oklch, #2563eb 8%, transparent) 0%,
+      rgb(0 0 0 / 0.53) 70%
+    ),
+    color-mix(in oklch, var(--color-card) 92%, var(--color-muted)) !important;
+  background-image:
+    linear-gradient(
+      180deg,
+      color-mix(in oklch, #2563eb 8%, transparent) 0%,
+      rgb(0 0 0 / 0.53) 70%
+    ),
+    none !important;
+}
+
+html .employee-review-modal[data-badge='badge-muted'] {
+  border-color: rgb(var(--accent-active-border) / 0.4) !important;
+  background: color-mix(in oklch, var(--color-card) 92%, var(--color-muted)) !important;
   background-image: none !important;
 }
 
