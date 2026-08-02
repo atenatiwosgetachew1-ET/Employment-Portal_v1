@@ -131,8 +131,6 @@ DATABASES = {
     )
 }
 
-if sslmode := (os.getenv("DB_SSLMODE") or "").strip():
-    DATABASES["default"]["OPTIONS"]["sslmode"] = sslmode
 
 #test
 
