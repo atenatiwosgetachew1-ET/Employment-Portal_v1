@@ -48,7 +48,7 @@ SECRET_KEY = os.getenv(
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = _env_bool("DEBUG", True)
 
-ALLOWED_HOSTS = _env_list("ALLOWED_HOSTS","https://employment-portal-tdd0.onrender.com,localhost,127.0.0.1")
+ALLOWED_HOSTS = _env_list("ALLOWED_HOSTS","https://employment-portal-tdd0.onrender.com",localhost,127.0.0.1")
 
 
 # Application definition
@@ -108,18 +108,26 @@ if not _db_name or not _db_user:
         "(copy from .env.example). Optional: DB_PASSWORD, DB_HOST, DB_PORT, DB_SSLMODE."
     )
 
+# DATABASES = {
+#     # "default": {
+#     #     "ENGINE": "django.db.backends.postgresql",
+#     #     "NAME": _db_name,
+#     #     "USER": _db_user,
+#     #     "PASSWORD": os.getenv("DB_PASSWORD", ""),
+#     #     "HOST": os.getenv("DB_HOST") or "localhost",
+#     #     "PORT": os.getenv("DB_PORT") or "5432",
+#     #     "OPTIONS": {},
+#     # }
+#     "default": dj_database_url.config(
+#         default=os.getenv("DATABASE_URL")
+#     )
+# }
+
 DATABASES = {
-    # "default": {
-    #     "ENGINE": "django.db.backends.postgresql",
-    #     "NAME": _db_name,
-    #     "USER": _db_user,
-    #     "PASSWORD": os.getenv("DB_PASSWORD", ""),
-    #     "HOST": os.getenv("DB_HOST") or "localhost",
-    #     "PORT": os.getenv("DB_PORT") or "5432",
-    #     "OPTIONS": {},
-    # }
     "default": dj_database_url.config(
-        default=os.getenv("DATABASE_URL")
+        default=os.getenv("DATABASE_URL"),
+        conn_max_age=600,
+        ssl_require=True,
     )
 }
 
