@@ -1,0 +1,2 @@
+neon postgresql address
+postgresql://neondb_owner:npg_nmIyzgG7S0rD@ep-restless-voice-ayzqjs4t.c-5.us-east-2.aws.neon.tech/neondb?sslmode=require

@@ -15,6 +15,7 @@ import os
 from pathlib import Path
 
 from django.core.exceptions import ImproperlyConfigured
+import dj_database_url
 from dotenv import load_dotenv
 
 logger = logging.getLogger("django")
@@ -47,7 +48,7 @@ SECRET_KEY = os.getenv(
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = _env_bool("DEBUG", True)
 
-ALLOWED_HOSTS = _env_list("ALLOWED_HOSTS", "localhost,127.0.0.1")
+ALLOWED_HOSTS = _env_list("ALLOWED_HOSTS","your-backend-name.onrender.com","localhost,127.0.0.1")
 
 
 # Application definition
@@ -108,15 +109,18 @@ if not _db_name or not _db_user:
     )
 
 DATABASES = {
-    "default": {
-        "ENGINE": "django.db.backends.postgresql",
-        "NAME": _db_name,
-        "USER": _db_user,
-        "PASSWORD": os.getenv("DB_PASSWORD", ""),
-        "HOST": os.getenv("DB_HOST") or "localhost",
-        "PORT": os.getenv("DB_PORT") or "5432",
-        "OPTIONS": {},
-    }
+    # "default": {
+    #     "ENGINE": "django.db.backends.postgresql",
+    #     "NAME": _db_name,
+    #     "USER": _db_user,
+    #     "PASSWORD": os.getenv("DB_PASSWORD", ""),
+    #     "HOST": os.getenv("DB_HOST") or "localhost",
+    #     "PORT": os.getenv("DB_PORT") or "5432",
+    #     "OPTIONS": {},
+    # }
+    "default": dj_database_url.config(
+        default=os.getenv("DATABASE_URL")
+    )
 }
 
 if sslmode := (os.getenv("DB_SSLMODE") or "").strip():
