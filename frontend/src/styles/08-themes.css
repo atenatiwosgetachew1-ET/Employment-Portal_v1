@@ -199,6 +199,10 @@ html[data-accent='natural'] .employee-card.is-selected[data-badge='badge-success
   border-color: var(--tag-green-bg) !important;
 }
 
+html[data-accent='natural'] .employee-card.is-selected[data-badge='badge-employed'] {
+  border-color: #a1854a !important;
+}
+
 html[data-accent='natural'] .employee-card.is-selected[data-badge='badge-warning'] {
   border-color: var(--tag-orange-bg) !important;
 }
@@ -209,6 +213,10 @@ html[data-accent='natural'] .employee-card.is-selected[data-badge='badge-danger'
 
 html[data-accent='natural'] .employee-card.is-selected[data-badge='badge-info'] {
   border-color: #2563eb !important;
+}
+
+html[data-accent='natural'] .employee-card.is-selected[data-badge='badge-under-process'] {
+  border-color: #800080 !important;
 }
 
 html[data-accent='natural'] .employee-card.is-selected[data-badge='badge-muted'] {
@@ -671,6 +679,18 @@ html[data-theme='dark'][data-accent='natural'] .employee-card.is-expanded[data-b
   background-color: rgb(255 255 255 / 0.08);
 }
 
+html[data-theme='dark'][data-accent='natural'] .employee-card.is-expanded[data-badge='badge-employed'] {
+  border-color: #a1854a;
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in oklch, #a1854a 10%, transparent) 0%,
+      rgb(0 0 0 / 0.53) 70%
+    ),
+    rgb(255 255 255 / 0.08);
+  background-color: rgb(255 255 255 / 0.08);
+}
+
 html[data-theme='dark'][data-accent='natural'] .employee-card.is-expanded[data-badge='badge-warning'] {
   border-color: var(--tag-orange-bg);
   background:
@@ -701,6 +721,18 @@ html[data-theme='dark'][data-accent='natural'] .employee-card.is-expanded[data-b
     linear-gradient(
       180deg,
       color-mix(in oklch, #2563eb 10%, transparent) 0%,
+      rgb(0 0 0 / 0.53) 70%
+    ),
+    rgb(255 255 255 / 0.08);
+  background-color: rgb(255 255 255 / 0.08);
+}
+
+html[data-theme='dark'][data-accent='natural'] .employee-card.is-expanded[data-badge='badge-under-process'] {
+  border-color: #800080;
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in oklch, #800080 10%, transparent) 0%,
       rgb(0 0 0 / 0.53) 70%
     ),
     rgb(255 255 255 / 0.08);
@@ -960,6 +992,24 @@ html .employee-review-modal[data-badge='badge-success'] {
     none !important;
 }
 
+html .employee-review-modal[data-badge='badge-employed'] {
+  border-color: #a1854a !important;
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in oklch, #a1854a 8%, transparent) 0%,
+      rgb(0 0 0 / 0.53) 70%
+    ),
+    color-mix(in oklch, var(--color-card) 92%, var(--color-muted)) !important;
+  background-image:
+    linear-gradient(
+      180deg,
+      color-mix(in oklch, #a1854a 8%, transparent) 0%,
+      rgb(0 0 0 / 0.53) 70%
+    ),
+    none !important;
+}
+
 html .employee-review-modal[data-badge='badge-warning'] {
   border-color: var(--tag-orange-bg) !important;
   background:
@@ -1009,6 +1059,24 @@ html .employee-review-modal[data-badge='badge-info'] {
     linear-gradient(
       180deg,
       color-mix(in oklch, #2563eb 8%, transparent) 0%,
+      rgb(0 0 0 / 0.53) 70%
+    ),
+    none !important;
+}
+
+html .employee-review-modal[data-badge='badge-under-process'] {
+  border-color: #800080 !important;
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in oklch, #800080 8%, transparent) 0%,
+      rgb(0 0 0 / 0.53) 70%
+    ),
+    color-mix(in oklch, var(--color-card) 92%, var(--color-muted)) !important;
+  background-image:
+    linear-gradient(
+      180deg,
+      color-mix(in oklch, #800080 8%, transparent) 0%,
       rgb(0 0 0 / 0.53) 70%
     ),
     none !important;
@@ -1714,7 +1782,7 @@ html[data-theme='light'][data-accent='natural'] .employee-progress-metrics p str
 
 html[data-theme='dark'] .dashboard-nav-sublink.is-active {
   background: rgba(30, 30, 30, 1);
-  //border-color: var(--surface-border-adaptive);
+  /* border-color: var(--surface-border-adaptive); */
   color: var(--color-foreground);
   opacity: 1;
 }

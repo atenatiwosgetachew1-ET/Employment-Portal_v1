@@ -545,8 +545,10 @@ textarea:disabled {
 .badge,
 .badge-muted,
 .badge-info,
+.badge-under-process,
 .badge-warning,
 .badge-success,
+.badge-employed,
 .badge-danger,
 .badge-super,
 .profiles-admin-badge,
@@ -587,6 +589,7 @@ textarea:disabled {
 .badge,
 .badge-muted,
 .badge-info,
+.badge-under-process,
 .profiles-admin-badge,
 .profiles-agreement-status,
 .commission-settled-badge {
@@ -606,6 +609,12 @@ textarea:disabled {
   --tag-bg: #2563eb;
   --tag-fg: #ffffff;
   --tag-border: #2563eb;
+}
+
+.badge-under-process {
+  --tag-bg: #800080;
+  --tag-fg: #ffffff;
+  --tag-border: #800080;
 }
 
 .badge-muted,
@@ -631,6 +640,12 @@ textarea:disabled {
   --tag-bg: var(--tag-green-bg);
   --tag-fg: #ffffff;
   --tag-border: var(--tag-green-bg);
+}
+
+.badge-employed {
+  --tag-bg: #a1854a;
+  --tag-fg: #ffffff;
+  --tag-border: #a1854a;
 }
 
 .badge-danger,

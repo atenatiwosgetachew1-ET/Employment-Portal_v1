@@ -15,7 +15,7 @@ from .auth_utils import (
 )
 from .email_service import send_account_setup_email
 from .licensing import get_access_restriction, get_user_organization
-from .models import Notification, Profile
+from .models import AgentOffice, Notification, Profile
 from .platform_views import UserPagination
 from .serializers import (
     AdminPasswordResetSerializer,
@@ -36,7 +36,7 @@ class IsSuperadminOrAdmin(BasePermission):
 class UserListCreateView(generics.ListCreateAPIView):
     permission_classes = [IsAuthenticated, IsSuperadminOrAdmin]
     pagination_class = UserPagination
-    queryset = User.objects.all().select_related("profile").order_by("id")
+    queryset = User.objects.all().select_related("profile", "profile__agent_office").order_by("id")
 
     def get_serializer_class(self):
         if self.request.method == "POST":
@@ -139,7 +139,7 @@ class UserListCreateView(generics.ListCreateAPIView):
 
 class UserRetrieveUpdateDestroyView(generics.RetrieveUpdateDestroyAPIView):
     permission_classes = [IsAuthenticated, IsSuperadminOrAdmin]
-    queryset = User.objects.all().select_related("profile")
+    queryset = User.objects.all().select_related("profile", "profile__agent_office")
     lookup_field = "pk"
 
     def get_serializer_class(self):
@@ -218,7 +218,7 @@ class UserPasswordResetView(APIView):
     permission_classes = [IsAuthenticated, IsSuperadminOrAdmin]
 
     def _target_user(self, request, pk):
-        queryset = User.objects.all().select_related("profile")
+        queryset = User.objects.all().select_related("profile", "profile__agent_office")
         organization = get_user_organization(request.user)
         if organization:
             queryset = queryset.filter(profile__organization=organization)
@@ -283,7 +283,13 @@ class StaffSideOptionsView(APIView):
     def get(self, request):
         organization = get_user_organization(request.user)
         if not organization:
-            return Response({"options": []})
+            return Response({"options": [], "agent_offices": []})
+
+        agent_offices = list(
+            AgentOffice.objects.filter(organization=organization, is_active=True)
+            .select_related("owner")
+            .order_by("name")
+        )
 
         agent_names = list(
             User.objects.filter(
@@ -308,4 +314,24 @@ class StaffSideOptionsView(APIView):
             if cleaned and cleaned not in seen:
                 seen.add(cleaned)
                 options.append(cleaned)
-        return Response({"options": options})
+        for agent_office in agent_offices:
+            cleaned = (agent_office.name or "").strip()
+            if cleaned and cleaned not in seen:
+                seen.add(cleaned)
+                options.append(cleaned)
+        return Response(
+            {
+                "options": options,
+                "local_side": {"name": organization.name},
+                "agent_offices": [
+                    {
+                        "id": agent_office.id,
+                        "name": agent_office.name,
+                        "country": agent_office.country,
+                        "owner_id": agent_office.owner_id,
+                        "owner_username": agent_office.owner.username,
+                    }
+                    for agent_office in agent_offices
+                ],
+            }
+        )

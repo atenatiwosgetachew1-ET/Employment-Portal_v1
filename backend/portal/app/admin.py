@@ -1,6 +1,8 @@
 from django.contrib import admin
 
 from .models import (
+    AgentMembership,
+    AgentOffice,
     AuditLog,
     LicenseEvent,
     Notification,
@@ -68,6 +70,20 @@ class OrganizationMembershipAdmin(admin.ModelAdmin):
     list_display = ("organization", "user", "role", "is_owner", "is_active", "joined_at")
     search_fields = ("organization__name", "user__username", "user__email")
     list_filter = ("role", "is_owner", "is_active")
+
+
+@admin.register(AgentOffice)
+class AgentOfficeAdmin(admin.ModelAdmin):
+    list_display = ("name", "organization", "owner", "country", "is_active", "created_at")
+    search_fields = ("name", "organization__name", "owner__username", "owner__email")
+    list_filter = ("organization", "country", "is_active")
+
+
+@admin.register(AgentMembership)
+class AgentMembershipAdmin(admin.ModelAdmin):
+    list_display = ("agent_office", "user", "role", "is_active", "joined_at")
+    search_fields = ("agent_office__name", "user__username", "user__email")
+    list_filter = ("role", "is_active", "agent_office__organization")
 
 
 @admin.register(LicenseEvent)

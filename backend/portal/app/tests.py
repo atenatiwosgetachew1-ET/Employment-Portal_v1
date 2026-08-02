@@ -19,8 +19,11 @@ from .employee_ocr import build_field_candidates, extract_employee_document_fiel
 from .licensing import get_user_organization
 from .models import (
     AuditLog,
+    AgentMembership,
+    AgentOffice,
     Employee,
     EmployeeSelection,
+    EmployeeSelectionInterest,
     Notification,
     OrganizationMembership,
     PlatformSettings,
@@ -1655,6 +1658,227 @@ class EmployeeManagementTests(TestCase):
         self.assertEqual(mine_response.data["results"][0]["id"], employee.id)
         self.assertTrue(mine_response.data["results"][0]["selection_state"]["selected_by_current_agent"])
 
+    def test_agent_office_selection_is_shared_but_process_start_stays_owner_only(self):
+        superadmin = self._create_user("owner-office-sync", Profile.ROLE_SUPERADMIN)
+        agent_owner = self._create_user("agent-office-owner", Profile.ROLE_CUSTOMER)
+        agent_owner.first_name = "Office Agent"
+        agent_owner.save(update_fields=["first_name"])
+        first_staff = self._create_user("agent-office-staff-a", Profile.ROLE_STAFF)
+        second_staff = self._create_user("agent-office-staff-b", Profile.ROLE_STAFF)
+        self._assign_same_organization(superadmin, agent_owner, first_staff, second_staff)
+        organization = get_user_organization(superadmin)
+        agent_office = AgentOffice.objects.create(
+            organization=organization,
+            owner=agent_owner,
+            name="Office Agent",
+            is_active=True,
+        )
+        agent_owner.profile.agent_office = agent_office
+        agent_owner.profile.save(update_fields=["agent_office"])
+        for staff in (first_staff, second_staff):
+            staff.profile.agent_office = agent_office
+            staff.profile.staff_side = agent_office.name
+            staff.profile.save(update_fields=["agent_office", "staff_side"])
+            AgentMembership.objects.create(
+                agent_office=agent_office,
+                user=staff,
+                role=AgentMembership.ROLE_STAFF,
+                is_active=True,
+            )
+        AgentMembership.objects.create(
+            agent_office=agent_office,
+            user=agent_owner,
+            role=AgentMembership.ROLE_OWNER,
+            is_active=True,
+        )
+        employee = Employee.objects.create(
+            organization=organization,
+            registered_by=superadmin,
+            updated_by=superadmin,
+            full_name="Shared Selection Worker",
+            status=Employee.STATUS_APPROVED,
+        )
+
+        self.client.force_authenticate(user=first_staff)
+        select_response = self.client.post(f"/api/employees/{employee.pk}/selection/")
+
+        self.assertEqual(select_response.status_code, 200)
+        self.assertEqual(select_response.data["selection_state"]["selection"]["agent"], agent_owner.id)
+        self.assertTrue(select_response.data["selection_state"]["selected_by_current_agent"])
+
+        self.client.force_authenticate(user=second_staff)
+        sibling_response = self.client.get("/api/employees/", {"selected_scope": "mine"})
+
+        self.assertEqual(sibling_response.status_code, 200)
+        self.assertEqual(sibling_response.data["count"], 1)
+        self.assertTrue(sibling_response.data["results"][0]["selection_state"]["selected_by_current_agent"])
+
+        staff_process_response = self.client.post(f"/api/employees/{employee.pk}/process/")
+
+        self.assertEqual(staff_process_response.status_code, 403)
+
+        self.client.force_authenticate(user=agent_owner)
+        owner_process_response = self.client.post(f"/api/employees/{employee.pk}/process/")
+
+        self.assertEqual(owner_process_response.status_code, 200)
+        self.assertEqual(owner_process_response.data["selection_state"]["selection"]["status"], EmployeeSelection.STATUS_UNDER_PROCESS)
+        self.assertEqual(owner_process_response.data["selection_state"]["selection"]["agent"], agent_owner.id)
+
+    def test_agent_staff_selection_can_only_be_unselected_by_selector_or_owner(self):
+        superadmin = self._create_user("owner-office-unselect", Profile.ROLE_SUPERADMIN)
+        agent_owner = self._create_user("agent-office-unselect-owner", Profile.ROLE_CUSTOMER)
+        agent_owner.first_name = "Office Agent"
+        agent_owner.save(update_fields=["first_name"])
+        first_staff = self._create_user("agent-office-unselect-a", Profile.ROLE_STAFF)
+        second_staff = self._create_user("agent-office-unselect-b", Profile.ROLE_STAFF)
+        self._assign_same_organization(superadmin, agent_owner, first_staff, second_staff)
+        organization = get_user_organization(superadmin)
+        agent_office = AgentOffice.objects.create(
+            organization=organization,
+            owner=agent_owner,
+            name="Office Agent",
+            is_active=True,
+        )
+        for user, role in (
+            (agent_owner, AgentMembership.ROLE_OWNER),
+            (first_staff, AgentMembership.ROLE_STAFF),
+            (second_staff, AgentMembership.ROLE_STAFF),
+        ):
+            user.profile.agent_office = agent_office
+            user.profile.staff_side = agent_office.name
+            user.profile.save(update_fields=["agent_office", "staff_side"])
+            AgentMembership.objects.create(
+                agent_office=agent_office,
+                user=user,
+                role=role,
+                is_active=True,
+            )
+        first_employee = Employee.objects.create(
+            organization=organization,
+            registered_by=superadmin,
+            updated_by=superadmin,
+            full_name="Selector Owned Worker",
+            status=Employee.STATUS_APPROVED,
+        )
+        second_employee = Employee.objects.create(
+            organization=organization,
+            registered_by=superadmin,
+            updated_by=superadmin,
+            full_name="Owner Removable Worker",
+            status=Employee.STATUS_APPROVED,
+        )
+
+        self.client.force_authenticate(user=first_staff)
+        self.assertEqual(self.client.post(f"/api/employees/{first_employee.pk}/selection/").status_code, 200)
+        self.assertEqual(self.client.post(f"/api/employees/{second_employee.pk}/selection/").status_code, 200)
+
+        self.client.force_authenticate(user=second_staff)
+        sibling_list = self.client.get("/api/employees/", {"selected_scope": "mine"})
+        self.assertEqual(sibling_list.status_code, 200)
+        sibling_first = next(item for item in sibling_list.data["results"] if item["id"] == first_employee.id)
+        self.assertTrue(sibling_first["selection_state"]["selected_by_current_agent"])
+        self.assertFalse(sibling_first["selection_state"]["can_unselect"])
+        sibling_delete = self.client.delete(f"/api/employees/{first_employee.pk}/selection/")
+        self.assertEqual(sibling_delete.status_code, 403)
+        self.assertTrue(EmployeeSelectionInterest.objects.filter(employee=first_employee).exists())
+
+        self.client.force_authenticate(user=first_staff)
+        selector_list = self.client.get("/api/employees/", {"selected_scope": "mine"})
+        selector_first = next(item for item in selector_list.data["results"] if item["id"] == first_employee.id)
+        self.assertTrue(selector_first["selection_state"]["can_unselect"])
+        selector_delete = self.client.delete(f"/api/employees/{first_employee.pk}/selection/")
+        self.assertEqual(selector_delete.status_code, 204)
+        self.assertFalse(EmployeeSelectionInterest.objects.filter(employee=first_employee).exists())
+
+        self.client.force_authenticate(user=agent_owner)
+        owner_list = self.client.get("/api/employees/", {"selected_scope": "mine"})
+        owner_second = next(item for item in owner_list.data["results"] if item["id"] == second_employee.id)
+        self.assertTrue(owner_second["selection_state"]["can_unselect"])
+        owner_delete = self.client.delete(f"/api/employees/{second_employee.pk}/selection/")
+        self.assertEqual(owner_delete.status_code, 204)
+        self.assertFalse(EmployeeSelectionInterest.objects.filter(employee=second_employee).exists())
+
+    def test_agent_default_employee_list_only_shows_available_matching_country(self):
+        superadmin = self._create_user("owner-agent-market", Profile.ROLE_SUPERADMIN)
+        agent_owner = self._create_user("agent-market-owner", Profile.ROLE_CUSTOMER)
+        agent_staff = self._create_user("agent-market-staff", Profile.ROLE_STAFF)
+        self._assign_same_organization(superadmin, agent_owner, agent_staff)
+        organization = get_user_organization(superadmin)
+        agent_office = AgentOffice.objects.create(
+            organization=organization,
+            owner=agent_owner,
+            name="Saudi Agent",
+            country="Saudi Arabia",
+            is_active=True,
+        )
+        for user, role in (
+            (agent_owner, AgentMembership.ROLE_OWNER),
+            (agent_staff, AgentMembership.ROLE_STAFF),
+        ):
+            user.profile.agent_office = agent_office
+            user.profile.staff_side = agent_office.name if user == agent_staff else user.profile.staff_side
+            user.profile.save(update_fields=["agent_office", "staff_side"])
+            AgentMembership.objects.create(
+                agent_office=agent_office,
+                user=user,
+                role=role,
+                is_active=True,
+            )
+        available_saudi = Employee.objects.create(
+            organization=organization,
+            registered_by=superadmin,
+            updated_by=superadmin,
+            full_name="Available Saudi Worker",
+            status=Employee.STATUS_APPROVED,
+            application_countries=["Saudi Arabia"],
+        )
+        selected_saudi = Employee.objects.create(
+            organization=organization,
+            registered_by=superadmin,
+            updated_by=superadmin,
+            full_name="Selected Saudi Worker",
+            status=Employee.STATUS_APPROVED,
+            application_countries=["Saudi Arabia"],
+        )
+        uae_worker = Employee.objects.create(
+            organization=organization,
+            registered_by=superadmin,
+            updated_by=superadmin,
+            full_name="Available UAE Worker",
+            status=Employee.STATUS_APPROVED,
+            application_countries=["UAE"],
+        )
+        pending_saudi = Employee.objects.create(
+            organization=organization,
+            registered_by=superadmin,
+            updated_by=superadmin,
+            full_name="Pending Saudi Worker",
+            status=Employee.STATUS_PENDING,
+            application_countries=["Saudi Arabia"],
+        )
+        EmployeeSelectionInterest.objects.create(
+            organization=organization,
+            employee=selected_saudi,
+            agent=agent_owner,
+            selected_by=agent_staff,
+        )
+
+        self.client.force_authenticate(user=agent_staff)
+        default_response = self.client.get("/api/employees/")
+
+        self.assertEqual(default_response.status_code, 200)
+        self.assertEqual(default_response.data["count"], 1)
+        self.assertEqual(default_response.data["results"][0]["id"], available_saudi.id)
+        self.assertNotIn(selected_saudi.id, [row["id"] for row in default_response.data["results"]])
+        self.assertNotIn(uae_worker.id, [row["id"] for row in default_response.data["results"]])
+        self.assertNotIn(pending_saudi.id, [row["id"] for row in default_response.data["results"]])
+
+        selected_response = self.client.get("/api/employees/", {"selected_scope": "mine"})
+
+        self.assertEqual(selected_response.status_code, 200)
+        self.assertEqual(selected_response.data["count"], 1)
+        self.assertEqual(selected_response.data["results"][0]["id"], selected_saudi.id)
+
     def test_agent_cannot_select_employee_already_selected_by_another_agent(self):
         superadmin = self._create_user("owner-conflict", Profile.ROLE_SUPERADMIN)
         first_agent = self._create_user("agent-first", Profile.ROLE_CUSTOMER)
@@ -2146,6 +2370,126 @@ class EmployeeManagementTests(TestCase):
             employed_employee.id,
             [item["id"] for item in other_agent_response.data["results"]],
         )
+
+    def test_agent_staff_level_must_be_above_four_to_request_return(self):
+        superadmin = self._create_user("owner-return-level", Profile.ROLE_SUPERADMIN)
+        agent = self._create_user("agent-return-level", Profile.ROLE_CUSTOMER)
+        low_staff = self._create_user("agent-return-level-low", Profile.ROLE_STAFF)
+        high_staff = self._create_user("agent-return-level-high", Profile.ROLE_STAFF)
+        self._assign_same_organization(superadmin, agent, low_staff, high_staff)
+        organization = get_user_organization(superadmin)
+        agent_office = AgentOffice.objects.create(
+            organization=organization,
+            owner=agent,
+            name="Return Agent",
+            is_active=True,
+        )
+        for user, role, level in (
+            (agent, AgentMembership.ROLE_OWNER, 1),
+            (low_staff, AgentMembership.ROLE_STAFF, 4),
+            (high_staff, AgentMembership.ROLE_STAFF, 5),
+        ):
+            user.profile.agent_office = agent_office
+            user.profile.staff_level = level
+            if user != agent:
+                user.profile.staff_side = agent_office.name
+            user.profile.save(update_fields=["agent_office", "staff_level", "staff_side"])
+            AgentMembership.objects.create(
+                agent_office=agent_office,
+                user=user,
+                role=role,
+                is_active=True,
+            )
+        employee = Employee.objects.create(
+            organization=organization,
+            registered_by=superadmin,
+            updated_by=superadmin,
+            full_name="Return Level Worker",
+            did_travel=True,
+            status=Employee.STATUS_APPROVED,
+            is_active=True,
+            progress_override_complete=True,
+        )
+        EmployeeSelection.objects.create(
+            organization=organization,
+            employee=employee,
+            agent=agent,
+            selected_by=agent,
+            status=EmployeeSelection.STATUS_UNDER_PROCESS,
+        )
+
+        self.client.force_authenticate(user=low_staff)
+        blocked_response = self.client.post(
+            f"/api/employees/{employee.pk}/return-request/",
+            {
+                "remark": "Needs return review",
+                "evidence_file_1": SimpleUploadedFile("evidence.txt", b"evidence", content_type="text/plain"),
+            },
+            format="multipart",
+        )
+
+        self.assertEqual(blocked_response.status_code, 403)
+
+        self.client.force_authenticate(user=high_staff)
+        allowed_response = self.client.post(
+            f"/api/employees/{employee.pk}/return-request/",
+            {
+                "remark": "Needs return review",
+                "evidence_file_1": SimpleUploadedFile("evidence.txt", b"evidence", content_type="text/plain"),
+            },
+            format="multipart",
+        )
+
+        self.assertEqual(allowed_response.status_code, 200)
+        self.assertEqual(allowed_response.data["return_request"]["status"], "pending")
+        self.assertEqual(allowed_response.data["return_request"]["requested_by_username"], high_staff.username)
+
+    def test_organization_staff_level_must_be_above_four_to_request_return(self):
+        superadmin = self._create_user("owner-org-return-level", Profile.ROLE_SUPERADMIN)
+        low_staff = self._create_user("org-return-level-low", Profile.ROLE_STAFF)
+        high_staff = self._create_user("org-return-level-high", Profile.ROLE_STAFF)
+        self._assign_same_organization(superadmin, low_staff, high_staff)
+        organization = get_user_organization(superadmin)
+        for user, level in ((low_staff, 4), (high_staff, 5)):
+            user.profile.staff_side = organization.name
+            user.profile.staff_level = level
+            user.profile.save(update_fields=["staff_side", "staff_level"])
+        employee = Employee.objects.create(
+            organization=organization,
+            registered_by=superadmin,
+            updated_by=superadmin,
+            full_name="Organization Return Level Worker",
+            did_travel=True,
+            status=Employee.STATUS_APPROVED,
+            is_active=True,
+            progress_override_complete=True,
+        )
+
+        self.client.force_authenticate(user=low_staff)
+        blocked_response = self.client.post(
+            f"/api/employees/{employee.pk}/return-request/",
+            {
+                "remark": "Needs return review",
+                "evidence_file_1": SimpleUploadedFile("evidence.txt", b"evidence", content_type="text/plain"),
+            },
+            format="multipart",
+        )
+
+        self.assertEqual(blocked_response.status_code, 403)
+
+        self.client.force_authenticate(user=high_staff)
+        allowed_response = self.client.post(
+            f"/api/employees/{employee.pk}/return-request/",
+            {
+                "remark": "Needs return review",
+                "evidence_file_1": SimpleUploadedFile("evidence.txt", b"evidence", content_type="text/plain"),
+            },
+            format="multipart",
+        )
+
+        self.assertEqual(allowed_response.status_code, 200)
+        self.assertEqual(allowed_response.data["return_request"]["status"], "pending")
+        self.assertEqual(allowed_response.data["return_request"]["requested_by_username"], high_staff.username)
 
     @patch(
         "django.core.files.storage.FileSystemStorage.save",

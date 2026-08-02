@@ -8,7 +8,12 @@ from django.utils import timezone
 from rest_framework import serializers
 
 from .auth_utils import get_profile_role, is_admin, is_superadmin
-from .employee_selection import agent_display_name, get_selection_agent_for_user
+from .employee_selection import (
+    agent_display_name,
+    agent_office_display_name,
+    ensure_agent_office_for_owner,
+    get_selection_agent_for_user,
+)
 from .licensing import (
     can_assign_role,
     get_access_state,
@@ -18,6 +23,8 @@ from .licensing import (
 )
 from .models import (
     AuditLog,
+    AgentMembership,
+    AgentOffice,
     Employee,
     EmployeeDocument,
     EmployeeReturnRequest,
@@ -225,6 +232,8 @@ class UserListSerializer(serializers.ModelSerializer):
     staff_side = serializers.CharField(source="profile.staff_side", read_only=True)
     staff_level = serializers.IntegerField(source="profile.staff_level", read_only=True)
     staff_level_label = serializers.CharField(source="profile.staff_level_label", read_only=True)
+    agent_office_id = serializers.IntegerField(source="profile.agent_office_id", read_only=True)
+    agent_office_name = serializers.SerializerMethodField()
     email_verified = serializers.BooleanField(source="profile.email_verified", read_only=True)
     google_linked = serializers.SerializerMethodField()
     organization_name = serializers.CharField(source="profile.organization.name", read_only=True)
@@ -250,6 +259,8 @@ class UserListSerializer(serializers.ModelSerializer):
             "staff_side",
             "staff_level",
             "staff_level_label",
+            "agent_office_id",
+            "agent_office_name",
             "email_verified",
             "google_linked",
             "organization_name",
@@ -273,6 +284,8 @@ class UserListSerializer(serializers.ModelSerializer):
             "staff_side",
             "staff_level",
             "staff_level_label",
+            "agent_office_id",
+            "agent_office_name",
             "email_verified",
             "google_linked",
             "organization_name",
@@ -280,6 +293,17 @@ class UserListSerializer(serializers.ModelSerializer):
 
     def get_google_linked(self, obj):
         return bool(getattr(obj.profile, "google_sub", None))
+
+    def get_agent_office_name(self, obj):
+        profile = getattr(obj, "profile", None)
+        if not profile:
+            return ""
+        agent_office = getattr(profile, "agent_office", None)
+        if agent_office:
+            return agent_office_display_name(agent_office)
+        if profile.role == Profile.ROLE_CUSTOMER:
+            return agent_display_name(obj)
+        return ""
 
 
 class SelfProfileSerializer(serializers.Serializer):
@@ -337,6 +361,7 @@ class UserCreateSerializer(serializers.ModelSerializer):
     staff_side = serializers.CharField(required=False, allow_blank=True, default="")
     staff_level = serializers.IntegerField(required=False, min_value=1, max_value=5, default=1)
     staff_level_label = serializers.CharField(required=False, allow_blank=True, default="")
+    agent_office_id = serializers.IntegerField(required=False, allow_null=True)
 
     class Meta:
         model = User
@@ -355,6 +380,7 @@ class UserCreateSerializer(serializers.ModelSerializer):
             "staff_side",
             "staff_level",
             "staff_level_label",
+            "agent_office_id",
         )
 
     def validate_phone(self, value):
@@ -367,9 +393,23 @@ class UserCreateSerializer(serializers.ModelSerializer):
         actor = request.user
         role = attrs.get("role", Profile.ROLE_CUSTOMER)
         actor_org = get_user_organization(actor)
+        agent_office_supplied = "agent_office_id" in attrs
+        requested_agent_office_id = attrs.get("agent_office_id")
+        requested_agent_office = None
+        if requested_agent_office_id:
+            requested_agent_office = AgentOffice.objects.filter(
+                id=requested_agent_office_id,
+                organization=actor_org,
+                is_active=True,
+            ).select_related("owner").first()
+            if not requested_agent_office:
+                raise serializers.ValidationError({"agent_office_id": "Choose a valid agent office."})
         if role == Profile.ROLE_STAFF:
-            attrs["staff_side"] = (attrs.get("staff_side") or "").strip() or (
-                actor_org.name if actor_org else ""
+            attrs["agent_office"] = requested_agent_office
+            attrs["staff_side"] = (
+                agent_office_display_name(requested_agent_office)
+                if requested_agent_office
+                else (attrs.get("staff_side") or "").strip() or (actor_org.name if actor_org else "")
             )
             attrs["agent_country"] = ""
             attrs["agent_commission"] = None
@@ -418,6 +458,8 @@ class UserCreateSerializer(serializers.ModelSerializer):
 
     def create(self, validated_data):
         role = validated_data.pop("role")
+        agent_office = validated_data.pop("agent_office", None)
+        validated_data.pop("agent_office_id", None)
         phone = validated_data.pop("phone", "")
         agent_country = validated_data.pop("agent_country", "")
         agent_commission = validated_data.pop("agent_commission", None)
@@ -433,6 +475,7 @@ class UserCreateSerializer(serializers.ModelSerializer):
         actor_org = get_user_organization(self.context["request"].user)
         user.profile.role = role
         user.profile.organization = actor_org
+        user.profile.agent_office = agent_office
         user.profile.phone = phone
         user.profile.agent_country = agent_country if role == Profile.ROLE_CUSTOMER else ""
         user.profile.agent_commission = (
@@ -446,6 +489,17 @@ class UserCreateSerializer(serializers.ModelSerializer):
         )
         user.profile.email_verified = True
         user.profile.save()
+        if role == Profile.ROLE_CUSTOMER:
+            ensure_agent_office_for_owner(user, organization=actor_org)
+        elif role == Profile.ROLE_STAFF and agent_office:
+            AgentMembership.objects.update_or_create(
+                user=user,
+                defaults={
+                    "agent_office": agent_office,
+                    "role": AgentMembership.ROLE_STAFF,
+                    "is_active": user.is_active,
+                },
+            )
         OrganizationMembership.objects.update_or_create(
             user=user,
             defaults={
@@ -477,6 +531,7 @@ class UserUpdateSerializer(serializers.ModelSerializer):
     staff_side = serializers.CharField(required=False, allow_blank=True)
     staff_level = serializers.IntegerField(required=False, min_value=1, max_value=5)
     staff_level_label = serializers.CharField(required=False, allow_blank=True)
+    agent_office_id = serializers.IntegerField(required=False, allow_null=True)
 
     class Meta:
         model = User
@@ -493,6 +548,7 @@ class UserUpdateSerializer(serializers.ModelSerializer):
             "staff_side",
             "staff_level",
             "staff_level_label",
+            "agent_office_id",
         )
 
     def validate_phone(self, value):
@@ -508,6 +564,16 @@ class UserUpdateSerializer(serializers.ModelSerializer):
         target_role = new_role or get_profile_role(instance)
         actor_org = get_user_organization(actor)
         target_org = getattr(instance.profile, "organization", None)
+        requested_agent_office_id = attrs.get("agent_office_id")
+        requested_agent_office = None
+        if requested_agent_office_id:
+            requested_agent_office = AgentOffice.objects.filter(
+                id=requested_agent_office_id,
+                organization=actor_org,
+                is_active=True,
+            ).select_related("owner").first()
+            if not requested_agent_office:
+                raise serializers.ValidationError({"agent_office_id": "Choose a valid agent office."})
         if actor_org and target_org and actor_org.pk != target_org.pk:
             raise serializers.ValidationError("You do not have permission to modify this account.")
         if new_role is not None:
@@ -526,10 +592,16 @@ class UserUpdateSerializer(serializers.ModelSerializer):
             else:
                 raise serializers.ValidationError({"role": "You cannot change roles."})
         if target_role == Profile.ROLE_STAFF:
+            if agent_office_supplied or new_role == Profile.ROLE_STAFF:
+                attrs["agent_office"] = requested_agent_office
             attrs["agent_country"] = ""
             attrs["agent_commission"] = None
             attrs["agent_salary"] = None
-            next_side = (attrs.get("staff_side", instance.profile.staff_side) or "").strip()
+            next_side = (
+                agent_office_display_name(requested_agent_office)
+                if agent_office_supplied and requested_agent_office
+                else (attrs.get("staff_side", instance.profile.staff_side) or "").strip()
+            )
             next_label = (
                 attrs.get("staff_level_label", instance.profile.staff_level_label) or ""
             ).strip()
@@ -545,6 +617,7 @@ class UserUpdateSerializer(serializers.ModelSerializer):
             attrs["staff_level_label"] = next_label
             attrs["staff_level"] = STAFF_ROLE_LEVELS[next_label]
         elif target_role == Profile.ROLE_CUSTOMER:
+            attrs["agent_office"] = None
             attrs["staff_side"] = ""
             attrs["staff_level"] = 1
             attrs["staff_level_label"] = ""
@@ -562,6 +635,7 @@ class UserUpdateSerializer(serializers.ModelSerializer):
                 )
             attrs["agent_country"] = next_country
         else:
+            attrs["agent_office"] = None
             attrs["staff_side"] = ""
             attrs["staff_level"] = 1
             attrs["staff_level_label"] = ""
@@ -579,7 +653,10 @@ class UserUpdateSerializer(serializers.ModelSerializer):
         has_agent_country = "agent_country" in validated_data
         has_agent_commission = "agent_commission" in validated_data
         has_agent_salary = "agent_salary" in validated_data
+        has_agent_office = "agent_office" in validated_data
         role = validated_data.pop("role", None)
+        agent_office = validated_data.pop("agent_office", None)
+        validated_data.pop("agent_office_id", None)
         phone = validated_data.pop("phone", None)
         agent_country = validated_data.pop("agent_country", None)
         agent_commission = validated_data.pop("agent_commission", None)
@@ -598,6 +675,8 @@ class UserUpdateSerializer(serializers.ModelSerializer):
         )
         if role is not None:
             profile.role = role
+        if has_agent_office:
+            profile.agent_office = agent_office
         if phone is not None:
             profile.phone = phone
         if has_agent_country:
@@ -613,6 +692,19 @@ class UserUpdateSerializer(serializers.ModelSerializer):
         if staff_level_label is not None:
             profile.staff_level_label = staff_level_label
         profile.save()
+        if profile.role == Profile.ROLE_CUSTOMER:
+            ensure_agent_office_for_owner(instance, organization=profile.organization)
+        elif profile.role == Profile.ROLE_STAFF and profile.agent_office_id:
+            AgentMembership.objects.update_or_create(
+                user=instance,
+                defaults={
+                    "agent_office": profile.agent_office,
+                    "role": AgentMembership.ROLE_STAFF,
+                    "is_active": instance.is_active,
+                },
+            )
+        else:
+            AgentMembership.objects.filter(user=instance).delete()
         OrganizationMembership.objects.update_or_create(
             user=instance,
             defaults={
@@ -1199,6 +1291,7 @@ def build_employee_selection_payload(employee, request):
     process_selection = getattr(employee, "selection", None)
     interests = list(getattr(employee, "selection_interests", []).all()) if hasattr(getattr(employee, "selection_interests", None), "all") else []
     current_agent = None
+    current_user = getattr(request, "user", None) if request else None
     if request and request.user.is_authenticated:
         current_agent = get_selection_agent_for_user(
             request.user,
@@ -1211,6 +1304,15 @@ def build_employee_selection_payload(employee, request):
             None,
         )
     primary_interest = current_interest or (interests[0] if interests else None)
+    current_user_id = getattr(current_user, "id", None)
+    can_unselect = bool(
+        current_interest
+        and current_user_id
+        and (
+            current_interest.selected_by_id == current_user_id
+            or (current_agent and current_agent.id == current_user_id)
+        )
+    )
     selection_payload = None
     if process_selection:
         selection_payload = EmployeeSelectionSerializer(process_selection).data
@@ -1222,6 +1324,8 @@ def build_employee_selection_payload(employee, request):
             (process_selection and current_agent and process_selection.agent_id == current_agent.id)
             or current_interest
         ),
+        "selected_by_current_account": bool(current_interest and current_interest.selected_by_id == current_user_id),
+        "can_unselect": can_unselect,
         "selection": selection_payload,
         "selection_count": len(interests),
     }

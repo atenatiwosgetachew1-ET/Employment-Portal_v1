@@ -78,7 +78,22 @@ html[data-density='compact'] .employee-modal {
 }
 
 html[data-density='compact'] .employee-modal.employee-modal--flat {
-  width: min(1400px, 100%);
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+html[data-density='compact'] .employee-registration-surface {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  overflow: hidden;
+}
+
+html[data-density='compact'] .employee-registration-layout {
+  min-width: 0;
 }
 
 html[data-density='compact'] .employee-modal-header {
@@ -684,7 +699,7 @@ html[data-density='compact'] .document-preview-toolbar,
 html[data-density='compact'] .notification-dropdown-header,
 html[data-density='compact'] .app-confirm-header {
   gap: 8px;
-  padding: 7px 8px;
+  padding: 7px 0px;
 }
 
 html[data-density='compact'] .notifications-page-list,

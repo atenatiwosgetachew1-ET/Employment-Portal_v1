@@ -102,6 +102,49 @@ html[data-density='compact'] {
   font-size: 0.95rem;
 }
 
+.login-credentials-card {
+  display: grid;
+  gap: 8px;
+  margin: 0 0 18px;
+  padding: 10px;
+  border: 1px solid color-mix(in oklch, var(--color-border) 78%, transparent);
+  border-radius: 10px;
+  background: color-mix(in oklch, var(--color-card) 74%, transparent);
+}
+
+.login-credentials-title {
+  margin: 0;
+  color: var(--color-muted-foreground);
+  font-size: 0.82rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.login-credentials-row {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 8px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: color-mix(in oklch, var(--color-muted) 12%, transparent);
+  color: var(--color-foreground);
+  text-align: left;
+}
+
+.login-credentials-row:hover {
+  border-color: color-mix(in oklch, var(--color-primary) 28%, var(--color-border));
+  background: color-mix(in oklch, var(--color-primary) 12%, var(--color-card));
+}
+
+.login-credentials-row code {
+  color: var(--color-muted-foreground);
+  font-size: 0.8rem;
+}
+
 .form-group input {
   width: 100%;
   box-sizing: border-box;

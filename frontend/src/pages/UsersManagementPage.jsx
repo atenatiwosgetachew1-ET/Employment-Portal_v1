@@ -103,6 +103,7 @@ const emptyForm = {
   agent_salary: '',
   staff_side: '',
   staff_level_label: '',
+  agent_office_id: '',
   role: 'customer',
   is_active: true
 }
@@ -139,7 +140,8 @@ export default function UsersManagementPage() {
   const [page, setPage] = useState(1)
   const [searchInput, setSearchInput] = useState('')
   const [filters, setFilters] = useState({ q: '', role: '', isActive: '' })
-  const [staffSideOptions, setStaffSideOptions] = useState([])
+  const [, setStaffSideOptions] = useState([])
+  const [agentOfficeOptions, setAgentOfficeOptions] = useState([])
   const [currentView, setCurrentView] = useState('list')
   const isAgentSideUser = isAgentSideWorkspace(currentUser)
   const currentAgentSideName = currentUser?.role === 'customer'
@@ -149,7 +151,8 @@ export default function UsersManagementPage() {
     ...emptyForm,
     role: isAgentSideUser ? 'staff' : 'customer',
     staff_side: isAgentSideUser ? currentAgentSideName : '',
-    staff_level_label: isAgentSideUser ? STAFF_ROLE_OPTIONS[0].label : ''
+    staff_level_label: isAgentSideUser ? STAFF_ROLE_OPTIONS[0].label : '',
+    agent_office_id: isAgentSideUser ? String(currentUser?.agent_context?.agent_office_id || '') : ''
   }
 
   useEffect(() => {
@@ -161,25 +164,37 @@ export default function UsersManagementPage() {
         role: 'staff',
         staff_side: currentAgentSideName,
         staff_level_label: prev.staff_level_label || STAFF_ROLE_OPTIONS[0].label,
+        agent_office_id: String(currentUser?.agent_context?.agent_office_id || ''),
         agent_country: '',
         agent_commission: '',
         agent_salary: ''
       }
     })
-  }, [currentAgentSideName, isAgentSideUser])
+  }, [currentAgentSideName, currentUser?.agent_context?.agent_office_id, isAgentSideUser])
 
   const loadStaffSideOptions = useCallback(async () => {
     if (isAgentSideUser) {
       setStaffSideOptions(currentAgentSideName ? [currentAgentSideName] : [])
+      setAgentOfficeOptions(
+        currentUser?.agent_context?.agent_office_id
+          ? [{
+              id: currentUser.agent_context.agent_office_id,
+              name: currentAgentSideName,
+              owner_id: currentUser.agent_context.agent_id
+            }]
+          : []
+      )
       return
     }
     try {
-      const options = await usersService.fetchStaffSideOptions()
-      setStaffSideOptions(options)
+      const data = await usersService.fetchStaffSideOptions()
+      setStaffSideOptions(data.options || [])
+      setAgentOfficeOptions(data.agent_offices || [])
     } catch {
       setStaffSideOptions([])
+      setAgentOfficeOptions([])
     }
-  }, [currentAgentSideName, isAgentSideUser])
+  }, [currentAgentSideName, currentUser, isAgentSideUser])
 
   const loadUsers = useCallback(async (event) => {
     if (event?.preventDefault) {
@@ -276,6 +291,10 @@ export default function UsersManagementPage() {
             ? form.agent_salary
             : null,
         staff_side: form.role === 'staff' ? (isAgentSideUser ? currentAgentSideName : form.staff_side.trim()) : '',
+        agent_office_id:
+          form.role === 'staff' && form.agent_office_id
+            ? Number(form.agent_office_id)
+            : null,
         staff_level: form.role === 'staff' ? getStaffLevelForRole(form.staff_level_label) : 1,
         staff_level_label: form.role === 'staff' ? form.staff_level_label.trim() : '',
         role: form.role,
@@ -293,6 +312,7 @@ export default function UsersManagementPage() {
             agent_commission: payload.agent_commission,
             agent_salary: payload.agent_salary,
             staff_side: payload.staff_side,
+            agent_office_id: payload.agent_office_id,
             staff_level: payload.staff_level,
             staff_level_label: payload.staff_level_label
           })
@@ -321,6 +341,7 @@ export default function UsersManagementPage() {
       const payload = { role: newRole }
       if (newRole === 'staff') {
         payload.staff_side = row.staff_side || currentUser?.organization?.name || ''
+        payload.agent_office_id = row.agent_office_id || null
         payload.staff_level_label = row.staff_level_label || STAFF_ROLE_OPTIONS[0].label
         payload.staff_level = getStaffLevelForRole(payload.staff_level_label)
       }
@@ -335,6 +356,7 @@ export default function UsersManagementPage() {
                       ...u,
                       role: newRole,
                       staff_side: newRole === 'staff' ? payload.staff_side : '',
+                      agent_office_id: newRole === 'staff' ? payload.agent_office_id : null,
                       staff_level: newRole === 'staff' ? payload.staff_level : 1,
                       staff_level_label: newRole === 'staff' ? payload.staff_level_label : ''
                     }
@@ -477,6 +499,7 @@ export default function UsersManagementPage() {
         row.agent_salary === null || row.agent_salary === undefined ? '' : String(row.agent_salary),
       staff_side: isAgentSideUser ? currentAgentSideName : row.staff_side || currentUser?.organization?.name || '',
       staff_level_label: row.staff_level_label || STAFF_ROLE_OPTIONS[0].label,
+      agent_office_id: row.agent_office_id ? String(row.agent_office_id) : '',
       role: row.role || 'staff',
       is_active: Boolean(row.is_active)
     })
@@ -666,14 +689,31 @@ export default function UsersManagementPage() {
                 <label>
                   Side *
                   <select
-                    value={form.staff_side}
-                    onChange={(e) => setForm((f) => ({ ...f, staff_side: e.target.value }))}
+                    value={form.agent_office_id ? `agent:${form.agent_office_id}` : 'local'}
+                    onChange={(e) => {
+                      const value = e.target.value
+                      if (value === 'local') {
+                        setForm((f) => ({
+                          ...f,
+                          agent_office_id: '',
+                          staff_side: currentUser?.organization?.name || ''
+                        }))
+                        return
+                      }
+                      const id = value.replace('agent:', '')
+                      const agentOffice = agentOfficeOptions.find((option) => String(option.id) === id)
+                      setForm((f) => ({
+                        ...f,
+                        agent_office_id: id,
+                        staff_side: agentOffice?.name || f.staff_side
+                      }))
+                    }}
                     required
                   >
-                    <option value="">Select side</option>
-                    {staffSideOptions.map((option) => (
-                      <option key={option} value={option}>
-                        {option}
+                    <option value="local">{currentUser?.organization?.name || 'Local organization'}</option>
+                    {agentOfficeOptions.map((option) => (
+                      <option key={option.id} value={`agent:${option.id}`}>
+                        {option.name}
                       </option>
                     ))}
                   </select>
@@ -713,6 +753,10 @@ export default function UsersManagementPage() {
                     agent_country: e.target.value === 'customer' ? f.agent_country : '',
                     agent_commission: e.target.value === 'customer' ? f.agent_commission : '',
                     agent_salary: e.target.value === 'customer' ? f.agent_salary : '',
+                    agent_office_id:
+                      e.target.value === 'staff'
+                        ? f.agent_office_id
+                        : '',
                     staff_side:
                       e.target.value === 'staff'
                         ? f.staff_side || currentUser?.organization?.name || ''
@@ -829,6 +873,7 @@ export default function UsersManagementPage() {
                     <th>Commission</th>
                     <th>Salary</th>
                     <th>Side</th>
+                    <th>Agent office</th>
                     <th>Staff role</th>
                     <th>Level</th>
                     <th>Active</th>
@@ -861,6 +906,7 @@ export default function UsersManagementPage() {
                         <td>
                           {row.role === 'staff' ? row.staff_side || '—' : '—'}
                         </td>
+                        <td>{row.agent_office_name || '—'}</td>
                         <td>{row.role === 'staff' ? row.staff_level_label || '—' : '—'}</td>
                         <td>
                           {row.role === 'staff' ? (

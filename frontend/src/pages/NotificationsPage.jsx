@@ -83,6 +83,7 @@ export default function NotificationsPage() {
   const [reminderOption, setReminderOption] = useState('tomorrow')
   const [customReminderAt, setCustomReminderAt] = useState(() => toLocalInputValue(new Date(Date.now() + 24 * 60 * 60 * 1000)))
   const [reminderSaving, setReminderSaving] = useState(false)
+  const [expandedNotificationIds, setExpandedNotificationIds] = useState(() => new Set())
 
   const load = useCallback(async (event) => {
     if (event?.preventDefault) {
@@ -202,6 +203,19 @@ export default function NotificationsPage() {
     }
   }
 
+  const toggleNotificationExpanded = useCallback((item) => {
+    if (!item.body) return
+    setExpandedNotificationIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(item.id)) {
+        next.delete(item.id)
+      } else {
+        next.add(item.id)
+      }
+      return next
+    })
+  }, [])
+
   return (
     <section className="dashboard-panel notifications-page">
       <div className="notifications-page-header">
@@ -247,14 +261,38 @@ export default function NotificationsPage() {
         ) : visibleItems.length === 0 ? (
           <p className="notifications-page-empty muted-text">No notifications yet.</p>
         ) : (
-          visibleItems.map((item) => (
+          visibleItems.map((item) => {
+            const hasBody = Boolean(item.body)
+            const isExpanded = expandedNotificationIds.has(item.id)
+
+            return (
             <article
               key={item.id}
-              className={`notification-item notifications-page-item${item.read ? '' : ' is-unread'}${item.is_reminder_pending ? ' has-reminder' : ''}`}
+              className={`notification-item notifications-page-item${item.read ? '' : ' is-unread'}${item.is_reminder_pending ? ' has-reminder' : ''}${hasBody ? ' is-expandable' : ''}${isExpanded ? ' is-expanded' : ''}`}
+              role={hasBody ? 'button' : undefined}
+              tabIndex={hasBody ? 0 : undefined}
+              aria-expanded={hasBody ? isExpanded : undefined}
+              onClick={() => toggleNotificationExpanded(item)}
+              onKeyDown={(event) => {
+                if (!hasBody) return
+                if (event.key === 'Enter' || event.key === ' ') {
+                  event.preventDefault()
+                  toggleNotificationExpanded(item)
+                }
+              }}
             >
               <div className="notification-item-main">
-                <span className="notification-item-title">{item.title}</span>
-                {item.body ? <span className="notification-item-body">{item.body}</span> : null}
+                <span className="notification-item-title-row">
+                  <span className="notification-item-title">{item.title}</span>
+                  {hasBody ? (
+                    <span className="notification-item-expand-icon" aria-hidden="true">
+                      <svg viewBox="0 0 24 24">
+                        <path d="m7 10 5 5 5-5" />
+                      </svg>
+                    </span>
+                  ) : null}
+                </span>
+                {hasBody ? <span className="notification-item-body">{item.body}</span> : null}
                 <span className="notification-item-time">
                   {item.created_at ? new Date(item.created_at).toLocaleString() : ''}
                 </span>
@@ -264,7 +302,11 @@ export default function NotificationsPage() {
                   </span>
                 ) : null}
               </div>
-              <div className="notification-item-actions">
+              <div
+                className="notification-item-actions"
+                onClick={(event) => event.stopPropagation()}
+                onKeyDown={(event) => event.stopPropagation()}
+              >
                 {item.read ? (
                   <button type="button" className="btn-secondary" onClick={() => handleToggleReminder(item)}>
                     {item.is_reminder_pending ? 'Cancel reminder' : 'Remind me'}
@@ -276,7 +318,8 @@ export default function NotificationsPage() {
                 )}
               </div>
             </article>
-          ))
+            )
+          })
         )}
       </div>
 

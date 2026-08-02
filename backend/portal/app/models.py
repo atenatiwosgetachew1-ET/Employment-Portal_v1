@@ -185,6 +185,13 @@ class Profile(models.Model):
         blank=True,
         related_name="profiles",
     )
+    agent_office = models.ForeignKey(
+        "AgentOffice",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="profiles",
+    )
     role = models.CharField(max_length=50, choices=ROLE_CHOICES, default=ROLE_CUSTOMER)
     phone = models.CharField(max_length=30, blank=True, default="")
     agent_country = models.CharField(max_length=120, blank=True, default="")
@@ -281,6 +288,78 @@ class OrganizationMembership(models.Model):
 
     def __str__(self):
         return f"{self.user.username} @ {self.organization.name}"
+
+
+class AgentOffice(models.Model):
+    organization = models.ForeignKey(
+        Organization,
+        on_delete=models.CASCADE,
+        related_name="agent_offices",
+    )
+    owner = models.OneToOneField(
+        User,
+        on_delete=models.CASCADE,
+        related_name="owned_agent_office",
+    )
+    name = models.CharField(max_length=255)
+    country = models.CharField(max_length=120, blank=True, default="")
+    commission = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        null=True,
+        blank=True,
+    )
+    salary = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        null=True,
+        blank=True,
+    )
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["name"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["organization", "name"],
+                name="unique_agent_office_name_per_organization",
+            )
+        ]
+
+    def __str__(self):
+        return self.name
+
+
+class AgentMembership(models.Model):
+    ROLE_OWNER = "owner"
+    ROLE_STAFF = "staff"
+    ROLE_CHOICES = [
+        (ROLE_OWNER, "Owner"),
+        (ROLE_STAFF, "Staff"),
+    ]
+
+    agent_office = models.ForeignKey(
+        AgentOffice,
+        on_delete=models.CASCADE,
+        related_name="memberships",
+    )
+    user = models.OneToOneField(
+        User,
+        on_delete=models.CASCADE,
+        related_name="agent_membership",
+    )
+    role = models.CharField(max_length=20, choices=ROLE_CHOICES, default=ROLE_STAFF)
+    is_active = models.BooleanField(default=True)
+    joined_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["agent_office__name", "user__username"]
+
+    def __str__(self):
+        return f"{self.user.username} @ {self.agent_office.name}"
 
 
 class PlatformSettings(models.Model):

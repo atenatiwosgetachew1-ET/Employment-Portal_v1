@@ -319,28 +319,28 @@ input[type='checkbox'],
   justify-content: space-between;
   gap: 16px;
   width: 100%;
-  padding: 12px 14px;
-  border: none;
-  border-bottom: 1px solid color-mix(in oklch, var(--color-border) 72%, transparent);
-  background: var(--color-card);
+  padding: 16px;
+  border: 1px solid color-mix(in oklch, var(--color-border) 76%, transparent);
+  border-radius: 5px;
+  background: color-mix(in oklch, var(--color-card) 92%, var(--color-muted));
   text-align: left;
   font: inherit;
   color: inherit;
 }
 
 .notifications-page-list .notifications-page-item:not(.is-unread) {
-  background: color-mix(in oklch, var(--color-card) 92%, var(--color-muted));
-  border-bottom-color: color-mix(in oklch, var(--color-card) 97%, transparent);
+  background: color-mix(in oklch, var(--color-card) 94%, var(--color-muted));
+  border-color: color-mix(in oklch, var(--color-border) 64%, transparent);
   color: color-mix(in oklch, var(--color-foreground) 58%, var(--color-muted-foreground));
   opacity: 0.74;
 }
 
 html[data-theme='light'] .notifications-page-list .notifications-page-item:not(.is-unread) {
-  border-bottom-color: color-mix(in oklch, var(--color-card) 98.5%, transparent);
+  border-color: color-mix(in oklch, var(--color-border) 58%, transparent);
 }
 
 html[data-theme='dark'] .notifications-page-list .notifications-page-item:not(.is-unread) {
-  border-bottom-color: color-mix(in oklch, var(--color-card) 99%, transparent);
+  border-color: color-mix(in oklch, var(--color-border) 52%, transparent);
 }
 
 .notifications-page-list .notifications-page-item:not(.is-unread) .notification-item-title {
@@ -362,7 +362,7 @@ html[data-theme='dark'] .notifications-page-list .notifications-page-item:not(.i
   min-width: 0;
   flex-direction: column;
   align-items: flex-start;
-  gap: 4px;
+  gap: 6px;
 }
 
 .notification-item-actions {
@@ -376,12 +376,43 @@ html[data-theme='dark'] .notifications-page-list .notifications-page-item:not(.i
 }
 
 .notification-item:last-child {
-  border-bottom: none;
+  border-bottom: 1px solid color-mix(in oklch, var(--color-border) 76%, transparent);
 }
 
 .notification-item.is-unread {
-  background: color-mix(in oklch, var(--color-card) 86%, var(--color-muted));
+  background: color-mix(in oklch, var(--color-card) 88%, var(--color-muted));
   cursor: default;
+}
+
+.notifications-page-item.is-expandable {
+  cursor: pointer;
+  transition:
+    background 160ms ease,
+    border-color 160ms ease,
+    box-shadow 160ms ease;
+}
+
+.notifications-page-item.is-expandable:hover {
+  border-color: color-mix(in oklch, var(--color-ring) 34%, var(--color-border));
+  background: color-mix(in oklch, var(--color-muted) 68%, var(--color-card));
+}
+
+.notifications-page-item.is-expandable:focus-visible {
+  outline: 2px solid rgb(var(--accent-active-border, 59 130 246) / 0.65);
+  outline-offset: -2px;
+}
+
+.notifications-page-item.is-expandable.is-expanded {
+  border-color: color-mix(in oklch, var(--color-ring) 38%, var(--color-border));
+  background: color-mix(in oklch, var(--color-muted) 72%, var(--color-card));
+  box-shadow: none;
+}
+
+.notification-item-title-row {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: 8px;
 }
 
 .notification-item-title {
@@ -390,10 +421,59 @@ html[data-theme='dark'] .notifications-page-list .notifications-page-item:not(.i
   color: var(--color-foreground);
 }
 
+.notification-item-expand-icon {
+  display: inline-grid;
+  flex: 0 0 auto;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  margin-left: auto;
+  border-radius: 5px;
+  border: 1px solid color-mix(in oklch, var(--color-border) 74%, transparent);
+  color: var(--color-foreground);
+  background: color-mix(in oklch, var(--color-card) 88%, var(--color-muted));
+  transition:
+    background 160ms ease,
+    border-color 160ms ease,
+    color 160ms ease,
+    transform 180ms ease;
+}
+
+.notification-item-expand-icon svg {
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.notifications-page-item.is-expandable:hover .notification-item-expand-icon {
+  border-color: color-mix(in oklch, var(--color-ring) 32%, var(--color-border));
+  background: color-mix(in oklch, var(--color-card) 80%, var(--color-muted));
+  color: var(--color-foreground);
+}
+
+.notifications-page-item.is-expanded .notification-item-expand-icon {
+  transform: rotate(180deg);
+}
+
 .notification-item-body {
+  display: block;
+  max-height: 2.8em;
+  overflow: hidden;
   font-size: 0.85rem;
   color: var(--color-muted-foreground);
   white-space: pre-wrap;
+  transition:
+    max-height 180ms ease,
+    color 160ms ease;
+}
+
+.notifications-page-item.is-expanded .notification-item-body {
+  max-height: 320px;
+  color: color-mix(in oklch, var(--color-card-foreground) 88%, var(--color-muted-foreground));
 }
 
 .notification-item-time {
@@ -728,5 +808,386 @@ html[data-theme='dark'] .notifications-page-list .notifications-page-item:not(.i
   align-items: center;
   gap: 16px;
   margin-top: 16px;
+  justify-content: center;
+  text-align: center;
+}
+
+.employees-scroll-wheel {
+  position: fixed;
+  right: 78px;
+  bottom: 58px;
+  width: 150px;
+  height: 150px;
+  border-radius: 999px;
+  z-index: 10050;
+  background:
+    conic-gradient(
+      from 45deg,
+      rgb(255 255 255 / 0.02) 0deg 90deg,
+      rgb(255 255 255 / 0.02) 90deg 180deg,
+      rgb(255 255 255 / 0.02) 180deg 270deg,
+      rgb(255 255 255 / 0.02) 270deg 360deg
+    );
+  box-shadow: 0 20px 60px rgb(0 0 0 / 0.62);
+  backdrop-filter: blur(16px);
+  transition: none;
+  /* Ensure backdrop-filter is clipped to a circle (prevents "square blur" artifacts). */
+  -webkit-mask-image: radial-gradient(circle at center, #000 0 99%, transparent 100%);
+  mask-image: radial-gradient(circle at center, #000 0 99%, transparent 100%);
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  -webkit-mask-size: 100% 100%;
+  mask-size: 100% 100%;
+}
+
+.employees-scroll-wheel[data-has-right='1'] {
+  background:
+    conic-gradient(
+      from 0deg,
+      rgb(255 255 255 / 0.02) 0deg 45deg,
+      color-mix(in oklch, #2563eb 14%, rgb(255 255 255 / 0.04)) 45deg 135deg,
+      rgb(255 255 255 / 0.02) 135deg 360deg
+    );
+}
+
+.employees-scroll-wheel[data-right-role='start-process'] {
+  background:
+    conic-gradient(
+      from 0deg,
+      rgb(255 255 255 / 0.02) 0deg 45deg,
+      color-mix(in oklch, #4b0082 14%, rgb(255 255 255 / 0.04)) 45deg 135deg,
+      rgb(255 255 255 / 0.02) 135deg 360deg
+    );
+}
+
+.employees-scroll-wheel[data-has-left='1'] {
+  background:
+    conic-gradient(
+      from 0deg,
+      rgb(255 255 255 / 0.02) 0deg 225deg,
+      color-mix(in oklch, #008000 16%, rgb(255 255 255 / 0.04)) 225deg 315deg,
+      rgb(255 255 255 / 0.02) 315deg 360deg
+    );
+}
+
+/* top division currently unused */
+
+.employees-scroll-wheel[data-has-bottom='1'] {
+  background:
+    conic-gradient(
+      from 0deg,
+      rgb(255 255 255 / 0.02) 0deg 135deg,
+      color-mix(in oklch, #333333 28%, rgb(255 255 255 / 0.03)) 135deg 225deg,
+      rgb(255 255 255 / 0.02) 225deg 360deg
+    );
+}
+
+.employees-scroll-wheel[data-has-right='1'][data-has-bottom='1'] {
+  background:
+    conic-gradient(
+      from 0deg,
+      rgb(255 255 255 / 0.02) 0deg 45deg,
+      color-mix(in oklch, #2563eb 14%, rgb(255 255 255 / 0.04)) 45deg 135deg,
+      color-mix(in oklch, #333333 28%, rgb(255 255 255 / 0.03)) 135deg 225deg,
+      rgb(255 255 255 / 0.02) 225deg 360deg
+    );
+}
+
+.employees-scroll-wheel[data-right-role='start-process'][data-has-bottom='1'] {
+  background:
+    conic-gradient(
+      from 0deg,
+      rgb(255 255 255 / 0.02) 0deg 45deg,
+      color-mix(in oklch, #4b0082 14%, rgb(255 255 255 / 0.04)) 45deg 135deg,
+      color-mix(in oklch, #333333 28%, rgb(255 255 255 / 0.03)) 135deg 225deg,
+      rgb(255 255 255 / 0.02) 225deg 360deg
+    );
+}
+
+.employees-scroll-wheel[data-has-left='1'][data-has-bottom='1'] {
+  background:
+    conic-gradient(
+      from 0deg,
+      rgb(255 255 255 / 0.02) 0deg 135deg,
+      color-mix(in oklch, #333333 28%, rgb(255 255 255 / 0.03)) 135deg 225deg,
+      color-mix(in oklch, #008000 16%, rgb(255 255 255 / 0.04)) 225deg 315deg,
+      rgb(255 255 255 / 0.02) 315deg 360deg
+    );
+}
+
+/* top combos currently unused */
+
+@supports selector(.employees-scroll-wheel:has(.employees-scroll-wheel-hit-seg:hover)) {
+  .employees-scroll-wheel[data-has-bottom='1']:has(.employees-scroll-wheel-hit-seg--bottom:hover),
+  .employees-scroll-wheel[data-has-bottom='1']:has(.employees-scroll-wheel-hit-seg--bottom:focus-visible) {
+    background:
+      conic-gradient(
+        from 0deg,
+        rgb(255 255 255 / 0.06) 0deg 135deg,
+        color-mix(in oklch, #333333 46%, rgb(255 255 255 / 0.10)) 135deg 225deg,
+        rgb(255 255 255 / 0.06) 225deg 360deg
+      );
+  }
+
+  .employees-scroll-wheel[data-has-right='1'][data-has-bottom='1']:has(.employees-scroll-wheel-hit-seg--bottom:hover),
+  .employees-scroll-wheel[data-has-right='1'][data-has-bottom='1']:has(.employees-scroll-wheel-hit-seg--bottom:focus-visible) {
+    background:
+      conic-gradient(
+        from 0deg,
+        rgb(255 255 255 / 0.06) 0deg 45deg,
+        color-mix(in oklch, #2563eb 14%, rgb(255 255 255 / 0.04)) 45deg 135deg,
+        color-mix(in oklch, #333333 46%, rgb(255 255 255 / 0.10)) 135deg 225deg,
+        rgb(255 255 255 / 0.06) 225deg 360deg
+      );
+  }
+
+  .employees-scroll-wheel[data-has-right='1']:has(.employees-scroll-wheel-hit-seg--right:hover),
+  .employees-scroll-wheel[data-has-right='1']:has(.employees-scroll-wheel-hit-seg--right:focus-visible) {
+    background:
+      conic-gradient(
+        from 0deg,
+        rgb(255 255 255 / 0.06) 0deg 45deg,
+        color-mix(in oklch, #2563eb 22%, rgb(255 255 255 / 0.10)) 45deg 135deg,
+        rgb(255 255 255 / 0.06) 135deg 360deg
+      );
+  }
+
+  .employees-scroll-wheel[data-right-role='start-process']:has(.employees-scroll-wheel-hit-seg--right:hover),
+  .employees-scroll-wheel[data-right-role='start-process']:has(.employees-scroll-wheel-hit-seg--right:focus-visible) {
+    background:
+      conic-gradient(
+        from 0deg,
+        rgb(255 255 255 / 0.06) 0deg 45deg,
+        color-mix(in oklch, #4b0082 22%, rgb(255 255 255 / 0.10)) 45deg 135deg,
+        rgb(255 255 255 / 0.06) 135deg 360deg
+      );
+  }
+
+  .employees-scroll-wheel[data-has-right='1'][data-has-bottom='1']:has(.employees-scroll-wheel-hit-seg--right:hover),
+  .employees-scroll-wheel[data-has-right='1'][data-has-bottom='1']:has(.employees-scroll-wheel-hit-seg--right:focus-visible) {
+    background:
+      conic-gradient(
+        from 0deg,
+        rgb(255 255 255 / 0.06) 0deg 45deg,
+        color-mix(in oklch, #2563eb 22%, rgb(255 255 255 / 0.10)) 45deg 135deg,
+        color-mix(in oklch, #333333 28%, rgb(255 255 255 / 0.03)) 135deg 225deg,
+        rgb(255 255 255 / 0.06) 225deg 360deg
+      );
+  }
+
+  .employees-scroll-wheel[data-right-role='start-process'][data-has-bottom='1']:has(.employees-scroll-wheel-hit-seg--right:hover),
+  .employees-scroll-wheel[data-right-role='start-process'][data-has-bottom='1']:has(.employees-scroll-wheel-hit-seg--right:focus-visible) {
+    background:
+      conic-gradient(
+        from 0deg,
+        rgb(255 255 255 / 0.06) 0deg 45deg,
+        color-mix(in oklch, #4b0082 22%, rgb(255 255 255 / 0.10)) 45deg 135deg,
+        color-mix(in oklch, #333333 28%, rgb(255 255 255 / 0.03)) 135deg 225deg,
+        rgb(255 255 255 / 0.06) 225deg 360deg
+      );
+  }
+
+  .employees-scroll-wheel[data-has-left='1']:has(.employees-scroll-wheel-hit-seg--left:hover),
+  .employees-scroll-wheel[data-has-left='1']:has(.employees-scroll-wheel-hit-seg--left:focus-visible) {
+    background:
+      conic-gradient(
+        from 0deg,
+        rgb(255 255 255 / 0.06) 0deg 225deg,
+        color-mix(in oklch, #008000 26%, rgb(255 255 255 / 0.10)) 225deg 315deg,
+        rgb(255 255 255 / 0.06) 315deg 360deg
+      );
+  }
+
+  /* top hover currently unused */
+
+  .employees-scroll-wheel[data-has-left='1'][data-has-bottom='1']:has(.employees-scroll-wheel-hit-seg--left:hover),
+  .employees-scroll-wheel[data-has-left='1'][data-has-bottom='1']:has(.employees-scroll-wheel-hit-seg--left:focus-visible) {
+    background:
+      conic-gradient(
+        from 0deg,
+        rgb(255 255 255 / 0.06) 0deg 135deg,
+        color-mix(in oklch, #333333 28%, rgb(255 255 255 / 0.03)) 135deg 225deg,
+        color-mix(in oklch, #008000 26%, rgb(255 255 255 / 0.10)) 225deg 315deg,
+        rgb(255 255 255 / 0.06) 315deg 360deg
+      );
+  }
+}
+
+.employees-scroll-wheel button:not(.employees-scroll-wheel-center) {
+  all: unset;
+  box-sizing: border-box;
+  cursor: pointer;
+  color: rgb(255 255 255 / 0.86);
+  -webkit-tap-highlight-color: transparent;
+  outline: none;
+}
+
+.employees-scroll-wheel-hit {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 2;
+}
+
+.employees-scroll-wheel-hit-seg {
+  fill: transparent;
+  pointer-events: none;
+  cursor: default;
+}
+
+.employees-scroll-wheel-seg-icon {
+  pointer-events: none;
+}
+
+.employees-scroll-wheel-seg-icon--right {
+  stroke: rgb(255 255 255 / 0.88);
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  fill: none;
+  filter: drop-shadow(0 10px 16px rgb(0 0 0 / 0.6));
+}
+
+.employees-scroll-wheel-seg-icon--left {
+  stroke: rgb(255 255 255 / 0.88);
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  fill: none;
+  filter: drop-shadow(0 10px 16px rgb(0 0 0 / 0.6));
+}
+
+.employees-scroll-wheel-seg-icon--bottom {
+  stroke: rgb(255 255 255 / 0.88);
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  fill: none;
+  filter: drop-shadow(0 10px 16px rgb(0 0 0 / 0.6));
+}
+
+.employees-scroll-wheel[data-has-right='1'] .employees-scroll-wheel-seg-icon--right {
+  stroke: color-mix(in oklch, #2563eb 80%, white 20%);
+  filter:
+    drop-shadow(0 12px 18px rgb(0 0 0 / 0.6))
+    drop-shadow(0 0 14px color-mix(in oklch, #2563eb 28%, transparent));
+}
+
+.employees-scroll-wheel[data-right-role='start-process'] .employees-scroll-wheel-seg-icon--right {
+  stroke: color-mix(in oklch, #4b0082 80%, white 20%);
+  filter:
+    drop-shadow(0 12px 18px rgb(0 0 0 / 0.6))
+    drop-shadow(0 0 14px color-mix(in oklch, #4b0082 28%, transparent));
+}
+
+.employees-scroll-wheel[data-has-left='1'] .employees-scroll-wheel-seg-icon--left {
+  stroke: color-mix(in oklch, #008000 80%, white 20%);
+  filter:
+    drop-shadow(0 12px 18px rgb(0 0 0 / 0.6))
+    drop-shadow(0 0 14px color-mix(in oklch, #008000 28%, transparent));
+}
+
+.employees-scroll-wheel[data-has-bottom='1'] .employees-scroll-wheel-seg-icon--bottom {
+  stroke: color-mix(in oklch, #333333 72%, white 28%);
+  filter:
+    drop-shadow(0 12px 18px rgb(0 0 0 / 0.6))
+    drop-shadow(0 0 14px color-mix(in oklch, #333333 28%, transparent));
+}
+
+@supports selector(.employees-scroll-wheel:has(.employees-scroll-wheel-hit-seg:hover)) {
+  .employees-scroll-wheel[data-has-right='1']:has(.employees-scroll-wheel-hit-seg--right:hover) .employees-scroll-wheel-seg-icon--right,
+  .employees-scroll-wheel[data-has-right='1']:has(.employees-scroll-wheel-hit-seg--right:focus-visible) .employees-scroll-wheel-seg-icon--right {
+    stroke: rgb(255 255 255 / 1);
+    filter: drop-shadow(0 12px 18px rgb(0 0 0 / 0.65));
+  }
+
+  .employees-scroll-wheel[data-right-role='start-process']:has(.employees-scroll-wheel-hit-seg--right:hover) .employees-scroll-wheel-seg-icon--right,
+  .employees-scroll-wheel[data-right-role='start-process']:has(.employees-scroll-wheel-hit-seg--right:focus-visible) .employees-scroll-wheel-seg-icon--right {
+    stroke: rgb(255 255 255 / 1);
+    filter: drop-shadow(0 12px 18px rgb(0 0 0 / 0.65));
+  }
+
+  .employees-scroll-wheel[data-has-left='1']:has(.employees-scroll-wheel-hit-seg--left:hover) .employees-scroll-wheel-seg-icon--left,
+  .employees-scroll-wheel[data-has-left='1']:has(.employees-scroll-wheel-hit-seg--left:focus-visible) .employees-scroll-wheel-seg-icon--left {
+    stroke: rgb(255 255 255 / 1);
+    filter: drop-shadow(0 12px 18px rgb(0 0 0 / 0.65));
+  }
+
+  .employees-scroll-wheel[data-has-bottom='1']:has(.employees-scroll-wheel-hit-seg--bottom:hover) .employees-scroll-wheel-seg-icon--bottom,
+  .employees-scroll-wheel[data-has-bottom='1']:has(.employees-scroll-wheel-hit-seg--bottom:focus-visible) .employees-scroll-wheel-seg-icon--bottom {
+    stroke: rgb(255 255 255 / 1);
+    filter: drop-shadow(0 12px 18px rgb(0 0 0 / 0.65));
+  }
+
+}
+
+.employees-scroll-wheel[data-has-right='1'] .employees-scroll-wheel-hit-seg--right,
+.employees-scroll-wheel[data-has-bottom='1'] .employees-scroll-wheel-hit-seg--bottom,
+.employees-scroll-wheel[data-has-left='1'] .employees-scroll-wheel-hit-seg--left {
+  pointer-events: all;
+  cursor: pointer;
+}
+
+.employees-scroll-wheel-hit-seg:focus-visible {
+  outline: none;
+}
+
+.employees-scroll-wheel-center {
+  all: unset;
+  position: absolute;
+  margin: auto !important;
+  top: 0 !important;
+  bottom: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  border-radius: 50% !important;
+  height: 50% !important;
+  width: 50% !important;
+  box-sizing: border-box;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  outline: none;
+  display: grid;
+  place-items: center;
+  background: rgba(59, 59, 59, 0.7) !important;
+  border: 0 !important;
+  box-shadow:
+    0 10px 28px rgb(0 0 0 / 0.55) !important;
+  backdrop-filter: blur(10px);
+  z-index: 10020;
+  pointer-events: auto;
+  transition:
+    background 160ms ease,
+    box-shadow 160ms ease,
+    transform 160ms ease,
+    opacity 160ms ease;
+}
+
+.employees-scroll-wheel-center:hover {
+  background: rgba(59, 59, 59, 0.9) !important;
+  box-shadow:
+    0 14px 34px rgb(0 0 0 / 0.62) !important;
+  transform: translateZ(0) scale(1.02);
+}
+.employees-scroll-wheel-center:hover .employees-scroll-wheel-center-icon {
+  color: rgb(255 255 255 / 1);
+}
+.employees-scroll-wheel-center:active {
+  background: rgba(59, 59, 59, 0.2) !important;
+}
+
+/* segments now handled via SVG hit paths */
+
+.employees-scroll-wheel-center-icon {
+  width: 26px;
+  height: 26px;
+  color: rgb(255 255 255 / 0.92);
+  filter: drop-shadow(0 8px 12px rgb(0 0 0 / 0.55));
+}
+
+.employees-scroll-wheel-center-icon-stem,
+.employees-scroll-wheel-center-icon-head {
+  fill: currentColor;
 }
 

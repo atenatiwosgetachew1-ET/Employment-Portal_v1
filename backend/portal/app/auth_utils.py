@@ -89,6 +89,8 @@ def user_payload(user):
         "staff_side": profile.staff_side or "",
         "staff_level": profile.staff_level or 1,
         "staff_level_label": profile.staff_level_label or "",
+        "agent_office_id": profile.agent_office_id,
+        "agent_office_name": profile.agent_office.name if profile.agent_office_id else "",
         "email_verified": profile.email_verified,
         "google_linked": bool(profile.google_sub),
         "permissions": sorted(get_role_permissions(profile.role)),

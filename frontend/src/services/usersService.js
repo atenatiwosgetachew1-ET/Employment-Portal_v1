@@ -39,7 +39,11 @@ export async function fetchStaffSideOptions() {
   if (!response.ok) {
     throw new Error(data.detail || data.message || 'Failed to load staff side options')
   }
-  return Array.isArray(data.options) ? data.options : []
+  return {
+    options: Array.isArray(data.options) ? data.options : [],
+    local_side: data.local_side || null,
+    agent_offices: Array.isArray(data.agent_offices) ? data.agent_offices : []
+  }
 }
 
 export async function patchUser(id, payload) {

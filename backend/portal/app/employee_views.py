@@ -158,7 +158,18 @@ def can_initiate_return_request(user, employee):
     if can_manage_process_for_organization(user, organization):
         return True
     scope, context = get_employee_user_scope(user, organization)
+    profile = getattr(user, "profile", None)
+    if scope == "organization":
+        return bool(
+            getattr(profile, "role", "") == Profile.ROLE_STAFF
+            and getattr(profile, "staff_level", 1) > 4
+        )
     if scope != "agent":
+        return False
+    if not (
+        getattr(profile, "role", "") == Profile.ROLE_CUSTOMER
+        or getattr(profile, "staff_level", 1) > 4
+    ):
         return False
     selection = getattr(employee, "selection", None)
     return bool(selection and context["agent_id"] and selection.agent_id == context["agent_id"])
@@ -253,16 +264,15 @@ class EmployeeListCreateView(generics.ListCreateAPIView):
         else:
             if user_scope == "organization":
                 return queryset
+            agent_country = (agent_context.get("agent_country") or "").strip()
+            if not agent_country:
+                return queryset.none()
             queryset = queryset.filter(
-                Q(selection__status=EmployeeSelection.STATUS_UNDER_PROCESS, selection__agent_id=agent_context["agent_id"])
-                | (
-                    Q(selection__isnull=True)
-                    & Q(returned_from_employment=False)
-                )
-                | (
-                    ~Q(selection__status=EmployeeSelection.STATUS_UNDER_PROCESS)
-                    & Q(returned_from_employment=False)
-                )
+                status=Employee.STATUS_APPROVED,
+                returned_from_employment=False,
+                selection__isnull=True,
+                selection_interests__isnull=True,
+                application_countries__contains=[agent_country],
             )
         return queryset.distinct()
 
@@ -826,6 +836,11 @@ class EmployeeSelectionView(APIView):
         )
         if not interest:
             return Response(status=status.HTTP_204_NO_CONTENT)
+        if interest.selected_by_id != request.user.id and agent.id != request.user.id:
+            return Response(
+                {"detail": "Only the account that selected this employee or the agent owner can remove this selection."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
 
         log_audit(
             request.user,

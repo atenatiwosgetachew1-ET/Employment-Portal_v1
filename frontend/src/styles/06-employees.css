@@ -317,11 +317,13 @@
   left: var(--popover-left, 0);
   top: var(--popover-top, 0);
   margin-top: 0;
-  max-width: min(320px, calc(100vw - 16px));
+  max-width: min(220px, calc(100vw - 16px));
   z-index: 100000;
   opacity: 1;
   pointer-events: auto;
   transform: none;
+  min-height: 40px;
+  transition: none;
 }
 
 .attachment-slot-preview-anchor {
@@ -338,10 +340,13 @@
 
 .attachment-slot-preview-popover img {
   width: 100%;
-  height: 160px;
+  aspect-ratio: 1 / 1;
+  height: auto;
   object-fit: cover;
   border-radius: 6px;
   display: block;
+  background: rgb(0 0 0 / 0.22);
+  outline: 1px solid rgb(255 255 255 / 0.08);
 }
 
 .attachment-slot-icon:hover .attachment-slot-preview-popover {
@@ -720,7 +725,7 @@
 .employee-registration-layout {
   display: grid;
   grid-template-columns: 300px minmax(0, 1fr);
-  gap: 32px;
+  gap: 92px;
   width: 100%;
   height: 50%;
 }
@@ -1855,6 +1860,142 @@ button.employee-registration-step.is-active .employee-registration-step-index {
   overflow-anchor: none;
 }
 
+.employee-cards.is-list {
+  grid-template-columns: minmax(0, 1fr);
+  grid-auto-rows: auto;
+}
+
+.employee-cards.is-list .employee-card {
+  height: auto;
+}
+
+.employee-cards.is-list .employee-card-header {
+  align-items: stretch;
+}
+
+.employee-cards.is-list .employee-card-identity {
+  align-items: stretch;
+  gap: 18px;
+}
+
+.employee-cards.is-list .employee-card-avatar {
+  width: 160px;
+  height: 160px;
+  flex: 0 0 160px;
+  border-radius: 10px;
+  padding: 8px;
+  background: color-mix(in oklch, var(--color-card) 82%, black 18%);
+  border: 1px solid color-mix(in oklch, var(--color-border) 64%, transparent);
+}
+
+.employee-cards.is-list .employee-card-avatar img {
+  border-radius: 8px;
+}
+
+.employee-cards.is-list .employee-card-list-kv {
+  margin: 6px 0 0;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px 14px;
+  max-width: 560px;
+}
+
+.employee-cards.is-list .employee-card-list-kv-row {
+  display: grid;
+  grid-template-columns: 92px minmax(0, 1fr);
+  gap: 8px;
+  align-items: baseline;
+}
+
+.employee-cards.is-list .employee-card-list-kv-label {
+  color: var(--color-muted-foreground);
+  font-weight: 400;
+  font-size: inherit;
+  line-height: inherit;
+}
+
+.employee-cards.is-list .employee-card-list-kv-value {
+  color: var(--color-foreground);
+  font-weight: 400;
+  font-size: inherit;
+  line-height: inherit;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.employee-records-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.employee-records-controls {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+
+.employee-records-view-toggle {
+  display: flex;
+  border: 1px solid color-mix(in oklch, var(--color-border) 70%, transparent);
+  border-radius: 10px;
+  overflow: hidden;
+  background: color-mix(in oklch, var(--color-card) 70%, black 30%);
+}
+
+.employee-view-toggle-btn {
+  width: 42px;
+  height: 36px;
+  border: 0;
+  background: transparent;
+  color: var(--color-muted-foreground);
+  display: grid;
+  place-items: center;
+  padding: 0;
+  cursor: pointer;
+}
+
+.employee-view-toggle-btn:hover {
+  background: rgb(255 255 255 / 0.08);
+  color: var(--color-foreground);
+}
+
+.employee-view-toggle-btn.is-active {
+  background: color-mix(in oklch, var(--tag-green-bg) 14%, rgb(255 255 255 / 0.04));
+  color: #fff;
+  box-shadow: inset 0 0 0 1px color-mix(in oklch, var(--tag-green-bg) 55%, transparent);
+}
+
+.employee-records-sort {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 10px;
+  border-radius: 10px;
+  border: 1px solid color-mix(in oklch, var(--color-border) 70%, transparent);
+  background: color-mix(in oklch, var(--color-card) 70%, black 30%);
+  color: var(--color-foreground);
+}
+
+.employee-records-sort span {
+  font-weight: 600;
+  color: var(--color-muted-foreground);
+}
+
+.employee-records-sort select {
+  border: 0;
+  background: transparent;
+  color: inherit;
+  min-width: 180px;
+  outline: none;
+  padding: 0;
+}
+
 @media (max-width: 1100px) {
   .employee-cards {
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -1883,10 +2024,15 @@ button.employee-registration-step.is-active .employee-registration-step-index {
 
 .employee-card.is-selected {
   border-color: rgb(var(--accent-active-border) / 0.55);
+  transition: background-color 160ms ease, border-color 0ms linear, box-shadow 160ms ease;
 }
 
 .employee-card.is-selected[data-badge='badge-success'] {
   border-color: var(--tag-green-bg);
+}
+
+.employee-card.is-selected[data-badge='badge-employed'] {
+  border-color: #a1854a;
 }
 
 .employee-card.is-selected[data-badge='badge-warning'] {
@@ -1901,8 +2047,38 @@ button.employee-registration-step.is-active .employee-registration-step-index {
   border-color: #2563eb;
 }
 
+.employee-card.is-selected[data-badge='badge-under-process'] {
+  border-color: #800080;
+}
+
 .employee-card.is-selected[data-badge='badge-muted'] {
   border-color: rgb(var(--accent-active-border) / 0.55);
+}
+
+.employee-card.is-select-denied {
+  border-color: var(--employee-select-denied-color) !important;
+  outline: 2px solid var(--employee-select-denied-color);
+  animation: employee-card-select-denied-pulse 450ms ease-out;
+}
+
+html[data-theme='dark'] .employee-card.is-select-denied {
+  --employee-select-denied-color: #555;
+}
+
+html[data-theme='light'] .employee-card.is-select-denied {
+  --employee-select-denied-color: #aaa;
+}
+
+@keyframes employee-card-select-denied-pulse {
+  0% {
+    outline-color: rgb(0 0 0 / 0);
+  }
+  25% {
+    outline-color: var(--employee-select-denied-color);
+  }
+  100% {
+    outline-color: rgb(0 0 0 / 0);
+  }
 }
 
 .employee-card .muted-text strong {
@@ -1967,6 +2143,28 @@ button.employee-registration-step.is-active .employee-registration-step-index {
     linear-gradient(
       180deg,
       color-mix(in oklch, #2563eb 8%, transparent) 0%,
+      rgb(0 0 0 / 0.53) 70%
+    ),
+    color-mix(in oklch, var(--color-card) 92%, var(--color-muted));
+}
+
+.employee-card.is-expanded[data-badge='badge-employed'] {
+  border-color: #a1854a;
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in oklch, #a1854a 8%, transparent) 0%,
+      rgb(0 0 0 / 0.53) 70%
+    ),
+    color-mix(in oklch, var(--color-card) 92%, var(--color-muted));
+}
+
+.employee-card.is-expanded[data-badge='badge-under-process'] {
+  border-color: #800080;
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in oklch, #800080 8%, transparent) 0%,
       rgb(0 0 0 / 0.53) 70%
     ),
     color-mix(in oklch, var(--color-card) 92%, var(--color-muted));
@@ -2195,6 +2393,30 @@ button.employee-registration-step.is-active .employee-registration-step-index {
     color-mix(in oklch, var(--color-card) 94%, var(--color-muted));
 }
 
+.employees-page .employee-card[data-badge='badge-employed'] .employee-card-menu.is-open {
+  border-color: color-mix(in oklch, var(--color-border) 70%, transparent);
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in oklch, #a1854a 54%, transparent) 0%,
+      color-mix(in oklch, #a1854a 14%, transparent) 40%,
+      rgb(0 0 0 / 0.15) 90%
+    ),
+    color-mix(in oklch, var(--color-card) 94%, var(--color-muted));
+}
+
+.employees-page .employee-card[data-badge='badge-under-process'] .employee-card-menu.is-open {
+  border-color: color-mix(in oklch, var(--color-border) 70%, transparent);
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in oklch, #800080 54%, transparent) 0%,
+      color-mix(in oklch, #800080 14%, transparent) 40%,
+      rgb(0 0 0 / 0.15) 90%
+    ),
+    color-mix(in oklch, var(--color-card) 94%, var(--color-muted));
+}
+
 .employees-page .employee-card[data-badge='badge-muted'] .employee-card-menu.is-open {
   border-color: color-mix(in oklch, var(--color-border) 70%, transparent);
   background: color-mix(in oklch, var(--color-card) 92%, var(--color-muted));
@@ -2262,6 +2484,12 @@ button.employee-registration-step.is-active .employee-registration-step-index {
   color: #ffffff !important;
 }
 
+.employees-page .employee-card[data-badge='badge-employed'] .employee-card-details-btn {
+  background: rgba(59, 59, 59, 0.7) !important;
+  border-color: transparent !important;
+  color: #ffffff !important;
+}
+
 .employees-page .employee-card[data-badge='badge-warning'] .employee-card-details-btn {
   background: rgba(59, 59, 59, 0.7) !important;
   border-color: transparent !important;
@@ -2275,6 +2503,12 @@ button.employee-registration-step.is-active .employee-registration-step-index {
 }
 
 .employees-page .employee-card[data-badge='badge-info'] .employee-card-details-btn {
+  background: rgba(59, 59, 59, 0.7) !important;
+  border-color: transparent !important;
+  color: #ffffff !important;
+}
+
+.employees-page .employee-card[data-badge='badge-under-process'] .employee-card-details-btn {
   background: rgba(59, 59, 59, 0.7) !important;
   border-color: transparent !important;
   color: #ffffff !important;
@@ -2323,6 +2557,22 @@ button.employee-registration-step.is-active .employee-registration-step-index {
   border-color: transparent !important;
 }
 
+.employees-page .employee-card[data-badge='badge-employed'] .employee-card-details-btn:hover {
+  background: linear-gradient(
+    color-mix(in oklch, #a1854a 20%, transparent) 0%,
+    color-mix(in oklch, #a1854a 10%, transparent) 100%
+  ) !important;
+  border-color: transparent !important;
+}
+
+.employees-page .employee-card[data-badge='badge-under-process'] .employee-card-details-btn:hover {
+  background: linear-gradient(
+    color-mix(in oklch, #800080 20%, transparent) 0%,
+    color-mix(in oklch, #800080 10%, transparent) 100%
+  ) !important;
+  border-color: transparent !important;
+}
+
 .employees-page .employee-card[data-badge='badge-muted'] .employee-card-details-btn:hover {
   background: linear-gradient(
     rgb(var(--accent-active-border) / 0.8) 0%,
@@ -2338,6 +2588,15 @@ button.employee-registration-step.is-active .employee-registration-step-index {
   ) !important;
   border-color: transparent !important;
   opacity: 0.4;  
+}
+
+.employees-page .employee-card[data-badge='badge-employed'] .employee-card-details-btn:active {
+  background: linear-gradient(
+    color-mix(in oklch, #a1854a 0%, transparent) 0%,
+    color-mix(in oklch, #a1854a 0%, transparent) 100%
+  ) !important;
+  border-color: transparent !important;
+  opacity: 0.4;
 }
 
 .employees-page .employee-card[data-badge='badge-warning'] .employee-card-details-btn:active {
@@ -2362,6 +2621,15 @@ button.employee-registration-step.is-active .employee-registration-step-index {
   background: linear-gradient(
     color-mix(in oklch, #2563eb 0%, transparent) 0%,
     color-mix(in oklch, #2563eb 0%, transparent) 100%
+  ) !important;
+  border-color: transparent !important;
+  opacity: 0.4;
+}
+
+.employees-page .employee-card[data-badge='badge-under-process'] .employee-card-details-btn:active {
+  background: linear-gradient(
+    color-mix(in oklch, #800080 0%, transparent) 0%,
+    color-mix(in oklch, #800080 0%, transparent) 100%
   ) !important;
   border-color: transparent !important;
   opacity: 0.4;
@@ -2462,6 +2730,25 @@ button.employee-registration-step.is-active .employee-registration-step-index {
   margin-top: 14px;
 }
 
+.employee-cards.is-list .employee-card-preview-strip {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 10px;
+  overflow-x: auto;
+  overflow-y: visible;
+  padding-bottom: 6px;
+  margin-top: 12px;
+}
+
+.employee-cards.is-list .employee-doc-preview {
+  max-width: 140px;
+  flex: 0 0 140px;
+}
+
+.employee-cards.is-list .employee-doc-preview-tile {
+  width: 140px;
+}
+
 .employee-doc-preview {
   position: relative;
   display: flex;
@@ -2476,6 +2763,7 @@ button.employee-registration-step.is-active .employee-registration-step-index {
 }
 
 .employee-doc-preview-tile {
+  position: relative;
   aspect-ratio: 1 / 1;
   border-radius: 5px;
   overflow: hidden;
@@ -2494,6 +2782,7 @@ button.employee-registration-step.is-active .employee-registration-step-index {
   width: 100%;
   height: 100%;
   object-fit: cover;
+  pointer-events: none;
 }
 
 .employee-doc-preview:hover .employee-doc-preview-tile,
@@ -2537,6 +2826,10 @@ html[data-theme='light'] .employee-doc-preview:focus-within .employee-doc-previe
   z-index: 80;
 }
 
+.employee-doc-preview-popover {
+  display: block;
+}
+
 .employee-doc-preview.is-open .employee-doc-preview-popover,
 .employee-doc-preview:hover .employee-doc-preview-popover,
 .employee-doc-preview:focus-within .employee-doc-preview-popover {
@@ -2553,6 +2846,8 @@ html[data-theme='light'] .employee-doc-preview:focus-within .employee-doc-previe
   object-fit: cover;
   border-radius: 5px;
   margin-bottom: 0;
+  background: rgb(0 0 0 / 0.22);
+  outline: 1px solid rgb(255 255 255 / 0.08);
 }
 
 .employee-doc-preview-popover a,
@@ -2594,6 +2889,85 @@ html[data-theme='light'] .employee-doc-preview:focus-within .employee-doc-previe
   border: 1px solid var(--color-border);
   background: var(--color-card);
   box-shadow: 0 28px 80px rgb(0 0 0 / 0.24);
+}
+
+.employee-review-backdrop .employee-review-nav-btn {
+  position: fixed;
+  top: 50%;
+  z-index: 92;
+  display: grid;
+  place-items: center;
+  width: 52px;
+  height: 86px;
+  padding: 0;
+  border: 1px solid rgb(255 255 255 / 0.12);
+  border-radius: 999px;
+  background:
+    linear-gradient(180deg, rgb(255 255 255 / 0.12), rgb(255 255 255 / 0.04)),
+    rgb(0 0 0 / 0.28);
+  color: rgb(255 255 255 / 0.82);
+  box-shadow: 0 16px 44px rgb(0 0 0 / 0.35);
+  backdrop-filter: blur(12px);
+  transform: translateY(-50%);
+  cursor: pointer;
+  transition:
+    background 160ms ease,
+    color 160ms ease,
+    opacity 160ms ease,
+    transform 160ms ease;
+}
+
+.employee-review-backdrop .employee-review-nav-btn--prev {
+  left: max(18px, calc((100vw - min(1300px, calc(100vw - 48px))) / 2 - 76px));
+}
+
+.employee-review-backdrop .employee-review-nav-btn--next {
+  right: max(18px, calc((100vw - min(1300px, calc(100vw - 48px))) / 2 - 76px));
+}
+
+.employee-review-backdrop .employee-review-nav-btn:hover:not(:disabled) {
+  background:
+    linear-gradient(180deg, rgb(255 255 255 / 0.2), rgb(255 255 255 / 0.08)),
+    rgb(0 0 0 / 0.36);
+  color: rgb(255 255 255);
+  transform: translateY(-50%) scale(1.04);
+}
+
+.employee-review-backdrop .employee-review-nav-btn:disabled {
+  opacity: 0.22;
+  cursor: not-allowed;
+}
+
+.employee-review-backdrop .employee-review-nav-btn svg {
+  width: 34px;
+  height: 34px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+@media (max-width: 900px) {
+  .employee-review-backdrop .employee-review-nav-btn {
+    top: auto;
+    bottom: 18px;
+    width: 44px;
+    height: 64px;
+    transform: none;
+  }
+
+  .employee-review-backdrop .employee-review-nav-btn--prev {
+    left: calc(50% - 56px);
+  }
+
+  .employee-review-backdrop .employee-review-nav-btn--next {
+    right: calc(50% - 56px);
+  }
+
+  .employee-review-backdrop .employee-review-nav-btn:hover:not(:disabled) {
+    transform: scale(1.04);
+  }
 }
 
 .employee-review-modal[data-badge='badge-success'] {
@@ -2639,6 +3013,30 @@ html[data-theme='light'] .employee-doc-preview:focus-within .employee-doc-previe
     linear-gradient(
       180deg,
       color-mix(in oklch, #2563eb 8%, transparent) 0%,
+      rgb(0 0 0 / 0.53) 70%
+    ),
+    color-mix(in oklch, var(--color-card) 92%, var(--color-muted));
+}
+
+.employee-review-modal[data-badge='badge-employed'] {
+  border-color: #a1854a;
+  --employee-progress-tone: #a1854a;
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in oklch, #a1854a 8%, transparent) 0%,
+      rgb(0 0 0 / 0.53) 70%
+    ),
+    color-mix(in oklch, var(--color-card) 92%, var(--color-muted));
+}
+
+.employee-review-modal[data-badge='badge-under-process'] {
+  border-color: #800080;
+  --employee-progress-tone: #800080;
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in oklch, #800080 8%, transparent) 0%,
       rgb(0 0 0 / 0.53) 70%
     ),
     color-mix(in oklch, var(--color-card) 92%, var(--color-muted));

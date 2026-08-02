@@ -186,10 +186,21 @@ const EMPLOYEE_TAG_FILTER_OPTIONS = [
   { value: 'employed', label: 'Employed' },
   { value: 'returned', label: 'Returned' }
 ]
-const CARD_PREVIEW_DOCUMENTS = [
+const GRID_CARD_PREVIEW_DOCUMENTS = [
   { key: 'portrait', label: 'Portrait', types: ['portrait_photo'] },
   { key: 'full', label: 'Full photo', types: ['full_photo'] },
   { key: 'passport', label: 'Passport', types: ['passport_photo', 'passport_document'] }
+]
+
+const EMPLOYEE_CARDS_BATCH_SIZE = 10
+
+const LIST_CARD_PREVIEW_DOCUMENTS = [
+  { key: 'full', label: 'Full photo', types: ['full_photo'] },
+  { key: 'passport', label: 'Passport', types: ['passport_photo', 'passport_document'] },
+  { key: 'medical', label: 'Medical', types: ['medical'] },
+  { key: 'clearance', label: 'Clearance', types: ['clearance'] },
+  { key: 'competency', label: 'Competency', types: ['competency_certificate'] },
+  { key: 'certificate', label: 'Certificate', types: ['certificate'] }
 ]
 
 function buildOcrCacheKey(file) {
@@ -574,7 +585,7 @@ function employeeAvailability(employee) {
 function employeeStatusLabel(employee) {
   switch (employeeWorkflowState(employee)) {
     case 'approved':
-      return 'Approved'
+      return employeeAvailability(employee) === 'Available' ? 'Available' : 'Approved'
     case 'selected':
       return 'Selected'
     case 'under_process':
@@ -601,11 +612,11 @@ function employeeStatusBadgeClass(employee) {
     case 'selected':
       return 'badge-info'
     case 'under_process':
-      return 'badge-info'
+      return 'badge-under-process'
     case 'traveled':
       return 'badge-warning'
     case 'employed':
-      return 'badge-success'
+      return 'badge-employed'
     case 'returned':
       return 'badge-muted'
     case 'suspended':
@@ -1126,6 +1137,48 @@ export default function EmployeesPage() {
   const reviewDocsScrollRafRef = useRef(0)
   const reviewDocsScrollStateRef = useRef({ left: false, right: false })
   const [selectedEmployeeCardIds, setSelectedEmployeeCardIds] = useState(() => new Set())
+  const [selectDeniedEmployeeCardIds, setSelectDeniedEmployeeCardIds] = useState(() => new Set())
+  const selectDeniedTimersRef = useRef(new Map())
+  const [employeeCardsLayout, setEmployeeCardsLayout] = useState('list')
+  const [employeeCardsSort, setEmployeeCardsSort] = useState('newest')
+  const [employeeCardsRenderCount, setEmployeeCardsRenderCount] = useState(EMPLOYEE_CARDS_BATCH_SIZE)
+  const employeeCardsSentinelRef = useRef(null)
+  const [showScrollToTop, setShowScrollToTop] = useState(false)
+  const hasSelectedEmployeeCards = selectedEmployeeCardIds.size > 0
+
+  const flashEmployeeCardSelectDenied = useCallback((employeeId) => {
+    setSelectDeniedEmployeeCardIds((prev) => {
+      const next = new Set(prev)
+      next.add(employeeId)
+      return next
+    })
+
+    const timers = selectDeniedTimersRef.current
+    const existingTimer = timers.get(employeeId)
+    if (existingTimer) window.clearTimeout(existingTimer)
+
+    timers.set(
+      employeeId,
+      window.setTimeout(() => {
+        timers.delete(employeeId)
+        setSelectDeniedEmployeeCardIds((prev) => {
+          if (!prev.has(employeeId)) return prev
+          const next = new Set(prev)
+          next.delete(employeeId)
+          return next
+        })
+      }, 450)
+    )
+  }, [])
+
+  useEffect(() => {
+    return () => {
+      const timers = selectDeniedTimersRef.current
+      timers.forEach((timerId) => window.clearTimeout(timerId))
+      timers.clear()
+    }
+  }, [])
+
   const [returnRequestModalOpen, setReturnRequestModalOpen] = useState(false)
   const [returnRequestLoading, setReturnRequestLoading] = useState(false)
   const [returnRequestError, setReturnRequestError] = useState('')
@@ -1156,6 +1209,7 @@ export default function EmployeesPage() {
   const [otherDocumentsModalOpen, setOtherDocumentsModalOpen] = useState(false)
   const [floatingAttachmentPreview, setFloatingAttachmentPreview] = useState(null)
   const floatingAttachmentPreviewCloseTimer = useRef(null)
+  const floatingAttachmentPreviewPopoverRef = useRef(null)
   const employeeModalFormRef = useRef(null)
   const [openEmployeeCardMenuId, setOpenEmployeeCardMenuId] = useState(null)
   const [invalidStepErrors, setInvalidStepErrors] = useState({})
@@ -1201,8 +1255,8 @@ export default function EmployeesPage() {
   const openFloatingAttachmentPreview = useCallback((anchorEl, url, label) => {
     if (!anchorEl || !url) return
     const rect = anchorEl.getBoundingClientRect()
-    const POPUP_WIDTH = 260
-    const POPUP_HEIGHT = 190
+    const POPUP_WIDTH = 220
+    const POPUP_HEIGHT = 220
     const OFFSET = 10
     const EDGE = 8
 
@@ -1235,8 +1289,49 @@ export default function EmployeesPage() {
     cancelFloatingAttachmentPreviewClose()
     floatingAttachmentPreviewCloseTimer.current = window.setTimeout(() => {
       setFloatingAttachmentPreview(null)
-    }, 120)
+    }, 10)
   }, [cancelFloatingAttachmentPreviewClose])
+
+  const buildWheelSectorPath = useCallback((startDeg, endDeg, innerRadius = 50, outerRadius = 64) => {
+    const cx = 64
+    const cy = 64
+    const normalizedEnd = endDeg <= startDeg ? endDeg + 360 : endDeg
+    const delta = Math.abs(normalizedEnd - startDeg)
+    const toPoint = (deg, radius) => {
+      const rad = (deg * Math.PI) / 180
+      return {
+        x: cx + radius * Math.cos(rad),
+        y: cy + radius * Math.sin(rad)
+      }
+    }
+
+    const startOuter = toPoint(startDeg, outerRadius)
+    const endOuter = toPoint(normalizedEnd, outerRadius)
+
+    const sweep = 1
+    const largeArc = delta > 180 ? 1 : 0
+
+    if (!innerRadius || innerRadius <= 0) {
+      return [
+        `M ${startOuter.x} ${startOuter.y}`,
+        `A ${outerRadius} ${outerRadius} 0 ${largeArc} ${sweep} ${endOuter.x} ${endOuter.y}`,
+        `L ${cx} ${cy}`,
+        'Z'
+      ].join(' ')
+    }
+
+    const startInner = toPoint(startDeg, innerRadius)
+    const endInner = toPoint(normalizedEnd, innerRadius)
+
+    return [
+      `M ${startOuter.x} ${startOuter.y}`,
+      `A ${outerRadius} ${outerRadius} 0 ${largeArc} ${sweep} ${endOuter.x} ${endOuter.y}`,
+      `L ${endInner.x} ${endInner.y}`,
+      // reverse direction on inner arc
+      `A ${innerRadius} ${innerRadius} 0 ${largeArc} 0 ${startInner.x} ${startInner.y}`,
+      'Z'
+    ].join(' ')
+  }, [])
   const [scanAttachmentError, setScanAttachmentError] = useState('')
   const registrationRef = useRef(null)
   const scanUploadInputRef = useRef(null)
@@ -1453,7 +1548,8 @@ export default function EmployeesPage() {
 
       if (resolvedView === 'selected' && isAgentSideUser) {
         const baseEmployees = await fetchAllEmployeePages({
-          q: filters.q
+          q: filters.q,
+          selectedScope
         })
         const visibleSelectedEmployees = baseEmployees
           .map(applyTravelOverrides)
@@ -1470,7 +1566,8 @@ export default function EmployeesPage() {
 
       if (resolvedView === 'returned' && isAgentSideUser) {
         const baseEmployees = await fetchAllEmployeePages({
-          q: filters.q
+          q: filters.q,
+          returnedScope: 'mine'
         })
         const visibleReturnedEmployees = baseEmployees
           .map(applyTravelOverrides)
@@ -2623,6 +2720,8 @@ export default function EmployeesPage() {
     setNotice('')
     try {
       const employee = await employeesService.fetchEmployee(employeeId)
+      closeDocumentPreview()
+      setOpenedEmployeeId(null)
       setEditingEmployeeId(employee.id)
       setForm(normalizeEmployeeForm(employee))
       const nextLabels = {}
@@ -2883,6 +2982,10 @@ export default function EmployeesPage() {
     setNotice('')
     try {
       if (employee.selection_state?.selected_by_current_agent) {
+        if (!employee.selection_state?.can_unselect) {
+          setPageError('Only the account that selected this employee or the agent owner can unselect it.')
+          return
+        }
         await employeesService.unselectEmployee(employee.id)
         setNotice('Employee removed from Selected Employees.')
         await loadEmployees(currentView === 'selected' ? 'selected' : currentView)
@@ -3345,6 +3448,7 @@ export default function EmployeesPage() {
   const total = useMemo(() => employeesData?.count ?? employees.length, [employeesData, employees.length])
   const hasNext = useMemo(() => Boolean(employeesData?.next), [employeesData])
   const hasPrev = useMemo(() => Boolean(employeesData?.previous), [employeesData])
+  const canProgressivelyRenderEmployeeCards = currentView === 'list'
 
   const visibleEmployees = useMemo(() => {
     return employees.map((employee) => ({
@@ -3353,14 +3457,386 @@ export default function EmployeesPage() {
     }))
   }, [employees, settledCommissionIds])
 
-  const primaryVisibleEmployees = visibleEmployees
+  const visibleEmployeesById = useMemo(() => {
+    const map = new Map()
+    visibleEmployees.forEach((employee) => {
+      map.set(Number(employee.id), employee)
+    })
+    return map
+  }, [visibleEmployees])
 
-  const modalEmployees = useMemo(() => [...visibleEmployees, ...requestedReturns], [requestedReturns, visibleEmployees])
+  const selectionGroupForEmployee = useCallback((employee) => {
+    const state = employeeWorkflowState(employee)
+    if (state === 'approved') return 'available'
+    if (state === 'selected') return 'selected'
+    return state || ''
+  }, [])
+
+  const currentSelectedCardsGroup = useMemo(() => {
+    for (const id of selectedEmployeeCardIds) {
+      const employee = visibleEmployeesById.get(Number(id))
+      if (!employee) continue
+      const group = selectionGroupForEmployee(employee)
+      if (group) return group
+    }
+    return ''
+  }, [selectedEmployeeCardIds, selectionGroupForEmployee, visibleEmployeesById])
+
+  const hasWheelSelectTargets = useMemo(
+    () => isAgentSideUser && selectedEmployeeCardIds.size > 0 && currentSelectedCardsGroup === 'available',
+    [currentSelectedCardsGroup, isAgentSideUser, selectedEmployeeCardIds.size]
+  )
+
+  const hasWheelUnselectTargets = useMemo(
+    () =>
+      selectedEmployeeCardIds.size > 0 &&
+      currentSelectedCardsGroup === 'selected' &&
+      Array.from(selectedEmployeeCardIds).some((id) => {
+        const employee = visibleEmployeesById.get(Number(id))
+        return Boolean(employee?.selection_state?.can_unselect)
+      }),
+    [currentSelectedCardsGroup, selectedEmployeeCardIds, visibleEmployeesById]
+  )
+
+  const hasWheelStartProcessTargets = useMemo(
+    () =>
+      selectedEmployeeCardIds.size > 0 &&
+      (
+        (canManageOrganizationProcesses && ['available', 'selected'].includes(currentSelectedCardsGroup)) ||
+        (isMainAgentAccount && currentSelectedCardsGroup === 'selected')
+      ) &&
+      Array.from(selectedEmployeeCardIds).some((id) => {
+        const employee = visibleEmployeesById.get(Number(id))
+        return Boolean(
+          employee?.status === 'approved' &&
+            (canManageOrganizationProcesses || employee?.selection_state?.selected_by_current_agent)
+        )
+      }),
+    [
+      canManageOrganizationProcesses,
+      currentSelectedCardsGroup,
+      isMainAgentAccount,
+      selectedEmployeeCardIds,
+      visibleEmployeesById
+    ]
+  )
+
+  const rightDivisionRole = useMemo(() => {
+    if (hasWheelStartProcessTargets) return 'start-process'
+    if (hasWheelSelectTargets) return 'select'
+    return ''
+  }, [hasWheelSelectTargets, hasWheelStartProcessTargets])
+
+  const handleScrollWheelSelectEmployees = useCallback((event) => {
+    event?.preventDefault?.()
+    event?.stopPropagation?.()
+    if (!hasWheelSelectTargets) return
+
+    ;(async () => {
+      const selectedIds = Array.from(selectedEmployeeCardIds)
+      const unmarkedIds = selectedIds.filter((id) => {
+        const employee = visibleEmployeesById.get(Number(id))
+        return !employee?.selection_state?.selected_by_current_agent
+      })
+
+      const confirmed = await confirm({
+        title: 'Select employees',
+        message:
+          unmarkedIds.length === 0
+            ? 'All selected cards are already marked as selected.'
+            : `Mark ${unmarkedIds.length} employee(s) as Selected?`,
+        confirmLabel: unmarkedIds.length === 0 ? 'OK' : 'Mark selected',
+        cancelLabel: unmarkedIds.length === 0 ? undefined : 'Cancel',
+        tone: 'warning'
+      })
+      if (!confirmed || unmarkedIds.length === 0) return
+
+      setActionBusyId('bulk-select')
+      setPageError('')
+      setNotice('')
+
+      try {
+        await Promise.all(unmarkedIds.map((id) => employeesService.selectEmployee(id)))
+        setNotice(`${unmarkedIds.length} employee(s) marked as Selected.`)
+        setSelectedEmployeeCardIds(new Set())
+        await loadEmployees(currentView)
+      } catch (err) {
+        setPageError(err.message || 'Could not mark selected employees')
+      } finally {
+        setActionBusyId(null)
+      }
+    })()
+  }, [confirm, currentView, hasWheelSelectTargets, loadEmployees, selectedEmployeeCardIds, visibleEmployeesById])
+
+  const handleScrollWheelUnselectEmployees = useCallback((event) => {
+    event?.preventDefault?.()
+    event?.stopPropagation?.()
+    if (!hasWheelUnselectTargets) return
+
+    ;(async () => {
+      const selectedIds = Array.from(selectedEmployeeCardIds)
+      const targetIds = selectedIds.filter((id) => {
+        const employee = visibleEmployeesById.get(Number(id))
+        return Boolean(employee?.selection_state?.can_unselect)
+      })
+
+      const confirmed = await confirm({
+        title: 'Unselect employees',
+        message:
+          targetIds.length === 0
+            ? 'None of the selected cards can be unselected by your account.'
+            : `Remove ${targetIds.length} employee(s) from Selected Employees?`,
+        confirmLabel: targetIds.length === 0 ? 'OK' : 'Unselect',
+        cancelLabel: targetIds.length === 0 ? undefined : 'Cancel',
+        tone: 'danger'
+      })
+      if (!confirmed || targetIds.length === 0) return
+
+      setActionBusyId('bulk-unselect')
+      setPageError('')
+      setNotice('')
+
+      try {
+        await Promise.all(targetIds.map((id) => employeesService.unselectEmployee(id)))
+        setNotice(`${targetIds.length} employee(s) removed from Selected Employees.`)
+        setSelectedEmployeeCardIds(new Set())
+        await loadEmployees(currentView === 'selected' ? 'selected' : currentView)
+      } catch (err) {
+        setPageError(err.message || 'Could not unselect employees')
+      } finally {
+        setActionBusyId(null)
+      }
+    })()
+  }, [confirm, currentView, hasWheelUnselectTargets, loadEmployees, selectedEmployeeCardIds, visibleEmployeesById])
+
+  const handleScrollWheelStartProcessSelectedEmployees = useCallback((event) => {
+    event?.preventDefault?.()
+    event?.stopPropagation?.()
+    if (!hasWheelStartProcessTargets) return
+
+    ;(async () => {
+      const organizationName = user?.organization?.name || 'organization'
+      const selectedIds = Array.from(selectedEmployeeCardIds)
+      const selectedEmployees = selectedIds.map((id) => visibleEmployeesById.get(Number(id))).filter(Boolean)
+
+      const ineligibleEmployees = selectedEmployees.filter((employee) => employee.status !== 'approved')
+      if (ineligibleEmployees.length) {
+        setPageError('Only approved employees can have a process initiated.')
+        return
+      }
+
+      const assignedAgentIds = selectedEmployees.map((employee) => {
+        const assignedAgentId = resolvedProcessAgentId(employee, processAgentAssignments, formOptions.agent_options)
+        return { employeeId: employee.id, assignedAgentId }
+      })
+
+      if (canManageOrganizationProcesses && assignedAgentIds.some((row) => !row.assignedAgentId)) {
+        setPageError('Choose an agent before starting the process.')
+        return
+      }
+
+      const confirmed = await confirm({
+        title: 'Initiate process',
+        message: `Initiating a procees will inform the ${organizationName} to proceed to the arrangement of the employee documents.`,
+        confirmLabel: 'Initiate',
+        cancelLabel: 'Cancel',
+        tone: 'warning'
+      })
+      if (!confirmed) return
+
+      setActionBusyId('bulk-start-process')
+      setPageError('')
+      setNotice('')
+
+      try {
+        await Promise.all(
+          assignedAgentIds.map(({ employeeId, assignedAgentId }) => (
+            employeesService.startEmployeeProcess(employeeId, {
+              agentId: canManageOrganizationProcesses ? assignedAgentId : undefined
+            })
+          ))
+        )
+        setNotice(`Employee process started for ${selectedEmployees.length} employee(s).`)
+        setSelectedEmployeeCardIds(new Set())
+        await loadEmployees(currentView)
+      } catch (err) {
+        setPageError(err.message || 'Could not start employee process')
+      } finally {
+        setActionBusyId(null)
+      }
+    })()
+  }, [
+    canManageOrganizationProcesses,
+    confirm,
+    currentView,
+    formOptions.agent_options,
+    hasWheelStartProcessTargets,
+    loadEmployees,
+    processAgentAssignments,
+    selectedEmployeeCardIds,
+    user?.organization?.name,
+    visibleEmployeesById
+  ])
+
+  const handleScrollWheelClearCardSelection = useCallback((event) => {
+    event?.preventDefault?.()
+    event?.stopPropagation?.()
+    if (selectedEmployeeCardIds.size === 0) return
+
+    ;(async () => {
+      const confirmed = await confirm({
+        title: 'Clear selected cards',
+        message: `Clear ${selectedEmployeeCardIds.size} selected card(s)?`,
+        confirmLabel: 'Clear',
+        cancelLabel: 'Cancel',
+        tone: 'danger'
+      })
+      if (!confirmed) return
+      setSelectedEmployeeCardIds(new Set())
+    })()
+  }, [confirm, selectedEmployeeCardIds.size])
+
+  const sortedPrimaryVisibleEmployees = useMemo(() => {
+    const rows = [...visibleEmployees]
+    const byDate = (a, b, direction = 'desc') => {
+      const aTime = new Date(a?.created_at || a?.updated_at || 0).getTime() || 0
+      const bTime = new Date(b?.created_at || b?.updated_at || 0).getTime() || 0
+      return direction === 'asc' ? aTime - bTime : bTime - aTime
+    }
+
+    switch (employeeCardsSort) {
+      case 'oldest':
+        rows.sort((a, b) => byDate(a, b, 'asc'))
+        break
+      case 'name_asc':
+        rows.sort((a, b) => String(a?.full_name || '').localeCompare(String(b?.full_name || ''), undefined, { sensitivity: 'base' }))
+        break
+      case 'name_desc':
+        rows.sort((a, b) => String(b?.full_name || '').localeCompare(String(a?.full_name || ''), undefined, { sensitivity: 'base' }))
+        break
+      case 'newest':
+      default:
+        rows.sort((a, b) => byDate(a, b, 'desc'))
+        break
+    }
+
+    return rows
+  }, [employeeCardsSort, visibleEmployees])
+
+  const primaryVisibleEmployees = useMemo(() => {
+    if (!canProgressivelyRenderEmployeeCards) return sortedPrimaryVisibleEmployees
+    return sortedPrimaryVisibleEmployees.slice(0, employeeCardsRenderCount)
+  }, [canProgressivelyRenderEmployeeCards, employeeCardsRenderCount, sortedPrimaryVisibleEmployees])
+
+  useEffect(() => {
+    if (!canProgressivelyRenderEmployeeCards) return
+    setEmployeeCardsRenderCount(EMPLOYEE_CARDS_BATCH_SIZE)
+  }, [canProgressivelyRenderEmployeeCards, currentView, employeeCardsLayout, employeeCardsSort, filters.isActive, filters.q, filters.tag])
+
+  useEffect(() => {
+    if (!canProgressivelyRenderEmployeeCards) return
+    if (typeof window === 'undefined') return
+
+    const sentinel = employeeCardsSentinelRef.current
+    if (!sentinel) return
+
+    const root = document.querySelector('.dashboard-content')
+    const rootNode = root instanceof Element ? root : null
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const entry = entries[0]
+        if (!entry?.isIntersecting) return
+        setEmployeeCardsRenderCount((prev) => Math.min(sortedPrimaryVisibleEmployees.length, prev + EMPLOYEE_CARDS_BATCH_SIZE))
+      },
+      { root: rootNode, rootMargin: '320px 0px 320px 0px', threshold: 0 }
+    )
+
+    observer.observe(sentinel)
+    return () => observer.disconnect()
+  }, [canProgressivelyRenderEmployeeCards, sortedPrimaryVisibleEmployees.length])
+
+  const scrollEmployeesToTop = useCallback(() => {
+    if (typeof window === 'undefined') return
+    const root = document.querySelector('.dashboard-content')
+    if (root && typeof root.scrollTo === 'function') {
+      root.scrollTo({ top: 0, behavior: 'smooth' })
+      return
+    }
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }, [])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const root = document.querySelector('.dashboard-content')
+    const node = root instanceof Element ? root : null
+    const target = node || window
+
+    const readScrollTop = () => {
+      if (node) return node.scrollTop
+      return window.scrollY || document.documentElement.scrollTop || 0
+    }
+
+    const handleScroll = () => {
+      setShowScrollToTop(readScrollTop() > 420)
+    }
+
+    handleScroll()
+    target.addEventListener('scroll', handleScroll, { passive: true })
+    return () => target.removeEventListener('scroll', handleScroll)
+  }, [])
+
+  const modalEmployees = useMemo(() => {
+    const uniqueEmployees = new Map()
+    ;[...visibleEmployees, ...requestedReturns].forEach((employee) => {
+      if (employee?.id) uniqueEmployees.set(employee.id, employee)
+    })
+    return Array.from(uniqueEmployees.values())
+  }, [requestedReturns, visibleEmployees])
 
   const openedEmployee = useMemo(() => {
     if (!openedEmployeeId) return null
     return modalEmployees.find((employee) => employee.id === openedEmployeeId) || null
   }, [modalEmployees, openedEmployeeId])
+
+  const openedEmployeeIndex = useMemo(
+    () => modalEmployees.findIndex((employee) => employee.id === openedEmployeeId),
+    [modalEmployees, openedEmployeeId]
+  )
+  const previousOpenedEmployee = openedEmployeeIndex > 0
+    ? modalEmployees[openedEmployeeIndex - 1]
+    : null
+  const nextOpenedEmployee = openedEmployeeIndex >= 0 && openedEmployeeIndex < modalEmployees.length - 1
+    ? modalEmployees[openedEmployeeIndex + 1]
+    : null
+  const navigateOpenedEmployee = useCallback((direction) => {
+    const target = direction === 'next' ? nextOpenedEmployee : previousOpenedEmployee
+    if (!target) return
+    setOpenedEmployeeId(target.id)
+  }, [nextOpenedEmployee, previousOpenedEmployee])
+
+  useEffect(() => {
+    if (!openedEmployee || previewDocument) return undefined
+
+    const handleEmployeeModalKeyDown = (event) => {
+      const activeElement = document.activeElement
+      const isTypingTarget = activeElement?.matches?.('input, textarea, select, [contenteditable="true"]')
+      if (isTypingTarget) return
+
+      if (event.key === 'ArrowLeft') {
+        event.preventDefault()
+        navigateOpenedEmployee('previous')
+      }
+
+      if (event.key === 'ArrowRight') {
+        event.preventDefault()
+        navigateOpenedEmployee('next')
+      }
+    }
+
+    document.addEventListener('keydown', handleEmployeeModalKeyDown, true)
+    return () => document.removeEventListener('keydown', handleEmployeeModalKeyDown, true)
+  }, [navigateOpenedEmployee, openedEmployee, previewDocument])
 
   const visibleTabs = useMemo(() => {
     return EMPLOYEE_VIEW_TABS.filter((tab) => {
@@ -3378,6 +3854,10 @@ export default function EmployeesPage() {
   const openedEmployeeSelectionState = useMemo(() => openedEmployee?.selection_state || {}, [openedEmployee])
   const openedEmployeeIsSelectedByCurrentAgent = useMemo(
     () => Boolean(openedEmployeeSelectionState.selected_by_current_agent),
+    [openedEmployeeSelectionState]
+  )
+  const openedEmployeeCanUnselect = useMemo(
+    () => Boolean(openedEmployeeSelectionState.can_unselect),
     [openedEmployeeSelectionState]
   )
   const openedEmployeeIsUnderProcess = openedEmployeeWorkflowState === 'under_process'
@@ -3522,6 +4002,7 @@ export default function EmployeesPage() {
   const reflowEmployeeCardsMasonry = useCallback(() => {
     const grid = employeeCardsGridRef.current
     if (!grid) return
+    if (employeeCardsLayout !== 'grid') return
     const computed = window.getComputedStyle(grid)
     const rowHeight = Number.parseFloat(computed.gridAutoRows) || 10
     const rowGap = Number.parseFloat(computed.rowGap || computed.gap) || 0
@@ -3581,7 +4062,27 @@ export default function EmployeesPage() {
     }
 
     employeeCardMasonryDebugLog('reflow end')
-  }, [])
+  }, [employeeCardsLayout])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    if (employeeCardsLayout !== 'list') return
+    const grid = employeeCardsGridRef.current
+    if (!grid) return
+    const nodes = Array.from(grid.querySelectorAll('.employee-card'))
+    for (const node of nodes) {
+      node.style.gridRowStart = ''
+      node.style.gridRowEnd = ''
+      node.style.gridColumnStart = ''
+      node.style.gridColumnEnd = ''
+    }
+  }, [employeeCardsLayout, primaryVisibleEmployees.length])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    if (employeeCardsLayout !== 'grid') return
+    window.requestAnimationFrame(() => reflowEmployeeCardsMasonry())
+  }, [employeeCardsLayout, reflowEmployeeCardsMasonry])
 
   useEffect(() => {
     if (typeof window === 'undefined') return
@@ -3800,6 +4301,98 @@ export default function EmployeesPage() {
     setPreviewOffset({ x: 0, y: 0 })
     setPreviewDragging(false)
   }, [])
+
+  useEffect(() => {
+    const handleTopLayerEscape = (event) => {
+      if (event.key !== 'Escape') return
+
+      if (previewDocument) {
+        event.preventDefault()
+        event.stopPropagation()
+        closeDocumentPreview()
+        return
+      }
+
+      if (ocrSetupModalOpen) {
+        event.preventDefault()
+        event.stopPropagation()
+        closeOcrSetupModal()
+        return
+      }
+
+      if (scanAttachmentModalOpen) {
+        event.preventDefault()
+        event.stopPropagation()
+        closeScanAttachmentModal()
+        return
+      }
+
+      if (scannerModalOpen) {
+        event.preventDefault()
+        event.stopPropagation()
+        closeScannerModal()
+        return
+      }
+
+      if (cameraCaptureModalOpen) {
+        event.preventDefault()
+        event.stopPropagation()
+        closeCameraCapture()
+        return
+      }
+
+      if (uploadDocumentModalOpen) {
+        event.preventDefault()
+        event.stopPropagation()
+        closeUploadDocumentModal()
+        return
+      }
+
+      if (scanImportModalOpen) {
+        event.preventDefault()
+        event.stopPropagation()
+        closeScanImportModal()
+        return
+      }
+
+      if (otherDocumentsModalOpen) {
+        event.preventDefault()
+        event.stopPropagation()
+        setOtherDocumentsModalOpen(false)
+        return
+      }
+
+      if (returnRequestModalOpen) {
+        event.preventDefault()
+        event.stopPropagation()
+        closeReturnRequestModal()
+        return
+      }
+
+      if (openedEmployee) {
+        event.preventDefault()
+        event.stopPropagation()
+        setOpenedEmployeeId(null)
+      }
+    }
+
+    document.addEventListener('keydown', handleTopLayerEscape, true)
+    return () => document.removeEventListener('keydown', handleTopLayerEscape, true)
+  }, [
+    cameraCaptureModalOpen,
+    closeCameraCapture,
+    closeDocumentPreview,
+    ocrSetupModalOpen,
+    openedEmployee,
+    otherDocumentsModalOpen,
+    previewDocument,
+    returnRequestModalOpen,
+    scanAttachmentModalOpen,
+    scanImportModalOpen,
+    scannerModalOpen,
+    uploadDocumentModalOpen
+  ])
+
   const handlePreviewZoomIn = useCallback(() => {
     setPreviewZoom((prev) => Math.min(4, Number((prev + 0.25).toFixed(2))))
   }, [])
@@ -4835,24 +5428,6 @@ export default function EmployeesPage() {
                   document.body
                 )
                 : null}
-              {floatingAttachmentPreview && typeof document !== 'undefined'
-                ? createPortal(
-                  <div
-                    className="attachment-slot-preview-popover is-floating"
-                    style={{
-                      left: `${floatingAttachmentPreview.left}px`,
-                      top: `${floatingAttachmentPreview.top}px`,
-                      width: `${floatingAttachmentPreview.width}px`
-                    }}
-                    onMouseEnter={cancelFloatingAttachmentPreviewClose}
-                    onMouseLeave={scheduleFloatingAttachmentPreviewClose}
-                    role="presentation"
-                  >
-                    <img src={floatingAttachmentPreview.url} alt={floatingAttachmentPreview.label} />
-                  </div>,
-                  document.body
-                )
-                : null}
               {activeStep === 5 ? (
                 <div className="employee-step-grid">
                   <div className="employee-span-two">
@@ -5124,17 +5699,54 @@ export default function EmployeesPage() {
         </div>
       ) : (
         <div className="users-table-wrap">
-          <h2>
-            {currentView === 'employed'
-              ? 'Employed'
-              : currentView === 'returned'
-              ? 'Returned list'
-              : currentView === 'under-process'
-              ? 'Under process Employees'
-              : currentView === 'selected'
-                ? 'Selected Employees'
-                : 'Employee records'}
-          </h2>
+          <div className="employee-records-header">
+            <h2>
+              {currentView === 'employed'
+                ? 'Employed'
+                : currentView === 'returned'
+                ? 'Returned list'
+                : currentView === 'under-process'
+                ? 'Under process Employees'
+                : currentView === 'selected'
+                  ? 'Selected Employees'
+                  : 'Employee records'}
+            </h2>
+            <div className="employee-records-controls" aria-label="Employee list options">
+              <div className="employee-records-view-toggle" role="group" aria-label="View style">
+                <button
+                  type="button"
+                  className={`employee-view-toggle-btn${employeeCardsLayout === 'grid' ? ' is-active' : ''}`}
+                  aria-pressed={employeeCardsLayout === 'grid'}
+                  title="Grid view"
+                  onClick={() => setEmployeeCardsLayout('grid')}
+                >
+                  <svg viewBox="0 0 24 24" width="18" height="18" fill="none" aria-hidden="true">
+                    <path d="M4 4h7v7H4V4Zm9 0h7v7h-7V4ZM4 13h7v7H4v-7Zm9 0h7v7h-7v-7Z" fill="currentColor" />
+                  </svg>
+                </button>
+                <button
+                  type="button"
+                  className={`employee-view-toggle-btn${employeeCardsLayout === 'list' ? ' is-active' : ''}`}
+                  aria-pressed={employeeCardsLayout === 'list'}
+                  title="List view"
+                  onClick={() => setEmployeeCardsLayout('list')}
+                >
+                  <svg viewBox="0 0 24 24" width="18" height="18" fill="none" aria-hidden="true">
+                    <path d="M4 6h3v3H4V6Zm0 9h3v3H4v-3Zm5-9h11v3H9V6Zm0 9h11v3H9v-3Zm0-4.5h11v3H9v-3Z" fill="currentColor" />
+                  </svg>
+                </button>
+              </div>
+              <label className="employee-records-sort">
+                <span>Sort:</span>
+                <select value={employeeCardsSort} onChange={(event) => setEmployeeCardsSort(event.target.value)}>
+                  <option value="newest">Newest first</option>
+                  <option value="oldest">Oldest first</option>
+                  <option value="name_asc">Name A–Z</option>
+                  <option value="name_desc">Name Z–A</option>
+                </select>
+              </label>
+            </div>
+          </div>
           {!loading ? (
             currentView === 'returned' ? (
               <div className="returned-list-surface">
@@ -5248,12 +5860,13 @@ export default function EmployeesPage() {
           ) : (
             <>
               {primaryVisibleEmployees.length > 0 ? (
-            <div className="employee-cards" ref={employeeCardsGridRef}>
+            <div className={`employee-cards${employeeCardsLayout === 'list' ? ' is-list' : ''}`} ref={employeeCardsGridRef}>
               {primaryVisibleEmployees.map((employee) => {
                 const profilePhoto = employeeProfilePhoto(employee)
                 const isOpened = openedEmployeeId === employee.id
                 const isExpanded = expandedEmployeeCardId === employee.id
                 const isMenuOpen = isExpanded || openEmployeeCardMenuId === employee.id
+                const isListLayout = employeeCardsLayout === 'list'
                 const employeeReligion = employee.religion || ''
                 const employeeDateOfBirth = employee.date_of_birth || ''
                 const employeeAge =
@@ -5261,6 +5874,7 @@ export default function EmployeesPage() {
                 const selectionState = employee.selection_state || {}
                 const selection = selectionState.selection
                 const isSelectedByCurrentAgent = Boolean(selectionState.selected_by_current_agent)
+                const canUnselectSelection = Boolean(selectionState.can_unselect)
                 const workflowState = employeeWorkflowState(employee)
                 const badgeClass = employeeStatusBadgeClass(employee)
                 const isUnderProcess = workflowState === 'under_process'
@@ -5273,6 +5887,16 @@ export default function EmployeesPage() {
                   processAgentAssignments,
                   formOptions.agent_options
                 )
+                const destinationLabel = employee.application_countries?.length
+                  ? employee.application_countries.join(', ')
+                  : '—'
+                const phoneLabel = employee.phone || employee.mobile_number || '—'
+                const emailLabel = employee.email || '—'
+                const availabilityLabel = employeeAvailability(employee) || '—'
+                const residenceCountryLabel = employee.residence_country || '—'
+                const progressCompletion = employee.progress_status?.overall_completion ?? 0
+                const travelStatusLabel = prettyStatus(employee.travel_status, 'pending')
+                const returnStatusLabel = prettyStatus(employee.return_status)
 
                 return (
                   <article
@@ -5293,10 +5917,20 @@ export default function EmployeesPage() {
                       }
                     }}
                     data-badge={badgeClass}
-                    className={`employee-card${isOpened ? ' is-open' : ''}${isExpanded ? ' is-expanded' : ''}${selectedEmployeeCardIds.has(employee.id) ? ' is-selected' : ''}`}
+                    className={`employee-card${isOpened ? ' is-open' : ''}${isExpanded ? ' is-expanded' : ''}${selectedEmployeeCardIds.has(employee.id) ? ' is-selected' : ''}${selectDeniedEmployeeCardIds.has(employee.id) ? ' is-select-denied' : ''}`}
                     onClick={(event) => {
                       if (event.ctrlKey || event.metaKey) {
                         event.preventDefault()
+                        if (availabilityLabel !== 'Available') {
+                          flashEmployeeCardSelectDenied(employee.id)
+                          return
+                        }
+                        const employeeGroup = selectionGroupForEmployee(employee)
+                        const alreadySelected = selectedEmployeeCardIds.has(employee.id)
+                        if (!alreadySelected && currentSelectedCardsGroup && currentSelectedCardsGroup !== employeeGroup) {
+                          flashEmployeeCardSelectDenied(employee.id)
+                          return
+                        }
                         toggleEmployeeCardSelected(employee.id)
                         return
                       }
@@ -5308,6 +5942,16 @@ export default function EmployeesPage() {
                       const isActivationKey = event.key === 'Enter' || event.key === ' '
                       if (isActivationKey && (event.ctrlKey || event.metaKey)) {
                         event.preventDefault()
+                        if (availabilityLabel !== 'Available') {
+                          flashEmployeeCardSelectDenied(employee.id)
+                          return
+                        }
+                        const employeeGroup = selectionGroupForEmployee(employee)
+                        const alreadySelected = selectedEmployeeCardIds.has(employee.id)
+                        if (!alreadySelected && currentSelectedCardsGroup && currentSelectedCardsGroup !== employeeGroup) {
+                          flashEmployeeCardSelectDenied(employee.id)
+                          return
+                        }
                         toggleEmployeeCardSelected(employee.id)
                         return
                       }
@@ -5384,7 +6028,8 @@ export default function EmployeesPage() {
                             className="employee-card-menu-item employee-card-menu-item--select"
                             role="menuitem"
                             aria-label={isSelectedByCurrentAgent ? 'Unselect employee' : 'Select employee'}
-                            disabled={readOnly || !isAgentSideUser || actionBusyId === employee.id}
+                            title={isSelectedByCurrentAgent && !canUnselectSelection ? 'Only the selecting account or agent owner can unselect this employee.' : undefined}
+                            disabled={readOnly || !isAgentSideUser || actionBusyId === employee.id || (isSelectedByCurrentAgent && !canUnselectSelection)}
                             onClick={(event) => {
                               event.preventDefault()
                             event.stopPropagation()
@@ -5393,7 +6038,11 @@ export default function EmployeesPage() {
                           }}
                         >
                           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true" xmlns="http://www.w3.org/2000/svg">
-                            <path d="M20 6 9 17l-5-5" style={{ stroke: 'currentColor', strokeWidth: 1.9, strokeLinecap: 'round', strokeLinejoin: 'round' }} />
+                            {isSelectedByCurrentAgent ? (
+                              <path d="M7 7l10 10M17 7 7 17" style={{ stroke: 'currentColor', strokeWidth: 2.1, strokeLinecap: 'round', strokeLinejoin: 'round' }} />
+                            ) : (
+                              <path d="M20 6 9 17l-5-5" style={{ stroke: 'currentColor', strokeWidth: 1.9, strokeLinecap: 'round', strokeLinejoin: 'round' }} />
+                            )}
                           </svg>
                         </button>
                       ) : null}
@@ -5407,26 +6056,68 @@ export default function EmployeesPage() {
                           ) : (
                             <span>{employee.full_name?.charAt(0) || '?'}</span>
                           )}
-                      </div>
+                        </div>
                         <div>
                           <h3>{employee.full_name}</h3>
                           <p className="muted-text">{employee.profession || employee.professional_title || 'No profession set'}</p>
-                        <p className="muted-text"><strong>{employeeReligion || '--'}</strong></p>
+                          <p className="muted-text"><strong>{employeeReligion || '--'}</strong></p>
+                          {isListLayout ? (
+                            <div className="employee-card-list-kv muted-text" aria-label="Candidate overview">
+                              <div className="employee-card-list-kv-row">
+                                <span className="employee-card-list-kv-label">Age</span>
+                                <span className="employee-card-list-kv-value">{employeeAge || '—'}</span>
+                              </div>
+                              <div className="employee-card-list-kv-row">
+                                <span className="employee-card-list-kv-label">Availability</span>
+                                <span className="employee-card-list-kv-value">{availabilityLabel}</span>
+                              </div>
+                              <div className="employee-card-list-kv-row">
+                                <span className="employee-card-list-kv-label">Phone</span>
+                                <span className="employee-card-list-kv-value">{phoneLabel}</span>
+                              </div>
+                              <div className="employee-card-list-kv-row">
+                                <span className="employee-card-list-kv-label">Email</span>
+                                <span className="employee-card-list-kv-value">{emailLabel}</span>
+                              </div>
+                              <div className="employee-card-list-kv-row">
+                                <span className="employee-card-list-kv-label">Residence</span>
+                                <span className="employee-card-list-kv-value">{residenceCountryLabel}</span>
+                              </div>
+                              <div className="employee-card-list-kv-row">
+                                <span className="employee-card-list-kv-label">Progress</span>
+                                <span className="employee-card-list-kv-value">{progressCompletion}%</span>
+                              </div>
+                              <div className="employee-card-list-kv-row">
+                                <span className="employee-card-list-kv-label">Travel</span>
+                                <span className="employee-card-list-kv-value">{travelStatusLabel}</span>
+                              </div>
+                              <div className="employee-card-list-kv-row">
+                                <span className="employee-card-list-kv-label">Return</span>
+                                <span className="employee-card-list-kv-value">{returnStatusLabel}</span>
+                              </div>
+                            </div>
+                          ) : null}
                         </div>
                       </div>
-                    <div className="employee-card-header-meta">
-                      {employee.return_request?.status === 'pending' ? <span className="badge badge-warning">Return requested</span> : null}
-                      <span className={`badge employee-card-status-badge ${employeeStatusBadgeClass(employee)} ${employeeStatusBadgeVariantClass(employee)}`.trim()}>{employeeStatusLabel(employee)}</span>
+                      <div className="employee-card-header-meta">
+                        {employee.return_request?.status === 'pending' ? <span className="badge badge-warning">Return requested</span> : null}
+                        <span className={`badge employee-card-status-badge ${employeeStatusBadgeClass(employee)} ${employeeStatusBadgeVariantClass(employee)}`.trim()}>{employeeStatusLabel(employee)}</span>
+                      </div>
                     </div>
-                  </div>
-                  <p className="muted-text">{employee.application_countries?.join(', ') || 'No destination country'} | {employee.phone || employee.mobile_number || 'No phone'}</p>
-                  <p className="muted-text"><strong>Age</strong> <strong>{employeeAge || '--'}</strong></p>
-                  {employee.return_request?.status === 'approved' && employee.return_request?.remark ? (
-                    <p className="muted-text">Return remark: {employee.return_request.remark}</p>
-                  ) : null}
-                  <p className="muted-text">Progress {employee.progress_status?.overall_completion ?? 0}% | Travel {prettyStatus(employee.travel_status, 'pending')} | Return {prettyStatus(employee.return_status)}</p>
-                  <div
-                    className={`employee-card-expand${isExpanded ? ' is-expanded' : ''}${expandedEmployeeCardReadyId === employee.id ? ' is-ready' : ''}`}
+                    {!isListLayout ? (
+                      <>
+                        <p className="muted-text">{destinationLabel === '—' ? 'No destination country' : destinationLabel} | {phoneLabel === '—' ? 'No phone' : phoneLabel}</p>
+                        <p className="muted-text"><strong>Age</strong> <strong>{employeeAge || '--'}</strong></p>
+                      </>
+                    ) : null}
+                    {employee.return_request?.status === 'approved' && employee.return_request?.remark ? (
+                      <p className="muted-text">Return remark: {employee.return_request.remark}</p>
+                    ) : null}
+                    {!isListLayout ? (
+                      <p className="muted-text">Progress {employee.progress_status?.overall_completion ?? 0}% | Travel {prettyStatus(employee.travel_status, 'pending')} | Return {prettyStatus(employee.return_status)}</p>
+                    ) : null}
+                    <div
+                      className={`employee-card-expand${isExpanded ? ' is-expanded' : ''}${expandedEmployeeCardReadyId === employee.id ? ' is-ready' : ''}`}
                       onTransitionEnd={(event) => {
                         if (event.propertyName !== 'grid-template-rows') return
                         if (typeof window === 'undefined') return
@@ -5445,11 +6136,12 @@ export default function EmployeesPage() {
                           </div>
                         ) : null}
                         <div className="employee-card-preview-strip">
-                          {CARD_PREVIEW_DOCUMENTS.map((preview) => {
+                          {(isListLayout ? LIST_CARD_PREVIEW_DOCUMENTS : GRID_CARD_PREVIEW_DOCUMENTS).map((preview) => {
                             const document = findEmployeeDocument(employee, preview.types)
                             const hasImage = document?.file_url && isImageDocument(document)
                             const url = document?.file_url || ''
                             const canOpenPreview = Boolean(url)
+                            const useFloatingHoverPreview = Boolean(isListLayout && hasImage && url)
 
                             return (
                               <div
@@ -5461,6 +6153,28 @@ export default function EmployeesPage() {
                                   role={canOpenPreview ? 'button' : undefined}
                                   tabIndex={canOpenPreview ? 0 : undefined}
                                   aria-label={canOpenPreview ? `Open ${preview.label} preview` : undefined}
+                                  onPointerEnter={(event) => {
+                                    if (!useFloatingHoverPreview) return
+                                    cancelFloatingAttachmentPreviewClose()
+                                    openFloatingAttachmentPreview(event.currentTarget, url, `${employee.full_name} ${preview.label}`)
+                                  }}
+                                  onPointerLeave={(event) => {
+                                    if (!useFloatingHoverPreview) return
+                                    const next = event?.relatedTarget
+                                    if (next instanceof Node && floatingAttachmentPreviewPopoverRef.current?.contains(next)) return
+                                    scheduleFloatingAttachmentPreviewClose()
+                                  }}
+                                  onFocus={(event) => {
+                                    if (!useFloatingHoverPreview) return
+                                    cancelFloatingAttachmentPreviewClose()
+                                    openFloatingAttachmentPreview(event.currentTarget, url, `${employee.full_name} ${preview.label}`)
+                                  }}
+                                  onBlur={(event) => {
+                                    if (!useFloatingHoverPreview) return
+                                    const next = event?.relatedTarget
+                                    if (next instanceof Node && floatingAttachmentPreviewPopoverRef.current?.contains(next)) return
+                                    scheduleFloatingAttachmentPreviewClose()
+                                  }}
                                   onClick={(event) => {
                                     if (!canOpenPreview) return
                                     event.preventDefault()
@@ -5493,13 +6207,14 @@ export default function EmployeesPage() {
                                   )}
                                 </div>
                                 <strong>{preview.label}</strong>
-                                {url ? (
+                                {url && !hasImage ? (
                                   <div className="employee-doc-preview-popover">
-                                    {hasImage ? (
-                                      <img src={url} alt={`${employee.full_name} ${preview.label} preview`} />
-                                    ) : (
-                                      <span>{fileLabel(document, attachmentLabels)}</span>
-                                    )}
+                                    <span>{fileLabel(document, attachmentLabels)}</span>
+                                  </div>
+                                ) : null}
+                                {url && hasImage && !useFloatingHoverPreview ? (
+                                  <div className="employee-doc-preview-popover">
+                                    <img src={url} alt={`${employee.full_name} ${preview.label} preview`} />
                                   </div>
                                 ) : null}
                               </div>
@@ -5516,11 +6231,23 @@ export default function EmployeesPage() {
             </>
           )}
           {!loading && employees.length > 0 ? (
-            <div className="activity-log-pagination">
-              <button type="button" className="btn-secondary" disabled={!hasPrev} onClick={() => setPage((prev) => Math.max(1, prev - 1))}>Previous</button>
-              <span className="muted-text">Page {page}</span>
-              <button type="button" className="btn-secondary" disabled={!hasNext} onClick={() => setPage((prev) => prev + 1)}>Next</button>
-            </div>
+            canProgressivelyRenderEmployeeCards ? (
+              primaryVisibleEmployees.length < sortedPrimaryVisibleEmployees.length ? (
+                <div className="activity-log-pagination">
+                  <span ref={employeeCardsSentinelRef} className="muted-text">Loading more employees…</span>
+                </div>
+              ) : (
+                <div className="activity-log-pagination">
+                  <span ref={employeeCardsSentinelRef} className="muted-text">End of list</span>
+                </div>
+              )
+            ) : (
+              <div className="activity-log-pagination">
+                <button type="button" className="btn-secondary" disabled={!hasPrev} onClick={() => setPage((prev) => Math.max(1, prev - 1))}>Previous</button>
+                <span className="muted-text">Page {page}</span>
+                <button type="button" className="btn-secondary" disabled={!hasNext} onClick={() => setPage((prev) => prev + 1)}>Next</button>
+              </div>
+            )
           ) : null}
         </div>
       )}
@@ -5968,6 +6695,21 @@ export default function EmployeesPage() {
       ) : null}
       {openedEmployee ? (
         <div className="employee-review-backdrop" role="presentation" onClick={() => setOpenedEmployeeId(null)}>
+          <button
+            type="button"
+            className="employee-review-nav-btn employee-review-nav-btn--prev"
+            onClick={(event) => {
+              event.stopPropagation()
+              navigateOpenedEmployee('previous')
+            }}
+            disabled={!previousOpenedEmployee}
+            aria-label="Previous employee"
+            title={previousOpenedEmployee ? `Previous: ${previousOpenedEmployee.full_name}` : 'No previous employee'}
+          >
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M15 5 8 12l7 7" />
+            </svg>
+          </button>
           <div
             className="employee-review-modal"
             data-badge={openedEmployeeBadgeClass}
@@ -6081,7 +6823,13 @@ export default function EmployeesPage() {
                           type="button"
                           className="btn-secondary"
                           onClick={() => handleToggleSelectedEmployee(openedEmployee)}
-                          disabled={readOnly || !isAgentSideUser || actionBusyId === openedEmployee.id}
+                          title={openedEmployeeIsSelectedByCurrentAgent && !openedEmployeeCanUnselect ? 'Only the selecting account or agent owner can unselect this employee.' : undefined}
+                          disabled={
+                            readOnly ||
+                            !isAgentSideUser ||
+                            actionBusyId === openedEmployee.id ||
+                            (openedEmployeeIsSelectedByCurrentAgent && !openedEmployeeCanUnselect)
+                          }
                         >
                           {actionBusyId === openedEmployee.id
                             ? 'Saving...'
@@ -6711,6 +7459,21 @@ export default function EmployeesPage() {
               )}
             </div>
           </div>
+          <button
+            type="button"
+            className="employee-review-nav-btn employee-review-nav-btn--next"
+            onClick={(event) => {
+              event.stopPropagation()
+              navigateOpenedEmployee('next')
+            }}
+            disabled={!nextOpenedEmployee}
+            aria-label="Next employee"
+            title={nextOpenedEmployee ? `Next: ${nextOpenedEmployee.full_name}` : 'No next employee'}
+          >
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="m9 5 7 7-7 7" />
+            </svg>
+          </button>
         </div>
       ) : null}
       {previewDocument ? (
@@ -6784,6 +7547,104 @@ export default function EmployeesPage() {
               )}
             </div>
           </div>
+        </div>
+      ) : null}
+      {floatingAttachmentPreview && typeof document !== 'undefined'
+        ? createPortal(
+          <div
+            className="attachment-slot-preview-popover is-floating"
+            style={{
+              left: `${floatingAttachmentPreview.left}px`,
+              top: `${floatingAttachmentPreview.top}px`,
+              width: `${floatingAttachmentPreview.width}px`
+            }}
+            ref={floatingAttachmentPreviewPopoverRef}
+            onPointerEnter={cancelFloatingAttachmentPreviewClose}
+            onPointerLeave={scheduleFloatingAttachmentPreviewClose}
+            role="presentation"
+          >
+            <img src={floatingAttachmentPreview.url} alt={floatingAttachmentPreview.label} />
+          </div>,
+          document.body
+        )
+        : null}
+      {showScrollToTop || hasSelectedEmployeeCards ? (
+        <div
+          className="employees-scroll-wheel"
+          role="presentation"
+          data-has-top="0"
+          data-has-right={rightDivisionRole ? '1' : '0'}
+          data-has-bottom={hasSelectedEmployeeCards ? '1' : '0'}
+          data-has-left={hasWheelUnselectTargets ? '1' : '0'}
+          data-right-role={rightDivisionRole}
+        >
+          <button
+            type="button"
+            className="employees-scroll-wheel-center"
+            aria-label="Scroll to top"
+            onClick={(event) => {
+              event.preventDefault()
+              event.stopPropagation()
+              scrollEmployeesToTop()
+            }}
+          >
+            <svg className="employees-scroll-wheel-center-icon" viewBox="0 0 24 24" aria-hidden="true" xmlns="http://www.w3.org/2000/svg">
+              <path className="employees-scroll-wheel-center-icon-stem" d="M10.75 18.25V10.2c0-.55.45-1 1-1h.5c.55 0 1 .45 1 1v8.05c0 .55-.45 1-1 1h-.5c-.55 0-1-.45-1-1Z" />
+              <path className="employees-scroll-wheel-center-icon-head" d="M12 4.5 5 12h14L12 4.5Z" />
+            </svg>
+          </button>
+          <svg className="employees-scroll-wheel-hit" viewBox="0 0 128 128" aria-hidden="true">
+            <path
+              className="employees-scroll-wheel-hit-seg employees-scroll-wheel-hit-seg--top"
+              d={buildWheelSectorPath(225, 315, 30)}
+              onClick={undefined}
+            />
+            <path
+              className="employees-scroll-wheel-hit-seg employees-scroll-wheel-hit-seg--right"
+              d={buildWheelSectorPath(315, 45, 30)}
+              onClick={
+                rightDivisionRole === 'start-process'
+                  ? handleScrollWheelStartProcessSelectedEmployees
+                  : rightDivisionRole === 'select'
+                    ? handleScrollWheelSelectEmployees
+                    : undefined
+              }
+            />
+            {rightDivisionRole ? (
+              <g className="employees-scroll-wheel-seg-icon employees-scroll-wheel-seg-icon--right" aria-hidden="true">
+                <g transform="translate(104 56)">
+                  <path d="M2 4h10M2 8h10M2 12h6" />
+                  <path d="M11.8 11.2 13.2 12.6 15.6 10.2" />
+                </g>
+              </g>
+            ) : null}
+            <path
+              className="employees-scroll-wheel-hit-seg employees-scroll-wheel-hit-seg--bottom"
+              d={buildWheelSectorPath(45, 135, 30)}
+              onClick={hasSelectedEmployeeCards ? handleScrollWheelClearCardSelection : undefined}
+            />
+            {hasSelectedEmployeeCards ? (
+              <g className="employees-scroll-wheel-seg-icon employees-scroll-wheel-seg-icon--bottom" aria-hidden="true">
+                <g transform="translate(58 103)">
+                  <path d="M2 4h10M2 8h10M2 12h6" />
+                  <path d="M11.8 11.2 13.2 12.6 15.6 10.2" />
+                </g>
+              </g>
+            ) : null}
+            <path
+              className="employees-scroll-wheel-hit-seg employees-scroll-wheel-hit-seg--left"
+              d={buildWheelSectorPath(135, 225, 30)}
+              onClick={hasWheelUnselectTargets ? handleScrollWheelUnselectEmployees : undefined}
+            />
+            {hasWheelUnselectTargets ? (
+              <g className="employees-scroll-wheel-seg-icon employees-scroll-wheel-seg-icon--left" aria-hidden="true">
+                <g transform="translate(8 56)">
+                  <path d="M2 4h10M2 8h10M2 12h6" />
+                  <path d="M11.8 11.2 13.2 12.6 15.6 10.2" />
+                </g>
+              </g>
+            ) : null}
+          </svg>
         </div>
       ) : null}
     </section>
