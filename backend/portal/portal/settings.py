@@ -48,7 +48,7 @@ SECRET_KEY = os.getenv(
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = _env_bool("DEBUG", True)
 
-ALLOWED_HOSTS = _env_list("ALLOWED_HOSTS","https://employment-portal-tdd0.onrender.com","localhost,127.0.0.1")
+ALLOWED_HOSTS = _env_list("ALLOWED_HOSTS","https://employment-portal-tdd0.onrender.com,localhost,127.0.0.1")
 
 
 # Application definition
