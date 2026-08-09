@@ -174,7 +174,7 @@ STATIC_URL = "static/"
 MEDIA_URL = "/media/"
 MEDIA_ROOT = BASE_DIR / "media"
 
-_default_frontend_origins = "http://localhost:5173,http://127.0.0.1:5173,https://employment-portal-v1-jpcyyxgr2.vercel.app"
+_default_frontend_origins = "http://localhost:5173,http://127.0.0.1:5173,https://employment-portal-v1-dlidvghsn.vercel.app"
 
 CORS_ALLOWED_ORIGINS = _env_list("CORS_ALLOWED_ORIGINS", _default_frontend_origins)
 
