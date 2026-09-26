@@ -5,6 +5,7 @@ import { useUiFeedback } from '../context/UiFeedbackContext'
 import { RESIDENCE_COUNTRY_OPTIONS } from '../constants/employeeOptions'
 import * as usersService from '../services/usersService'
 import { matchesBooleanFilter, matchesExactFilter, matchesSearchQuery, normalizeSearchValue } from '../utils/filtering'
+import { isAgentSideWorkspace } from '../utils/profileStore'
 
 const ROLE_OPTIONS = [
   { value: 'superadmin', label: 'Super admin' },
@@ -30,14 +31,7 @@ function getStaffLevelForRole(roleLabel) {
   return STAFF_ROLE_OPTIONS.find((option) => option.label === roleLabel)?.level || 1
 }
 
-function isAgentSideWorkspace(user) {
-  if (user?.agent_context?.is_agent_side) return true
-  if (user?.role === 'customer') return true
-  if (user?.role !== 'staff') return false
-  const staffSide = (user?.staff_side || '').trim()
-  const organizationName = (user?.organization?.name || '').trim()
-  return Boolean(staffSide) && staffSide !== organizationName
-}
+
 
 function displayActorName(user) {
   return [user?.first_name, user?.last_name].filter(Boolean).join(' ') || user?.username || 'Unknown user'

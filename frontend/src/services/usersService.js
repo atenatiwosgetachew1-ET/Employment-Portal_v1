@@ -1,4 +1,5 @@
-import { apiFetch } from '../api/client'
+﻿import { apiFetch } from '../api/client'
+import { extractApiErrorMessage } from '../utils/errors'
 
 export async function fetchUsers({ page = 1, q = '', role = '', isActive = '' } = {}) {
   const params = new URLSearchParams()
@@ -10,7 +11,7 @@ export async function fetchUsers({ page = 1, q = '', role = '', isActive = '' } 
   const response = await apiFetch(`/api/users/?${params.toString()}`)
   if (!response.ok) {
     const err = await response.json().catch(() => ({}))
-    throw new Error(err.detail || err.message || 'Failed to load users')
+    throw new Error(extractApiErrorMessage(err, 'Failed to load users'))
   }
   return response.json()
 }
@@ -22,13 +23,7 @@ export async function createUser(payload) {
   })
   const data = await response.json().catch(() => ({}))
   if (!response.ok) {
-    const msg =
-      typeof data === 'object' && data !== null
-        ? Object.entries(data)
-            .map(([k, v]) => `${k}: ${Array.isArray(v) ? v.join(', ') : v}`)
-            .join(' ')
-        : 'Failed to create user'
-    throw new Error(msg || 'Failed to create user')
+    throw new Error(extractApiErrorMessage(data, 'Failed to create user'))
   }
   return data
 }
@@ -37,7 +32,7 @@ export async function fetchStaffSideOptions() {
   const response = await apiFetch('/api/users/staff-side-options/')
   const data = await response.json().catch(() => ({}))
   if (!response.ok) {
-    throw new Error(data.detail || data.message || 'Failed to load staff side options')
+    throw new Error(extractApiErrorMessage(data, 'Failed to load staff side options'))
   }
   return {
     options: Array.isArray(data.options) ? data.options : [],
@@ -53,13 +48,7 @@ export async function patchUser(id, payload) {
   })
   const data = await response.json().catch(() => ({}))
   if (!response.ok) {
-    const msg =
-      typeof data === 'object' && data !== null
-        ? Object.entries(data)
-            .map(([k, v]) => `${k}: ${Array.isArray(v) ? v.join(', ') : v}`)
-            .join(' ')
-        : 'Failed to update user'
-    throw new Error(msg || 'Failed to update user')
+    throw new Error(extractApiErrorMessage(data, 'Failed to update user'))
   }
   return data
 }
@@ -68,7 +57,7 @@ export async function deleteUser(id) {
   const response = await apiFetch(`/api/users/${id}/`, { method: 'DELETE' })
   if (!response.ok && response.status !== 204) {
     const data = await response.json().catch(() => ({}))
-    throw new Error(data.detail || 'Failed to delete user')
+    throw new Error(extractApiErrorMessage(data, 'Failed to delete user'))
   }
 }
 
@@ -82,14 +71,7 @@ export async function resetUserPassword(id, newPassword, newPasswordConfirm) {
   })
   const data = await response.json().catch(() => ({}))
   if (!response.ok) {
-    const msg =
-      typeof data === 'object' && data !== null
-        ? data.detail ||
-          Object.entries(data)
-            .map(([k, v]) => `${k}: ${Array.isArray(v) ? v.join(', ') : v}`)
-            .join(' ')
-        : 'Failed to reset password'
-    throw new Error(msg || 'Failed to reset password')
+    throw new Error(extractApiErrorMessage(data, 'Failed to reset password'))
   }
   return data
 }

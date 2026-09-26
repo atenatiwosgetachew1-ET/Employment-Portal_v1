@@ -1,38 +1,6 @@
-import { apiFetch } from '../api/client'
+﻿import { apiFetch } from '../api/client'
 
-function responseError(data, fallback) {
-  if (typeof data?.detail === 'string') return data.detail
-  if (typeof data?.message === 'string') return data.message
-  if (data && typeof data === 'object') {
-    const entries = Object.entries(data)
-    if (entries.length === 1) {
-      const onlyValue = entries[0][1]
-      if (typeof onlyValue === 'string' && onlyValue.trim()) return onlyValue.trim()
-      if (Array.isArray(onlyValue) && typeof onlyValue[0] === 'string') return onlyValue.join(', ')
-    }
-    return entries
-      .map(([key, value]) => `${key}: ${Array.isArray(value) ? value.join(', ') : value}`)
-      .join(' ')
-  }
-  if (typeof data === 'string' && data.trim()) {
-    const text = data.trim()
-    return text.length > 300 ? `${text.slice(0, 300)}…` : text
-  }
-  return fallback
-}
-
-async function readResponseBody(response) {
-  try {
-    return await response.clone().json()
-  } catch {
-    try {
-      const text = await response.text()
-      return text || {}
-    } catch {
-      return {}
-    }
-  }
-}
+import { extractApiErrorMessage as responseError, readResponseBody } from '../utils/errors'
 
 export async function fetchEmployees({
   page = 1,

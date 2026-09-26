@@ -1,14 +1,7 @@
 import { Navigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
+import { isAgentSideWorkspace } from '../utils/profileStore'
 
-function isAgentSideWorkspace(user) {
-  if (user?.agent_context?.is_agent_side) return true
-  if (user?.role === 'customer') return true
-  if (user?.role !== 'staff') return false
-  const staffSide = (user?.staff_side || '').trim()
-  const organizationName = (user?.organization?.name || '').trim()
-  return Boolean(staffSide) && staffSide !== organizationName
-}
 
 function ConceptSection({ title, items }) {
   return (

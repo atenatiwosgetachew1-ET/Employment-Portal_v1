@@ -52,6 +52,17 @@ build/
 .vite/
 coverage/
 
+
+# Node / frontend
+node_modules/
+dist/
+build/
+.npm/
+.pnpm-store/
+.parcel-cache/
+.vite/
+coverage/
+
 # Lock/debug logs
 npm-debug.log*
 yarn-debug.log*
@@ -63,3 +74,12 @@ pnpm-debug.log*
 .paddlex/
 tmp/
 temp/
+.tmp-theme-reference/
+
+# Test build check artifacts & credentials
+frontend/dist-check*/
+frontend/dist-style-check*/
+dist-check*/
+dist-style-check*/
+*creadentials*.txt
+*credential*.txt

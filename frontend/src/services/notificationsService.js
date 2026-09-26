@@ -66,7 +66,14 @@ export function countNewNotifications(items, lastSeenId = getLastSeenNotificatio
   return Array.isArray(items)
     ? items.filter((item) => {
         const itemId = Number(item?.id)
-        return Number.isFinite(itemId) && itemId > seenCutoff && !item?.read
+        return Number.isFinite(itemId) && itemId > seenCutoff && !item?.read && !isReminderPending(item)
       }).length
     : 0
 }
+
+export function isReminderPending(item) {
+  if (!item || item.read || !item.remind_at) return false
+  const time = new Date(item.remind_at).getTime()
+  return Number.isFinite(time) && time > Date.now()
+}
+

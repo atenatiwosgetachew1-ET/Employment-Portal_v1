@@ -1,8 +1,8 @@
 import { Navigate, useLocation } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 
-export default function ProtectedRoute({ children }) {
-  const { isAuthenticated, bootstrapping } = useAuth()
+export default function ProtectedRoute({ children, requiredRoles, requiredPermissions }) {
+  const { user, isAuthenticated, bootstrapping } = useAuth()
   const location = useLocation()
 
   if (bootstrapping) {
@@ -15,6 +15,20 @@ export default function ProtectedRoute({ children }) {
 
   if (!isAuthenticated) {
     return <Navigate to="/login" replace state={{ from: location }} />
+  }
+
+  if (requiredRoles && requiredRoles.length > 0) {
+    if (!user?.role || !requiredRoles.includes(user.role)) {
+      return <Navigate to="/dashboard" replace />
+    }
+  }
+
+  if (requiredPermissions && requiredPermissions.length > 0) {
+    const userPermissions = user?.permissions || []
+    const hasPermission = requiredPermissions.some((perm) => userPermissions.includes(perm))
+    if (!hasPermission) {
+      return <Navigate to="/dashboard" replace />
+    }
   }
 
   return children

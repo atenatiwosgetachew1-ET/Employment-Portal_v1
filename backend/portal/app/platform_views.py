@@ -80,7 +80,7 @@ class MarkAllNotificationsReadView(APIView):
         if restriction:
             return Response({"detail": restriction}, status=status.HTTP_403_FORBIDDEN)
         updated = Notification.objects.filter(user=request.user, read=False).update(
-            read=True
+            read=True, remind_at=None
         )
         return Response({"marked_read": updated})
 

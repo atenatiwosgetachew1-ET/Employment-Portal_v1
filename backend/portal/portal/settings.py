@@ -50,7 +50,7 @@ DEBUG = _env_bool("DEBUG", True)
 
 ALLOWED_HOSTS = _env_list(
     "ALLOWED_HOSTS",
-    "employment-portal-tdd0.onrender.com,localhost,127.0.0.1"
+    "localhost,employment-portal-tdd0.onrender.com,127.0.0.1"
 )
 
 # Application definition
@@ -102,36 +102,43 @@ WSGI_APPLICATION = 'portal.wsgi.application'
 # Database — PostgreSQL only (see backend/portal/.env)
 # https://docs.djangoproject.com/en/6.0/ref/settings/#databases
 
-_db_name = (os.getenv("DB_NAME") or "").strip()
-_db_user = (os.getenv("DB_USER") or "").strip()
-if not _db_name or not _db_user:
-    raise ImproperlyConfigured(
-        "PostgreSQL is required. Set DB_NAME and DB_USER in backend/portal/.env "
-        "(copy from .env.example). Optional: DB_PASSWORD, DB_HOST, DB_PORT, DB_SSLMODE."
-    )
+_db_url = (os.getenv("DATABASE_URL") or "").strip()
+_use_sqlite = _env_bool("USE_SQLITE", False)
 
-# DATABASES = {
-#     # "default": {
-#     #     "ENGINE": "django.db.backends.postgresql",
-#     #     "NAME": _db_name,
-#     #     "USER": _db_user,
-#     #     "PASSWORD": os.getenv("DB_PASSWORD", ""),
-#     #     "HOST": os.getenv("DB_HOST") or "localhost",
-#     #     "PORT": os.getenv("DB_PORT") or "5432",
-#     #     "OPTIONS": {},
-#     # }
-#     "default": dj_database_url.config(
-#         default=os.getenv("DATABASE_URL")
-#     )
-# }
+if _use_sqlite:
+    DATABASES = {
+        "default": {
+            "ENGINE": "django.db.backends.sqlite3",
+            "NAME": BASE_DIR / "dev.sqlite3",
+        }
+    }
+elif _db_url:
+    _ssl_req = _env_bool("DB_SSL_REQUIRE", True)
+    DATABASES = {
+        "default": dj_database_url.config(
+            default=_db_url,
+            conn_max_age=600,
+            ssl_require=_ssl_req,
+        )
+    }
+else:
+    _db_name = (os.getenv("DB_NAME") or "employment_portal_db").strip()
+    _db_user = (os.getenv("DB_USER") or "postgres").strip()
+    _db_password = os.getenv("DB_PASSWORD", "")
+    _db_host = os.getenv("DB_HOST", "127.0.0.1")
+    _db_port = os.getenv("DB_PORT", "5432")
 
-DATABASES = {
-    "default": dj_database_url.config(
-        default=os.getenv("DATABASE_URL"),
-        conn_max_age=600,
-        ssl_require=True,
-    )
-}
+    DATABASES = {
+        "default": {
+            "ENGINE": "django.db.backends.postgresql",
+            "NAME": _db_name,
+            "USER": _db_user,
+            "PASSWORD": _db_password,
+            "HOST": _db_host,
+            "PORT": _db_port,
+        }
+    }
+
 
 
 #test
@@ -184,12 +191,13 @@ CORS_ALLOW_CREDENTIALS = True
 CSRF_TRUSTED_ORIGINS = _env_list("CSRF_TRUSTED_ORIGINS", _default_frontend_origins)
 
 SESSION_COOKIE_HTTPONLY = True
-SESSION_COOKIE_SAMESITE = "None"
+SESSION_COOKIE_SAMESITE = os.getenv("SESSION_COOKIE_SAMESITE", "Lax" if DEBUG else "None")
 SESSION_COOKIE_SECURE = _env_bool("SESSION_COOKIE_SECURE", not DEBUG)
 CSRF_COOKIE_HTTPONLY = False
 CSRF_COOKIE_NAME = "csrftoken"
-CSRF_COOKIE_SAMESITE = "None"
+CSRF_COOKIE_SAMESITE = os.getenv("CSRF_COOKIE_SAMESITE", "Lax" if DEBUG else "None")
 CSRF_COOKIE_SECURE = _env_bool("CSRF_COOKIE_SECURE", SESSION_COOKIE_SECURE)
+
 
 SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 SECURE_BROWSER_XSS_FILTER = True

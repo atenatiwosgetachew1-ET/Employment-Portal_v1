@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useState } from 'react'
+﻿import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Navigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import * as auditLogService from '../services/auditLogService'
+import { DataTable, FilterBar } from '../components/common'
 
 function formatWhen(iso) {
   if (!iso) return '—'
@@ -48,11 +49,22 @@ export default function ActivityLogPage() {
     else setLoading(false)
   }, [canView, load])
 
-  const handleSearchSubmit = (e) => {
-    e.preventDefault()
+  const handleSearchSubmit = () => {
     setPage(1)
     setQuery(searchInput.trim())
   }
+
+  const columns = useMemo(() => [
+    { key: 'created_at', label: 'When', className: 'nowrap', render: (row) => formatWhen(row.created_at) },
+    { key: 'actor_username', label: 'Actor', render: (row) => row.actor_username || '—' },
+    { key: 'action', label: 'Action', render: (row) => <code className="activity-code">{row.action}</code> },
+    {
+      key: 'resource',
+      label: 'Resource',
+      render: (row) => `${row.resource_type || '—'}${row.resource_id != null ? ` #${row.resource_id}` : ''}`
+    },
+    { key: 'summary', label: 'Summary', className: 'activity-summary', render: (row) => row.summary || '—' }
+  ], [])
 
   if (!canView) {
     return <Navigate to="/dashboard" replace />
@@ -83,82 +95,32 @@ export default function ActivityLogPage() {
         </button>
       </div>
 
-      <form
+      <FilterBar
         className="form-grid form-grid--align-end"
+        searchValue={searchInput}
+        onSearchChange={setSearchInput}
+        searchPlaceholder="Action, actor, resource, or summary"
         onSubmit={handleSearchSubmit}
-      >
-        <label>
-          Search
-          <input
-            value={searchInput}
-            onChange={(e) => setSearchInput(e.target.value)}
-            placeholder="Action, actor, resource, or summary"
-          />
-        </label>
-        <button type="submit" className="btn-secondary">
-          Apply search
-        </button>
-      </form>
+        submitLabel="Apply search"
+        loading={loading}
+      />
 
       {error && <p className="error-message">{error}</p>}
 
-      {loading ? (
-        <p className="muted-text">Loading…</p>
-      ) : (
-        <>
-          <p className="muted-text activity-log-meta">
-            Showing {results.length} of {total} entries (newest first).
-          </p>
-          <div className="table-scroll activity-log-table-wrap">
-            <table className="users-table activity-log-table">
-              <thead>
-                <tr>
-                  <th>When</th>
-                  <th>Actor</th>
-                  <th>Action</th>
-                  <th>Resource</th>
-                  <th>Summary</th>
-                </tr>
-              </thead>
-              <tbody>
-                {results.map((row) => (
-                  <tr key={row.id}>
-                    <td className="nowrap">{formatWhen(row.created_at)}</td>
-                    <td>{row.actor_username || '—'}</td>
-                    <td>
-                      <code className="activity-code">{row.action}</code>
-                    </td>
-                    <td>
-                      {row.resource_type || '—'}
-                      {row.resource_id != null ? ` #${row.resource_id}` : ''}
-                    </td>
-                    <td className="activity-summary">{row.summary || '—'}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          <div className="activity-log-pagination">
-            <button
-              type="button"
-              className="btn-secondary"
-              disabled={!hasPrev || loading}
-              onClick={() => setPage((p) => Math.max(1, p - 1))}
-            >
-              Previous
-            </button>
-            <span className="muted-text">Page {page}</span>
-            <button
-              type="button"
-              className="btn-secondary"
-              disabled={!hasNext || loading}
-              onClick={() => setPage((p) => p + 1)}
-            >
-              Next
-            </button>
-          </div>
-        </>
-      )}
+      <DataTable
+        columns={columns}
+        data={results}
+        loading={loading}
+        loadingText="Loading…"
+        emptyText="No activity logs found."
+        totalCount={total}
+        page={page}
+        hasNext={hasNext}
+        hasPrev={hasPrev}
+        onPageChange={setPage}
+        className="activity-log-table-wrap"
+        tableClassName="users-table activity-log-table"
+      />
     </section>
   )
 }

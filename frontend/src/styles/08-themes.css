@@ -59,6 +59,7 @@
   --tag-green-bg: #16a34a;
   --tag-red-bg: #dc2626;
   --tag-gold-bg: #c69214;
+  --tag-purple-bg: #800080;
 }
 
 html[data-theme='light'] {
@@ -169,7 +170,6 @@ html[data-accent='natural'] .commission-case-card,
 html[data-accent='natural'] .commission-settlement-card,
 html[data-accent='natural'] .commission-receipt-item,
 html[data-accent='natural'] .notification-dropdown,
-html[data-accent='natural'] .notifications-page-list,
 html[data-accent='natural'] .notification-item,
 html[data-accent='natural'] .notification-item.is-unread,
 html[data-accent='natural'] .returned-list-surface,
@@ -272,7 +272,6 @@ html[data-accent='natural'] .employee-summary-card:hover,
 html[data-accent='natural'] .return-request-employee-option:hover,
 html[data-accent='natural'] .returned-request-item:hover,
 html[data-accent='natural'] .notification-item.is-unread:hover,
-html[data-accent='natural'] .notifications-page-item.is-unread:hover,
 html[data-accent='natural'] .commission-case-card:hover,
 html[data-accent='natural'] .concept-card:hover,
 html[data-accent='natural'] .profiles-agent-card:hover,
@@ -298,7 +297,6 @@ html[data-theme='dark'][data-accent='natural'] .employee-summary-card:hover,
 html[data-theme='dark'][data-accent='natural'] .return-request-employee-option:hover,
 html[data-theme='dark'][data-accent='natural'] .returned-request-item:hover,
 html[data-theme='dark'][data-accent='natural'] .notification-item.is-unread:hover,
-html[data-theme='dark'][data-accent='natural'] .notifications-page-item.is-unread:hover,
 html[data-theme='dark'][data-accent='natural'] .commission-case-card:hover,
 html[data-theme='dark'][data-accent='natural'] .concept-card:hover,
 html[data-theme='dark'][data-accent='natural'] .profiles-agent-card:hover,
@@ -349,7 +347,6 @@ html[data-theme='light'][data-accent='natural'] .employee-summary-card:hover,
 html[data-theme='light'][data-accent='natural'] .return-request-employee-option:hover,
 html[data-theme='light'][data-accent='natural'] .returned-request-item:hover,
 html[data-theme='light'][data-accent='natural'] .notification-item.is-unread:hover,
-html[data-theme='light'][data-accent='natural'] .notifications-page-item.is-unread:hover,
 html[data-theme='light'][data-accent='natural'] .commission-case-card:hover,
 html[data-theme='light'][data-accent='natural'] .concept-card:hover,
 html[data-theme='light'][data-accent='natural'] .profiles-agent-card:hover,
@@ -442,6 +439,9 @@ html[data-theme='light'] body {
 html[data-theme='light'][data-accent='natural'] .dashboard-panel,
 html[data-theme='light'][data-accent='natural'] .employee-summary-card,
 html[data-theme='light'][data-accent='natural'] .employee-card,
+html[data-theme='light'][data-accent='natural'] .employee-registration-sidebar,
+html[data-theme='light'][data-accent='natural'] .employee-registration-main,
+html[data-theme='light'][data-accent='natural'] .employee-scan-launch-card,
 html[data-theme='light'][data-accent='natural'] .employee-modal,
 html[data-theme='light'][data-accent='natural'] .document-preview-modal,
 html[data-theme='light'][data-accent='natural'] .user-create-card,
@@ -506,9 +506,9 @@ html[data-theme='dark'] .user-create-card {
 }
 
 html[data-theme='dark'] .employee-template-bar {
-  background: color-mix(in oklch, #11111100 92%, #000000);
-  background-color: color-mix(in oklch, #11111100 92%, #000000);
-  border-color: color-mix(in oklch, #2b2b2b00 68%, transparent);
+  background: color-mix(in oklch, transparent 92%, #000000);
+  background-color: color-mix(in oklch, transparent 92%, #000000);
+  border-color: color-mix(in oklch, transparent 68%, transparent);
 }
 
 /* Concept pages (Chats / Compliances): match the dark surface logic even outside natural accent. */
@@ -636,7 +636,6 @@ html[data-theme='dark'][data-accent='natural'] .commission-case-card,
 html[data-theme='dark'][data-accent='natural'] .commission-settlement-card,
 html[data-theme='dark'][data-accent='natural'] .commission-receipt-item,
 html[data-theme='dark'][data-accent='natural'] .notification-dropdown,
-html[data-theme='dark'][data-accent='natural'] .notifications-page-list,
 html[data-theme='dark'][data-accent='natural'] .notification-item,
 html[data-theme='dark'][data-accent='natural'] .notification-item.is-unread,
 html[data-theme='dark'][data-accent='natural'] .returned-list-surface,
@@ -655,7 +654,10 @@ html[data-theme='dark'][data-accent='natural'] .oauth-error {
   background-color: transparent;
 }
 
-html[data-theme='dark'][data-accent='natural'] .employee-card {
+html[data-theme='dark'][data-accent='natural'] .employee-card,
+html[data-theme='dark'][data-accent='natural'] .employee-registration-sidebar,
+html[data-theme='dark'][data-accent='natural'] .employee-registration-main,
+html[data-theme='dark'][data-accent='natural'] .employee-scan-launch-card {
   background: rgb(57 57 57 / 15%);
   background-color: rgb(57 57 57 / 15%);
 }
@@ -878,9 +880,9 @@ html[data-theme='dark'] .settings-page .settings-tab-card:hover {
 
 html[data-theme='dark'] .activity-log-page .form-grid.form-grid--align-end {
   padding: 14px 16px;
-  border: 1px solid color-mix(in oklch, #2b2b2b00 68%, transparent);
+  border: 1px solid color-mix(in oklch, transparent 68%, transparent);
   border-radius: 5px;
-  background: color-mix(in oklch, #11111100 92%, #000000);
+  background: color-mix(in oklch, transparent 92%, #000000);
 }
 
 html[data-theme='dark'] .activity-log-page .activity-log-table tbody tr {
@@ -931,7 +933,7 @@ html[data-theme='dark'] .dashboard-shell {
 }
 
 html[data-theme='dark'] .dashboard-sidebar {
-  background: #15151500;
+  background: transparent;
   border-right: 1px solid #2b2b2b38;
 }
 
@@ -1161,7 +1163,10 @@ html[data-theme='dark'] .notification-dropdown-header {
   border-color: transparent;
 }
 
-html[data-theme='dark'] .employee-card {
+html[data-theme='dark'] .employee-card,
+html[data-theme='dark'] .employee-registration-sidebar,
+html[data-theme='dark'] .employee-registration-main,
+html[data-theme='dark'] .employee-scan-launch-card {
   background: rgb(57 57 57 / 15%);
   background-color: rgb(57 57 57 / 15%);
 }
@@ -1179,25 +1184,51 @@ html[data-theme='dark'] .employee-step-tab.is-active:hover:not(:disabled) span {
 
 /* Employees: modal error surface (ensure it wins over primitives). */
 html[data-theme='dark'] .error-message.employee-modal-error {
-  display: flex;
-  align-items: flex-start;
-  gap: 10px;
-  padding: 12px 14px;
-  background: rgb(255 0 0 / 0.12);
-  border: 1px solid rgb(255 0 0 / 0.28);
-  color: rgb(255 85 85);
-  border-radius: 5px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  min-height: 32px;
+  background: color-mix(in oklch, var(--color-destructive) 12%, #141416);
+  border: 1px solid color-mix(in oklch, var(--color-destructive) 30%, transparent);
+  color: color-mix(in oklch, var(--color-destructive) 90%, #ffffff);
+  border-radius: 6px;
+  font-size: 0.79rem;
+  box-shadow: 0 1px 6px color-mix(in oklch, var(--color-destructive) 16%, transparent);
 }
 
 html[data-theme='dark'] .error-message.employee-modal-error::before {
   content: '';
   flex: 0 0 auto;
-  width: 18px;
-  height: 18px;
-  margin-top: 1px;
-  background-color: currentColor;
-  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='black' d='M12 2 1 21h22L12 2Zm0 6c.6 0 1 .4 1 1v5a1 1 0 1 1-2 0V9c0-.6.4-1 1-1Zm0 11a1.25 1.25 0 1 1 0-2.5A1.25 1.25 0 0 1 12 19Z'/%3E%3C/svg%3E") no-repeat center / contain;
-  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='black' d='M12 2 1 21h22L12 2Zm0 6c.6 0 1 .4 1 1v5a1 1 0 1 1-2 0V9c0-.6.4-1 1-1Zm0 11a1.25 1.25 0 1 1 0-2.5A1.25 1.25 0 0 1 12 19Z'/%3E%3C/svg%3E") no-repeat center / contain;
+  width: 14px;
+  height: 14px;
+  background-color: var(--color-destructive);
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='10'/%3E%3Cline x1='12' y1='8' x2='12' y2='12'/%3E%3Cline x1='12' y1='16' x2='12.01' y2='16'/%3E%3C/svg%3E") no-repeat center / contain;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='10'/%3E%3Cline x1='12' y1='8' x2='12' y2='12'/%3E%3Cline x1='12' y1='16' x2='12.01' y2='16'/%3E%3C/svg%3E") no-repeat center / contain;
+}
+
+html[data-theme='dark'] .employee-action-step-error--top {
+  display: flex !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  box-sizing: border-box !important;
+  margin: 0 0 14px 0 !important;
+}
+
+html[data-theme='dark'] .doc-upload-card.is-invalid,
+html[data-theme='dark'] .doc-upload-card[aria-invalid='true'] {
+  border: 1px solid var(--color-destructive) !important;
+  border-style: solid !important;
+  box-shadow: 0 0 0 2px color-mix(in oklch, var(--color-destructive) 32%, transparent) !important;
+  background: color-mix(in oklch, var(--color-destructive) 6%, #141416) !important;
+}
+
+html[data-theme='dark'] .doc-upload-card.is-invalid:hover,
+html[data-theme='dark'] .doc-upload-card[aria-invalid='true']:hover {
+  border: 1px solid var(--color-destructive) !important;
+  border-style: solid !important;
+  box-shadow: 0 0 0 2px color-mix(in oklch, var(--color-destructive) 44%, transparent) !important;
+  background: color-mix(in oklch, var(--color-destructive) 9%, #141416) !important;
 }
 
 /* Employee modal notice should not inherit the generic `.alert` surface box. */
@@ -1942,7 +1973,7 @@ html .employee-registration-surface .attachment-box-badge.attachment-box-badge--
   padding: 0 0;
   padding-bottom: 7px;
   border-radius: 50%;
-  background: #383;
+  background: var(--tag-green-bg);
   color: #ffffff;
   font-size: 0.85rem;
   line-height: 1.35rem;

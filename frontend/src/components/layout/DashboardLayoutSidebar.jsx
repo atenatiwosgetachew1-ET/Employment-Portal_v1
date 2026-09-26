@@ -175,7 +175,9 @@ function DashboardSidebar() {
     location.pathname === '/dashboard/employees' ||
     location.pathname.startsWith('/dashboard/employees/')
   const employeesView = isEmployeesRoute
-    ? (new URLSearchParams(location.search).get('view') || 'list')
+    ? (location.pathname.startsWith('/dashboard/employees/')
+        ? location.pathname.replace('/dashboard/employees/', '').split('/')[0] || 'list'
+        : (new URLSearchParams(location.search).get('view') || 'list'))
     : ''
   const isNotificationsRoute =
     location.pathname === '/dashboard/notifications' ||
@@ -242,15 +244,15 @@ function DashboardSidebar() {
   const employeeSubItems = canManageEmployees
     ? [
         ...(canEditEmployeeRecords
-          ? [{ to: '/dashboard/employees?view=register', label: 'Register employee', id: 'register' }]
+          ? [{ to: '/dashboard/employees/register', label: 'Register employee', id: 'register' }]
           : []),
-        { to: '/dashboard/employees?view=list', label: 'Employees list', id: 'list' },
+        { to: '/dashboard/employees/list', label: 'Employees list', id: 'list' },
         ...(isAgentSideUser
-          ? [{ to: '/dashboard/employees?view=selected', label: 'Selected employees', id: 'selected' }]
+          ? [{ to: '/dashboard/employees/selected', label: 'Selected employees', id: 'selected' }]
           : []),
-        { to: '/dashboard/employees?view=under-process', label: 'Under process', id: 'under-process' },
-        { to: '/dashboard/employees?view=employed', label: 'Employed', id: 'employed' },
-        { to: '/dashboard/employees?view=returned', label: 'Returned', id: 'returned' }
+        { to: '/dashboard/employees/under-process', label: 'Under process', id: 'under-process' },
+        { to: '/dashboard/employees/employed', label: 'Employed', id: 'employed' },
+        { to: '/dashboard/employees/returned', label: 'Returned', id: 'returned' }
       ]
     : []
 
@@ -259,7 +261,9 @@ function DashboardSidebar() {
       const notifications = await notificationsService.fetchNotifications()
       const notificationCount = isNotificationsRoute
         ? 0
-        : (Array.isArray(notifications) ? notifications.filter((item) => !item.read).length : 0)
+        : (Array.isArray(notifications)
+            ? notifications.filter((item) => !item.read && !notificationsService.isReminderPending(item)).length
+            : 0)
 
       setNavCounts((prev) => {
         const next = { '/dashboard/notifications': notificationCount }
@@ -290,19 +294,26 @@ function DashboardSidebar() {
   }, [isNotificationsRoute])
 
   useEffect(() => {
+    // Poll nav counts every 30s only when the tab is actively visible
     const intervalId = window.setInterval(() => {
-      loadNavCounts()
-    }, 5000)
+      if (document.visibilityState === 'visible') {
+        loadNavCounts()
+      }
+    }, 30000)
 
-    const handleWindowFocus = () => {
-      loadNavCounts()
+    const handleVisibilityOrFocus = () => {
+      if (document.visibilityState === 'visible') {
+        loadNavCounts()
+      }
     }
 
-    window.addEventListener('focus', handleWindowFocus)
+    window.addEventListener('focus', handleVisibilityOrFocus)
+    document.addEventListener('visibilitychange', handleVisibilityOrFocus)
 
     return () => {
       window.clearInterval(intervalId)
-      window.removeEventListener('focus', handleWindowFocus)
+      window.removeEventListener('focus', handleVisibilityOrFocus)
+      document.removeEventListener('visibilitychange', handleVisibilityOrFocus)
     }
   }, [loadNavCounts])
 

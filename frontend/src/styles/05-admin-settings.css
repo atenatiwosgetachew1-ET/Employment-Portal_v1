@@ -10,7 +10,7 @@
   justify-content: space-between;
   gap: 16px;
   flex-wrap: wrap;
-  margin-bottom: 8px;
+  margin-bottom: 2px;
   border-radius: 5px;
   padding: 0;
   border: none;
@@ -19,17 +19,22 @@
 
 .users-management-header h1,
 .page-panel-header h1 {
-  margin: 0 0 12px;
+  margin: 0;
+  font-size: 1.6rem;
+  letter-spacing: -0.02em;
+  color: var(--color-foreground);
 }
 
 .users-management-header .muted-text,
-.page-panel-header .muted-text {
-  margin-bottom: 0;
+.page-panel-header .muted-text,
+.page-panel-header p {
+  margin: 4px 0 0;
+  font-size: 0.88rem;
 }
 
 .users-management-header .muted-text + .muted-text,
 .page-panel-header .muted-text + .muted-text {
-  margin-top: 8px;
+  margin-top: 4px;
 }
 
 .users-grid {
@@ -62,9 +67,9 @@
   align-items: end;
   margin-bottom: 16px;
   padding: 14px 16px;
-  border: 1px solid color-mix(in oklch, #2b2b2b00 68%, transparent);
+  border: 1px solid color-mix(in oklch, transparent 68%, transparent);
   border-radius: 5px;
-  background: color-mix(in oklch, #11111100 92%, #000000);
+  background: color-mix(in oklch, transparent 92%, #000000);
 }
 
 .users-filter-submit {
@@ -328,197 +333,1229 @@ input[type='checkbox'],
   color: inherit;
 }
 
-.notifications-page-list .notifications-page-item:not(.is-unread) {
-  background: color-mix(in oklch, var(--color-card) 94%, var(--color-muted));
-  border-color: color-mix(in oklch, var(--color-border) 64%, transparent);
-  color: color-mix(in oklch, var(--color-foreground) 58%, var(--color-muted-foreground));
-  opacity: 0.74;
+/* ==========================================================================
+   NOTIFICATIONS DOMAIN (Top-Tier Linear/Vercel Polish)
+   Fully theme-adaptive (Light/Dark + Natural/Orange + Comfortable/Compact)
+   ========================================================================== */
+
+.notifications-page {
+  display: grid;
+  gap: 16px;
+  max-width: 1100px;
 }
 
-html[data-theme='light'] .notifications-page-list .notifications-page-item:not(.is-unread) {
-  border-color: color-mix(in oklch, var(--color-border) 58%, transparent);
-}
-
-html[data-theme='dark'] .notifications-page-list .notifications-page-item:not(.is-unread) {
-  border-color: color-mix(in oklch, var(--color-border) 52%, transparent);
-}
-
-.notifications-page-list .notifications-page-item:not(.is-unread) .notification-item-title {
-  color: color-mix(in oklch, var(--color-foreground) 60%, var(--color-muted-foreground));
-}
-
-.notifications-page-list .notifications-page-item:not(.is-unread) .notification-item-body,
-.notifications-page-list .notifications-page-item:not(.is-unread) .notification-item-time {
-  color: color-mix(in oklch, var(--color-muted-foreground) 78%, var(--color-card));
-}
-
-.notifications-page-list .notifications-page-item:not(.is-unread) .notification-item-actions .btn-secondary {
-  opacity: 0.72;
-}
-
-.notification-item-main {
+/* Header & Actions */
+.notifications-page-header {
   display: flex;
-  flex: 1 1 auto;
-  min-width: 0;
-  flex-direction: column;
   align-items: flex-start;
-  gap: 6px;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-bottom: 2px;
 }
 
-.notification-item-actions {
+.page-panel-title-row,
+.notifications-title-row {
   display: flex;
-  flex: 0 0 auto;
   align-items: center;
+  gap: 12px;
 }
 
-.notification-item-actions .btn-secondary {
-  min-width: 112px;
+.page-panel-title-row h1,
+.notifications-title-row h1 {
+  margin: 0;
+  font-size: 1.6rem;
+  letter-spacing: -0.02em;
 }
 
-.notification-item:last-child {
-  border-bottom: 1px solid color-mix(in oklch, var(--color-border) 76%, transparent);
+.page-panel-title-icon-tile,
+.notifications-title-icon-tile {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: color-mix(in oklch, rgb(var(--accent-active)) 14%, var(--color-card));
+  color: rgb(var(--accent-active));
+  border: 1px solid color-mix(in oklch, rgb(var(--accent-active-border)) 28%, transparent);
+  box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.04);
+  flex: 0 0 auto;
 }
 
-.notification-item.is-unread {
-  background: color-mix(in oklch, var(--color-card) 88%, var(--color-muted));
-  cursor: default;
+.page-panel-title-icon-tile svg,
+.notifications-title-icon-tile svg {
+  width: 22px;
+  height: 22px;
 }
 
-.notifications-page-item.is-expandable {
-  cursor: pointer;
-  transition:
-    background 160ms ease,
-    border-color 160ms ease,
-    box-shadow 160ms ease;
+.notifications-unread-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 9px;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  background: rgb(var(--accent-active));
+  color: var(--color-background);
+  box-shadow: 0 0 10px rgb(var(--accent-active) / 0.4);
 }
 
-.notifications-page-item.is-expandable:hover {
-  border-color: color-mix(in oklch, var(--color-ring) 34%, var(--color-border));
-  background: color-mix(in oklch, var(--color-muted) 68%, var(--color-card));
+.page-panel-header-left p,
+.notifications-header-left p {
+  margin: 4px 0 0;
+  font-size: 0.88rem;
 }
 
-.notifications-page-item.is-expandable:focus-visible {
-  outline: 2px solid rgb(var(--accent-active-border, 59 130 246) / 0.65);
-  outline-offset: -2px;
-}
-
-.notifications-page-item.is-expandable.is-expanded {
-  border-color: color-mix(in oklch, var(--color-ring) 38%, var(--color-border));
-  background: color-mix(in oklch, var(--color-muted) 72%, var(--color-card));
-  box-shadow: none;
-}
-
-.notification-item-title-row {
+.notifications-page-actions {
   display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+/* Search Bar (Zero overlap) */
+.notifications-search-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+  min-width: 250px;
+}
+
+.notifications-search-icon {
+  position: absolute;
+  left: 14px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 15px;
+  height: 15px;
+  color: var(--color-muted-foreground);
+  pointer-events: none;
+  z-index: 5;
+}
+
+.notifications-search-input {
   width: 100%;
+  height: 36px;
+  padding-left: 44px !important;
+  padding-right: 34px !important;
+  padding-top: 0 !important;
+  padding-bottom: 0 !important;
+  border-radius: 8px;
+  border: 1px solid var(--color-border);
+  background: color-mix(in oklch, var(--color-card) 95%, var(--color-muted));
+  color: var(--color-foreground);
+  font-size: 0.85rem;
+  transition: all 160ms ease;
+  box-sizing: border-box;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.notifications-search-input::placeholder {
+  color: var(--color-muted-foreground);
+  opacity: 0.85;
+}
+
+.notifications-search-input:focus {
+  outline: none;
+  border-color: rgb(var(--accent-active-border));
+  box-shadow: 0 0 0 2px rgb(var(--accent-active) / 0.2);
+  background: var(--color-card);
+}
+
+.notifications-search-clear {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: transparent;
+  border: none;
+  color: var(--color-muted-foreground);
+  cursor: pointer;
+  font-size: 1.15rem;
+  line-height: 1;
+  padding: 2px 4px;
+  z-index: 5;
+}
+
+.notifications-search-clear:hover {
+  color: var(--color-foreground);
+}
+
+.notifications-action-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 36px;
+  padding: 0 12px;
+  font-size: 0.82rem;
+  border-radius: 8px;
+}
+
+.notifications-btn-icon {
+  width: 14px;
+  height: 14px;
+  transition: transform 160ms ease;
+}
+
+.notifications-btn-icon.is-spinning {
+  animation: notificationSpin 0.75s linear infinite;
+}
+
+@keyframes notificationSpin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+/* Tabs & Filter Info */
+.notifications-tabs-container {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.notifications-tabs {
+  margin: 0;
+}
+
+.notifications-tab {
+  display: inline-flex;
   align-items: center;
   gap: 8px;
 }
 
+.notifications-tab-count {
+  padding: 1px 7px;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  background: color-mix(in oklch, var(--color-muted) 85%, transparent);
+  color: var(--color-muted-foreground);
+  line-height: 1.3;
+}
+
+.notifications-tab-count.has-unread {
+  background: rgb(var(--accent-active));
+  color: var(--color-background);
+  font-weight: 700;
+}
+
+.notifications-filter-summary {
+  font-size: 0.82rem;
+}
+
+/* Notification List Surface (Natural height with comfortable spacing) */
+.notifications-page-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-height: auto;
+  border: none;
+  background: transparent;
+  padding: 4px 0;
+  overflow: visible;
+}
+
+/* Individual Row (Comfortable Vertical Padding with Sleek Profile) */
+.notifications-page-item {
+  position: relative;
+  display: grid;
+  grid-template-columns: 36px minmax(0, 1fr) auto;
+  align-items: flex-start;
+  gap: 14px;
+  padding: 20px 18px 20px 22px;
+  min-height: auto;
+  border-radius: 8px;
+  border: 1px solid color-mix(in oklch, var(--color-border) 75%, transparent);
+  background: var(--color-card);
+  box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.04);
+  transition: all 160ms cubic-bezier(0.16, 1, 0.3, 1);
+  box-sizing: border-box;
+  cursor: pointer;
+}
+
+.notifications-page-item.is-unread {
+  border-color: color-mix(in oklch, var(--color-border) 75%, transparent);
+  background: color-mix(in oklch, var(--color-card) 60%, var(--color-muted));
+}
+
+.notifications-page-item.is-unread:hover {
+  border-color: color-mix(in oklch, #3c3c3c 85%, transparent);
+  background: color-mix(in oklch, var(--color-card) 54%, var(--color-muted));
+}
+
+.notifications-page-item.is-read {
+  opacity: 0.58;
+  border-color: transparent;
+  background: var(--color-card);
+}
+
+.notifications-page-item.is-read:hover {
+  opacity: 1;
+  border-color: color-mix(in oklch, var(--color-border) 75%, transparent);
+}
+
+.notifications-page-item:hover {
+  box-shadow: 0 4px 10px 0 rgb(0 0 0 / 0.06);
+  transform: translateY(-1px);
+}
+
+.notifications-page-item:focus-visible {
+  outline: 2px solid rgb(var(--accent-active-border));
+  outline-offset: 1px;
+}
+
+/* Unread Status Dot (Positioned at top-left corner) */
+.notification-unread-dot {
+  position: absolute;
+  left: 8px;
+  top: 13px;
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background: rgb(var(--accent-active));
+  box-shadow: 0 0 6px rgb(var(--accent-active) / 0.7);
+  pointer-events: none;
+}
+
+/* Categorized Icon Tile (Compact 36px) */
+.notification-icon-tile {
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  border: 1px solid transparent;
+  margin-top: 1px;
+}
+
+.notification-icon-tile svg {
+  width: 17px;
+  height: 17px;
+}
+
+.notification-icon-tile--employee {
+  background: color-mix(in oklch, var(--tag-green-bg) 14%, var(--color-card));
+  border-color: color-mix(in oklch, var(--tag-green-bg) 28%, transparent);
+  color: var(--tag-green-bg);
+}
+
+.notification-icon-tile--travel {
+  background: color-mix(in oklch, var(--tag-orange-bg) 14%, var(--color-card));
+  border-color: color-mix(in oklch, var(--tag-orange-bg) 28%, transparent);
+  color: var(--tag-orange-bg);
+}
+
+.notification-icon-tile--finance {
+  background: color-mix(in oklch, var(--tag-purple-bg) 14%, var(--color-card));
+  border-color: color-mix(in oklch, var(--tag-purple-bg) 28%, transparent);
+  color: var(--tag-purple-bg);
+}
+
+.notification-icon-tile--security {
+  background: color-mix(in oklch, var(--tag-red-bg) 14%, var(--color-card));
+  border-color: color-mix(in oklch, var(--tag-red-bg) 28%, transparent);
+  color: var(--tag-red-bg);
+}
+
+.notification-icon-tile--system {
+  background: color-mix(in oklch, var(--color-muted) 80%, var(--color-card));
+  border-color: color-mix(in oklch, var(--color-border) 60%, transparent);
+  color: var(--color-foreground);
+}
+
+/* Content Area */
+.notification-item-main {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  gap: 3px;
+}
+
+.notification-item-title-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
 .notification-item-title {
   font-weight: 600;
-  font-size: 0.9rem;
+  font-size: 0.94rem;
   color: var(--color-foreground);
+  line-height: 1.3;
 }
 
-.notification-item-expand-icon {
-  display: inline-grid;
-  flex: 0 0 auto;
-  place-items: center;
-  width: 28px;
-  height: 28px;
-  margin-left: auto;
-  border-radius: 5px;
-  border: 1px solid color-mix(in oklch, var(--color-border) 74%, transparent);
-  color: var(--color-foreground);
-  background: color-mix(in oklch, var(--color-card) 88%, var(--color-muted));
-  transition:
-    background 160ms ease,
-    border-color 160ms ease,
-    color 160ms ease,
-    transform 180ms ease;
+.notifications-page-item.is-read .notification-item-title {
+  font-weight: 500;
 }
 
-.notification-item-expand-icon svg {
-  width: 18px;
-  height: 18px;
-  fill: none;
-  stroke: currentColor;
-  stroke-width: 2.2;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-}
-
-.notifications-page-item.is-expandable:hover .notification-item-expand-icon {
-  border-color: color-mix(in oklch, var(--color-ring) 32%, var(--color-border));
-  background: color-mix(in oklch, var(--color-card) 80%, var(--color-muted));
-  color: var(--color-foreground);
-}
-
-.notifications-page-item.is-expanded .notification-item-expand-icon {
-  transform: rotate(180deg);
-}
-
-.notification-item-body {
-  display: block;
-  max-height: 2.8em;
-  overflow: hidden;
-  font-size: 0.85rem;
+.notification-category-badge {
+  font-size: 0.70rem;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: color-mix(in oklch, var(--color-muted) 80%, var(--color-card));
   color: var(--color-muted-foreground);
-  white-space: pre-wrap;
-  transition:
-    max-height 180ms ease,
-    color 160ms ease;
-}
-
-.notifications-page-item.is-expanded .notification-item-body {
-  max-height: 320px;
-  color: color-mix(in oklch, var(--color-card-foreground) 88%, var(--color-muted-foreground));
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
 }
 
 .notification-item-time {
-  font-size: 0.75rem;
-  color: color-mix(in oklch, var(--color-muted-foreground) 86%, var(--color-card));
+  margin-left: auto;
+  font-size: 0.78rem;
+  color: var(--color-muted-foreground);
+  white-space: nowrap;
 }
 
-.notification-item-reminder {
-  font-size: 0.75rem;
+.notification-item-body-wrap {
+  margin-top: 3px;
+}
+
+.notification-item-body {
+  margin: 0;
+  font-size: 0.85rem;
+  line-height: 1.45;
+  color: var(--color-muted-foreground);
+  transition: opacity 160ms ease, color 160ms ease;
+}
+
+/* Robust Expanding/Collapsing Logic */
+.notifications-page-item:not(.is-expanded) .notification-item-body {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  opacity: 0.65;
+}
+
+.notifications-page-item:not(.is-expanded):hover .notification-item-body {
+  opacity: 0.85;
+}
+
+.notifications-page-item.is-expanded .notification-item-body {
+  display: block !important;
+  -webkit-line-clamp: unset !important;
+  line-clamp: unset !important;
+  overflow: visible !important;
+  max-height: none !important;
+  opacity: 1 !important;
+  color: var(--color-foreground) !important;
+}
+
+/* Expanded Metadata Drawer (Subtle, compact, reduced opacity footer) */
+.notification-item-expanded-meta {
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px dashed color-mix(in oklch, var(--color-border) 45%, transparent);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  opacity: 0.65;
+  font-size: 0.72rem;
+  transition: opacity 140ms ease;
+  animation: notificationFadeDown 180ms ease;
+}
+
+.notification-item-expanded-meta:hover {
+  opacity: 0.88;
+}
+
+@keyframes notificationFadeDown {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.notification-expanded-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.72rem;
+  line-height: 1.3;
+}
+
+.notification-detail-label {
+  color: var(--color-muted-foreground);
+  font-weight: 500;
+}
+
+.notification-detail-val {
+  color: color-mix(in oklch, var(--color-foreground) 85%, var(--color-muted-foreground));
+  font-weight: 500;
+}
+
+.notification-reminder-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 6px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 0.74rem;
+  font-weight: 600;
+  background: color-mix(in oklch, var(--tag-orange-bg) 14%, var(--color-card));
+  border: 1px solid color-mix(in oklch, var(--tag-orange-bg) 30%, transparent);
+  color: var(--tag-orange-bg);
+  align-self: flex-start;
+}
+
+.notification-reminder-pill svg {
+  width: 12px;
+  height: 12px;
+}
+
+/* Micro-Action Buttons */
+.notification-item-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: 8px;
+  align-self: center;
+}
+
+.notifications-page-item.is-expanded .notification-item-actions {
+  align-self: flex-start;
+  margin-top: 2px;
+}
+
+.notification-micro-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 28px;
+  padding: 0 8px;
+  border-radius: 6px;
+  border: 1px solid var(--color-border);
+  background: color-mix(in oklch, var(--color-card) 88%, var(--color-muted));
+  color: var(--color-foreground);
+  font-size: 0.76rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 140ms ease;
+  white-space: nowrap;
+}
+
+.notification-micro-btn svg {
+  width: 12px;
+  height: 12px;
+}
+
+.notification-micro-btn:hover {
+  background: var(--color-card);
+  border-color: rgb(var(--accent-active-border));
+  color: var(--color-foreground);
+  box-shadow: 0 1px 3px rgb(0 0 0 / 0.08);
+}
+
+.notification-micro-btn--check:hover {
+  border-color: var(--tag-green-bg);
+  color: var(--tag-green-bg);
+}
+
+.notification-micro-btn--clock.is-active {
+  background: color-mix(in oklch, var(--tag-orange-bg) 15%, var(--color-card));
+  border-color: var(--tag-orange-bg);
+  color: var(--tag-orange-bg);
+}
+
+.notification-micro-btn:disabled,
+.notification-micro-btn.is-disabled {
+  opacity: 0.65;
+  cursor: not-allowed !important;
+  box-shadow: none !important;
+}
+
+.notification-micro-btn--clock.is-active:disabled,
+.notification-micro-btn--clock.is-active.is-disabled {
+  background: color-mix(in oklch, var(--tag-orange-bg) 14%, var(--color-card));
+  border-color: color-mix(in oklch, var(--tag-orange-bg) 50%, transparent);
+  color: var(--tag-orange-bg);
+  opacity: 0.8;
+  cursor: not-allowed !important;
+}
+
+.notification-expand-chevron {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  min-width: 28px;
+  min-height: 28px;
+  border-radius: 6px;
+  border: 1px solid var(--color-border);
+  background: color-mix(in oklch, var(--color-card) 85%, var(--color-muted));
+  color: var(--color-foreground);
+  cursor: pointer;
+  transition: all 140ms ease;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+.notification-expand-chevron svg {
+  width: 14px;
+  height: 14px;
+  min-width: 14px;
+  min-height: 14px;
+  display: block;
+  fill: currentColor;
+}
+
+.notification-expand-chevron:hover {
+  background: var(--color-card);
+  border-color: rgb(var(--accent-active-border));
+  color: var(--color-foreground);
+  box-shadow: 0 1px 3px rgb(0 0 0 / 0.08);
+}
+
+.notifications-page-item.is-expanded .notification-expand-chevron,
+.notification-expand-chevron.is-expanded {
+  background: color-mix(in oklch, var(--color-muted) 70%, var(--color-card));
+  border-color: color-mix(in oklch, var(--color-border) 90%, transparent);
+  color: var(--color-foreground);
+}
+
+.notifications-page-item.is-read .notification-expand-chevron {
+  opacity: 0.92;
+}
+
+/* Empty States (Generous Full-Canvas Presence) */
+.notifications-page-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 60px 24px;
+  border-radius: 12px;
+  border: 1px dashed var(--color-border);
+  background: color-mix(in oklch, var(--color-card) 60%, transparent);
+  min-height: max(460px, calc(100vh - 300px));
+  margin: 12px 0;
+  box-sizing: border-box;
+}
+
+.notifications-empty-icon {
+  width: 56px;
+  height: 56px;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  background: color-mix(in oklch, var(--color-muted) 80%, var(--color-card));
+  border: 1px solid var(--color-border);
+  color: var(--color-muted-foreground);
+  margin-bottom: 16px;
+}
+
+.notifications-empty-icon svg {
+  width: 26px;
+  height: 26px;
+}
+
+.notifications-empty-icon--pulsing {
+  animation: notificationPulseGlow 1.8s infinite ease-in-out;
+}
+
+@keyframes notificationPulseGlow {
+  0%, 100% { opacity: 0.55; transform: scale(0.96); }
+  50% { opacity: 1; transform: scale(1.04); }
+}
+
+/* Dedicated Loadscreen Indicator */
+.notifications-loading-icon-wrap {
+  position: relative;
+  width: 68px;
+  height: 68px;
+  display: grid;
+  place-items: center;
+  margin-bottom: 18px;
+}
+
+.notifications-loading-spinner-ring {
+  position: absolute;
+  inset: 0;
+  border-radius: 999px;
+  border: 2.5px solid color-mix(in oklch, var(--color-border) 60%, transparent);
+  border-top-color: rgb(var(--accent-active));
+  animation: notifications-loading-spin 850ms cubic-bezier(0.5, 0.1, 0.5, 0.9) infinite;
+}
+
+@keyframes notifications-loading-spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+.notifications-loading-center-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  background: color-mix(in oklch, rgb(var(--accent-active)) 14%, var(--color-card));
+  color: rgb(var(--accent-active));
+  border: 1px solid color-mix(in oklch, rgb(var(--accent-active)) 28%, transparent);
+  box-shadow: 0 0 16px rgb(var(--accent-active) / 0.22);
+  animation: notificationPulseGlow 1.8s infinite ease-in-out;
+}
+
+.notifications-loading-center-icon svg {
+  width: 22px;
+  height: 22px;
+}
+
+.notifications-page-empty h3 {
+  margin: 0 0 4px;
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--color-foreground);
+}
+
+.notifications-page-empty p {
+  margin: 0;
+  max-width: 380px;
+  font-size: 0.84rem;
   color: var(--color-muted-foreground);
 }
 
-.notification-reminder-dialog {
-  width: min(520px, calc(100vw - 32px));
+/* ==========================================================================
+   Reminder Modal Dialog & Presets Specification (Dark-Natural Theme)
+   ========================================================================== */
+
+/* 1. Frosted Backdrop */
+.notification-reminder-backdrop {
+  background: rgba(0, 0, 0, 0.68) !important;
+  backdrop-filter: blur(8px) !important;
+  -webkit-backdrop-filter: blur(8px) !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  padding: 16px !important;
 }
 
-.app-confirm-dialog.notification-reminder-dialog,
-.app-confirm-dialog.employee-scan-modal {
-  padding: 20px;
+/* 2. Modal Dialog Container Elevation */
+html .employee-review-modal.notification-reminder-modal-dialog,
+html[data-theme='dark'] .employee-review-modal.notification-reminder-modal-dialog {
+  background: color-mix(in oklch, var(--color-card) 96%, var(--color-muted)) !important;
+  background-color: color-mix(in oklch, var(--color-card) 96%, var(--color-muted)) !important;
+  border: 1px solid color-mix(in oklch, var(--color-border) 80%, transparent) !important;
+  border-radius: 14px !important;
+  box-shadow: 0 24px 54px -12px rgba(0, 0, 0, 0.75), 0 0 0 1px rgba(255, 255, 255, 0.05) !important;
+  padding: 22px 24px 20px 24px !important;
+  max-width: 500px !important;
+  width: min(500px, calc(100vw - 32px)) !important;
+  color: var(--color-foreground) !important;
+  box-sizing: border-box !important;
 }
 
-.notification-reminder-summary {
+/* 3. Modal Header & Close Ergonomics */
+.notification-reminder-modal-dialog .employee-review-header {
+  padding: 0 0 14px 0 !important;
+  margin-bottom: 16px !important;
+  border-bottom: 1px solid color-mix(in oklch, var(--color-border) 55%, transparent) !important;
+  background: transparent !important;
+  display: flex !important;
+  align-items: flex-start !important;
+  justify-content: space-between !important;
+}
+
+.notification-reminder-modal-dialog .employee-review-header h2 {
+  font-size: 1.15rem !important;
+  font-weight: 600 !important;
+  letter-spacing: -0.01em;
+  color: var(--color-foreground) !important;
+  margin: 0 !important;
+}
+
+.notification-reminder-modal-dialog .employee-review-header p.app-confirm-message {
+  margin: 4px 0 0 !important;
+  font-size: 0.82rem !important;
+  line-height: 1.45 !important;
+  color: var(--color-muted-foreground) !important;
+  padding: 0 !important;
+}
+
+.notification-reminder-modal-dialog .employee-review-header button.btn-secondary {
+  width: 28px !important;
+  height: 28px !important;
+  min-height: 28px !important;
+  padding: 0 !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  border-radius: 6px !important;
+  border: 1px solid var(--color-border) !important;
+  background: color-mix(in oklch, var(--color-card) 88%, var(--color-muted)) !important;
+  color: var(--color-muted-foreground) !important;
+  font-size: 1.15rem !important;
+  line-height: 1 !important;
+  cursor: pointer;
+  transition: all 140ms ease;
+  flex-shrink: 0;
+}
+
+.notification-reminder-modal-dialog .employee-review-header button.btn-secondary:hover {
+  background: var(--color-muted) !important;
+  color: var(--color-foreground) !important;
+  border-color: color-mix(in oklch, var(--color-border) 80%, white) !important;
+}
+
+/* 4. Modal Body & Inner Layout */
+.notification-reminder-modal-dialog .modal-body {
+  padding: 0 !important;
+}
+
+.notification-reminder-modal-content {
+  display: flex;
+  flex-direction: column;
+  gap: 13px;
+}
+
+/* 5. Target Notification Context Card */
+.notification-reminder-target-card {
   display: grid;
-  gap: 10px;
+  grid-template-columns: 34px minmax(0, 1fr);
+  gap: 12px;
+  align-items: flex-start;
+  padding: 12px 14px;
+  border-radius: 10px;
+  border: 1px solid color-mix(in oklch, var(--color-border) 65%, transparent);
+  background: color-mix(in oklch, var(--color-muted) 38%, var(--color-card));
+  box-sizing: border-box;
 }
 
-.notification-reminder-target {
-  display: grid;
+.notification-reminder-target-card .notification-icon-tile {
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
+}
+
+.notification-reminder-target-info {
+  display: flex;
+  flex-direction: column;
   gap: 4px;
-  padding: 10px 12px;
-  border: 1px solid color-mix(in oklch, var(--color-border) 62%, transparent);
-  border-radius: 5px;
-  background: color-mix(in oklch, var(--color-card) 90%, var(--color-muted));
+  min-width: 0;
 }
 
-.notification-reminder-target strong {
-  display: block;
+.notification-reminder-target-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.notification-reminder-target-time {
+  font-size: 0.74rem;
+  color: var(--color-muted-foreground);
+  opacity: 0.8;
+}
+
+.notification-reminder-target-title {
+  font-size: 0.88rem;
+  font-weight: 600;
   color: var(--color-foreground);
+  line-height: 1.35;
+  word-break: break-word;
+}
+
+.notification-reminder-target-body {
+  margin: 0;
+  font-size: 0.8rem;
+  line-height: 1.4;
+  color: var(--color-muted-foreground);
+  opacity: 0.72;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* 6. Section Labels & Presets Grid */
+.notification-reminder-section-label {
+  font-size: 0.76rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-muted-foreground);
+  margin-top: 2px;
+}
+
+.notification-reminder-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.notification-reminder-card-option {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 11px 14px;
+  border-radius: 9px;
+  border: 1px solid color-mix(in oklch, var(--color-border) 75%, transparent);
+  background: color-mix(in oklch, var(--color-card) 94%, var(--color-muted));
+  cursor: pointer;
+  transition: all 140ms cubic-bezier(0.16, 1, 0.3, 1);
+  box-sizing: border-box;
+  position: relative;
+  user-select: none;
+}
+
+.notification-reminder-card-option--custom {
+  width: 100%;
+}
+
+.notification-reminder-card-option:hover {
+  background: color-mix(in oklch, var(--color-muted) 45%, var(--color-card));
+  border-color: color-mix(in oklch, var(--color-border) 60%, rgb(var(--accent-active-border)));
+}
+
+.notification-reminder-card-option.is-selected {
+  border-color: rgb(var(--accent-active));
+  background: color-mix(in oklch, rgb(var(--accent-active)) 12%, var(--color-card));
+  box-shadow: 0 0 0 1px rgb(var(--accent-active) / 0.35);
+}
+
+/* 7. Custom Tactile Radio Indicators */
+.notification-reminder-radio-input {
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+}
+
+.notification-reminder-radio-indicator {
+  width: 16px;
+  height: 16px;
+  border-radius: 999px;
+  border: 1.5px solid color-mix(in oklch, var(--color-border) 80%, transparent);
+  background: color-mix(in oklch, var(--color-card) 90%, var(--color-muted));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: all 140ms ease;
+  box-sizing: border-box;
+}
+
+.notification-reminder-card-option:hover .notification-reminder-radio-indicator {
+  border-color: color-mix(in oklch, var(--color-border) 90%, white);
+}
+
+.notification-reminder-card-option.is-selected .notification-reminder-radio-indicator {
+  border-color: rgb(var(--accent-active));
+  background: rgb(var(--accent-active));
+}
+
+.notification-reminder-radio-indicator::after {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: #ffffff;
+  opacity: 0;
+  transform: scale(0.4);
+  transition: all 140ms ease;
+}
+
+.notification-reminder-card-option.is-selected .notification-reminder-radio-indicator::after {
+  opacity: 1;
+  transform: scale(1);
+}
+
+.notification-reminder-option-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.notification-reminder-option-title {
+  font-size: 0.84rem;
+  font-weight: 500;
+  color: var(--color-foreground);
+  line-height: 1.25;
+}
+
+.notification-reminder-card-option.is-selected .notification-reminder-option-title {
+  font-weight: 600;
+  color: var(--color-foreground);
+}
+
+.notification-reminder-option-time {
+  font-size: 0.74rem;
+  color: var(--color-muted-foreground);
+  opacity: 0.85;
   line-height: 1.2;
 }
 
-.notification-reminder-target span {
+.notification-reminder-card-option.is-selected .notification-reminder-option-time {
+  color: var(--color-foreground);
+  opacity: 0.75;
+}
+
+/* 8. Custom Datetime Picker Surface */
+.notification-reminder-custom-date {
+  display: grid;
+  gap: 8px;
+  padding: 12px 14px;
+  border-radius: 9px;
+  background: color-mix(in oklch, var(--color-muted) 35%, var(--color-card));
+  border: 1px solid color-mix(in oklch, var(--color-border) 60%, transparent);
+  animation: notification-reminder-fade-in 180ms ease;
+}
+
+@keyframes notification-reminder-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.notification-reminder-custom-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.notification-reminder-custom-header label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.76rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
   color: var(--color-muted-foreground);
-  font-size: 0.82rem;
-  line-height: 1.35;
+  cursor: pointer;
+}
+
+.notification-reminder-custom-header label svg {
+  width: 14px;
+  height: 14px;
+  color: rgb(var(--accent-active));
+  flex-shrink: 0;
+}
+
+.notification-reminder-custom-preview {
+  font-size: 0.76rem;
+  color: rgb(var(--accent-active));
+  font-weight: 500;
+}
+
+.notification-reminder-input-wrap {
+  width: 100%;
+}
+
+.notification-reminder-input-wrap input[type="datetime-local"] {
+  width: 100%;
+  height: 38px;
+  padding: 0 12px !important;
+  border-radius: 8px;
+  border: 1px solid var(--color-border);
+  background: var(--color-card);
+  color: var(--color-foreground);
+  font-size: 0.85rem;
+  font-family: inherit;
+  box-sizing: border-box;
+  outline: none;
+  transition: all 140ms ease;
+}
+
+.notification-reminder-input-wrap input[type="datetime-local"]::-webkit-calendar-picker-indicator {
+  cursor: pointer;
+  opacity: 0.75;
+  transition: opacity 140ms ease;
+  padding: 4px;
+}
+
+.notification-reminder-input-wrap input[type="datetime-local"]::-webkit-calendar-picker-indicator:hover {
+  opacity: 1;
+}
+
+html[data-theme='dark'] .notification-reminder-input-wrap input[type="datetime-local"] {
+  color-scheme: dark;
+}
+
+html[data-theme='light'] .notification-reminder-input-wrap input[type="datetime-local"] {
+  color-scheme: light;
+}
+
+.notification-reminder-input-wrap input[type="datetime-local"]:focus {
+  border-color: rgb(var(--accent-active));
+  box-shadow: 0 0 0 2px rgb(var(--accent-active) / 0.25);
+}
+
+/* 9. Inline Error Badge */
+.notification-reminder-error-badge {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-radius: 7px;
+  background: color-mix(in oklch, var(--tag-red-bg) 18%, var(--color-card));
+  border: 1px solid color-mix(in oklch, var(--tag-red-bg) 40%, transparent);
+  color: #ff6b6b;
+  font-size: 0.8rem;
+  font-weight: 500;
+}
+
+/* 10. Modal Actions Footer */
+.notification-reminder-modal-dialog .app-confirm-actions {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: flex-end !important;
+  gap: 10px !important;
+  margin-top: 18px !important;
+  padding-top: 16px !important;
+  border-top: 1px solid color-mix(in oklch, var(--color-border) 55%, transparent) !important;
+}
+
+.notification-reminder-modal-dialog .app-confirm-actions .btn-secondary {
+  height: 36px;
+  padding: 0 16px;
+  border-radius: 8px;
+  font-size: 0.84rem;
+  font-weight: 500;
+  border: 1px solid var(--color-border);
+  background: color-mix(in oklch, var(--color-card) 92%, var(--color-muted));
+  color: var(--color-foreground);
+  cursor: pointer;
+  transition: all 140ms ease;
+}
+
+.notification-reminder-modal-dialog .app-confirm-actions .btn-secondary:hover:not(:disabled) {
+  background: var(--color-muted);
+  border-color: color-mix(in oklch, var(--color-border) 80%, white);
+}
+
+.notification-reminder-modal-dialog .app-confirm-actions .btn-primary {
+  height: 36px;
+  padding: 0 20px;
+  border-radius: 8px;
+  font-size: 0.84rem;
+  font-weight: 500;
+  border: 1px solid transparent;
+  background: rgb(var(--accent-active));
+  color: #ffffff;
+  cursor: pointer;
+  transition: all 140ms ease;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.notification-reminder-modal-dialog .app-confirm-actions .btn-primary:hover:not(:disabled) {
+  filter: brightness(1.1);
+  box-shadow: 0 2px 10px rgb(var(--accent-active) / 0.45);
+}
+
+.notification-reminder-modal-dialog .app-confirm-actions button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+/* 11. Compact Density Adjustments */
+html[data-density='compact'] .employee-review-modal.notification-reminder-modal-dialog {
+  padding: 16px 18px 16px 18px !important;
+  border-radius: 10px !important;
+}
+
+html[data-density='compact'] .notification-reminder-target-card {
+  padding: 9px 12px;
+  gap: 10px;
+}
+
+html[data-density='compact'] .notification-reminder-card-option {
+  padding: 8px 12px;
+  gap: 10px;
+}
+
+html[data-density='compact'] .notification-reminder-option-title {
+  font-size: 0.8rem;
+}
+
+html[data-density='compact'] .notification-reminder-option-time {
+  font-size: 0.7rem;
+}
+
+html[data-density='compact'] .notification-reminder-modal-dialog .app-confirm-actions {
+  margin-top: 14px !important;
+  padding-top: 12px !important;
+}
+
+html[data-density='compact'] .notification-reminder-modal-dialog .app-confirm-actions .btn-primary,
+html[data-density='compact'] .notification-reminder-modal-dialog .app-confirm-actions .btn-secondary {
+  height: 32px;
+  padding: 0 14px;
+  font-size: 0.8rem;
+}
+
+/* Compact Density Support */
+html[data-density='compact'] .notifications-page-item {
+  padding: 20px 18px 20px 22px;
+  gap: 12px;
+  min-height: auto;
+}
+
+html[data-density='compact'] .notification-unread-dot {
+  left: 7px;
+  top: 10px;
+}
+
+html[data-density='compact'] .notification-icon-tile {
+  width: 30px;
+  height: 30px;
+  border-radius: 6px;
+}
+
+html[data-density='compact'] .notification-icon-tile svg {
+  width: 14px;
+  height: 14px;
+}
+
+html[data-density='compact'] .notification-micro-btn {
+  height: 26px;
+  padding: 0 7px;
+  font-size: 0.72rem;
+}
+
+html[data-density='compact'] .notification-expand-chevron {
+  width: 26px;
+  height: 26px;
+}
+
+/* Responsive Breakpoints */
+@media (max-width: 720px) {
+  .notifications-page-item {
+    grid-template-columns: 36px minmax(0, 1fr);
+    padding: 10px 14px 10px 20px;
+  }
+  .notification-item-actions {
+    grid-column: 2 / -1;
+    margin-left: 0;
+    margin-top: 8px;
+  }
+  .notification-reminder-grid {
+    grid-template-columns: 1fr;
+  }
+  .notifications-search-wrap {
+    min-width: 100%;
+  }
 }
 
 .employee-scan-modal {

@@ -35,7 +35,7 @@ html[data-density='compact'] .app-confirm-dialog,
 html[data-density='compact'] .notification-dropdown,
 html[data-density='compact'] .notification-reminder-dialog,
 html[data-density='compact'] .employee-scan-modal {
-  padding: 30px;
+  padding: 25px 0px;
 }
 
 html[data-density='compact'] .employee-review-modal.employee-scan-modal {
@@ -155,7 +155,7 @@ html[data-density='compact'] .app-confirm-actions {
 }
 
 html[data-density='compact'] .employee-step-grid {
-  gap: 20px 10px;
+  gap: 30px 14px;
 }
 
 html[data-density='compact'] .attachment-box--slot {
@@ -233,6 +233,11 @@ html[data-density='compact'] textarea {
   font-size: 0.78rem;
   min-height: 2.3125rem;
   padding: 0.58rem 0.7rem;
+}
+
+html[data-density='compact'] .notifications-search-input {
+  padding-left: 44px !important;
+  padding-right: 34px !important;
 }
 
 html[data-density='compact'] input[type='checkbox'],
@@ -383,7 +388,7 @@ html[data-density='compact'] .users-management-header,
 html[data-density='compact'] .page-panel-header,
 html[data-density='compact'] .employee-review-header,
 html[data-density='compact'] .document-preview-toolbar {
-  padding: 10px;
+  padding: 0px;
   gap: 10px;
 }
 
@@ -411,7 +416,7 @@ html[data-density='compact'] .app-confirm-dialog,
 html[data-density='compact'] .notification-dropdown,
 html[data-density='compact'] .notification-reminder-dialog,
 html[data-density='compact'] .employee-scan-modal {
-  padding: 30px;
+  padding: 25px 0px;
 }
 
 html[data-density='compact'] .employee-review-shell {

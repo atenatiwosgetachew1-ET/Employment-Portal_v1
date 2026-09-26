@@ -593,7 +593,7 @@ class NotificationReminderTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         notification.refresh_from_db()
-        self.assertTrue(notification.read)
+        self.assertFalse(notification.read)
         self.assertIsNotNone(notification.remind_at)
         self.assertEqual(notification.remind_at.isoformat(), scheduled_at.isoformat())
         self.assertTrue(response.json()["is_reminder_pending"])
@@ -618,6 +618,27 @@ class NotificationReminderTests(TestCase):
         self.assertTrue(
             any(item["title"] == "Subscription follow-up" and item["read"] is False for item in payload)
         )
+
+    def test_marking_notification_read_clears_reminder(self):
+        notification = Notification.objects.create(
+            user=self.user,
+            title="Meeting reminder",
+            body="Review agenda.",
+            read=False,
+            remind_at=timezone.now() + timedelta(hours=2),
+        )
+
+        response = self.client.patch(
+            f"/api/notifications/{notification.id}/",
+            data={"read": True},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        notification.refresh_from_db()
+        self.assertTrue(notification.read)
+        self.assertIsNone(notification.remind_at)
+        self.assertFalse(response.json()["is_reminder_pending"])
 
 
 class UserManagementPermissionTests(TestCase):
