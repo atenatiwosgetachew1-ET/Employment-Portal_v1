@@ -162,7 +162,8 @@ html[data-theme='dark'] .notification-bell-badge {
 /* Element family: Buttons
    One shared button skeleton, then color variants only. */
 
-button:not(.candidate-chip-remove):not(.candidate-search-clear):not(.candidate-filters-reset-btn),
+button:not([class]),
+button[class=''],
 .btn,
 .btn-primary,
 .btn-secondary,
@@ -192,7 +193,8 @@ button:not(.candidate-chip-remove):not(.candidate-search-clear):not(.candidate-f
   border-color: var(--button-border-adaptive);
 }
 
-button:not(.candidate-chip-remove):not(.candidate-search-clear):not(.candidate-filters-reset-btn):hover:not(:disabled),
+button:not([class]):hover:not(:disabled),
+button[class='']:hover:not(:disabled),
 .btn:hover:not(:disabled),
 .btn-primary:hover:not(:disabled),
 .btn-secondary:hover:not(:disabled),
@@ -208,7 +210,8 @@ button:not(.candidate-chip-remove):not(.candidate-search-clear):not(.candidate-f
 /* Theme: Dark + Natural interactive controls
    Slightly brighter surfaces for darker surroundings. */
 
-html[data-theme='dark'][data-accent='natural'] button,
+html[data-theme='dark'][data-accent='natural'] button:not([class]),
+html[data-theme='dark'][data-accent='natural'] button[class=''],
 html[data-theme='dark'][data-accent='natural'] .btn,
 html[data-theme='dark'][data-accent='natural'] .btn-primary,
 html[data-theme='dark'][data-accent='natural'] .btn-secondary,
@@ -227,7 +230,8 @@ html[data-theme='dark'][data-accent='natural'] .employee-subtab {
   background: #111111;
 }
 
-html[data-theme='dark'][data-accent='natural'] button:hover:not(:disabled),
+html[data-theme='dark'][data-accent='natural'] button:not([class]):hover:not(:disabled),
+html[data-theme='dark'][data-accent='natural'] button[class='']:hover:not(:disabled),
 html[data-theme='dark'][data-accent='natural'] .btn:hover:not(:disabled),
 html[data-theme='dark'][data-accent='natural'] .btn-primary:hover:not(:disabled),
 html[data-theme='dark'][data-accent='natural'] .btn-secondary:hover:not(:disabled),
@@ -249,7 +253,8 @@ html[data-theme='dark'][data-accent='natural'] .employee-subtab:hover:not(.is-ac
 /* Theme: Light + Natural interactive controls
    Slightly deeper edges and softer contrast for daytime readability. */
 
-html[data-theme='light'][data-accent='natural'] button,
+html[data-theme='light'][data-accent='natural'] button:not([class]),
+html[data-theme='light'][data-accent='natural'] button[class=''],
 html[data-theme='light'][data-accent='natural'] .btn,
 html[data-theme='light'][data-accent='natural'] .btn-primary,
 html[data-theme='light'][data-accent='natural'] .btn-secondary,
@@ -268,7 +273,8 @@ html[data-theme='light'][data-accent='natural'] .employee-subtab {
   background: #fafafa;
 }
 
-html[data-theme='light'][data-accent='natural'] button:hover:not(:disabled),
+html[data-theme='light'][data-accent='natural'] button:not([class]):hover:not(:disabled),
+html[data-theme='light'][data-accent='natural'] button[class='']:hover:not(:disabled),
 html[data-theme='light'][data-accent='natural'] .btn:hover:not(:disabled),
 html[data-theme='light'][data-accent='natural'] .btn-primary:hover:not(:disabled),
 html[data-theme='light'][data-accent='natural'] .btn-secondary:hover:not(:disabled),

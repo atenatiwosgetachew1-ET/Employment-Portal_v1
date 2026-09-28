@@ -250,7 +250,7 @@ function DashboardSidebar() {
         ...(canEditEmployeeRecords
           ? [{ to: '/dashboard/candidates/register', label: 'Register candidate', id: 'register' }]
           : []),
-        { to: '/dashboard/candidates/list', label: 'Candidates list', id: 'list' },
+        { to: '/dashboard/candidates/list', label: 'All candidates', id: 'list' },
         ...(isAgentSideUser
           ? [{ to: '/dashboard/candidates/selected', label: 'Selected candidates', id: 'selected' }]
           : []),

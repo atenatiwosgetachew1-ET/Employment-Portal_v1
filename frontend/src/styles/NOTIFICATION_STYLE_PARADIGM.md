@@ -102,7 +102,7 @@ Each notification type has a purpose-crafted 36px icon tile with a distinct sema
 
 ### 7.1 Micro-Action Buttons (`.notification-micro-btn`)
 * **Height & Radius:** `height: 28px; border-radius: 6px; padding: 0 8px;`
-* **Surface:** `border: 1px solid var(--color-border); background: color-mix(in oklch, var(--color-card) 88%, var(--color-muted));`
+* **Surface:** `border: 1px solid color-mix(in oklch, var(--color-border) 75%, transparent); background: color-mix(in oklch, var(--color-card) 60%, var(--color-muted) 40%);`
 * **Font:** `font-size: 0.76rem; font-weight: 500;`
 * **Disabled / Active State:** When a notification is in an active reminder state, the `Snoozed` button displays with `.is-active.is-disabled`, `cursor: not-allowed`, and `opacity: 0.8` (unclickable).
 * **Tab Action Visibility:**

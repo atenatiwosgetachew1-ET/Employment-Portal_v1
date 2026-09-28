@@ -2989,11 +2989,11 @@ export default function EmployeesListingView({ stage = "list" }) {
   }, [scheduleReviewDocsScrollStateUpdate])
 
   const toggleEmployeeCardExpanded = useCallback((employeeId) => {
-    employeeCardMasonryDebugLog('toggle expand', { employeeId, prevExpanded: expandedEmployeeCardId })
+    employeeCardMasonryDebugLog('toggle expand', { employeeId })
     setExpandedEmployeeCardReadyId(null)
     setOpenEmployeeCardMenuId(null)
     setExpandedEmployeeCardId((prev) => (prev === employeeId ? null : employeeId))
-  }, [expandedEmployeeCardId])
+  }, [])
 
   const toggleEmployeeCardSelected = useCallback((employeeId) => {
     employeeCardMasonryDebugLog('toggle select', { employeeId })
@@ -3078,6 +3078,10 @@ export default function EmployeesListingView({ stage = "list" }) {
     const orderedNodes = Array.from(grid.querySelectorAll('.employee-card'))
     const nextRowStartByColumn = Array.from({ length: columns }, () => 1)
 
+    // Pass 1: Batch all height measurements (single layout calculation, prevents layout thrashing)
+    const heights = orderedNodes.map((node) => (node ? node.getBoundingClientRect().height : 0))
+
+    // Pass 2: Batch all style mutations only when values change
     for (let index = 0; index < orderedNodes.length; index += 1) {
       const node = orderedNodes[index]
       if (!node) continue
@@ -3085,20 +3089,25 @@ export default function EmployeesListingView({ stage = "list" }) {
       const columnIndex = index % columns
       const columnStart = columnIndex + 1
 
-      const height = node.getBoundingClientRect().height
+      const height = heights[index]
       const span = Math.max(1, Math.ceil((height + rowGap) / (rowHeight + rowGap)))
       const rowStart = nextRowStartByColumn[columnIndex]
 
-      node.style.gridColumnStart = String(columnStart)
-      node.style.gridColumnEnd = 'span 1'
-      node.style.gridRowStart = String(rowStart)
-      node.style.gridRowEnd = `span ${span}`
+      const nextColStart = String(columnStart)
+      const nextColEnd = 'span 1'
+      const nextRowStart = String(rowStart)
+      const nextRowEnd = `span ${span}`
+
+      if (node.style.gridColumnStart !== nextColStart) node.style.gridColumnStart = nextColStart
+      if (node.style.gridColumnEnd !== nextColEnd) node.style.gridColumnEnd = nextColEnd
+      if (node.style.gridRowStart !== nextRowStart) node.style.gridRowStart = nextRowStart
+      if (node.style.gridRowEnd !== nextRowEnd) node.style.gridRowEnd = nextRowEnd
 
       nextRowStartByColumn[columnIndex] = rowStart + span
     }
 
     employeeCardMasonryDebugLog('reflow end')
-  }, [employeeCardsLayout])
+  }, [employeeCardsLayout, expandedEmployeeCardId])
 
   useEffect(() => {
     if (typeof window === 'undefined') return

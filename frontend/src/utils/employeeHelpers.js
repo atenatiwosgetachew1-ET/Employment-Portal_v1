@@ -264,7 +264,7 @@ export function getValidationTarget(errorMessage) {
 }
 export const EMPLOYEE_VIEW_TABS = [
   { id: 'register', label: 'Register candidate' },
-  { id: 'list', label: 'Candidates list' },
+  { id: 'list', label: 'All candidates' },
   { id: 'selected', label: 'Selected Candidates' },
   { id: 'under-process', label: 'Under process Candidates' },
   { id: 'employed', label: 'Employed' },

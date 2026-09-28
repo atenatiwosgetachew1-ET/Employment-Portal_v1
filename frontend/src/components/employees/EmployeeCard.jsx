@@ -88,6 +88,39 @@ export default function EmployeeCard({
   const progressCompletion = employee.progress_status?.overall_completion ?? 0
   const travelStatusLabel = prettyStatus(employee.travel_status, 'pending')
   const returnStatusLabel = prettyStatus(employee.return_status)
+  const candidateId = employee.candidate_id || employee.candidate_no || employee.id
+  const professionLabel =
+    employee.profession || employee.professional_title || 'No profession set'
+  const experienceLabel = (() => {
+    if (Array.isArray(employee.experiences) && employee.experiences.length > 0) {
+      const valid = employee.experiences.filter(
+        (item) => (item?.country || '').trim() || String(item?.years ?? '').trim()
+      )
+      if (valid.length > 0) {
+        return valid
+          .map((item) => {
+            const country = (item.country || '').trim()
+            const years = String(item.years ?? '').trim()
+            if (country && years) {
+              const numYears = Number(years)
+              const ySuffix = !Number.isNaN(numYears) && numYears === 1 ? 'yr' : 'yrs'
+              return `${country} (${years} ${ySuffix})`
+            }
+            if (years) {
+              const numYears = Number(years)
+              const ySuffix = !Number.isNaN(numYears) && numYears === 1 ? 'yr' : 'yrs'
+              return `${years} ${ySuffix}`
+            }
+            return country
+          })
+          .join(', ')
+      }
+    }
+    if (typeof employee.experience === 'string' && employee.experience.trim()) {
+      return employee.experience.trim()
+    }
+    return 'Fresher'
+  })()
 
   return (
     <article
@@ -247,43 +280,113 @@ export default function EmployeeCard({
             ) : (
               <span>{employee.full_name?.charAt(0) || '?'}</span>
             )}
+            <span className="employee-card-avatar-id" title={`Candidate ID: ${candidateId}`}>
+              ID: <strong>{candidateId}</strong>
+            </span>
           </div>
-          <div>
-            <h3>{employee.full_name}</h3>
-            <p className="muted-text">{employee.profession || employee.professional_title || 'No profession set'}</p>
-            <p className="muted-text"><strong>{employeeReligion || '--'}</strong></p>
+          <div className="employee-card-identity-info">
+            <h3 className="employee-card-name">{employee.full_name}</h3>
+            <div className="employee-card-subhead">
+              <span className="employee-card-profession">{professionLabel}</span>
+              {employeeReligion && employeeReligion !== '--' ? (
+                <span className="employee-card-tag">{employeeReligion}</span>
+              ) : null}
+            </div>
             {isListLayout ? (
               <div className="employee-card-list-kv muted-text" aria-label="Candidate overview">
                 <div className="employee-card-list-kv-row">
-                  <span className="employee-card-list-kv-label">Age</span>
+                  <span className="employee-card-list-kv-label">
+                    <span className="employee-card-list-kv-icon" aria-hidden="true">
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <rect width="18" height="18" x="3" y="4" rx="2" ry="2" />
+                        <line x1="16" x2="16" y1="2" y2="6" />
+                        <line x1="8" x2="8" y1="2" y2="6" />
+                        <line x1="3" x2="21" y1="10" y2="10" />
+                      </svg>
+                    </span>
+                    <span>Age</span>
+                  </span>
                   <span className="employee-card-list-kv-value">{employeeAge || '—'}</span>
                 </div>
                 <div className="employee-card-list-kv-row">
-                  <span className="employee-card-list-kv-label">Availability</span>
+                  <span className="employee-card-list-kv-label">
+                    <span className="employee-card-list-kv-icon" aria-hidden="true">
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+                        <polyline points="22 4 12 14.01 9 11.01" />
+                      </svg>
+                    </span>
+                    <span>Availability</span>
+                  </span>
                   <span className="employee-card-list-kv-value">{availabilityLabel}</span>
                 </div>
                 <div className="employee-card-list-kv-row">
-                  <span className="employee-card-list-kv-label">Phone</span>
+                  <span className="employee-card-list-kv-label">
+                    <span className="employee-card-list-kv-icon" aria-hidden="true">
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z" />
+                      </svg>
+                    </span>
+                    <span>Phone</span>
+                  </span>
                   <span className="employee-card-list-kv-value">{phoneLabel}</span>
                 </div>
                 <div className="employee-card-list-kv-row">
-                  <span className="employee-card-list-kv-label">Email</span>
+                  <span className="employee-card-list-kv-label">
+                    <span className="employee-card-list-kv-icon" aria-hidden="true">
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <rect width="20" height="16" x="2" y="4" rx="2" />
+                        <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7" />
+                      </svg>
+                    </span>
+                    <span>Email</span>
+                  </span>
                   <span className="employee-card-list-kv-value">{emailLabel}</span>
                 </div>
                 <div className="employee-card-list-kv-row">
-                  <span className="employee-card-list-kv-label">Residence</span>
+                  <span className="employee-card-list-kv-label">
+                    <span className="employee-card-list-kv-icon" aria-hidden="true">
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z" />
+                        <circle cx="12" cy="10" r="3" />
+                      </svg>
+                    </span>
+                    <span>Residence</span>
+                  </span>
                   <span className="employee-card-list-kv-value">{residenceCountryLabel}</span>
                 </div>
                 <div className="employee-card-list-kv-row">
-                  <span className="employee-card-list-kv-label">Progress</span>
+                  <span className="employee-card-list-kv-label">
+                    <span className="employee-card-list-kv-icon" aria-hidden="true">
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M22 12h-4l-3 9L9 3l-3 9H2" />
+                      </svg>
+                    </span>
+                    <span>Progress</span>
+                  </span>
                   <span className="employee-card-list-kv-value">{progressCompletion}%</span>
                 </div>
                 <div className="employee-card-list-kv-row">
-                  <span className="employee-card-list-kv-label">Travel</span>
+                  <span className="employee-card-list-kv-label">
+                    <span className="employee-card-list-kv-icon" aria-hidden="true">
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M17.8 19.2 16 11l3.5-3.5C21 6 21.5 4 21 3c-1-.5-3 0-4.5 1.5L13 8 4.8 6.2c-.5-.1-.9.1-1.1.5l-.3.5c-.2.5-.1 1 .3 1.3L9 12l-2 3H4l-1 1 3 2 2 3 1-1v-3l3-2 3.5 5.3c.3.4.8.5 1.3.3l.5-.2c.4-.3.6-.7.5-1.2z" />
+                      </svg>
+                    </span>
+                    <span>Travel</span>
+                  </span>
                   <span className="employee-card-list-kv-value">{travelStatusLabel}</span>
                 </div>
                 <div className="employee-card-list-kv-row">
-                  <span className="employee-card-list-kv-label">Return</span>
+                  <span className="employee-card-list-kv-label">
+                    <span className="employee-card-list-kv-icon" aria-hidden="true">
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
+                        <path d="M3 3v5h5" />
+                      </svg>
+                    </span>
+                    <span>Return</span>
+                  </span>
                   <span className="employee-card-list-kv-value">{returnStatusLabel}</span>
                 </div>
               </div>
@@ -296,27 +399,113 @@ export default function EmployeeCard({
         </div>
       </div>
       {!isListLayout ? (
-        <>
-          <p className="muted-text">{destinationLabel === '—' ? 'No destination country' : destinationLabel} | {phoneLabel === '—' ? 'No phone' : phoneLabel}</p>
-          <p className="muted-text"><strong>Age</strong> <strong>{employeeAge || '--'}</strong></p>
-        </>
+        <div className="employee-card-grid-body">
+          <div className="employee-card-meta-chips">
+            <span className="employee-card-meta-chip" title="Destination">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20M2 12h20"/></svg>
+              <span>{destinationLabel === '—' ? 'No destination' : destinationLabel}</span>
+            </span>
+            <span className="employee-card-meta-chip" title="Contact Phone">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+              <span>{phoneLabel === '—' ? 'No phone' : phoneLabel}</span>
+            </span>
+            {employeeAge ? (
+              <span className="employee-card-meta-chip employee-card-meta-chip--accent" title="Age">
+                <span>{employeeAge} yrs</span>
+              </span>
+            ) : null}
+          </div>
+
+          <div className="employee-card-progress-section">
+            <div className="employee-card-progress-meta">
+              <span className="employee-card-progress-title">Readiness</span>
+              <span className="employee-card-progress-value">{progressCompletion}%</span>
+            </div>
+            <div className="employee-card-progress-bar" role="progressbar" aria-valuenow={progressCompletion} aria-valuemin="0" aria-valuemax="100">
+              <div className="employee-card-progress-fill" style={{ width: `${Math.min(100, Math.max(0, progressCompletion))}%` }} />
+            </div>
+          </div>
+
+          <div className="employee-card-substatus-row">
+            <span className="employee-card-substatus-item">
+              <span className="employee-card-substatus-dot" />
+              <span>Travel: <strong>{travelStatusLabel}</strong></span>
+            </span>
+            <span className="employee-card-substatus-item">
+              <span className="employee-card-substatus-dot" />
+              <span>Return: <strong>{returnStatusLabel}</strong></span>
+            </span>
+          </div>
+        </div>
+      ) : null}
+      {isListLayout ? (
+        <footer className="employee-card-list-footer">
+          <div className="employee-card-footer-pill employee-card-footer-pill--profession" title={`Profession: ${professionLabel}`}>
+            <span className="employee-card-footer-pill-icon" aria-hidden="true">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <rect width="20" height="14" x="2" y="7" rx="2" ry="2" />
+                <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16" />
+              </svg>
+            </span>
+            <span className="employee-card-footer-pill-label">Profession</span>
+            <span className="employee-card-footer-pill-value">{professionLabel}</span>
+          </div>
+
+          <div className="employee-card-footer-pill employee-card-footer-pill--experience" title={`Experience: ${experienceLabel}`}>
+            <span className="employee-card-footer-pill-icon" aria-hidden="true">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="12" cy="12" r="10" />
+                <polyline points="12 6 12 12 16 14" />
+              </svg>
+            </span>
+            <span className="employee-card-footer-pill-label">Experience</span>
+            <span className="employee-card-footer-pill-value">{experienceLabel}</span>
+          </div>
+
+          <div className="employee-card-footer-pill employee-card-footer-pill--progress" title={`Readiness: ${progressCompletion}%`}>
+            <span className="employee-card-footer-pill-icon" aria-hidden="true">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M22 12h-4l-3 9L9 3l-3 9H2" />
+              </svg>
+            </span>
+            <span className="employee-card-footer-pill-label">Progress</span>
+            <div className="employee-card-footer-progress-bar" role="progressbar" aria-valuenow={progressCompletion} aria-valuemin="0" aria-valuemax="100">
+              <div
+                className="employee-card-footer-progress-fill"
+                style={{ width: `${Math.min(100, Math.max(0, progressCompletion))}%` }}
+              />
+            </div>
+            <span className="employee-card-footer-pill-value">{progressCompletion}%</span>
+          </div>
+        </footer>
       ) : null}
       {employee.return_request?.status === 'approved' && employee.return_request?.remark ? (
-        <p className="muted-text">Return remark: {employee.return_request.remark}</p>
-      ) : null}
-      {!isListLayout ? (
-        <p className="muted-text">Progress {employee.progress_status?.overall_completion ?? 0}% | Travel {prettyStatus(employee.travel_status, 'pending')} | Return {prettyStatus(employee.return_status)}</p>
+        <div className="employee-card-remark-banner">
+          <span>Return remark:</span> {employee.return_request.remark}
+        </div>
       ) : null}
       <div
         className={`employee-card-expand${isExpanded ? ' is-expanded' : ''}${expandedEmployeeCardReadyId === employee.id ? ' is-ready' : ''}`}
         onTransitionEnd={(event) => {
           if (event.propertyName !== 'grid-template-rows') return
           if (typeof window === 'undefined') return
-          setExpandedEmployeeCardReadyId(employee.id)
+          if (isExpanded) {
+            setExpandedEmployeeCardReadyId(employee.id)
+          } else {
+            setExpandedEmployeeCardReadyId(null)
+          }
           window.requestAnimationFrame(() => reflowEmployeeCardsMasonry())
         }}
       >
-        <div className="employee-card-expand-inner">
+        <div
+          className="employee-card-expand-inner"
+          onClick={(event) => event.stopPropagation()}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter' || event.key === ' ') {
+              event.stopPropagation()
+            }
+          }}
+        >
           {employee.urgency_alerts?.length ? (
             <div className="employee-alert-list">
               {employee.urgency_alerts.map((alert) => (
