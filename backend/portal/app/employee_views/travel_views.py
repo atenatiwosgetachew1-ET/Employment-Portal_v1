@@ -38,7 +38,7 @@ class EmployeeTravelBookingView(APIView):
 
         employee = self._get_employee(request, employee_pk)
         if not employee:
-            return Response({"detail": "Employee not found."}, status=status.HTTP_404_NOT_FOUND)
+            return Response({"detail": "Candidate not found."}, status=status.HTTP_404_NOT_FOUND)
         if not can_manage_employee_travel(request.user, employee):
             return Response(
                 {"detail": "You do not have permission to manage this employee's travel booking."},
@@ -63,7 +63,7 @@ class EmployeeTravelBookingView(APIView):
 
         employee = self._get_employee(request, employee_pk)
         if not employee:
-            return Response({"detail": "Employee not found."}, status=status.HTTP_404_NOT_FOUND)
+            return Response({"detail": "Candidate not found."}, status=status.HTTP_404_NOT_FOUND)
         if not can_manage_employee_travel(request.user, employee):
             return Response(
                 {"detail": "You do not have permission to manage this employee's travel booking."},

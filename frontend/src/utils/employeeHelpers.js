@@ -18,11 +18,15 @@ export const OPTIONAL_DATE_FIELDS = [
 export const MANDATORY_ATTACHMENT_KEYS = ['portrait_photo', 'full_photo', 'passport_document']
 export const ALLOWED_ATTACHMENT_MIME_TYPES = ['application/pdf', 'image/jpeg', 'image/png']
 export const ALLOWED_ATTACHMENT_EXTENSIONS = ['.pdf', '.jpg', '.jpeg', '.png']
-export const REGISTRATION_TEMPLATE_STORAGE_KEY = 'employment-portal.employee-registration-template'
+export const CANDIDATE_REGISTRATION_TEMPLATE_STORAGE_KEY = 'employment-portal.candidate-registration-template'
+export const LEGACY_REGISTRATION_TEMPLATE_STORAGE_KEY = 'employment-portal.employee-registration-template'
+export const REGISTRATION_TEMPLATE_STORAGE_KEY = CANDIDATE_REGISTRATION_TEMPLATE_STORAGE_KEY
 export const REGISTRATION_DRAFT_DB_NAME = 'employment-portal-drafts'
 export const REGISTRATION_DRAFT_DB_VERSION = 1
 export const REGISTRATION_DRAFT_STORE = 'drafts'
-export const REGISTRATION_DRAFT_KEY = 'employee-registration'
+export const CANDIDATE_REGISTRATION_DRAFT_KEY = 'candidate-registration'
+export const LEGACY_REGISTRATION_DRAFT_KEY = 'employee-registration'
+export const REGISTRATION_DRAFT_KEY = CANDIDATE_REGISTRATION_DRAFT_KEY
 export const TRAVEL_CONFIRMATION_DECLINED_STORAGE_KEY = 'employment-portal.travel-confirmation-declined'
 export const TRAVEL_CONFIRMATION_CONFIRMED_STORAGE_KEY = 'employment-portal.travel-confirmation-confirmed'
 export const COMMISSION_SETTLEMENT_STORAGE_KEY = 'employment-portal.commission-settlements'
@@ -88,7 +92,7 @@ export const EMPLOYEE_CARD_MASONRY_DEBUG_STORAGE_KEY = 'employment-portal.employ
 
 export function employeeCardMasonryDebugEnabled() {
   if (typeof window === 'undefined') return false
-  if (Boolean(window[EMPLOYEE_CARD_MASONRY_DEBUG_FLAG])) return true
+  if (window[EMPLOYEE_CARD_MASONRY_DEBUG_FLAG]) return true
   try {
     return window.localStorage?.getItem(EMPLOYEE_CARD_MASONRY_DEBUG_STORAGE_KEY) === '1'
   } catch {
@@ -259,10 +263,10 @@ export function getValidationTarget(errorMessage) {
   return null
 }
 export const EMPLOYEE_VIEW_TABS = [
-  { id: 'register', label: 'Register employee' },
-  { id: 'list', label: 'Employees list' },
-  { id: 'selected', label: 'Selected Employees' },
-  { id: 'under-process', label: 'Under process Employees' },
+  { id: 'register', label: 'Register candidate' },
+  { id: 'list', label: 'Candidates list' },
+  { id: 'selected', label: 'Selected Candidates' },
+  { id: 'under-process', label: 'Under process Candidates' },
   { id: 'employed', label: 'Employed' },
   { id: 'returned', label: 'Returned list' }
 ]
@@ -425,9 +429,14 @@ export async function readRegistrationDraft() {
     return await new Promise((resolve, reject) => {
       const tx = db.transaction(REGISTRATION_DRAFT_STORE, 'readonly')
       const store = tx.objectStore(REGISTRATION_DRAFT_STORE)
-      const request = store.get(REGISTRATION_DRAFT_KEY)
+      const request = store.get(CANDIDATE_REGISTRATION_DRAFT_KEY)
       request.onerror = () => reject(new Error('Could not read draft.'))
-      request.onsuccess = () => resolve(request.result || null)
+      request.onsuccess = () => {
+        if (request.result) return resolve(request.result)
+        const legacyReq = store.get(LEGACY_REGISTRATION_DRAFT_KEY)
+        legacyReq.onerror = () => resolve(null)
+        legacyReq.onsuccess = () => resolve(legacyReq.result || null)
+      }
     })
   } finally {
     db.close()
@@ -489,6 +498,187 @@ export async function fetchPreviewBlob(url) {
     throw new Error('Could not load file for preview action.')
   }
   return response.blob()
+}
+
+export const PORTAL_PRINT_FRAME_ID = '__portal_print_frame__'
+
+export function cleanupPrintFrame() {
+  if (typeof document === 'undefined') return
+  const frames = document.querySelectorAll(`#${PORTAL_PRINT_FRAME_ID}, .${PORTAL_PRINT_FRAME_ID}`)
+  frames.forEach((el) => {
+    try {
+      el.remove()
+    } catch {
+      // ignore
+    }
+  })
+}
+
+export async function printDocumentSilently(previewDoc) {
+  if (typeof window === 'undefined' || typeof document === 'undefined') return
+  if (!previewDoc) return
+
+  const url = typeof previewDoc === 'string' ? previewDoc : previewDoc.url
+  if (!url) return
+
+  const label = typeof previewDoc === 'object' ? (previewDoc.label || previewDoc.name || 'Document preview') : 'Document preview'
+  const isImage = typeof previewDoc === 'object' ? Boolean(
+    previewDoc.isImage ??
+    (
+      previewDoc.type?.startsWith('image/') ||
+      previewDoc.mime?.startsWith('image/') ||
+      previewDoc.file?.type?.startsWith('image/') ||
+      previewDoc.isProfilePhoto ||
+      (typeof url === 'string' && (
+        url.startsWith('data:image/') ||
+        url.startsWith('blob:') ||
+        /\.(jpe?g|png|webp|gif|svg|bmp|avif)($|\?)/i.test(url)
+      )) ||
+      (typeof previewDoc.name === 'string' && /\.(jpe?g|png|webp|gif|svg|bmp|avif)($|\?)/i.test(previewDoc.name))
+    )
+  ) : /\.(jpe?g|png|webp|gif|svg|bmp|avif)($|\?)/i.test(url)
+
+  // 1. Clean up any previous print frame so they NEVER pile up
+  cleanupPrintFrame()
+
+  // 2. Create the hidden off-screen iframe
+  const iframe = document.createElement('iframe')
+  iframe.id = PORTAL_PRINT_FRAME_ID
+  iframe.className = PORTAL_PRINT_FRAME_ID
+  iframe.style.position = 'fixed'
+  iframe.style.right = '-9999px'
+  iframe.style.bottom = '-9999px'
+  iframe.style.width = '1px'
+  iframe.style.height = '1px'
+  iframe.style.border = '0'
+  iframe.style.opacity = '0.01'
+  iframe.style.pointerEvents = 'none'
+  iframe.setAttribute('aria-hidden', 'true')
+  iframe.setAttribute('tabindex', '-1')
+  document.body.appendChild(iframe)
+
+  let objectUrlToRevoke = null
+  let cleanedUp = false
+
+  const removeFrameSafely = () => {
+    if (cleanedUp) return
+    cleanedUp = true
+    try {
+      iframe.remove()
+    } catch {
+      // ignore
+    }
+    if (objectUrlToRevoke) {
+      try {
+        window.URL.revokeObjectURL(objectUrlToRevoke)
+      } catch {
+        // ignore
+      }
+      objectUrlToRevoke = null
+    }
+  }
+
+  // Fallback cleanup timer in case afterprint does not fire
+  let safetyTimer = setTimeout(removeFrameSafely, 120000)
+
+  const triggerIframePrint = () => {
+    try {
+      iframe.contentWindow?.focus?.()
+      iframe.contentWindow?.print?.()
+    } catch (err) {
+      console.warn('Silent print execution failed:', err)
+      removeFrameSafely()
+    }
+  }
+
+  // Hook into afterprint to cleanup as soon as the print dialog closes
+  try {
+    iframe.contentWindow?.addEventListener?.('afterprint', () => {
+      clearTimeout(safetyTimer)
+      setTimeout(removeFrameSafely, 500)
+    })
+  } catch {
+    // ignore
+  }
+
+  let printSrc = url
+  if (!url.startsWith('data:') && !url.startsWith('blob:')) {
+    try {
+      const blob = await fetchPreviewBlob(url)
+      objectUrlToRevoke = window.URL.createObjectURL(blob)
+      printSrc = objectUrlToRevoke
+    } catch {
+      printSrc = url
+    }
+  }
+
+  if (isImage) {
+    const escapedTitle = String(label)
+      .replaceAll('&', '&amp;')
+      .replaceAll('<', '&lt;')
+      .replaceAll('>', '&gt;')
+
+    const frameDoc = iframe.contentDocument || iframe.contentWindow?.document
+    if (!frameDoc) {
+      removeFrameSafely()
+      return
+    }
+
+    frameDoc.open()
+    frameDoc.write(`<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>${escapedTitle}</title>
+    <style>
+      @page {
+        size: auto;
+        margin: 10mm;
+      }
+      html, body {
+        margin: 0;
+        padding: 0;
+        background: #ffffff;
+      }
+      body {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 100vh;
+      }
+      img {
+        max-width: 100%;
+        max-height: 96vh;
+        object-fit: contain;
+        page-break-inside: avoid;
+      }
+    </style>
+  </head>
+  <body>
+    <img id="print-target-img" src="${printSrc}" alt="${escapedTitle}" />
+  </body>
+</html>`)
+    frameDoc.close()
+
+    const img = frameDoc.getElementById('print-target-img')
+    if (img) {
+      if (img.complete) {
+        setTimeout(triggerIframePrint, 120)
+      } else {
+        img.onload = () => setTimeout(triggerIframePrint, 120)
+        img.onerror = () => removeFrameSafely()
+      }
+    } else {
+      setTimeout(triggerIframePrint, 200)
+    }
+  } else {
+    // PDF or other document
+    iframe.onload = () => {
+      setTimeout(triggerIframePrint, 400)
+    }
+    iframe.onerror = () => removeFrameSafely()
+    iframe.src = printSrc
+  }
 }
 
 export function attachmentFileAllowed(file) {
@@ -759,6 +949,111 @@ export function employeeMatchesTagFilter(employee, tag) {
   }
 }
 
+export function filterCandidateList(employees, filters = {}) {
+  if (!Array.isArray(employees) || employees.length === 0) return []
+
+  let list = employees
+
+  // Search query (name, passport, mobile, profession, title)
+  if (filters.q && String(filters.q).trim()) {
+    const q = String(filters.q).trim().toLowerCase()
+    list = list.filter((emp) => {
+      const name = String(emp.full_name || '').toLowerCase()
+      const prof = String(emp.profession || '').toLowerCase()
+      const pass = String(emp.passport_number || '').toLowerCase()
+      const phone = String(emp.phone || emp.mobile_number || '').toLowerCase()
+      const title = String(emp.professional_title || '').toLowerCase()
+      return name.includes(q) || prof.includes(q) || pass.includes(q) || phone.includes(q) || title.includes(q)
+    })
+  }
+
+  // Availability
+  if (filters.isActive === 'true') {
+    list = list.filter((emp) => employeeAvailability(emp) === 'Available')
+  } else if (filters.isActive === 'false') {
+    list = list.filter((emp) => employeeAvailability(emp) === 'Not available')
+  }
+
+  // Tag
+  if (filters.tag) {
+    list = list.filter((emp) => employeeMatchesTagFilter(emp, filters.tag))
+  }
+
+  // Profession
+  if (filters.profession) {
+    const prof = String(filters.profession).trim().toLowerCase()
+    list = list.filter((emp) =>
+      String(emp.profession || '').toLowerCase().includes(prof) ||
+      String(emp.professional_title || '').toLowerCase().includes(prof)
+    )
+  }
+
+  // Gender
+  if (filters.gender) {
+    const gen = String(filters.gender).trim().toLowerCase()
+    list = list.filter((emp) =>
+      String(emp.gender || '').toLowerCase() === gen
+    )
+  }
+
+  // Religion
+  if (filters.religion) {
+    const rel = String(filters.religion).trim().toLowerCase()
+    list = list.filter((emp) =>
+      String(emp.religion || '').toLowerCase() === rel
+    )
+  }
+
+  // Destination Country
+  if (filters.destinationCountry) {
+    const dest = String(filters.destinationCountry).trim().toLowerCase()
+    list = list.filter((emp) =>
+      Array.isArray(emp.application_countries) &&
+      emp.application_countries.some((c) => String(c || '').toLowerCase() === dest)
+    )
+  }
+
+  // Experience level
+  if (filters.experience === 'fresher') {
+    list = list.filter((emp) => {
+      const hasExp = (Array.isArray(emp.experiences) && emp.experiences.length > 0) ||
+        (typeof emp.experience === 'string' && emp.experience.trim().length > 0)
+      return !hasExp
+    })
+  } else if (filters.experience === 'experienced') {
+    list = list.filter((emp) => {
+      const hasExp = (Array.isArray(emp.experiences) && emp.experiences.length > 0) ||
+        (typeof emp.experience === 'string' && emp.experience.trim().length > 0)
+      return hasExp
+    })
+  }
+
+  // Document & Medical Readiness
+  if (filters.docStatus) {
+    list = list.filter((emp) => {
+      const docs = Array.isArray(emp.documents) ? emp.documents : []
+      if (filters.docStatus === 'has_medical') {
+        return docs.some((d) => d.document_type === 'medical_result')
+      }
+      if (filters.docStatus === 'has_passport') {
+        return docs.some((d) => d.document_type === 'passport_document') || Boolean(emp.passport_number)
+      }
+      if (filters.docStatus === 'has_photo') {
+        return docs.some((d) => d.document_type === 'portrait_photo' || d.document_type === 'full_photo') || Boolean(emp.portrait_photo_url || emp.profile_photo_url)
+      }
+      if (filters.docStatus === 'complete') {
+        const hasMed = docs.some((d) => d.document_type === 'medical_result')
+        const hasPass = docs.some((d) => d.document_type === 'passport_document') || Boolean(emp.passport_number)
+        const hasPhoto = docs.some((d) => d.document_type === 'portrait_photo' || d.document_type === 'full_photo')
+        return hasMed && hasPass && hasPhoto
+      }
+      return true
+    })
+  }
+
+  return list
+}
+
 export function statusTone(status) {
   const normalized = String(status || '').trim().toLowerCase().replace(/\s+/g, '_')
   if (!normalized) return ''
@@ -771,11 +1066,11 @@ export function statusTone(status) {
 }
 
 export function employedEmployeesHelpText() {
-  return 'Employees whose travel was recorded or whose employment is already active are listed here.'
+  return 'Candidates whose travel was recorded or whose employment is already active are listed here.'
 }
 
 export function returnedEmployeesHelpText() {
-  return 'Employees whose employment has already been discontinued and recorded as returned are listed here.'
+  return 'Candidates whose employment has already been discontinued and recorded as returned are listed here.'
 }
 
 export function normalizeAgentMatchValue(value) {
@@ -939,12 +1234,12 @@ export { isAgentSideWorkspace } from './profileStore'
 
 export function selectedEmployeesHelpText(user) {
   return isAgentSideWorkspace(user)
-    ? 'Employees your agent side marked for follow-up are listed here. Selection is not exclusive; ownership starts only after your agent initiates the process.'
-    : 'Employees selected by agents are listed here as market interest only. Ownership starts only after one agent initiates the process.'
+    ? 'Candidates your agent side marked for follow-up are listed here. Selection is not exclusive; ownership starts only after your agent initiates the process.'
+    : 'Candidates selected by agents are listed here as market interest only. Ownership starts only after one agent initiates the process.'
 }
 
 export function underProcessEmployeesHelpText(user) {
-  return `Employees under process for ${user?.first_name || user?.username || 'this agent'} are listed here.`
+  return `Candidates under process for ${user?.first_name || user?.username || 'this agent'} are listed here.`
 }
 
 export function resolvedProcessAgentId(employee, processAgentAssignments, agentOptions) {

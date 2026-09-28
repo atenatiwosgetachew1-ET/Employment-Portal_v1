@@ -751,11 +751,11 @@ export default function CommissionsPage() {
         entry.label,
         formatCurrency(entry.amount),
         `${entry.settlements} settlement${entry.settlements === 1 ? '' : 's'}`,
-        `${entry.employees} employee${entry.employees === 1 ? '' : 's'}`,
+        `${entry.employees} candidate${entry.employees === 1 ? '' : 's'}`,
         formatDateOnly(entry.firstDate),
         (entry.agentNames || []).join(', ') || 'Unknown agent'
       ]),
-      ['Period', 'Collected value', 'Settlements', 'Employees', 'Started', 'Agents'],
+      ['Period', 'Collected value', 'Settlements', 'Candidates', 'Started', 'Agents'],
       `Current scope: ${scopeLabel}`
     )
 
@@ -768,12 +768,12 @@ export default function CommissionsPage() {
                 child.label,
                 formatCurrency(child.amount),
                 `${child.settlements} settlement${child.settlements === 1 ? '' : 's'}`,
-                `${child.employees} employee${child.employees === 1 ? '' : 's'}`,
+                `${child.employees} candidate${child.employees === 1 ? '' : 's'}`,
                 formatDateOnly(child.firstDate),
                 (child.agentNames || []).join(', ') || 'Unknown agent'
               ])
             : [['No child breakdown available', '--', '--', '--', '--', '--']],
-          ['Period', 'Collected value', 'Settlements', 'Employees', 'Started', 'Agents']
+          ['Period', 'Collected value', 'Settlements', 'Candidates', 'Started', 'Agents']
         )
       })
     }
@@ -786,10 +786,10 @@ export default function CommissionsPage() {
             settlement.agentName || 'Unknown agent',
             formatCurrency(settlement.totalCommissionValue),
             formatDateOnly(settlement.settledAt || settlement.createdAt),
-            (settlement.employees || []).map((employee) => employee.full_name).join(', ') || 'No employees listed',
+            (settlement.employees || []).map((employee) => employee.full_name).join(', ') || 'No candidates listed',
             (settlement.receipts || []).map((receipt) => receipt.label || receipt.name).join(', ') || 'No receipt'
           ]),
-          ['Agent', 'Collected value', 'Settled on', 'Employees', 'Receipts']
+          ['Agent', 'Collected value', 'Settled on', 'Candidates', 'Receipts']
         )
       })
     }
@@ -930,7 +930,7 @@ export default function CommissionsPage() {
       return {
         firstLabel: isAgentSideUser ? 'Settlements made' : 'Collections received',
         firstValue: summary.total,
-        secondLabel: isAgentSideUser ? 'Employees paid for' : 'Employees settled',
+        secondLabel: isAgentSideUser ? 'Candidates paid for' : 'Candidates settled',
         secondValue: summary.travelled,
         thirdLabel: 'Receipt files',
         thirdValue: summary.pendingReturnRequests,
@@ -943,7 +943,7 @@ export default function CommissionsPage() {
       return {
         firstLabel: isAgentSideUser ? 'Requests received' : 'Requests sent',
         firstValue: summary.total,
-        secondLabel: 'Employees requested',
+        secondLabel: 'Candidates requested',
         secondValue: summary.travelled,
         thirdLabel: isAgentSideUser ? 'Pending payments' : 'Pending requests',
         thirdValue: summary.pendingReturnRequests,
@@ -956,7 +956,7 @@ export default function CommissionsPage() {
       return {
         firstLabel: 'Collection windows',
         firstValue: summary.total,
-        secondLabel: 'Employees covered',
+        secondLabel: 'Candidates covered',
         secondValue: summary.travelled,
         thirdLabel: 'Receipt files',
         thirdValue: summary.pendingReturnRequests,
@@ -981,7 +981,7 @@ export default function CommissionsPage() {
     return {
       firstLabel: isAgentSideUser ? 'Outstanding payments' : 'Pending collections',
       firstValue: summary.total,
-      secondLabel: isAgentSideUser ? 'Employees to pay for' : 'Employees awaiting collection',
+      secondLabel: isAgentSideUser ? 'Candidates to pay for' : 'Candidates awaiting collection',
       secondValue: summary.travelled,
       thirdLabel: 'Pending return requests',
       thirdValue: summary.pendingReturnRequests,
@@ -1133,7 +1133,7 @@ export default function CommissionsPage() {
     }
 
     if (selectedRequestEmployeeIds.length === 0) {
-      setRequestError('Select at least one employee for the settlement request.')
+      setRequestError('Select at least one candidate for the settlement request.')
       return
     }
 
@@ -1218,7 +1218,7 @@ export default function CommissionsPage() {
 
   const handleRegisterSettlement = useCallback(async () => {
     if (selectedSettlementEmployeeIds.length === 0) {
-      setSettlementError('Select at least one employee to register this payment.')
+      setSettlementError('Select at least one candidate to register this payment.')
       return
     }
 
@@ -1229,7 +1229,7 @@ export default function CommissionsPage() {
 
       const selectedEmployees = settlementEligibleEmployees.filter((employee) => selectedSettlementEmployeeIds.includes(employee.id))
       if (selectedEmployees.length === 0) {
-        setSettlementError('No eligible employees are currently available for this payment.')
+        setSettlementError('No eligible candidates are currently available for this payment.')
         return
       }
       const parsedSettlementAmount = settlementAmount === '' ? null : Number(settlementAmount)
@@ -1351,29 +1351,29 @@ export default function CommissionsPage() {
           <p className="muted-text">
             {currentView === 'settled'
               ? isAgentSideUser
-                ? 'This board tracks commission payments your agent side has already settled to the organization, together with the covered employees and receipt attachments.'
-                : 'This board tracks commission collections already received by the organization from the agent side, including the grouped employees, settled amount, and attached bank receipts.'
+                ? 'This board tracks commission payments your agent side has already settled to the organization, together with the covered candidates and receipt attachments.'
+                : 'This board tracks commission collections already received by the organization from the agent side, including the grouped candidates, settled amount, and attached bank receipts.'
               : currentView === 'collected'
               ? 'This tab evaluates commission collections already received by the organization across time so you can see the collection rhythm and value movement.'
               : currentView === 'requests'
               ? isAgentSideUser
-                ? 'Payment requests tell your agent side which employee commissions the organization is asking you to pay, then let you settle that request with receipts.'
-                : 'Collection requests let the organization ask the responsible agent to settle commission for specific employed employees, then let the agent complete that request with receipts.'
+                ? 'Payment requests tell your agent side which candidate commissions the organization is asking you to pay, then let you settle that request with receipts.'
+                : 'Collection requests let the organization ask the responsible agent to settle commission for specific employed candidates, then let the agent complete that request with receipts.'
               : currentView === 'agents'
               ? 'This tab tracks configured agent commission rates together with their current unpaid exposure to the organization.'
               : isAgentSideUser
-                ? 'This board tracks employed employees whose commission your agent side still owes to the organization.'
-                : 'This board tracks employed employees whose commission is still outstanding from the responsible agent side to the organization.'}
+                ? 'This board tracks employed candidates whose commission your agent side still owes to the organization.'
+                : 'This board tracks employed candidates whose commission is still outstanding from the responsible agent side to the organization.'}
           </p>
           <p className="muted-text">
             {currentView === 'collected'
               ? 'The timeline uses registered settlement records already captured in the system and summarizes recent collection windows.'
               : currentView === 'requests'
               ? canCreateSettlementRequests
-                ? 'Create a request from the organization side by selecting unsettled employed employees that belong to one responsible agent.'
+                ? 'Create a request from the organization side by selecting unsettled employed candidates that belong to one responsible agent.'
                 : 'Review the payment requests assigned to your agent side and settle them directly from the request when receipts are ready.'
               : canRegisterSettlements
-              ? 'Payment registration is available only for your own employed employees whose commission your agent side must pay.'
+              ? 'Payment registration is available only for your own employed candidates whose commission your agent side must pay.'
               : 'Payment registration is handled from the payer side and appears here to the organization as a collection ledger.'}
           </p>
         </div>
@@ -1423,7 +1423,7 @@ export default function CommissionsPage() {
           <input
             value={search}
             onChange={(event) => setSearch(event.target.value)}
-            placeholder={currentView === 'requests' ? 'Agent, employee, requester, passport' : currentView === 'agents' ? 'Agent, country, email' : currentView === 'collected' ? 'Agent, employee, receipt' : 'Employee, agent, passport, profession'}
+            placeholder={currentView === 'requests' ? 'Agent, candidate, requester, passport' : currentView === 'agents' ? 'Agent, country, email' : currentView === 'collected' ? 'Agent, candidate, receipt' : 'Candidate, agent, passport, profession'}
           />
         </label>
         <div className="employees-header-actions">
@@ -1577,7 +1577,7 @@ export default function CommissionsPage() {
                         <p className="commission-agent-card-kicker">{isAgentSideUser ? 'Payment request' : 'Collection request'}</p>
                         <h3>{request.agentName || 'Unassigned agent'}</h3>
                         <p className="muted-text">
-                          {(request.employees?.length || 0)} employee{request.employees?.length === 1 ? '' : 's'} | Requested {formatDateTime(request.requestedAt)}
+                          {(request.employees?.length || 0)} candidate{request.employees?.length === 1 ? '' : 's'} | Requested {formatDateTime(request.requestedAt)}
                         </p>
                         <p className="muted-text">
                           Requested by {request.requestedByName || '--'}
@@ -1879,7 +1879,7 @@ export default function CommissionsPage() {
                       >
                         <div className="commission-timeline-meta">
                           <strong>{entry.label}</strong>
-                          <span>{entry.settlements} settlement{entry.settlements === 1 ? '' : 's'} | {entry.employees} employee{entry.employees === 1 ? '' : 's'}</span>
+                          <span>{entry.settlements} settlement{entry.settlements === 1 ? '' : 's'} | {entry.employees} candidate{entry.employees === 1 ? '' : 's'}</span>
                           <span>Started {formatDateOnly(entry.firstDate)}</span>
                         </div>
                         <strong className="commission-timeline-value">{formatCurrency(entry.amount)}</strong>
@@ -1921,7 +1921,7 @@ export default function CommissionsPage() {
                     <div>
                       <h3>{settlement.agentName}</h3>
                       <p className="muted-text">
-                        {settlement.employees.length} settled employee{settlement.employees.length === 1 ? '' : 's'} | Settled amount {formatCurrency(settlement.totalCommissionValue)}
+                        {settlement.employees.length} settled candidate{settlement.employees.length === 1 ? '' : 's'} | Settled amount {formatCurrency(settlement.totalCommissionValue)}
                       </p>
                       <p className="muted-text">
                         Settlement date: {formatDateTime(settlement.settledAt)}
@@ -1957,15 +1957,15 @@ export default function CommissionsPage() {
 
                     <div className="commission-settlement-grid">
                       <div className="commission-settlement-card">
-                        <h4>Employees</h4>
+                        <h4>Candidates</h4>
                         <div className="commission-settlement-employees">
                           <div className="commission-settlement-employees-toggle">
-                            <span>{settlement.employees.length} employee{settlement.employees.length === 1 ? '' : 's'}</span>
+                            <span>{settlement.employees.length} candidate{settlement.employees.length === 1 ? '' : 's'}</span>
                             <button
                               type="button"
                               className="commission-group-toggle-button"
                               onClick={() => toggleSettlementEmployees(settlement.id)}
-                              aria-label={openSettlementEmployees[settlement.id] ? 'Collapse employees' : 'Expand employees'}
+                              aria-label={openSettlementEmployees[settlement.id] ? 'Collapse candidates' : 'Expand candidates'}
                               aria-expanded={Boolean(openSettlementEmployees[settlement.id])}
                             >
                               <span className={`commission-group-toggle-icon${openSettlementEmployees[settlement.id] ? ' is-open' : ''}`}>▸</span>
@@ -1989,7 +1989,7 @@ export default function CommissionsPage() {
                                 </div>
                                 <div className="employee-card-detail-links employee-card-detail-links--spaced">
                                   <button type="button" className="btn-secondary" onClick={() => setOpenedEmployee(employee)}>
-                                    View employee details
+                                    View candidate details
                                   </button>
                                 </div>
                               </article>
@@ -2093,7 +2093,7 @@ export default function CommissionsPage() {
 
                       <div className="employee-card-detail-links employee-card-detail-links--spaced">
                         <button type="button" className="btn-secondary" onClick={() => setOpenedEmployee(employee)}>
-                          View employee details
+                          View candidate details
                         </button>
                       </div>
                     </article>
@@ -2118,7 +2118,7 @@ export default function CommissionsPage() {
               </div>
               <div className="inline-actions inline-actions--wrap">
                 <button type="button" className="btn-secondary" onClick={() => setExpandedEmployee(openedEmployee)}>
-                  Open employee details
+                  Open candidate details
                 </button>
                 <button type="button" className="btn-secondary" onClick={() => setOpenedEmployee(null)}>Close</button>
               </div>
@@ -2136,7 +2136,7 @@ export default function CommissionsPage() {
                 <p><strong>Last movement:</strong> {formatDateTime(employeeMovementDate(openedEmployee))}</p>
               </div>
               <div className="employee-summary-card">
-                <h3>Employee</h3>
+                <h3>Candidate</h3>
                 <p><strong>Passport:</strong> {openedEmployee.passport_number || '--'}</p>
                 <p><strong>Mobile:</strong> {openedEmployee.mobile_number || '--'}</p>
                 <p><strong>Agent side:</strong> {agentNameForEmployee(openedEmployee)}</p>
@@ -2178,7 +2178,7 @@ export default function CommissionsPage() {
                   )}
                 </div>
                 <div>
-                  <p className="employee-modal-eyebrow">Employee details</p>
+                  <p className="employee-modal-eyebrow">Candidate details</p>
                   <h2 id="commission-expanded-employee-title">{expandedEmployee.full_name}</h2>
                   <p className="muted-text">{expandedEmployee.profession || expandedEmployee.professional_title || '--'} | {employmentStage(expandedEmployee)}</p>
                 </div>
@@ -2265,7 +2265,7 @@ export default function CommissionsPage() {
               <div>
                 <p className="employee-modal-eyebrow">Settlement requests</p>
                 <h2 id="register-settlement-request-title">Create settlement request</h2>
-                <p className="muted-text">Choose one responsible agent, then select the employed employees whose commission should now be settled from that agent side.</p>
+                <p className="muted-text">Choose one responsible agent, then select the employed candidates whose commission should now be settled from that agent side.</p>
               </div>
               <button type="button" className="btn-secondary" onClick={closeRequestModal}>
                 Close
@@ -2278,7 +2278,7 @@ export default function CommissionsPage() {
               <div className="employee-summary-card">
                 <h3>Responsible agent</h3>
                 {requestEligibleGroups.length === 0 ? (
-                  <p className="muted-text">No unsettled employed employees are currently available to request.</p>
+                  <p className="muted-text">No unsettled employed candidates are currently available to request.</p>
                 ) : (
                   <div className="commission-request-picker-list">
                     {requestEligibleGroups.map((group) => {
@@ -2294,7 +2294,7 @@ export default function CommissionsPage() {
                           <div>
                             <strong>{group.agentName}</strong>
                             <span className="commission-request-picker-meta">
-                              {group.employees.length} unsettled employee{group.employees.length === 1 ? '' : 's'}
+                              {group.employees.length} unsettled candidate{group.employees.length === 1 ? '' : 's'}
                             </span>
                           </div>
                           <span className="commission-request-picker-state">{isSelected ? 'Selected' : 'Select'}</span>
@@ -2306,7 +2306,7 @@ export default function CommissionsPage() {
               </div>
 
               <div className="employee-summary-card">
-                <h3>Employees under request</h3>
+                <h3>Candidates under request</h3>
                 {!selectedRequestGroup ? (
                   <p className="muted-text">Select the responsible agent first.</p>
                 ) : (
@@ -2382,8 +2382,8 @@ export default function CommissionsPage() {
                   {editingSettlementRecord
                     ? 'Adjust the payment details before the organization acknowledges this settlement.'
                     : activeSettlementRequest
-                      ? 'Enter the settlement amount and attach the bank receipts to complete this payment request for the selected employees.'
-                      : 'Select from your employed employees with unsettled commission, confirm the payment amount, and attach the bank receipts for the payment record.'}
+                      ? 'Enter the settlement amount and attach the bank receipts to complete this payment request for the selected candidates.'
+                      : 'Select from your employed candidates with unsettled commission, confirm the payment amount, and attach the bank receipts for the payment record.'}
                 </p>
               </div>
               <button type="button" className="btn-secondary" onClick={closeSettlementModal}>
@@ -2395,9 +2395,9 @@ export default function CommissionsPage() {
 
             <div className="employee-summary-grid">
               <div className="employee-summary-card">
-                <h3>Employees</h3>
+                <h3>Candidates</h3>
                 {settlementEligibleEmployees.length === 0 ? (
-                  <p className="muted-text">No unsettled employed employees are available for settlement.</p>
+                  <p className="muted-text">No unsettled employed candidates are available for settlement.</p>
                 ) : (
                   <>
                     {!activeSettlementRequest ? (
@@ -2407,7 +2407,7 @@ export default function CommissionsPage() {
                           checked={allSettlementEmployeesSelected}
                           onChange={handleToggleAllSettlementEmployees}
                         />
-                        <span>Select all employees</span>
+                        <span>Select all candidates</span>
                       </label>
                     ) : null}
                     <div className="return-request-employee-list">
@@ -2485,7 +2485,7 @@ export default function CommissionsPage() {
                     />
                   </div>
                 </div>
-                <p><strong>Selected employees:</strong> {selectedSettlementEmployeeIds.length}</p>
+                <p><strong>Selected candidates:</strong> {selectedSettlementEmployeeIds.length}</p>
                 <p><strong>Agent side:</strong> {currentAgentDisplayName}</p>
                 <p>
                   <strong>Expected amount:</strong>{' '}

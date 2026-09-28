@@ -558,26 +558,24 @@ html[data-theme='dark'] select[aria-invalid='true'] {
   box-shadow: 0 0 0 2px color-mix(in oklch, var(--color-destructive) 32%, transparent) !important;
 }
 
-/* Fallback: native HTML validation (required/type/etc.). Prefer :user-invalid to avoid pre-marking untouched fields. */
-html[data-theme='dark'] input:not([type='checkbox']):not([type='radio']):user-invalid,
-html[data-theme='dark'] textarea:user-invalid,
-html[data-theme='dark'] select:user-invalid {
-  border-color: var(--color-destructive) !important;
+/* Focus outline with active accent color (unless explicitly marked invalid with aria-invalid='true' or .error) */
+html input:not([type='checkbox']):not([type='radio']):focus:not([aria-invalid='true']):not(.error),
+html select:focus:not([aria-invalid='true']):not(.error),
+html textarea:focus:not([aria-invalid='true']):not(.error) {
+  border-color: var(--color-ring) !important;
+  box-shadow: 0 0 0 2px color-mix(in oklch, var(--color-ring) 28%, transparent) !important;
+  outline: none !important;
 }
 
-html[data-theme='dark'] input:not([type='checkbox']):not([type='radio']):invalid:focus,
-html[data-theme='dark'] textarea:invalid:focus,
-html[data-theme='dark'] select:invalid:focus {
+html input:not([type='checkbox']):not([type='radio'])[aria-invalid='true']:focus,
+html input:not([type='checkbox']):not([type='radio']).error:focus,
+html select[aria-invalid='true']:focus,
+html select.error:focus,
+html textarea[aria-invalid='true']:focus,
+html textarea.error:focus {
   border: 1px solid var(--color-destructive) !important;
   box-shadow: 0 0 0 2px color-mix(in oklch, var(--color-destructive) 32%, transparent) !important;
-}
-
-/* Extra fallback for cases where :invalid doesn't match as expected (e.g. custom widgets): red when required + not valid. */
-html[data-theme='dark'] input:not([type='checkbox']):not([type='radio']):required:focus:not(:valid),
-html[data-theme='dark'] textarea:required:focus:not(:valid),
-html[data-theme='dark'] select:required:focus:not(:valid) {
-  border: 1px solid var(--color-destructive) !important;
-  box-shadow: 0 0 0 2px color-mix(in oklch, var(--color-destructive) 32%, transparent) !important;
+  outline: none !important;
 }
 
 /* Compact: summary cards should not inherit the global stack spacing. */
@@ -965,7 +963,6 @@ html .employee-modal:not(.employee-modal--flat),
 html .employee-review-modal,
 html .employee-scan-modal,
 html .employee-doc-preview-popover,
-html .document-preview-modal,
 html .app-confirm-dialog,
 html .notification-reminder-dialog,
 html .commission-rate-popover,
@@ -1098,8 +1095,22 @@ html[data-theme='dark'] .app-toast {
 }
 
 
+html .document-preview-modal,
 html[data-theme='dark'] .document-preview-modal {
-  border: 1px solid var(--surface-border-adaptive);
+  background: color-mix(in oklch, var(--color-card) 96%, var(--color-muted)) !important;
+  background-color: color-mix(in oklch, var(--color-card) 96%, var(--color-muted)) !important;
+  border: 1px solid color-mix(in oklch, var(--color-border) 80%, transparent) !important;
+  border-radius: 14px !important;
+  box-shadow: 0 24px 54px -12px rgba(0, 0, 0, 0.75), 0 0 0 1px rgba(255, 255, 255, 0.05) !important;
+  color: var(--color-foreground) !important;
+}
+
+html[data-theme='light'] .document-preview-modal {
+  background: color-mix(in oklch, var(--color-card) 98%, var(--color-muted)) !important;
+  background-color: color-mix(in oklch, var(--color-card) 98%, var(--color-muted)) !important;
+  border: 1px solid color-mix(in oklch, var(--color-border) 85%, transparent) !important;
+  box-shadow: 0 20px 48px -10px rgba(0, 0, 0, 0.18), 0 0 0 1px rgba(0, 0, 0, 0.06) !important;
+  color: var(--color-foreground) !important;
 }
 
 /* Users table: allow actions/buttons to render without clipping. */

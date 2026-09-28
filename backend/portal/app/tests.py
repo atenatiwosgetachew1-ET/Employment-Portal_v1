@@ -1075,6 +1075,106 @@ class EmployeeManagementTests(TestCase):
             ).exists()
         )
 
+    def test_end_to_end_new_candidate_registration_flow(self):
+        superadmin = self._create_user("org-owner-e2e", Profile.ROLE_SUPERADMIN)
+        staff_user = self._create_user("staff-recruiter-e2e", Profile.ROLE_STAFF)
+        self._assign_same_organization(superadmin, staff_user)
+        self.client.force_authenticate(user=staff_user)
+
+        candidate_data = {
+            "first_name": "Amina",
+            "middle_name": "Kassaye",
+            "last_name": "Tesfaye",
+            "date_of_birth": "1998-04-12",
+            "gender": "Female",
+            "passport_number": "EP9876543",
+            "mobile_number": "+251911445566",
+            "national_id": "NAT-100234",
+            "labour_id": "LAB-554433",
+            "religion": "Muslim",
+            "marital_status": "Single",
+            "nationality": "Ethiopian",
+            "residence_country": "Ethiopia",
+            "birth_place": "Addis Ababa",
+            "children_count": 0,
+            "height": 165,
+            "weight": 58,
+            "education": "High School Diploma",
+            "medical_condition": "None",
+            "summary": "Dedicated hospitality and domestic professional with clean records.",
+            "experiences": [
+                {"country": "Saudi Arabia", "years": 2}
+            ],
+            "contact_person_name": "Kassaye Tesfaye",
+            "contact_person_relationship": "Father",
+            "contact_person_mobile": "+251911778899",
+            "contact_person_id": "NAT-998877",
+            "email": "amina.candidate@example.com",
+            "phone": "+251911445566",
+            "reference": "Al-Amal Agency Reference No. 42",
+            "notes": "Fast-track processing requested.",
+            "application_countries": ["Saudi Arabia"],
+            "profession": "Housekeeper",
+            "professional_title": "Senior Housekeeper",
+            "employment_type": "Full-time",
+            "application_salary": "1600.00",
+            "skills": ["Cleaning", "Cooking", "Childcare"],
+            "languages": ["Amharic", "Arabic", "English"],
+        }
+
+        create_res = self.client.post("/api/employees/", candidate_data, format="json")
+        self.assertEqual(create_res.status_code, 201)
+        employee_id = create_res.data["id"]
+        self.assertEqual(create_res.data["full_name"], "Amina Kassaye Tesfaye")
+        self.assertEqual(create_res.data["passport_number"], "EP9876543")
+        self.assertEqual(create_res.data["status"], Employee.STATUS_PENDING)
+
+        portrait_file = SimpleUploadedFile("portrait.jpg", b"fake-portrait-bytes", content_type="image/jpeg")
+        full_photo_file = SimpleUploadedFile("full_photo.png", b"fake-full-photo-bytes", content_type="image/png")
+        passport_file = SimpleUploadedFile("passport.pdf", b"%PDF-1.4 fake-passport-bytes", content_type="application/pdf")
+
+        for doc_type, label, file_obj in [
+            ("portrait_photo", "Portrait Photo", portrait_file),
+            ("full_photo", "Full Length Photo", full_photo_file),
+            ("passport_document", "Passport Copy", passport_file),
+        ]:
+            doc_res = self.client.post(
+                f"/api/employees/{employee_id}/documents/",
+                {"document_type": doc_type, "label": label, "file": file_obj},
+                format="multipart",
+            )
+            self.assertEqual(doc_res.status_code, 201)
+            self.assertEqual(doc_res.data["document_type"], doc_type)
+            self.assertTrue(doc_res.data["file_url"])
+
+        employee = Employee.objects.get(pk=employee_id)
+        self.assertEqual(employee.organization, get_user_organization(superadmin))
+        self.assertEqual(employee.registered_by, staff_user)
+        self.assertEqual(employee.documents.count(), 3)
+        self.assertEqual(
+            set(employee.documents.values_list("document_type", flat=True)),
+            {"portrait_photo", "full_photo", "passport_document"},
+        )
+
+        audit_entries = AuditLog.objects.filter(actor=staff_user, resource_id=employee_id)
+        self.assertTrue(audit_entries.filter(action="employee.create").exists())
+        self.assertTrue(
+            AuditLog.objects.filter(
+                actor=staff_user,
+                action="employee.document_upload",
+            ).exists()
+        )
+
+        list_res = self.client.get("/api/employees/")
+        self.assertEqual(list_res.status_code, 200)
+        results = list_res.data.get("results", list_res.data) if isinstance(list_res.data, dict) else list_res.data
+        self.assertTrue(any(e["id"] == employee_id for e in results))
+
+        detail_res = self.client.get(f"/api/employees/{employee_id}/")
+        self.assertEqual(detail_res.status_code, 200)
+        self.assertEqual(detail_res.data["full_name"], "Amina Kassaye Tesfaye")
+        self.assertEqual(len(detail_res.data["documents"]), 3)
+
     def test_employee_registration_requires_minimum_age_of_18(self):
         staff_user = self._create_user("staff-young-check", Profile.ROLE_STAFF)
         self.client.force_authenticate(user=staff_user)

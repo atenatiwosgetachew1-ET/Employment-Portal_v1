@@ -59,6 +59,7 @@ class EmployeeListCreateView(generics.ListCreateAPIView):
                 | Q(email__icontains=q)
                 | Q(phone__icontains=q)
                 | Q(mobile_number__icontains=q)
+                | Q(passport_number__icontains=q)
             )
         if is_active in {"true", "false"}:
             queryset = queryset.filter(is_active=(is_active == "true"))
@@ -192,7 +193,7 @@ class EmployeeListCreateView(generics.ListCreateAPIView):
         response_data = EmployeeSerializer(
             employee, context=self.get_serializer_context()
         ).data
-        response_data.update({"success": True, "message": "Employee created successfully."})
+        response_data.update({"success": True, "message": "Candidate created successfully."})
         return Response(response_data, status=status.HTTP_201_CREATED)
 
 

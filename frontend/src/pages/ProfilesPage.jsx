@@ -19,6 +19,7 @@ import {
   saveProfileOverride
 } from '../utils/profileStore'
 import { normalizeSearchValue } from '../utils/filtering'
+import { printDocumentSilently } from '../utils/employeeHelpers'
 import { readCssCustomProperty, formatDateTime, isImageFile, isPdfFile, buildDownloadName, buildPdfFileName, pdfImageFormatForDocument, fetchPreviewBlob, buildAgentCardName, belongsToSameAgentWorkspace, resolveManagedAgentName, readFileAsDataUrl, fetchAllUsers, todayDateInputValue, createAgreementFormState, isAgreementFullySigned, getAgreementLifecycleStatus, buildAgreementDocumentSelectionKey, buildAgreementDocumentRefs, buildAgreementKindLabel, pickContrastingStrokeColor } from '../utils/profileHelpers'
 
 const PROFILE_TABS = [
@@ -1076,77 +1077,9 @@ export default function ProfilesPage() {
     }
   }, [previewDocument])
 
-  const handlePreviewPrint = useCallback(async () => {
-    if (!previewDocument?.url || typeof window === 'undefined') return
-
-    let objectUrl = ''
-
-    try {
-      const blob = await fetchPreviewBlob(previewDocument.url)
-      objectUrl = window.URL.createObjectURL(blob)
-      const printWindow = window.open('', '_blank')
-      if (!printWindow) return
-
-      const escapedTitle = String(previewDocument.label || 'Document preview')
-        .replaceAll('&', '&amp;')
-        .replaceAll('<', '&lt;')
-        .replaceAll('>', '&gt;')
-      const previewScreenBackground = readCssCustomProperty('--preview-window-screen-bg') || 'Canvas'
-      const previewPaperBackground = readCssCustomProperty('--preview-window-paper-bg') || 'Canvas'
-
-      if (previewDocument.isImage) {
-        printWindow.document.write(`
-          <!doctype html>
-          <html>
-            <head>
-              <title>${escapedTitle}</title>
-              <style>
-                html, body { margin: 0; background: ${previewScreenBackground}; }
-                body {
-                  display: flex;
-                  align-items: center;
-                  justify-content: center;
-                  min-height: 100vh;
-                }
-                img {
-                  max-width: 100%;
-                  max-height: 100vh;
-                  object-fit: contain;
-                }
-                @media print {
-                  html, body { background: ${previewPaperBackground}; }
-                }
-              </style>
-            </head>
-            <body>
-              <img src="${objectUrl}" alt="${escapedTitle}" onload="setTimeout(() => window.print(), 150)" />
-            </body>
-          </html>
-        `)
-        printWindow.document.close()
-      } else {
-        printWindow.location.href = objectUrl
-        window.setTimeout(() => {
-          try {
-            printWindow.focus()
-            printWindow.print()
-          } catch {}
-        }, 700)
-      }
-
-      window.setTimeout(() => {
-        if (objectUrl) window.URL.revokeObjectURL(objectUrl)
-      }, 60000)
-    } catch {
-      const fallbackWindow = window.open(previewDocument.url, '_blank')
-      if (!fallbackWindow) return
-      window.setTimeout(() => {
-        try {
-          fallbackWindow.focus()
-          fallbackWindow.print()
-        } catch {}
-      }, 700)
-    }
+  const handlePreviewPrint = useCallback(() => {
+    if (!previewDocument?.url) return
+    printDocumentSilently(previewDocument)
   }, [previewDocument])
 
   const handlePreviewWheel = useCallback((event) => {
@@ -2423,41 +2356,100 @@ export default function ProfilesPage() {
                 <h2 id="profile-doc-preview-title">{previewDocument.label}</h2>
                 <p className="muted-text">{previewDocument.subtitle}</p>
               </div>
-              <div className="document-preview-actions">
-                {previewDocument.hidePrimaryActions ? null : (
-                  <>
-                    <button
-                      type="button"
-                      className="btn-secondary document-preview-download"
-                      onClick={handlePreviewDownload}
-                    >
-                      Download
-                    </button>
-                    <button type="button" className="btn-secondary" onClick={handlePreviewPrint}>
-                      Print
-                    </button>
-                  </>
-                )}
-                {previewDocument.isImage ? (
-                  <>
-                    <button type="button" className="btn-secondary" onClick={handlePreviewZoomOut} disabled={previewZoom <= 1}>
-                      Zoom out
-                    </button>
-                    <button type="button" className="btn-secondary" onClick={handlePreviewZoomIn} disabled={previewZoom >= 4}>
-                      Zoom in
-                    </button>
-                    <button
-                      type="button"
-                      className="btn-secondary"
-                      onClick={handlePreviewReset}
-                      disabled={previewZoom === 1 && previewOffset.x === 0 && previewOffset.y === 0}
-                    >
-                      Reset
-                    </button>
-                  </>
-                ) : null}
-                <button type="button" className="btn-secondary" onClick={closeDocumentPreview}>
-                  Close
+              <div className="document-preview-header-right">
+                <div className="document-preview-actions">
+                  {previewDocument.hidePrimaryActions ? null : (
+                    <>
+                      <button
+                        type="button"
+                        className="btn-secondary document-preview-download"
+                        onClick={handlePreviewDownload}
+                        title="Download document"
+                      >
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                          <polyline points="7 10 12 15 17 10" />
+                          <line x1="12" y1="15" x2="12" y2="3" />
+                        </svg>
+                        <span>Download</span>
+                      </button>
+                      <button
+                        type="button"
+                        className="btn-secondary document-preview-print"
+                        onClick={handlePreviewPrint}
+                        title="Print document"
+                      >
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                          <polyline points="6 9 6 2 18 2 18 9" />
+                          <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" />
+                          <rect x="6" y="14" width="12" height="8" />
+                        </svg>
+                        <span>Print</span>
+                      </button>
+                    </>
+                  )}
+                  {previewDocument.isImage ? (
+                    <>
+                      <div className="document-preview-divider" aria-hidden="true" />
+                      <button
+                        type="button"
+                        className="btn-secondary"
+                        onClick={handlePreviewZoomOut}
+                        disabled={previewZoom <= 1}
+                        title="Zoom out"
+                      >
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                          <circle cx="11" cy="11" r="8" />
+                          <line x1="21" y1="21" x2="16.65" y2="16.65" />
+                          <line x1="8" y1="11" x2="14" y2="11" />
+                        </svg>
+                        <span>Zoom out</span>
+                      </button>
+                      <span className="document-preview-zoom-badge" aria-label="Current zoom level">
+                        {Math.round((previewZoom || 1) * 100)}%
+                      </span>
+                      <button
+                        type="button"
+                        className="btn-secondary"
+                        onClick={handlePreviewZoomIn}
+                        disabled={previewZoom >= 4}
+                        title="Zoom in"
+                      >
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                          <circle cx="11" cy="11" r="8" />
+                          <line x1="21" y1="21" x2="16.65" y2="16.65" />
+                          <line x1="11" y1="8" x2="11" y2="14" />
+                          <line x1="8" y1="11" x2="14" y2="11" />
+                        </svg>
+                        <span>Zoom in</span>
+                      </button>
+                      <button
+                        type="button"
+                        className="btn-secondary"
+                        onClick={handlePreviewReset}
+                        disabled={previewZoom === 1 && previewOffset.x === 0 && previewOffset.y === 0}
+                        title="Reset view"
+                      >
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                          <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
+                          <path d="M3 3v5h5" />
+                        </svg>
+                        <span>Reset</span>
+                      </button>
+                    </>
+                  ) : null}
+                </div>
+                <button
+                  type="button"
+                  className="btn-secondary document-preview-close-btn"
+                  onClick={closeDocumentPreview}
+                  aria-label="Close document preview"
+                  title="Close"
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                    <line x1="18" y1="6" x2="6" y2="18" />
+                    <line x1="6" y1="6" x2="18" y2="18" />
+                  </svg>
                 </button>
               </div>
             </div>
@@ -2479,9 +2471,10 @@ export default function ProfilesPage() {
                 />
               ) : previewDocument.isPdf ? (
                 <iframe
-                  src={previewDocument.url}
+                  src={previewDocument.url?.includes('#') ? previewDocument.url : `${previewDocument.url}#toolbar=0&navpanes=0`}
                   title={previewDocument.label}
                   className="document-preview-frame"
+                  scrolling="no"
                 />
               ) : (
                 <div className="employee-attachment-preview-file">

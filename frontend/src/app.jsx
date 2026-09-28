@@ -1,5 +1,5 @@
-import { lazy, Suspense } from 'react'
-import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
+import { lazy, Suspense, useEffect } from 'react'
+import { BrowserRouter, Navigate, Route, Routes, useLocation } from 'react-router-dom'
 import { AuthProvider } from './context/AuthContext'
 import { UiFeedbackProvider } from './context/UiFeedbackContext'
 import DashboardLayoutSidebar from './components/layout/DashboardLayoutSidebar'
@@ -40,9 +40,29 @@ function SuspenseFallback() {
   )
 }
 
+function ScrollToTop() {
+  const { pathname, search } = useLocation()
+
+  useEffect(() => {
+    window.scrollTo({ top: 0, left: 0, behavior: 'instant' })
+    if (document.documentElement) document.documentElement.scrollTo({ top: 0, left: 0, behavior: 'instant' })
+    if (document.body) document.body.scrollTo({ top: 0, left: 0, behavior: 'instant' })
+
+    const scrollContainers = document.querySelectorAll(
+      '.dashboard-content, .employee-modal-content, .employee-registration-page, .employee-modal-scroll'
+    )
+    scrollContainers.forEach((el) => {
+      el.scrollTo({ top: 0, left: 0, behavior: 'instant' })
+    })
+  }, [pathname, search])
+
+  return null
+}
+
 function AppRoutes() {
   return (
     <BrowserRouter>
+      <ScrollToTop />
       <Suspense fallback={<SuspenseFallback />}>
         <Routes>
           <Route path="/" element={<Navigate to="/dashboard" replace />} />
@@ -61,7 +81,7 @@ function AppRoutes() {
           >
             <Route index element={<DashboardPage />} />
             <Route path="notifications" element={<NotificationsPage />} />
-            <Route path="employees" element={<EmployeesLayout />}>
+            <Route path="candidates" element={<EmployeesLayout />}>
               <Route index element={<EmployeesListPage />} />
               <Route path="list" element={<EmployeesListPage />} />
               <Route path="register" element={<EmployeeRegisterPage />} />
@@ -70,6 +90,13 @@ function AppRoutes() {
               <Route path="employed" element={<EmployedPage />} />
               <Route path="returned" element={<ReturnedPage />} />
             </Route>
+            <Route path="employees" element={<Navigate to="/dashboard/candidates" replace />} />
+            <Route path="employees/list" element={<Navigate to="/dashboard/candidates/list" replace />} />
+            <Route path="employees/register" element={<Navigate to="/dashboard/candidates/register" replace />} />
+            <Route path="employees/selected" element={<Navigate to="/dashboard/candidates/selected" replace />} />
+            <Route path="employees/under-process" element={<Navigate to="/dashboard/candidates/under-process" replace />} />
+            <Route path="employees/employed" element={<Navigate to="/dashboard/candidates/employed" replace />} />
+            <Route path="employees/returned" element={<Navigate to="/dashboard/candidates/returned" replace />} />
             <Route path="travel" element={<TravelPage />} />
             <Route path="chats" element={<ChatsPage />} />
             <Route path="compliances" element={<CompliancesPage />} />

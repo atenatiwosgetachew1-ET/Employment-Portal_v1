@@ -32,6 +32,7 @@ import {
   ALLOWED_ATTACHMENT_MIME_TYPES,
   ALLOWED_ATTACHMENT_EXTENSIONS,
   REGISTRATION_TEMPLATE_STORAGE_KEY,
+  LEGACY_REGISTRATION_TEMPLATE_STORAGE_KEY,
   REGISTRATION_DRAFT_DB_NAME,
   REGISTRATION_DRAFT_DB_VERSION,
   REGISTRATION_DRAFT_STORE,
@@ -63,13 +64,14 @@ import {
   errorMessage,
   readRegistrationDraft,
   writeRegistrationDraft,
-  isImageDocument,
-  isPdfDocumentUrl
+  isPdfDocumentUrl,
+  printDocumentSilently
 } from '../../utils/employeeHelpers'
 import EmployeeDocumentPreview from '../../components/employees/EmployeeDocumentPreview'
 
 import EmployeeCameraModal from '../../components/employees/EmployeeCameraModal'
 import EmployeeScanImportModal from '../../components/employees/EmployeeScanImportModal'
+import EmployeeBatchRegistrationModal from '../../components/employees/EmployeeBatchRegistrationModal'
 
 const MEDICAL_ATTACHMENT_KEYS = ['medical_result', 'certificate_of_competency', 'insurance']
 const LEGAL_ATTACHMENT_KEYS = ['visa', 'contract', 'clearance', 'employee_id', 'contact_person_id']
@@ -333,12 +335,35 @@ export default function EmployeeRegisterPage() {
   const [activeStep, setActiveStep] = useState(0)
   const [openSummarySections, setOpenSummarySections] = useState({
     identity: false,
-    application: false,
     profile: false,
     contact: false,
-    notes: false,
+    application: false,
     attachments: false
   })
+
+  const areAllSummarySectionsOpen = useMemo(() => {
+    return Object.values(openSummarySections).every(Boolean)
+  }, [openSummarySections])
+
+  const toggleAllSummarySections = useCallback(() => {
+    setOpenSummarySections((prev) => {
+      const willOpen = !Object.values(prev).every(Boolean)
+      return {
+        identity: willOpen,
+        profile: willOpen,
+        contact: willOpen,
+        application: willOpen,
+        attachments: willOpen
+      }
+    })
+  }, [])
+
+  const toggleSummarySection = useCallback((sectionKey) => {
+    setOpenSummarySections((prev) => ({
+      ...prev,
+      [sectionKey]: !prev[sectionKey]
+    }))
+  }, [])
   const [dragOverAttachmentKey, setDragOverAttachmentKey] = useState('')
   const [invalidStepErrors, setInvalidStepErrors] = useState({})
   const [attemptedRegistrationSteps, setAttemptedRegistrationSteps] = useState({})
@@ -441,9 +466,7 @@ export default function EmployeeRegisterPage() {
 
   const handlePreviewPrint = useCallback(() => {
     if (!previewDocument?.url) return
-    const win = window.open(previewDocument.url, '_blank')
-    win?.focus()
-    win?.print?.()
+    printDocumentSilently(previewDocument)
   }, [previewDocument])
 
   const handlePreviewZoomIn = useCallback(() => {
@@ -476,11 +499,37 @@ export default function EmployeeRegisterPage() {
     setPreviewDragging(true)
   }, [previewOffset, previewZoom])
 
+  useEffect(() => {
+    if (!previewDragging) return undefined
 
-  const [scanImportModalOpen, setScanImportModalOpen] = useState(false)
+    const handlePointerMove = (event) => {
+      const { x, y, originX, originY } = previewDragStartRef.current
+      setPreviewOffset({
+        x: originX + (event.clientX - x),
+        y: originY + (event.clientY - y)
+      })
+    }
+
+    const handlePointerUp = () => {
+      setPreviewDragging(false)
+    }
+
+    window.addEventListener('mousemove', handlePointerMove)
+    window.addEventListener('mouseup', handlePointerUp)
+
+    return () => {
+      window.removeEventListener('mousemove', handlePointerMove)
+      window.removeEventListener('mouseup', handlePointerUp)
+    }
+  }, [previewDragging])
+
+
+  const [scanImportModalOpen, setScanImportModalOpen] = useState(() => !editId)
+  const [batchModalOpen, setBatchModalOpen] = useState(false)
   const [cameraCaptureModalOpen, setCameraCaptureModalOpen] = useState(false)
   const [cameraStream, setCameraStream] = useState(null)
   const [cameraError, setCameraError] = useState('')
+  const [cameraLoading, setCameraLoading] = useState(false)
   const [uploadDocumentModalOpen, setUploadDocumentModalOpen] = useState(false)
   const [uploadDraftFile, setUploadDraftFile] = useState(null)
   const [uploadDocumentPurpose, setUploadDocumentPurpose] = useState('ocr')
@@ -513,6 +562,8 @@ export default function EmployeeRegisterPage() {
   const [scanAttachmentOffset, setScanAttachmentOffset] = useState({ x: 0, y: 0 })
   const [scanAttachmentDragging, setScanAttachmentDragging] = useState(false)
   const [scanAttachmentError, setScanAttachmentError] = useState('')
+  const [scanAttachmentPdfFit, setScanAttachmentPdfFit] = useState('FitH')
+  const [scanAttachmentPdfZoom, setScanAttachmentPdfZoom] = useState(100)
 
   const scanUploadInputRef = useRef(null)
   const scanCameraVideoRef = useRef(null)
@@ -520,7 +571,20 @@ export default function EmployeeRegisterPage() {
   const scanCameraStreamRef = useRef(null)
   const scanCameraRequestRef = useRef(0)
   const scanAttachmentFrameRef = useRef(null)
+  const scanAttachmentImgRef = useRef(null)
   const scanAttachmentDragRef = useRef({ startX: 0, startY: 0, originX: 0, originY: 0 })
+  const scanAttachmentZoomRef = useRef(1)
+  const scanAttachmentOffsetRef = useRef({ x: 0, y: 0 })
+  const scanAttachmentRotationRef = useRef(0)
+  const scanAttachmentFlipXRef = useRef(false)
+  const scanAttachmentFlipYRef = useRef(false)
+  const scanAttachmentZoomCommitTimeoutRef = useRef(null)
+
+  scanAttachmentZoomRef.current = scanAttachmentZoom
+  scanAttachmentOffsetRef.current = scanAttachmentOffset
+  scanAttachmentRotationRef.current = scanAttachmentRotation
+  scanAttachmentFlipXRef.current = scanAttachmentFlipX
+  scanAttachmentFlipYRef.current = scanAttachmentFlipY
 
   const canManageEmployees = Boolean(user?.feature_flags?.employees_enabled)
   const readOnly = Boolean(user?.is_read_only || user?.is_suspended)
@@ -528,7 +592,7 @@ export default function EmployeeRegisterPage() {
   const canEditEmployeeRecords = !isAgentSideUser
   const age = computeAge(form.date_of_birth)
   const ageRestrictionError = age !== '' && age < MINIMUM_EMPLOYEE_AGE
-    ? ('Employee must be at least ' + MINIMUM_EMPLOYEE_AGE + ' years old.')
+    ? ('Candidate must be at least ' + MINIMUM_EMPLOYEE_AGE + ' years old.')
     : ''
 
   const completedSteps = useMemo(() => {
@@ -586,6 +650,30 @@ export default function EmployeeRegisterPage() {
     loadFormOptions()
   }, [loadFormOptions])
 
+  // Auto-scroll to top whenever the active wizard step changes
+  useEffect(() => {
+    const behavior = 'smooth'
+    window.scrollTo({ top: 0, left: 0, behavior })
+    if (document.documentElement) document.documentElement.scrollTo({ top: 0, left: 0, behavior })
+    if (document.body) document.body.scrollTo({ top: 0, left: 0, behavior })
+
+    const scrollContainers = document.querySelectorAll(
+      '.dashboard-content, .employee-modal-content, .employee-registration-page, .employee-modal-scroll'
+    )
+    scrollContainers.forEach((el) => {
+      el.scrollTo({ top: 0, left: 0, behavior })
+    })
+  }, [activeStep])
+ 
+  // Automatically present the Document Scan / Upload modal on initial page load for new candidate registration
+  const hasAutoOpenedScanRef = useRef(false)
+  useEffect(() => {
+    if (!editId && !hasAutoOpenedScanRef.current) {
+      hasAutoOpenedScanRef.current = true
+      setScanImportModalOpen(true)
+    }
+  }, [editId])
+
   // Load employee for editing if editId is present
   useEffect(() => {
     if (!editId) return
@@ -606,7 +694,7 @@ export default function EmployeeRegisterPage() {
         setAttachmentFiles({})
       })
       .catch((err) => {
-        if (!isCancelled) setModalError(err.message || 'Could not load employee for editing')
+        if (!isCancelled) setModalError(err.message || 'Could not load candidate for editing')
       })
     return () => {
       isCancelled = true
@@ -635,7 +723,8 @@ export default function EmployeeRegisterPage() {
           }
         }
         try {
-          const rawTemplate = window.localStorage.getItem(REGISTRATION_TEMPLATE_STORAGE_KEY)
+          const rawTemplate = window.localStorage.getItem(REGISTRATION_TEMPLATE_STORAGE_KEY) ||
+            window.localStorage.getItem(LEGACY_REGISTRATION_TEMPLATE_STORAGE_KEY)
           if (rawTemplate) {
             setSavedTemplate(applyRegistrationTemplate(JSON.parse(rawTemplate)))
           }
@@ -669,6 +758,14 @@ export default function EmployeeRegisterPage() {
   }, [modalNotice, showToast])
 
   useEffect(() => {
+    if (!modalNotice) return
+    const timer = window.setTimeout(() => {
+      setModalNotice('')
+    }, 3000)
+    return () => window.clearTimeout(timer)
+  }, [modalNotice])
+
+  useEffect(() => {
     if (modalError) showToast(modalError, { tone: 'danger', title: 'Action failed' })
   }, [modalError, showToast])
 
@@ -697,6 +794,7 @@ export default function EmployeeRegisterPage() {
     stopCameraCapture()
     setCameraCaptureModalOpen(false)
     setCameraError('')
+    setCameraLoading(false)
   }, [stopCameraCapture])
 
   useEffect(() => () => {
@@ -742,7 +840,8 @@ export default function EmployeeRegisterPage() {
   useEffect(() => {
     if (typeof window === 'undefined') return
     try {
-      const rawTemplate = window.localStorage.getItem(REGISTRATION_TEMPLATE_STORAGE_KEY)
+      const rawTemplate = window.localStorage.getItem(REGISTRATION_TEMPLATE_STORAGE_KEY) ||
+        window.localStorage.getItem(LEGACY_REGISTRATION_TEMPLATE_STORAGE_KEY)
       if (!rawTemplate) return
       setSavedTemplate(applyRegistrationTemplate(JSON.parse(rawTemplate)))
     } catch {
@@ -821,6 +920,20 @@ export default function EmployeeRegisterPage() {
   const scanAttachmentSourceFile = scanAttachmentSourceMode === 'upload' ? attachmentStageFile : ocrImportFile
   const scanAttachmentSourceFileName = scanAttachmentSourceMode === 'upload' ? attachmentStageFileName : ocrImportFileName
   const scanAttachmentSourcePreviewUrl = scanAttachmentSourceMode === 'upload' ? attachmentStagePreviewUrl : ocrImportPreviewUrl
+  const scanAttachmentPdfUrl = useMemo(() => {
+    if (!scanAttachmentSourcePreviewUrl) return ''
+    const baseUrl = scanAttachmentSourcePreviewUrl.split('#')[0]
+    const params = ['toolbar=0', 'navpanes=0']
+    if (scanAttachmentPdfFit === 'Fit') {
+      params.push('view=Fit')
+    } else if (scanAttachmentPdfFit === 'FitH') {
+      params.push('view=FitH')
+    }
+    if (scanAttachmentPdfZoom !== 100) {
+      params.push(`zoom=${scanAttachmentPdfZoom}`)
+    }
+    return `${baseUrl}#${params.join('&')}`
+  }, [scanAttachmentSourcePreviewUrl, scanAttachmentPdfFit, scanAttachmentPdfZoom])
 
   const clearScannedDocument = useCallback(() => {
     setOcrImportSource('')
@@ -939,9 +1052,14 @@ export default function EmployeeRegisterPage() {
     const handlePortalSaveTemplate = () => {
       handleSaveTemplate()
     }
+    const handlePortalBatchRegistration = () => {
+      setBatchModalOpen(true)
+    }
     window.addEventListener('portal:save-registration-template', handlePortalSaveTemplate)
+    window.addEventListener('portal:open-batch-registration', handlePortalBatchRegistration)
     return () => {
       window.removeEventListener('portal:save-registration-template', handlePortalSaveTemplate)
+      window.removeEventListener('portal:open-batch-registration', handlePortalBatchRegistration)
     }
   }, [handleSaveTemplate])
 
@@ -1062,18 +1180,8 @@ export default function EmployeeRegisterPage() {
     closeUploadDocumentModal()
     if (purpose === 'attachment') {
       handleAttachmentStagePick(selectedFile)
-      setTimeout(() => {
-        setScanAttachmentError('')
-        setScanAttachmentKeys([ATTACHMENT_FIELDS[0].key])
-        setScanAttachmentRotation(0)
-        setScanAttachmentFlipX(false)
-        setScanAttachmentFlipY(false)
-        setScanAttachmentZoom(1)
-        setScanAttachmentOffset({ x: 0, y: 0 })
-        setScanAttachmentDragging(false)
-        setScanAttachmentModalOpen(true)
-        setModalNotice('Generic document uploaded. Adjust it and attach the visible area to the selected attachment slots.')
-      }, 0)
+      openScanAttachmentModal('upload', selectedFile)
+      setModalNotice('Document uploaded. Adjust it and attach the visible area to the selected attachment slots.')
       return
     }
     handleOcrDocumentPick('upload', selectedFile)
@@ -1144,8 +1252,10 @@ export default function EmployeeRegisterPage() {
     scanCameraRequestRef.current = requestId
     setScanImportModalOpen(false)
     setCameraError('')
+    setCameraLoading(true)
 
     if (!navigator.mediaDevices?.getUserMedia) {
+      setCameraLoading(false)
       setCameraCaptureModalOpen(true)
       setCameraError('This browser does not support direct camera capture. Use scanner or upload instead.')
       return
@@ -1168,9 +1278,23 @@ export default function EmployeeRegisterPage() {
       }
       scanCameraStreamRef.current = stream
       setCameraStream(stream)
+      setCameraError('')
     } catch (err) {
+      if (scanCameraRequestRef.current !== requestId) return
       setCameraCaptureModalOpen(true)
-      setCameraError(err?.message || 'Could not access the camera. Check browser permissions and try again.')
+      const isDenied =
+        err?.name === 'NotAllowedError' ||
+        err?.name === 'PermissionDeniedError' ||
+        /permission|denied|dismissed/i.test(err?.message || '')
+      if (isDenied) {
+        setCameraError('Permission denied. Please allow camera permissions in your browser to take a photo.')
+      } else {
+        setCameraError(err?.message || 'Could not access the camera. Check browser permissions and try again.')
+      }
+    } finally {
+      if (scanCameraRequestRef.current === requestId) {
+        setCameraLoading(false)
+      }
     }
   }
 
@@ -1261,37 +1385,60 @@ export default function EmployeeRegisterPage() {
     setAttachmentStagePreviewUrl(typeof URL !== 'undefined' ? URL.createObjectURL(file) : '')
   }
 
-  const handleAutoFillFromScan = async () => {
+  const handleAnalyzeAndAutoFill = async () => {
     if (!ocrImportFile) {
       setModalNotice('')
       setModalError('Scan, capture, or upload a document from the first step before using auto fill.')
       setActiveStep(0)
       return
     }
+    setModalError('')
+    setOcrBusy(true)
+
     const cacheKey = buildOcrCacheKey(ocrImportFile)
     const hasCachedResult = ocrCachedResult?.cacheKey === cacheKey
+    let result = ocrCachedResult
+    let newlyAnalyzed = false
+
     if (!hasCachedResult) {
-      setModalNotice('')
-      setModalError('Analyze the scanned document first, then use Auto fill for the current step.')
-      return
+      setModalNotice(`Analyzing ${ocrImportFileName || 'the scanned document'} and filling matching fields...`)
+      try {
+        result = await employeesService.extractEmployeeDocumentFields(ocrImportFile, 0, formOptions)
+        setOcrCachedResult({ ...result, cacheKey })
+        newlyAnalyzed = true
+      } catch (err) {
+        setOcrBusy(false)
+        setModalNotice('')
+        const rawMessage = err?.message || 'OCR could not read this scanned document.'
+        const message = normalizeOcrStatusMessage(rawMessage)
+        setModalError(message)
+        if (rawMessage.includes('Backend OCR is not configured yet') || rawMessage.toLowerCase().includes('ocr service is not reachable')) {
+          setOcrStatus({ ready: false, message })
+          await openOcrSetupModal()
+        }
+        return
+      }
     }
-    setModalError('')
-    setModalNotice(
-      `Using the analyzed OCR result for ${REGISTRATION_STEPS[activeStep].label.toLowerCase()} fields...`
-    )
 
     try {
-      const result = ocrCachedResult
       const updatesByStep = result?.updatesByStep && typeof result.updatesByStep === 'object' ? result.updatesByStep : {}
+      const mappedFieldCount = Object.values(updatesByStep).reduce((count, value) => {
+        if (!value || typeof value !== 'object') return count
+        return count + Object.keys(value).length
+      }, 0)
+
       const updates = updatesByStep[String(activeStep)] && typeof updatesByStep[String(activeStep)] === 'object'
         ? updatesByStep[String(activeStep)]
         : result?.updates && typeof result.updates === 'object'
           ? result.updates
           : {}
       const updatedFields = Object.keys(updates)
+
       if (updatedFields.length === 0) {
         setModalNotice(
-          'OCR finished, but no matching fields were found for this step.'
+          mappedFieldCount > 0
+            ? `OCR analyzed document (${mappedFieldCount} total fields detected across steps), but no matching fields found for this step.`
+            : 'Analysis completed, but no matching registration fields were found in this document.'
         )
         return
       }
@@ -1301,72 +1448,36 @@ export default function EmployeeRegisterPage() {
         .map((field) => EMPLOYEE_OCR_FIELD_LABELS[field] || field.replace(/_/g, ' '))
         .slice(0, 5)
         .join(', ')
-      setModalNotice(
-        `OCR filled ${updatedFields.length} ${updatedFields.length === 1 ? 'field' : 'fields'} for ${REGISTRATION_STEPS[activeStep].label.toLowerCase()}: ` +
-        `${fieldLabels}${updatedFields.length > 5 ? ', ...' : ''}.`
-      )
+
+      const stepName = REGISTRATION_STEPS[activeStep]?.label?.toLowerCase() || 'current step'
+      if (newlyAnalyzed) {
+        setModalNotice(
+          `Analysis complete! Auto filled ${updatedFields.length} ${updatedFields.length === 1 ? 'field' : 'fields'} for ${stepName}: ` +
+          `${fieldLabels}${updatedFields.length > 5 ? ', ...' : ''}. (${mappedFieldCount} fields ready across steps)`
+        )
+      } else {
+        setModalNotice(
+          `Auto filled ${updatedFields.length} ${updatedFields.length === 1 ? 'field' : 'fields'} for ${stepName}: ` +
+          `${fieldLabels}${updatedFields.length > 5 ? ', ...' : ''}.`
+        )
+      }
     } catch (err) {
       setModalNotice('')
-      const rawMessage = err?.message || 'OCR could not read this scanned document.'
+      const rawMessage = err?.message || 'OCR could not apply extracted fields.'
       const message = normalizeOcrStatusMessage(rawMessage)
       setModalError(message)
-      if (rawMessage.includes('Backend OCR is not configured yet') || rawMessage.toLowerCase().includes('ocr service is not reachable')) {
-        setOcrStatus({ ready: false, message })
-        await openOcrSetupModal()
-      }
-    }
-  }
-
-  const handleAnalyzeScan = async () => {
-    if (!ocrImportFile) {
-      setModalNotice('')
-      setModalError('Scan, capture, or upload a document from the first step before analyzing it.')
-      setActiveStep(0)
-      return
-    }
-    setModalError('')
-    setOcrBusy(true)
-    const cacheKey = buildOcrCacheKey(ocrImportFile)
-    const hasCachedResult = ocrCachedResult?.cacheKey === cacheKey
-    if (hasCachedResult) {
-      setModalNotice('This scanned document is already analyzed. Use Auto fill on any step to apply the detected fields.')
-      setOcrBusy(false)
-      return
-    }
-
-    setModalNotice(`Analyzing ${ocrImportFileName || 'the scanned document'} and preparing OCR matches for all registration steps...`)
-
-    try {
-      const result = await employeesService.extractEmployeeDocumentFields(ocrImportFile, 0, formOptions)
-      const updatesByStep = result?.updatesByStep && typeof result.updatesByStep === 'object' ? result.updatesByStep : {}
-      const mappedFieldCount = Object.values(updatesByStep).reduce((count, value) => {
-        if (!value || typeof value !== 'object') return count
-        return count + Object.keys(value).length
-      }, 0)
-      setOcrCachedResult({ ...result, cacheKey })
-      setModalNotice(
-        mappedFieldCount > 0
-          ? `Analysis completed. OCR found ${mappedFieldCount} mapped ${mappedFieldCount === 1 ? 'field' : 'fields'} across the registration steps.`
-          : 'Analysis completed, but no matching registration fields were found. You can still rescan or attach the document.'
-      )
-    } catch (err) {
-      setModalNotice('')
-      const rawMessage = err?.message || 'OCR could not read this scanned document.'
-      const message = normalizeOcrStatusMessage(rawMessage)
-      setModalError(message)
-      if (rawMessage.includes('Backend OCR is not configured yet') || rawMessage.toLowerCase().includes('ocr service is not reachable')) {
-        setOcrStatus({ ready: false, message })
-        await openOcrSetupModal()
-      }
     } finally {
       setOcrBusy(false)
     }
   }
 
-  const openScanAttachmentModal = (sourceMode = 'scan') => {
-    const selectedSourceFile = sourceMode === 'upload' ? attachmentStageFile : ocrImportFile
+  const handleAutoFillFromScan = handleAnalyzeAndAutoFill
+  const handleAnalyzeScan = handleAnalyzeAndAutoFill
+
+  const openScanAttachmentModal = (sourceMode = 'scan', explicitFile = null) => {
+    const selectedSourceFile = explicitFile || (sourceMode === 'upload' ? attachmentStageFile : ocrImportFile)
     const missingMessage = sourceMode === 'upload'
-      ? 'Upload a generic document before attaching it.'
+      ? 'Upload a document before attaching it.'
       : 'Select or analyze a scanned document from step 1 before attaching it.'
     if (!selectedSourceFile) {
       setModalNotice('')
@@ -1384,6 +1495,8 @@ export default function EmployeeRegisterPage() {
     setScanAttachmentDragging(false)
     setScanAttachmentError('')
     setModalError('')
+    setScanAttachmentPdfFit('FitH')
+    setScanAttachmentPdfZoom(100)
     setScanAttachmentModalOpen(true)
   }
 
@@ -1391,6 +1504,8 @@ export default function EmployeeRegisterPage() {
     setScanAttachmentModalOpen(false)
     setScanAttachmentDragging(false)
     setScanAttachmentError('')
+    setScanAttachmentPdfFit('FitH')
+    setScanAttachmentPdfZoom(100)
   }
 
   const handleScanAttachmentKeyToggle = (key) => {
@@ -1399,55 +1514,116 @@ export default function EmployeeRegisterPage() {
     )
   }
 
-  const handleScanAttachmentWheel = (event) => {
-    if (!scanAttachmentSourceFile?.type?.startsWith('image/')) return
-    event.preventDefault()
-    const frame = scanAttachmentFrameRef.current
-    if (!frame) return
-    const rect = frame.getBoundingClientRect()
-    const point = {
-      x: event.clientX - rect.left - rect.width / 2,
-      y: event.clientY - rect.top - rect.height / 2
-    }
-    setScanAttachmentZoom((prev) => {
-      const next = Math.min(5, Math.max(1, Number((prev + (event.deltaY < 0 ? 0.18 : -0.18)).toFixed(2))))
-      setScanAttachmentOffset((offset) => {
-        if (next === 1) return { x: 0, y: 0 }
-        const ratio = next / prev
-        return {
-          x: point.x - (point.x - offset.x) * ratio,
-          y: point.y - (point.y - offset.y) * ratio
-        }
-      })
-      return next
-    })
-  }
-
   useEffect(() => {
     const frame = scanAttachmentFrameRef.current
     if (!frame || !scanAttachmentModalOpen || !scanAttachmentSourceFile?.type?.startsWith('image/')) return undefined
-    const handleWheel = (event) => handleScanAttachmentWheel(event)
+
+    const handleWheel = (event) => {
+      event.preventDefault()
+      const img = scanAttachmentImgRef.current
+      if (!img) return
+
+      const rect = frame.getBoundingClientRect()
+      const cursorX = event.clientX - (rect.left + rect.width / 2)
+      const cursorY = event.clientY - (rect.top + rect.height / 2)
+
+      const curZoom = scanAttachmentZoomRef.current
+      const curOffset = scanAttachmentOffsetRef.current
+
+      const delta = -event.deltaY * (event.deltaMode === 1 ? 0.03 : event.deltaMode === 2 ? 0.6 : 0.0015)
+      const factor = Math.min(1.25, Math.max(0.8, Math.exp(delta)))
+
+      const nextZoom = Math.min(5, Math.max(1, Math.round(curZoom * factor * 1000) / 1000))
+      if (nextZoom === curZoom) return
+
+      let nextX = 0
+      let nextY = 0
+      if (nextZoom > 1) {
+        const ratio = nextZoom / curZoom
+        nextX = Math.round(cursorX - (cursorX - curOffset.x) * ratio)
+        nextY = Math.round(cursorY - (cursorY - curOffset.y) * ratio)
+      }
+
+      scanAttachmentZoomRef.current = nextZoom
+      scanAttachmentOffsetRef.current = { x: nextX, y: nextY }
+
+      img.style.transition = 'none'
+      img.style.transform = `translate(${nextX}px, ${nextY}px) rotate(${scanAttachmentRotationRef.current}deg) scale(${(scanAttachmentFlipXRef.current ? -1 : 1) * nextZoom}, ${(scanAttachmentFlipYRef.current ? -1 : 1) * nextZoom})`
+
+      if (scanAttachmentZoomCommitTimeoutRef.current) clearTimeout(scanAttachmentZoomCommitTimeoutRef.current)
+      scanAttachmentZoomCommitTimeoutRef.current = setTimeout(() => {
+        setScanAttachmentZoom(scanAttachmentZoomRef.current)
+        setScanAttachmentOffset(scanAttachmentOffsetRef.current)
+        if (scanAttachmentImgRef.current) {
+          scanAttachmentImgRef.current.style.transition = ''
+        }
+      }, 80)
+    }
+
     frame.addEventListener('wheel', handleWheel, { passive: false })
     return () => {
       frame.removeEventListener('wheel', handleWheel)
+      if (scanAttachmentZoomCommitTimeoutRef.current) clearTimeout(scanAttachmentZoomCommitTimeoutRef.current)
     }
-  }, [handleScanAttachmentWheel, scanAttachmentModalOpen, scanAttachmentSourceFile])
+  }, [scanAttachmentModalOpen, scanAttachmentSourceFile])
 
   const handleScanAttachmentPointerDown = (event) => {
-    if (!scanAttachmentSourceFile?.type?.startsWith('image/') || scanAttachmentZoom <= 1) return
+    if (event.button !== 0) return
+    if (!scanAttachmentSourceFile?.type?.startsWith('image/')) return
+    event.preventDefault()
     scanAttachmentDragRef.current = {
       startX: event.clientX,
       startY: event.clientY,
-      originX: scanAttachmentOffset.x,
-      originY: scanAttachmentOffset.y
+      originX: scanAttachmentOffsetRef.current.x,
+      originY: scanAttachmentOffsetRef.current.y
     }
     setScanAttachmentDragging(true)
   }
 
+  useEffect(() => {
+    if (!scanAttachmentDragging) return undefined
+
+    const handlePointerMove = (event) => {
+      const { startX, startY, originX, originY } = scanAttachmentDragRef.current
+      const newX = originX + (event.clientX - startX)
+      const newY = originY + (event.clientY - startY)
+      scanAttachmentOffsetRef.current = { x: newX, y: newY }
+
+      if (scanAttachmentImgRef.current) {
+        scanAttachmentImgRef.current.style.transition = 'none'
+        scanAttachmentImgRef.current.style.transform = `translate(${newX}px, ${newY}px) rotate(${scanAttachmentRotationRef.current}deg) scale(${(scanAttachmentFlipXRef.current ? -1 : 1) * scanAttachmentZoomRef.current}, ${(scanAttachmentFlipYRef.current ? -1 : 1) * scanAttachmentZoomRef.current})`
+      }
+    }
+
+    const handlePointerUp = () => {
+      setScanAttachmentDragging(false)
+      setScanAttachmentOffset(scanAttachmentOffsetRef.current)
+      if (scanAttachmentImgRef.current) {
+        scanAttachmentImgRef.current.style.transition = ''
+      }
+    }
+
+    window.addEventListener('mousemove', handlePointerMove, { passive: true })
+    window.addEventListener('mouseup', handlePointerUp)
+
+    return () => {
+      window.removeEventListener('mousemove', handlePointerMove)
+      window.removeEventListener('mouseup', handlePointerUp)
+    }
+  }, [scanAttachmentDragging])
+
   const resetScanAttachmentView = () => {
     setScanAttachmentZoom(1)
     setScanAttachmentOffset({ x: 0, y: 0 })
+    scanAttachmentZoomRef.current = 1
+    scanAttachmentOffsetRef.current = { x: 0, y: 0 }
     setScanAttachmentDragging(false)
+    setScanAttachmentPdfFit('FitH')
+    setScanAttachmentPdfZoom(100)
+    if (scanAttachmentImgRef.current) {
+      scanAttachmentImgRef.current.style.transform = ''
+      scanAttachmentImgRef.current.style.transition = ''
+    }
   }
 
   const buildAdjustedScanAttachment = async () => {
@@ -1568,7 +1744,7 @@ export default function EmployeeRegisterPage() {
 
   const submitRegistration = async () => {
     if (!canEditEmployeeRecords) {
-      setModalError('Only organization-side users can edit employee records.')
+      setModalError('Only organization-side users can edit candidate records.')
       return
     }
     const isEditing = Boolean(editingEmployeeId)
@@ -1607,11 +1783,11 @@ export default function EmployeeRegisterPage() {
       const employee = editingEmployeeId ? await employeesService.updateEmployee(editingEmployeeId, payload) : await employeesService.createEmployee(payload)
       await uploadPendingAttachments(employee.id)
       if (isEditing) {
-        setNotice('Employee updated successfully.')
-        navigate('/dashboard/employees/list')
+        setNotice('Candidate updated successfully.')
+        navigate('/dashboard/candidates/list')
         resetForm()
       } else {
-        setNotice('Employee registered successfully.')
+        setNotice('Candidate registered successfully.')
         setEditingEmployeeId(null)
         setForm(createFormFromTemplate())
         setAttachmentFiles({})
@@ -1619,12 +1795,12 @@ export default function EmployeeRegisterPage() {
         setExistingAttachmentDocs({})
         setActiveStep(0)
         clearScannedDocument()
-        navigate('/dashboard/employees/list')
+        navigate('/dashboard/candidates/list')
       }
       await loadFormOptions()
     } catch (err) {
       console.error('Employee registration failed:', err)
-      const nextError = errorMessage(err, 'Could not save employee')
+      const nextError = errorMessage(err, 'Could not save candidate')
       setModalError(nextError)
       const targetStep = getValidationStep(nextError)
       if (targetStep !== null) setActiveStep(targetStep)
@@ -2007,6 +2183,23 @@ export default function EmployeeRegisterPage() {
                 <div className="employee-registration-help">
                   <strong>Need help</strong>
                   <p className="muted-text">If you need further assistance, please contact the Organization Admin.</p>
+                  <a
+                    href="https://www.youtube.com/watch?v=fXQY4y6WPZQ"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="employee-registration-help-tutorial-link"
+                    title="Watch Candidate Registration Tutorial on YouTube"
+                  >
+                    <svg className="youtube-icon" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                      <path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/>
+                    </svg>
+                    <span>Registration Tutorial</span>
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" style={{ marginLeft: 'auto', opacity: 0.7 }}>
+                      <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+                      <polyline points="15 3 21 3 21 9" />
+                      <line x1="10" y1="14" x2="21" y2="3" />
+                    </svg>
+                  </a>
                   <div className="employee-registration-help-tooltip" role="tooltip" aria-label="OCR tips">
                     <p className="employee-modal-eyebrow">Tips for best results</p>
                     <ul className="employee-registration-help-tooltip-list">
@@ -2015,6 +2208,19 @@ export default function EmployeeRegisterPage() {
                       <li>Avoid shadows and glare</li>
                       <li>Supported: JPG, PNG, PDF</li>
                     </ul>
+                    <div className="employee-registration-tooltip-footer">
+                      <a
+                        href="https://www.youtube.com/watch?v=fXQY4y6WPZQ"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="employee-registration-tooltip-link"
+                      >
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" style={{ color: '#ff0000' }}>
+                          <path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/>
+                        </svg>
+                        <span>Watch video tutorial</span>
+                      </a>
+                    </div>
                   </div>
                 </div>
               </aside>
@@ -2023,7 +2229,7 @@ export default function EmployeeRegisterPage() {
                 {activeStep < 5 && (
                   <div className="employee-registration-top">
                     {activeStep === 0 ? (
-                      <div className="employee-scan-launch-card">
+                      <div className={`employee-scan-launch-card${ocrImportFileName ? ' has-selected-file' : ''}`}>
                         <div className="employee-scan-launch-icon-tile" aria-hidden="true">
                           <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                             <path d="M3 7V5a2 2 0 0 1 2-2h2" />
@@ -2055,32 +2261,32 @@ export default function EmployeeRegisterPage() {
                           ) : null}
                         </div>
                         <div className="employee-scan-launch-actions">
-                          <button type="button" className="btn-secondary employee-scan-launch-action" onClick={openScanImportModal}>
-                            {ocrImportFileName ? 'Change file' : 'Scan / Upload'}
-                          </button>
                           {ocrImportFileName ? (
                             <>
                               <button
                                 type="button"
-                                className="btn-secondary"
+                                className={`btn-primary employee-scan-btn-analyze${!hasAnalyzedScan && !ocrBusy ? ' is-ready-pulse' : ''}`}
                                 onClick={(event) => {
                                   event.stopPropagation()
-                                  handleAnalyzeScan()
+                                  handleAnalyzeAndAutoFill()
                                 }}
                                 disabled={ocrBusy}
                               >
-                                {ocrBusy ? 'Analyzing...' : 'Analyze'}
+                                {ocrBusy ? (
+                                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="is-spinning" style={{ overflow: 'visible' }} aria-hidden="true">
+                                    <path d="M21 12a9 9 0 1 1-6.219-8.56" />
+                                  </svg>
+                                ) : (
+                                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ overflow: 'visible' }} aria-hidden="true">
+                                    <path d="M12 3c0 4.5-3.5 8-8 8 4.5 0 8 3.5 8 8 0-4.5 3.5-8 8-8-4.5 0-8-3.5-8-8z" />
+                                    <path d="M19 3v4" />
+                                    <path d="M17 5h4" />
+                                  </svg>
+                                )}
+                                <span>{ocrBusy ? (hasAnalyzedScan ? 'Filling...' : 'Extracting & Filling...') : (hasAnalyzedScan ? 'Auto fill' : 'Extract & Fill')}</span>
                               </button>
-                              <button
-                                type="button"
-                                className="btn-secondary"
-                                onClick={(event) => {
-                                  event.stopPropagation()
-                                  handleAutoFillFromScan()
-                                }}
-                                disabled={ocrBusy || !hasAnalyzedScan}
-                              >
-                                Auto fill
+                              <button type="button" className="btn-secondary employee-scan-launch-action" onClick={openScanImportModal}>
+                                Change file
                               </button>
                               <button
                                 type="button"
@@ -2094,7 +2300,11 @@ export default function EmployeeRegisterPage() {
                                 Reset
                               </button>
                             </>
-                          ) : null}
+                          ) : (
+                            <button type="button" className="btn-secondary employee-scan-launch-action" onClick={openScanImportModal}>
+                              Scan / Upload
+                            </button>
+                          )}
                         </div>
                       </div>
                     ) : activeStep > 0 && activeStep < 4 ? (
@@ -2104,8 +2314,24 @@ export default function EmployeeRegisterPage() {
                           <span>{ocrImportFileName ? ocrImportFileName : 'No scanned document selected yet'}</span>
                         </div>
                         <div className="employee-scan-step-actions">
-                          <button type="button" className="btn-secondary" onClick={handleAutoFillFromScan} disabled={ocrBusy || !ocrImportFileName || !hasAnalyzedScan}>
-                            Auto fill
+                          <button
+                            type="button"
+                            className={hasAnalyzedScan ? 'btn-primary employee-scan-btn-analyze' : 'btn-secondary'}
+                            onClick={handleAutoFillFromScan}
+                            disabled={ocrBusy || !ocrImportFileName}
+                          >
+                            {ocrBusy ? (
+                              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="is-spinning" style={{ overflow: 'visible' }} aria-hidden="true">
+                                <path d="M21 12a9 9 0 1 1-6.219-8.56" />
+                              </svg>
+                            ) : (
+                              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ overflow: 'visible' }} aria-hidden="true">
+                                <path d="M12 3c0 4.5-3.5 8-8 8 4.5 0 8 3.5 8 8 0-4.5 3.5-8 8-8-4.5 0-8-3.5-8-8z" />
+                                <path d="M19 3v4" />
+                                <path d="M17 5h4" />
+                              </svg>
+                            )}
+                            <span>{ocrBusy ? 'Filling...' : 'Auto fill'}</span>
                           </button>
                         </div>
                       </div>
@@ -2117,10 +2343,10 @@ export default function EmployeeRegisterPage() {
                         </div>
                         <div className="employee-scan-step-actions">
                           <button type="button" className="btn-secondary" onClick={() => openScanAttachmentModal('scan')} disabled={!ocrImportFile}>
-                            Attach from scan
+                            Attach from Scan / Upload
                           </button>
                           <button type="button" className="btn-secondary" onClick={() => openScanAttachmentModal('upload')} disabled={!attachmentStageFile}>
-                            Attach from upload
+                            Attach from Document
                           </button>
                           <button type="button" className="btn-secondary" onClick={() => openUploadDocumentModal('attachment')}>
                             Upload generic document
@@ -2511,66 +2737,70 @@ export default function EmployeeRegisterPage() {
                         </button>
                       </div>
                     </div>
-                    {isDirectChannelsOpen && (
-                      <div className="registration-card-content">
-                        <div className="employee-step-grid">
-                          <label>Direct email <span className="optional-tag">Optional</span><input name="email" type="email" value={form.email} onChange={(event) => setForm((prev) => ({ ...prev, email: event.target.value }))} placeholder="name@example.com" /></label>
-                          <label>Secondary phone <span className="optional-tag">Optional</span><input name="phone" value={form.phone} onChange={(event) => setForm((prev) => ({ ...prev, phone: event.target.value }))} inputMode="tel" placeholder="+251900000003" /></label>
-                        </div>
+                    <div className={`registration-card-collapsible${isDirectChannelsOpen ? ' is-open' : ''}`}>
+                      <div className="registration-card-collapsible-inner">
+                        <div className="registration-card-content">
+                          <div className="employee-step-grid">
+                            <label>Direct email <span className="optional-tag">Optional</span><input name="email" type="email" value={form.email} onChange={(event) => setForm((prev) => ({ ...prev, email: event.target.value }))} placeholder="name@example.com" /></label>
+                            <label>Secondary phone <span className="optional-tag">Optional</span><input name="phone" value={form.phone} onChange={(event) => setForm((prev) => ({ ...prev, phone: event.target.value }))} inputMode="tel" placeholder="+251900000003" /></label>
+                          </div>
 
-                        <div className="registration-expander-wrap">
-                          <button
-                            type="button"
-                            className="registration-expander-toggle"
-                            onClick={() => toggleSection('references', hasReferencesData)}
-                          >
-                            <svg
-                              className={`registration-expander-chevron${isReferencesOpen ? ' is-open' : ''}`}
-                              width="14"
-                              height="14"
-                              viewBox="0 0 24 24"
-                              fill="none"
-                              stroke="currentColor"
-                              strokeWidth="2.5"
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              aria-hidden="true"
+                          <div className="registration-expander-wrap">
+                            <button
+                              type="button"
+                              className="registration-expander-toggle"
+                              onClick={() => toggleSection('references', hasReferencesData)}
                             >
-                              <polyline points="9 18 15 12 9 6" />
-                            </svg>
-                            <span>{isReferencesOpen ? 'Hide additional records' : 'Additional records (References, Internal notes)'}</span>
-                            {hasReferencesData && !isReferencesOpen && <span className="registration-expander-badge">Filled</span>}
-                          </button>
+                              <svg
+                                className={`registration-expander-chevron${isReferencesOpen ? ' is-open' : ''}`}
+                                width="14"
+                                height="14"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                strokeWidth="2.5"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                aria-hidden="true"
+                              >
+                                <polyline points="9 18 15 12 9 6" />
+                              </svg>
+                              <span>{isReferencesOpen ? 'Hide additional records' : 'Additional records (References, Internal notes)'}</span>
+                              {hasReferencesData && !isReferencesOpen && <span className="registration-expander-badge">Filled</span>}
+                            </button>
 
-                          {isReferencesOpen && (
-                            <div className="employee-step-grid registration-expanded-grid">
-                              <label className="employee-span-two">
-                                References <span className="optional-tag">Optional</span>
-                                <textarea
-                                  id="reg-field-references"
-                                  name="references"
-                                  value={form.references}
-                                  onChange={(event) => setForm((prev) => ({ ...prev, references: event.target.value }))}
-                                  rows={3}
-                                  placeholder="Name, relationship, and contact numbers of references..."
-                                />
-                              </label>
-                              <label className="employee-span-two">
-                                Internal registration notes <span className="optional-tag">Optional</span>
-                                <textarea
-                                  id="reg-field-notes"
-                                  name="notes"
-                                  value={form.notes}
-                                  onChange={(event) => setForm((prev) => ({ ...prev, notes: event.target.value }))}
-                                  rows={3}
-                                  placeholder="Internal administrative notes..."
-                                />
-                              </label>
+                            <div className={`registration-expander-collapsible${isReferencesOpen ? ' is-open' : ''}`}>
+                              <div className="registration-card-collapsible-inner">
+                                <div className="employee-step-grid registration-expanded-grid">
+                                  <label className="employee-span-two">
+                                    References <span className="optional-tag">Optional</span>
+                                    <textarea
+                                      id="reg-field-references"
+                                      name="references"
+                                      value={form.references}
+                                      onChange={(event) => setForm((prev) => ({ ...prev, references: event.target.value }))}
+                                      rows={3}
+                                      placeholder="Name, relationship, and contact numbers of references..."
+                                    />
+                                  </label>
+                                  <label className="employee-span-two">
+                                    Internal registration notes <span className="optional-tag">Optional</span>
+                                    <textarea
+                                      id="reg-field-notes"
+                                      name="notes"
+                                      value={form.notes}
+                                      onChange={(event) => setForm((prev) => ({ ...prev, notes: event.target.value }))}
+                                      rows={3}
+                                      placeholder="Internal administrative notes..."
+                                    />
+                                  </label>
+                                </div>
+                              </div>
                             </div>
-                          )}
+                          </div>
                         </div>
                       </div>
-                    )}
+                    </div>
                   </div>
                 </div>
               ) : null}
@@ -2768,31 +2998,33 @@ export default function EmployeeRegisterPage() {
                         </button>
                       </div>
                     </div>
-                    {isOverseasExperienceOpen && (
-                      <div className="registration-card-content">
-                        <div className="experience-list">
-                          {form.experiences.map((item, index) => (
-                            <div key={`${index}-${item.country || 'exp'}`} className="experience-row">
-                              <select name={`experience_country_${index}`} value={item.country} onChange={(event) => handleExperienceChange(index, 'country', event.target.value)}>
-                                <option value="">Select destination country</option>
-                                {EXPERIENCE_COUNTRIES.map((country) => <option key={country} value={country}>{country}</option>)}
-                              </select>
-                              <input name={`experience_years_${index}`} type="number" min="0" value={item.years} onChange={(event) => handleExperienceChange(index, 'years', event.target.value)} placeholder="Years of exp" />
-                              {form.experiences.length > 1 ? (
-                                <button type="button" className="btn-secondary" onClick={() => setForm((prev) => ({ ...prev, experiences: prev.experiences.filter((_, itemIndex) => itemIndex !== index) }))}>
-                                  Remove
-                                </button>
-                              ) : null}
+                    <div className={`registration-card-collapsible${isOverseasExperienceOpen ? ' is-open' : ''}`}>
+                      <div className="registration-card-collapsible-inner">
+                        <div className="registration-card-content">
+                          <div className="experience-list">
+                            {form.experiences.map((item, index) => (
+                              <div key={`${index}-${item.country || 'exp'}`} className="experience-row">
+                                <select name={`experience_country_${index}`} value={item.country} onChange={(event) => handleExperienceChange(index, 'country', event.target.value)}>
+                                  <option value="">Select destination country</option>
+                                  {EXPERIENCE_COUNTRIES.map((country) => <option key={country} value={country}>{country}</option>)}
+                                </select>
+                                <input name={`experience_years_${index}`} type="number" min="0" value={item.years} onChange={(event) => handleExperienceChange(index, 'years', event.target.value)} placeholder="Years of exp" />
+                                {form.experiences.length > 1 ? (
+                                  <button type="button" className="btn-secondary" onClick={() => setForm((prev) => ({ ...prev, experiences: prev.experiences.filter((_, itemIndex) => itemIndex !== index) }))}>
+                                    Remove
+                                  </button>
+                                ) : null}
+                              </div>
+                            ))}
+                            <div>
+                              <button type="button" className="btn-secondary" onClick={() => setForm((prev) => ({ ...prev, experiences: [...prev.experiences, { ...emptyExperience }] }))}>
+                                + Add another experience
+                              </button>
                             </div>
-                          ))}
-                          <div>
-                            <button type="button" className="btn-secondary" onClick={() => setForm((prev) => ({ ...prev, experiences: [...prev.experiences, { ...emptyExperience }] }))}>
-                              + Add another experience
-                            </button>
                           </div>
                         </div>
                       </div>
-                    )}
+                    </div>
                   </div>
                 </div>
               ) : null}
@@ -2981,10 +3213,18 @@ export default function EmployeeRegisterPage() {
                                   type="button"
                                   className="doc-card-btn doc-card-btn--preview"
                                   onClick={() => {
+                                    const isPdfAttachment = Boolean(
+                                      attachedFile?.type === 'application/pdf' ||
+                                      (!attachedFile && typeof existingUrl === 'string' && existingUrl.match(/\.pdf(\?|#|$)/i))
+                                    )
                                     openDocumentPreview({
                                       url: previewUrl,
                                       name: fileLabel,
-                                      type: attachedFile?.type || ''
+                                      label: isCustomOption ? (attachmentLabels[attachment.key] || attachment.label) : attachment.label,
+                                      subtitle: fileLabel,
+                                      type: attachedFile?.type || (isPdfAttachment ? 'application/pdf' : isImageAttachment ? 'image/jpeg' : ''),
+                                      isImage: isImageAttachment,
+                                      isPdf: isPdfAttachment
                                     })
                                   }}
                                   title="Preview document"
@@ -3175,8 +3415,9 @@ export default function EmployeeRegisterPage() {
                           <p className="muted-text employee-step-note doc-section-subtitle">
                             Attach available medical records, contracts, visas, tickets, or custom files. Expiry dates can stay empty unless the file is attached.
                           </p>
-                          {isOptionalDocsOpen && (
-                            <div className="doc-section-content">
+                          <div className={`registration-card-collapsible${isOptionalDocsOpen ? ' is-open' : ''}`}>
+                            <div className="registration-card-collapsible-inner">
+                              <div className="doc-section-content">
 
                           {/* Category 1: Medical & Competency */}
                           <div className="registration-expander-wrap">
@@ -3206,11 +3447,13 @@ export default function EmployeeRegisterPage() {
                                 </span>
                               )}
                             </button>
-                            {isMedicalOpen && (
-                              <div className="doc-optional-grid">
-                                {MEDICAL_ATTACHMENT_FIELDS.map((attachment) => renderDocUploadCard(attachment, false))}
+                            <div className={`registration-expander-collapsible${isMedicalOpen ? ' is-open' : ''}`}>
+                              <div className="registration-card-collapsible-inner">
+                                <div className="doc-optional-grid">
+                                  {MEDICAL_ATTACHMENT_FIELDS.map((attachment) => renderDocUploadCard(attachment, false))}
+                                </div>
                               </div>
-                            )}
+                            </div>
                           </div>
 
                           {/* Category 2: Legal & Employment */}
@@ -3234,18 +3477,20 @@ export default function EmployeeRegisterPage() {
                               >
                                 <polyline points="9 18 15 12 9 6" />
                               </svg>
-                              <span>{isLegalOpen ? 'Hide Legal & Employment' : 'Legal & Employment (Visa, Contract, Clearance, Employee ID, Contact person ID)'}</span>
+                              <span>{isLegalOpen ? 'Hide Legal & Employment' : 'Legal & Employment (Visa, Contract, Clearance, Candidate ID, Contact person ID)'}</span>
                               {hasLegalData && !isLegalOpen && (
                                 <span className="registration-expander-badge">
                                   {legalFilled > 0 ? `Filled (${legalFilled}/${LEGAL_ATTACHMENT_FIELDS.length})` : 'Filled'}
                                 </span>
                               )}
                             </button>
-                            {isLegalOpen && (
-                              <div className="doc-optional-grid">
-                                {LEGAL_ATTACHMENT_FIELDS.map((attachment) => renderDocUploadCard(attachment, false))}
+                            <div className={`registration-expander-collapsible${isLegalOpen ? ' is-open' : ''}`}>
+                              <div className="registration-card-collapsible-inner">
+                                <div className="doc-optional-grid">
+                                  {LEGAL_ATTACHMENT_FIELDS.map((attachment) => renderDocUploadCard(attachment, false))}
+                                </div>
                               </div>
-                            )}
+                            </div>
                           </div>
 
                           {/* Category 3: Travel Tickets & Additional Records */}
@@ -3276,14 +3521,17 @@ export default function EmployeeRegisterPage() {
                                 </span>
                               )}
                             </button>
-                            {isTravelOpen && (
-                              <div className="doc-optional-grid">
-                                {TRAVEL_ATTACHMENT_FIELDS.map((attachment) => renderDocUploadCard(attachment, false))}
+                            <div className={`registration-expander-collapsible${isTravelOpen ? ' is-open' : ''}`}>
+                              <div className="registration-card-collapsible-inner">
+                                <div className="doc-optional-grid">
+                                  {TRAVEL_ATTACHMENT_FIELDS.map((attachment) => renderDocUploadCard(attachment, false))}
+                                </div>
                               </div>
-                            )}
-                          </div>
                             </div>
-                          )}
+                          </div>
+                              </div>
+                            </div>
+                          </div>
                         </div>
                       </>
                     )
@@ -3291,241 +3539,976 @@ export default function EmployeeRegisterPage() {
                 </div>
               ) : null}
               {activeStep === 5 ? (
-                <div className="employee-step-grid">
-                  <div className="employee-span-two">
-                    <div className="employee-summary-intro">
-                      <h3>Review</h3>
-                      <p className="muted-text">Confirm details before submitting. Expand a section to review or edit.</p>
-                    </div>
+                <div className="registration-step-container">
+                  {(() => {
+                    const step0Error = validateStep(0)
+                    const step1Error = validateStep(1)
+                    const step2Error = validateStep(2)
+                    const step3Error = validateStep(3)
 
-                    <div className="employee-summary-accordion">
-                      {(() => {
-                        const sections = [
-                          {
-                            id: 'identity',
-                            title: 'Identity',
-                            onEdit: () => setActiveStep(0),
-                            rows: [
-                              {
-                                label: 'Name',
-                                value: [form.first_name, form.middle_name, form.last_name].filter(Boolean).join(' ') || '--'
-                              },
-                              { label: 'Date of birth', value: form.date_of_birth || '--' },
-                              { label: 'Gender', value: form.gender || '--' },
-                              { label: 'Passport', value: form.passport_number || '--' },
-                              { label: 'Mobile', value: form.mobile_number || '--' }
-                            ]
-                          },
-                          {
-                            id: 'application',
-                            title: 'Application',
-                            onEdit: () => setActiveStep(3),
-                            rows: [
-                              { label: 'Countries', value: form.application_countries.join(', ') || '--' },
-                              { label: 'Profession', value: form.profession || '--' },
-                              { label: 'Type', value: form.employment_type || '--' },
-                              { label: 'Salary', value: form.application_salary || '--' },
-                              { label: 'Skills', value: form.skills.join(', ') || '--' }
-                            ]
-                          },
-                          {
-                            id: 'profile',
-                            title: 'Profile',
-                            onEdit: () => setActiveStep(1),
-                            rows: [
-                              { label: 'Religion', value: form.religion || '--' },
-                              { label: 'Marital status', value: form.marital_status || '--' },
-                              { label: 'Residence', value: form.residence_country || '--' },
-                              { label: 'Nationality', value: form.nationality || '--' },
-                              {
-                                label: 'Experience',
-                                value:
-                                  form.experiences
-                                    .filter((item) => item.country || item.years !== '')
-                                    .map((item) => `${item.country || '--'} (${item.years || '--'} yrs)`)
-                                    .join(', ') || '--'
-                              }
-                            ]
-                          },
-                          {
-                            id: 'contact',
-                            title: 'Contact',
-                            onEdit: () => setActiveStep(2),
-                            rows: [
-                              { label: 'Contact person', value: form.contact_person_name || '--' },
-                              { label: 'Contact mobile', value: form.contact_person_mobile || '--' },
-                              { label: 'Email', value: form.email || '--' },
-                              { label: 'Secondary phone', value: form.phone || '--' }
-                            ]
-                          }
-                        ]
+                    const attachedDocs = ATTACHMENT_FIELDS.filter(
+                      (att) => attachmentFiles[att.key] || existingAttachmentDocs[att.key]?.file_url
+                    )
+                    const missingRequiredDocs = REQUIRED_ATTACHMENT_FIELDS.filter(
+                      (att) => !(attachmentFiles[att.key] || existingAttachmentDocs[att.key]?.file_url)
+                    )
+                    const step4Error = missingRequiredDocs.length > 0
+                      ? `${missingRequiredDocs.length} mandatory document${missingRequiredDocs.length === 1 ? '' : 's'} missing`
+                      : validateStep(4) || ''
 
-                        const toggleSection = (sectionId) => {
-                          setOpenSummarySections((prev) => ({ ...prev, [sectionId]: !prev[sectionId] }))
-                        }
+                    const isStep0Complete = !step0Error
+                    const isStep1Complete = !step1Error
+                    const isStep2Complete = !step2Error
+                    const isStep3Complete = !step3Error
+                    const isStep4Complete = !step4Error
 
-                        const attachmentItems = ATTACHMENT_FIELDS.filter(
-                          (attachment) => attachmentFiles[attachment.key] || existingAttachmentDocs[attachment.key]?.file_url
-                        )
+                    const completedCount = [isStep0Complete, isStep1Complete, isStep2Complete, isStep3Complete, isStep4Complete].filter(Boolean).length
+                    const hasAnyIncompleteStep = completedCount < 5
 
-                        return (
-                          <>
-                            {sections.map((section) => (
-                              <section key={section.id} className="commission-group employee-summary-group">
-                                <div className="commission-group-header employee-summary-group-header">
-                                  <div>
-                                    <h3>{section.title}</h3>
-                                    <p className="muted-text">{section.rows.length} field{section.rows.length === 1 ? '' : 's'}</p>
+                    const candidateFullName = [form.first_name, form.middle_name, form.last_name].filter(Boolean).join(' ') || 'Unnamed Candidate'
+                    const candidateInitials = [form.first_name?.[0], form.last_name?.[0]].filter(Boolean).join('').toUpperCase() || 'EP'
+                    const avatarUrl = attachmentFiles.portrait_photo
+                      ? attachmentPreviewUrls.portrait_photo
+                      : existingAttachmentDocs.portrait_photo?.file_url
+                      ? existingAttachmentDocs.portrait_photo.file_url
+                      : attachmentFiles.full_photo
+                      ? attachmentPreviewUrls.full_photo
+                      : existingAttachmentDocs.full_photo?.file_url
+                      ? existingAttachmentDocs.full_photo.file_url
+                      : null
+
+                    return (
+                      <>
+                        {/* Hero Overview Card */}
+                        <div className="registration-card employee-review-hero-card">
+                          <div className="employee-review-hero-body">
+                            <div className="employee-review-hero-avatar-wrap">
+                              {avatarUrl ? (
+                                <img src={avatarUrl} alt={candidateFullName} className="employee-review-hero-avatar-img" />
+                              ) : (
+                                <span className="employee-review-hero-avatar-placeholder" aria-hidden="true">{candidateInitials}</span>
+                              )}
+                            </div>
+                            <div className="employee-review-hero-info">
+                              <div className="employee-review-hero-title-row">
+                                <h2 className="employee-review-hero-name">{candidateFullName}</h2>
+                                <span className={`employee-review-hero-badge ${hasAnyIncompleteStep ? 'is-warning' : 'is-complete'}`}>
+                                  {hasAnyIncompleteStep ? (
+                                    <>
+                                      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                                        <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z" />
+                                        <line x1="12" y1="9" x2="12" y2="13" />
+                                        <line x1="12" y1="17" x2="12.01" y2="17" />
+                                      </svg>
+                                      <span>{5 - completedCount} Incomplete Step{5 - completedCount === 1 ? '' : 's'}</span>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                                        <polyline points="20 6 9 17 4 12" />
+                                      </svg>
+                                      <span>{editingEmployeeId ? 'Ready to Update' : 'Ready to Register'}</span>
+                                    </>
+                                  )}
+                                </span>
+                              </div>
+                              <div className="employee-review-hero-meta-chips">
+                                <span className="employee-review-meta-chip">
+                                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                                    <rect width="20" height="14" x="2" y="5" rx="2" />
+                                    <line x1="2" x2="22" y1="10" y2="10" />
+                                  </svg>
+                                  <span>Passport: {form.passport_number || 'Not provided'}</span>
+                                </span>
+                                <span className="employee-review-meta-chip">
+                                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                                    <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z" />
+                                  </svg>
+                                  <span>{form.mobile_number || 'No phone'}</span>
+                                </span>
+                                <span className="employee-review-meta-chip">
+                                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                                    <rect width="20" height="14" x="2" y="7" rx="2" ry="2" />
+                                    <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16" />
+                                  </svg>
+                                  <span>{form.profession || 'Profession unassigned'}</span>
+                                </span>
+                                {form.application_countries?.length > 0 && (
+                                  <span className="employee-review-meta-chip">
+                                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                                      <circle cx="12" cy="12" r="10" />
+                                      <line x1="2" x2="22" y1="12" y2="12" />
+                                      <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
+                                    </svg>
+                                    <span>{form.application_countries.join(', ')}</span>
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                            <div className="employee-review-hero-actions">
+                              <button
+                                type="button"
+                                className="registration-card-toggle-btn"
+                                onClick={toggleAllSummarySections}
+                                aria-label={areAllSummarySectionsOpen ? 'Collapse all review sections' : 'Expand all review sections'}
+                              >
+                                <svg
+                                  className={`registration-expander-chevron${areAllSummarySectionsOpen ? ' is-open' : ''}`}
+                                  width="13"
+                                  height="13"
+                                  viewBox="0 0 24 24"
+                                  fill="none"
+                                  stroke="currentColor"
+                                  strokeWidth="2.5"
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  aria-hidden="true"
+                                >
+                                  <polyline points="9 18 15 12 9 6" />
+                                </svg>
+                                <span>{areAllSummarySectionsOpen ? 'Collapse All' : 'Expand All'}</span>
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* 1. Legal Identity & Credentials (Step 0) */}
+                        <div className={`registration-card${!isStep0Complete ? ' is-incomplete' : ' is-complete'}${!openSummarySections.identity ? ' is-collapsed' : ''}`}>
+                          <div className="registration-card-header">
+                            <div className="registration-card-header-left">
+                              <div className="registration-card-icon-tile" aria-hidden="true">
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                  <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+                                  <circle cx="12" cy="7" r="4" />
+                                </svg>
+                              </div>
+                              <div>
+                                <h3 className="registration-card-title">1. Legal Identity & Credentials</h3>
+                                <p className="registration-card-subtitle">Official candidate name, age, passport details, and primary contact phone</p>
+                              </div>
+                            </div>
+                            <div className="registration-card-header-right">
+                              <span className={`registration-card-status-pill ${isStep0Complete ? 'is-complete' : 'is-incomplete'}`} title={step0Error || 'Complete'}>
+                                {isStep0Complete ? (
+                                  <>
+                                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                                      <polyline points="20 6 9 17 4 12" />
+                                    </svg>
+                                    <span>Complete</span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                                      <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z" />
+                                      <line x1="12" y1="9" x2="12" y2="13" />
+                                      <line x1="12" y1="17" x2="12.01" y2="17" />
+                                    </svg>
+                                    <span>Incomplete</span>
+                                  </>
+                                )}
+                              </span>
+                              <button
+                                type="button"
+                                className="registration-card-edit-btn"
+                                onClick={() => setActiveStep(0)}
+                                aria-label="Edit Legal Identity & Credentials"
+                              >
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                                  <path d="M12 20h9" />
+                                  <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" />
+                                </svg>
+                                <span>Edit</span>
+                              </button>
+                              <button
+                                type="button"
+                                className="registration-card-toggle-btn"
+                                onClick={() => toggleSummarySection('identity')}
+                                aria-label={openSummarySections.identity ? 'Collapse Identity section' : 'Expand Identity section'}
+                                aria-expanded={Boolean(openSummarySections.identity)}
+                              >
+                                <svg
+                                  className={`registration-expander-chevron${openSummarySections.identity ? ' is-open' : ''}`}
+                                  width="13"
+                                  height="13"
+                                  viewBox="0 0 24 24"
+                                  fill="none"
+                                  stroke="currentColor"
+                                  strokeWidth="2.5"
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  aria-hidden="true"
+                                >
+                                  <polyline points="9 18 15 12 9 6" />
+                                </svg>
+                                <span>{openSummarySections.identity ? 'Collapse' : 'Expand'}</span>
+                              </button>
+                            </div>
+                          </div>
+
+                          <div className={`registration-card-collapsible${openSummarySections.identity ? ' is-open' : ''}`}>
+                            <div className="registration-card-collapsible-inner">
+                              <div className="registration-card-content">
+                                <div className="employee-review-grid">
+                                  <div className="employee-review-field employee-review-field--two-span">
+                                    <span className="employee-review-field-label">Full Name</span>
+                                    <span className="employee-review-field-value">
+                                      {[form.first_name, form.middle_name, form.last_name].filter(Boolean).join(' ') || <span className="is-empty">Not specified</span>}
+                                    </span>
                                   </div>
-                                  <div className="employee-summary-group-actions">
-                                    <button type="button" className="btn-ghost employee-summary-edit" onClick={section.onEdit}>
-                                      Edit
-                                    </button>
-                                    <button
-                                      type="button"
-                                      className="commission-group-toggle-button"
-                                      onClick={() => toggleSection(section.id)}
-                                      aria-label={openSummarySections[section.id] ? `Collapse ${section.title}` : `Expand ${section.title}`}
-                                      aria-expanded={Boolean(openSummarySections[section.id])}
-                                    >
-                                      <span className={`commission-group-toggle-icon${openSummarySections[section.id] ? ' is-open' : ''}`}>▸</span>
-                                    </button>
+                                  <div className="employee-review-field">
+                                    <span className="employee-review-field-label">Date of Birth</span>
+                                    <span className="employee-review-field-value">
+                                      {form.date_of_birth ? (
+                                        `${form.date_of_birth}${age !== '' ? ` (${age} yrs)` : ''}`
+                                      ) : (
+                                        <span className="is-empty">Not specified</span>
+                                      )}
+                                    </span>
                                   </div>
-                                </div>
-
-                                {openSummarySections[section.id] ? (
-                                  <div className="employee-summary-group-body">
-                                    {section.rows.map((row) => (
-                                      <div key={`${section.id}-${row.label}`} className="employee-summary-row">
-                                        <span className="employee-summary-label">{row.label}</span>
-                                        <span className="employee-summary-value">{row.value}</span>
-                                      </div>
-                                    ))}
+                                  <div className="employee-review-field">
+                                    <span className="employee-review-field-label">Gender</span>
+                                    <span className={`employee-review-field-value${!form.gender ? ' is-empty' : ''}`}>
+                                      {form.gender || 'Not specified'}
+                                    </span>
                                   </div>
-                                ) : null}
-                              </section>
-                            ))}
-
-                            <section className="commission-group employee-summary-group">
-                              <div className="commission-group-header employee-summary-group-header">
-                                <div>
-                                  <h3>Notes</h3>
-                                  <p className="muted-text">4 fields</p>
-                                </div>
-                                <div className="employee-summary-group-actions">
-                                  <button type="button" className="btn-ghost employee-summary-edit" onClick={() => setActiveStep(1)}>
-                                    Edit
-                                  </button>
-                                  <button
-                                    type="button"
-                                    className="commission-group-toggle-button"
-                                    onClick={() => toggleSection('notes')}
-                                    aria-label={openSummarySections.notes ? 'Collapse Notes' : 'Expand Notes'}
-                                    aria-expanded={Boolean(openSummarySections.notes)}
-                                  >
-                                    <span className={`commission-group-toggle-icon${openSummarySections.notes ? ' is-open' : ''}`}>▸</span>
-                                  </button>
+                                  <div className="employee-review-field">
+                                    <span className="employee-review-field-label">Passport Number</span>
+                                    <span className={`employee-review-field-value${!form.passport_number ? ' is-empty' : ''}`}>
+                                      {form.passport_number || 'Not provided'}
+                                    </span>
+                                  </div>
+                                  <div className="employee-review-field">
+                                    <span className="employee-review-field-label">Primary Mobile</span>
+                                    <span className={`employee-review-field-value${!form.mobile_number ? ' is-empty' : ''}`}>
+                                      {form.mobile_number || 'Not provided'}
+                                    </span>
+                                  </div>
+                                  <div className="employee-review-field">
+                                    <span className="employee-review-field-label">National ID</span>
+                                    <span className={`employee-review-field-value${!form.national_id ? ' is-empty' : ''}`}>
+                                      {form.national_id || 'Not provided'}
+                                    </span>
+                                  </div>
+                                  <div className="employee-review-field">
+                                    <span className="employee-review-field-label">Labour ID</span>
+                                    <span className={`employee-review-field-value${!form.labour_id ? ' is-empty' : ''}`}>
+                                      {form.labour_id || 'Not provided'}
+                                    </span>
+                                  </div>
                                 </div>
                               </div>
+                            </div>
+                          </div>
+                        </div>
 
-                              {openSummarySections.notes ? (
-                                <div className="employee-summary-group-body employee-summary-group-body--notes">
-                                  {[
-                                    { label: 'Professional title', value: form.professional_title || '--' },
-                                    { label: 'Summary', value: form.summary || '--' },
-                                    { label: 'Education', value: form.education || '--' },
-                                    { label: 'Notes', value: form.notes || '--' }
-                                  ].map((row) => (
-                                    <div key={`notes-${row.label}`} className="employee-summary-row employee-summary-row--wrap">
-                                      <span className="employee-summary-label">{row.label}</span>
-                                      <span className="employee-summary-value employee-summary-long">{row.value}</span>
+                        {/* 2. Profile & Demographics (Step 1) */}
+                        <div className={`registration-card${!isStep1Complete ? ' is-incomplete' : ' is-complete'}${!openSummarySections.profile ? ' is-collapsed' : ''}`}>
+                          <div className="registration-card-header">
+                            <div className="registration-card-header-left">
+                              <div className="registration-card-icon-tile" aria-hidden="true">
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                  <circle cx="12" cy="12" r="10" />
+                                  <line x1="2" x2="22" y1="12" y2="12" />
+                                  <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
+                                </svg>
+                              </div>
+                              <div>
+                                <h3 className="registration-card-title">2. Profile & Demographics</h3>
+                                <p className="registration-card-subtitle">Personal background, physical metrics, health conditions, and education</p>
+                              </div>
+                            </div>
+                            <div className="registration-card-header-right">
+                              <span className={`registration-card-status-pill ${isStep1Complete ? 'is-complete' : 'is-incomplete'}`} title={step1Error || 'Complete'}>
+                                {isStep1Complete ? (
+                                  <>
+                                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                                      <polyline points="20 6 9 17 4 12" />
+                                    </svg>
+                                    <span>Complete</span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                                      <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z" />
+                                      <line x1="12" y1="9" x2="12" y2="13" />
+                                      <line x1="12" y1="17" x2="12.01" y2="17" />
+                                    </svg>
+                                    <span>Incomplete</span>
+                                  </>
+                                )}
+                              </span>
+                              <button
+                                type="button"
+                                className="registration-card-edit-btn"
+                                onClick={() => setActiveStep(1)}
+                                aria-label="Edit Profile & Demographics"
+                              >
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                                  <path d="M12 20h9" />
+                                  <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" />
+                                </svg>
+                                <span>Edit</span>
+                              </button>
+                              <button
+                                type="button"
+                                className="registration-card-toggle-btn"
+                                onClick={() => toggleSummarySection('profile')}
+                                aria-label={openSummarySections.profile ? 'Collapse Profile section' : 'Expand Profile section'}
+                                aria-expanded={Boolean(openSummarySections.profile)}
+                              >
+                                <svg
+                                  className={`registration-expander-chevron${openSummarySections.profile ? ' is-open' : ''}`}
+                                  width="13"
+                                  height="13"
+                                  viewBox="0 0 24 24"
+                                  fill="none"
+                                  stroke="currentColor"
+                                  strokeWidth="2.5"
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  aria-hidden="true"
+                                >
+                                  <polyline points="9 18 15 12 9 6" />
+                                </svg>
+                                <span>{openSummarySections.profile ? 'Collapse' : 'Expand'}</span>
+                              </button>
+                            </div>
+                          </div>
+
+                          <div className={`registration-card-collapsible${openSummarySections.profile ? ' is-open' : ''}`}>
+                            <div className="registration-card-collapsible-inner">
+                              <div className="registration-card-content">
+                                <div className="employee-review-grid">
+                                  <div className="employee-review-field">
+                                    <span className="employee-review-field-label">Nationality</span>
+                                    <span className={`employee-review-field-value${!form.nationality ? ' is-empty' : ''}`}>
+                                      {form.nationality || 'Not specified'}
+                                    </span>
+                                  </div>
+                                  <div className="employee-review-field">
+                                    <span className="employee-review-field-label">Residence Country</span>
+                                    <span className={`employee-review-field-value${!form.residence_country ? ' is-empty' : ''}`}>
+                                      {form.residence_country || 'Not specified'}
+                                    </span>
+                                  </div>
+                                  <div className="employee-review-field">
+                                    <span className="employee-review-field-label">Religion</span>
+                                    <span className={`employee-review-field-value${!form.religion ? ' is-empty' : ''}`}>
+                                      {form.religion || 'Not specified'}
+                                    </span>
+                                  </div>
+                                  <div className="employee-review-field">
+                                    <span className="employee-review-field-label">Marital Status</span>
+                                    <span className={`employee-review-field-value${!form.marital_status ? ' is-empty' : ''}`}>
+                                      {form.marital_status || 'Not specified'}
+                                    </span>
+                                  </div>
+                                  <div className="employee-review-field">
+                                    <span className="employee-review-field-label">Children Count</span>
+                                    <span className={`employee-review-field-value${form.children_count === '' || form.children_count === null ? ' is-empty' : ''}`}>
+                                      {form.children_count !== '' && form.children_count !== null ? form.children_count : 'None specified'}
+                                    </span>
+                                  </div>
+                                  <div className="employee-review-field">
+                                    <span className="employee-review-field-label">Height</span>
+                                    <span className={`employee-review-field-value${!form.height ? ' is-empty' : ''}`}>
+                                      {form.height ? `${form.height} cm` : 'Not specified'}
+                                    </span>
+                                  </div>
+                                  <div className="employee-review-field">
+                                    <span className="employee-review-field-label">Weight</span>
+                                    <span className={`employee-review-field-value${!form.weight ? ' is-empty' : ''}`}>
+                                      {form.weight ? `${form.weight} kg` : 'Not specified'}
+                                    </span>
+                                  </div>
+                                  <div className="employee-review-field">
+                                    <span className="employee-review-field-label">Medical Condition</span>
+                                    <span className={`employee-review-field-value${!form.medical_condition ? ' is-empty' : ''}`}>
+                                      {form.medical_condition || 'None reported'}
+                                    </span>
+                                  </div>
+                                  <div className="employee-review-field employee-review-field--two-span">
+                                    <span className="employee-review-field-label">Education</span>
+                                    <span className={`employee-review-field-value${!form.education ? ' is-empty' : ''}`}>
+                                      {form.education || 'Not specified'}
+                                    </span>
+                                  </div>
+                                  {form.summary ? (
+                                    <div className="employee-review-field employee-review-field--full">
+                                      <span className="employee-review-field-label">Candidate Summary / Bio</span>
+                                      <span className="employee-review-field-value">{form.summary}</span>
                                     </div>
-                                  ))}
-                                </div>
-                              ) : null}
-                            </section>
-
-                            <section className="commission-group employee-summary-group">
-                              <div className="commission-group-header employee-summary-group-header">
-                                <div>
-                                  <h3>Attachments</h3>
-                                  <p className="muted-text">{attachmentItems.length} file{attachmentItems.length === 1 ? '' : 's'}</p>
-                                </div>
-                                <div className="employee-summary-group-actions">
-                                  <button type="button" className="btn-ghost employee-summary-edit" onClick={() => setActiveStep(4)}>
-                                    Edit
-                                  </button>
-                                  <button
-                                    type="button"
-                                    className="commission-group-toggle-button"
-                                    onClick={() => toggleSection('attachments')}
-                                    aria-label={openSummarySections.attachments ? 'Collapse Attachments' : 'Expand Attachments'}
-                                    aria-expanded={Boolean(openSummarySections.attachments)}
-                                  >
-                                    <span className={`commission-group-toggle-icon${openSummarySections.attachments ? ' is-open' : ''}`}>▸</span>
-                                  </button>
+                                  ) : null}
                                 </div>
                               </div>
+                            </div>
+                          </div>
+                        </div>
 
-                              {openSummarySections.attachments ? (
-                                <div className="employee-summary-group-body employee-summary-group-body--attachments">
-                                  <div className="employee-attachment-preview-grid employee-attachment-preview-grid--summary">
-                                    {attachmentItems.length === 0 ? (
-                                      <div className="employee-attachment-preview-card">
-                                        <div className="employee-attachment-preview-file">No attachments added yet.</div>
+                        {/* 3. Emergency Contact & Channels (Step 2) */}
+                        <div className={`registration-card${!isStep2Complete ? ' is-incomplete' : ' is-complete'}${!openSummarySections.contact ? ' is-collapsed' : ''}`}>
+                          <div className="registration-card-header">
+                            <div className="registration-card-header-left">
+                              <div className="registration-card-icon-tile" aria-hidden="true">
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                  <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z" />
+                                </svg>
+                              </div>
+                              <div>
+                                <h3 className="registration-card-title">3. Emergency Contact & Channels</h3>
+                                <p className="registration-card-subtitle">Next of kin, emergency contacts, direct email, and reference records</p>
+                              </div>
+                            </div>
+                            <div className="registration-card-header-right">
+                              <span className={`registration-card-status-pill ${isStep2Complete ? 'is-complete' : 'is-incomplete'}`} title={step2Error || 'Complete'}>
+                                {isStep2Complete ? (
+                                  <>
+                                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                                      <polyline points="20 6 9 17 4 12" />
+                                    </svg>
+                                    <span>Complete</span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                                      <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z" />
+                                      <line x1="12" y1="9" x2="12" y2="13" />
+                                      <line x1="12" y1="17" x2="12.01" y2="17" />
+                                    </svg>
+                                    <span>Incomplete</span>
+                                  </>
+                                )}
+                              </span>
+                              <button
+                                type="button"
+                                className="registration-card-edit-btn"
+                                onClick={() => setActiveStep(2)}
+                                aria-label="Edit Emergency Contact & Channels"
+                              >
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                                  <path d="M12 20h9" />
+                                  <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" />
+                                </svg>
+                                <span>Edit</span>
+                              </button>
+                              <button
+                                type="button"
+                                className="registration-card-toggle-btn"
+                                onClick={() => toggleSummarySection('contact')}
+                                aria-label={openSummarySections.contact ? 'Collapse Contact section' : 'Expand Contact section'}
+                                aria-expanded={Boolean(openSummarySections.contact)}
+                              >
+                                <svg
+                                  className={`registration-expander-chevron${openSummarySections.contact ? ' is-open' : ''}`}
+                                  width="13"
+                                  height="13"
+                                  viewBox="0 0 24 24"
+                                  fill="none"
+                                  stroke="currentColor"
+                                  strokeWidth="2.5"
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  aria-hidden="true"
+                                >
+                                  <polyline points="9 18 15 12 9 6" />
+                                </svg>
+                                <span>{openSummarySections.contact ? 'Collapse' : 'Expand'}</span>
+                              </button>
+                            </div>
+                          </div>
+
+                          <div className={`registration-card-collapsible${openSummarySections.contact ? ' is-open' : ''}`}>
+                            <div className="registration-card-collapsible-inner">
+                              <div className="registration-card-content">
+                                <div className="employee-review-grid">
+                                  <div className="employee-review-field">
+                                    <span className="employee-review-field-label">Contact Person Name</span>
+                                    <span className={`employee-review-field-value${!form.contact_person_name ? ' is-empty' : ''}`}>
+                                      {form.contact_person_name || 'Not provided'}
+                                    </span>
+                                  </div>
+                                  <div className="employee-review-field">
+                                    <span className="employee-review-field-label">Relationship</span>
+                                    <span className={`employee-review-field-value${!form.contact_person_relationship ? ' is-empty' : ''}`}>
+                                      {form.contact_person_relationship || 'Not specified'}
+                                    </span>
+                                  </div>
+                                  <div className="employee-review-field">
+                                    <span className="employee-review-field-label">Contact Person Mobile</span>
+                                    <span className={`employee-review-field-value${!form.contact_person_mobile ? ' is-empty' : ''}`}>
+                                      {form.contact_person_mobile || 'Not provided'}
+                                    </span>
+                                  </div>
+                                  <div className="employee-review-field">
+                                    <span className="employee-review-field-label">Contact Person ID</span>
+                                    <span className={`employee-review-field-value${!form.contact_person_id ? ' is-empty' : ''}`}>
+                                      {form.contact_person_id || 'Not provided'}
+                                    </span>
+                                  </div>
+                                  <div className="employee-review-field">
+                                    <span className="employee-review-field-label">Direct Email</span>
+                                    <span className={`employee-review-field-value${!form.email ? ' is-empty' : ''}`}>
+                                      {form.email || 'Not provided'}
+                                    </span>
+                                  </div>
+                                  <div className="employee-review-field">
+                                    <span className="employee-review-field-label">Secondary Phone</span>
+                                    <span className={`employee-review-field-value${!form.phone ? ' is-empty' : ''}`}>
+                                      {form.phone || 'Not provided'}
+                                    </span>
+                                  </div>
+                                  {form.reference ? (
+                                    <div className="employee-review-field employee-review-field--full">
+                                      <span className="employee-review-field-label">Direct Channels & References</span>
+                                      <span className="employee-review-field-value">{form.reference}</span>
+                                    </div>
+                                  ) : null}
+                                  {form.notes ? (
+                                    <div className="employee-review-field employee-review-field--full">
+                                      <span className="employee-review-field-label">Internal Remarks & Notes</span>
+                                      <span className="employee-review-field-value">{form.notes}</span>
+                                    </div>
+                                  ) : null}
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* 4. Application & Work Experience (Step 3) */}
+                        <div className={`registration-card${!isStep3Complete ? ' is-incomplete' : ' is-complete'}${!openSummarySections.application ? ' is-collapsed' : ''}`}>
+                          <div className="registration-card-header">
+                            <div className="registration-card-header-left">
+                              <div className="registration-card-icon-tile" aria-hidden="true">
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                  <rect width="20" height="14" x="2" y="7" rx="2" ry="2" />
+                                  <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16" />
+                                </svg>
+                              </div>
+                              <div>
+                                <h3 className="registration-card-title">4. Application & Work Experience</h3>
+                                <p className="registration-card-subtitle">Destination countries, role, salary, skills, languages, and overseas records</p>
+                              </div>
+                            </div>
+                            <div className="registration-card-header-right">
+                              <span className={`registration-card-status-pill ${isStep3Complete ? 'is-complete' : 'is-incomplete'}`} title={step3Error || 'Complete'}>
+                                {isStep3Complete ? (
+                                  <>
+                                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                                      <polyline points="20 6 9 17 4 12" />
+                                    </svg>
+                                    <span>Complete</span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                                      <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z" />
+                                      <line x1="12" y1="9" x2="12" y2="13" />
+                                      <line x1="12" y1="17" x2="12.01" y2="17" />
+                                    </svg>
+                                    <span>Incomplete</span>
+                                  </>
+                                )}
+                              </span>
+                              <button
+                                type="button"
+                                className="registration-card-edit-btn"
+                                onClick={() => setActiveStep(3)}
+                                aria-label="Edit Application & Work Experience"
+                              >
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                                  <path d="M12 20h9" />
+                                  <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" />
+                                </svg>
+                                <span>Edit</span>
+                              </button>
+                              <button
+                                type="button"
+                                className="registration-card-toggle-btn"
+                                onClick={() => toggleSummarySection('application')}
+                                aria-label={openSummarySections.application ? 'Collapse Application section' : 'Expand Application section'}
+                                aria-expanded={Boolean(openSummarySections.application)}
+                              >
+                                <svg
+                                  className={`registration-expander-chevron${openSummarySections.application ? ' is-open' : ''}`}
+                                  width="13"
+                                  height="13"
+                                  viewBox="0 0 24 24"
+                                  fill="none"
+                                  stroke="currentColor"
+                                  strokeWidth="2.5"
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  aria-hidden="true"
+                                >
+                                  <polyline points="9 18 15 12 9 6" />
+                                </svg>
+                                <span>{openSummarySections.application ? 'Collapse' : 'Expand'}</span>
+                              </button>
+                            </div>
+                          </div>
+
+                          <div className={`registration-card-collapsible${openSummarySections.application ? ' is-open' : ''}`}>
+                            <div className="registration-card-collapsible-inner">
+                              <div className="registration-card-content">
+                                <div className="employee-review-grid">
+                                  <div className="employee-review-field employee-review-field--two-span">
+                                    <span className="employee-review-field-label">Target Destination Countries</span>
+                                    {form.application_countries?.length > 0 ? (
+                                      <div className="employee-review-tags">
+                                        {form.application_countries.map((country) => (
+                                          <span key={country} className="employee-review-tag employee-review-tag--lang">{country}</span>
+                                        ))}
                                       </div>
                                     ) : (
-                                      attachmentItems.map((attachment) => {
-                                        const file = attachmentFiles[attachment.key]
-                                        const existingDocument = existingAttachmentDocs[attachment.key]
-                                        const url = file ? attachmentPreviewUrls[attachment.key] : existingDocument?.file_url
-                                        const label = attachmentLabels[attachment.key] || attachment.label
-                                        const isImage = file ? file.type?.startsWith('image/') : isImageDocument(existingDocument)
-
-                                        return (
-                                          <button
-                                            key={attachment.key}
-                                            type="button"
-                                            className="employee-attachment-preview-card employee-attachment-preview-card--button"
-                                            onClick={() =>
-                                              url
-                                                ? openDocumentPreview({
-                                                    url,
-                                                    label,
-                                                    isImage,
-                                                    isPdf: isPdfDocumentUrl(url)
-                                                  })
-                                                : undefined
-                                            }
-                                            disabled={!url}
-                                          >
-                                            <strong>{label}</strong>
-                                            {url && isImage ? (
-                                              <img src={url} alt={label} className="employee-attachment-preview-image" />
-                                            ) : (
-                                              <div className="employee-attachment-preview-file">{file?.name || (url ? (isPdfDocumentUrl(url) ? 'PDF' : 'Attached file') : 'Missing')}</div>
-                                            )}
-                                          </button>
-                                        )
-                                      })
+                                      <span className="employee-review-field-value is-empty">None selected</span>
                                     )}
                                   </div>
+                                  <div className="employee-review-field">
+                                    <span className="employee-review-field-label">Profession / Role</span>
+                                    <span className={`employee-review-field-value${!form.profession ? ' is-empty' : ''}`}>
+                                      {form.profession || 'Not selected'}
+                                    </span>
+                                  </div>
+                                  <div className="employee-review-field">
+                                    <span className="employee-review-field-label">Professional Title</span>
+                                    <span className={`employee-review-field-value${!form.professional_title ? ' is-empty' : ''}`}>
+                                      {form.professional_title || 'Not specified'}
+                                    </span>
+                                  </div>
+                                  <div className="employee-review-field">
+                                    <span className="employee-review-field-label">Employment Type</span>
+                                    <span className={`employee-review-field-value${!form.employment_type ? ' is-empty' : ''}`}>
+                                      {form.employment_type || 'Not specified'}
+                                    </span>
+                                  </div>
+                                  <div className="employee-review-field">
+                                    <span className="employee-review-field-label">Expected Salary</span>
+                                    <span className={`employee-review-field-value${!form.application_salary ? ' is-empty' : ''}`}>
+                                      {form.application_salary || 'Not specified'}
+                                    </span>
+                                  </div>
+                                  <div className="employee-review-field employee-review-field--two-span">
+                                    <span className="employee-review-field-label">Spoken Languages</span>
+                                    {form.languages?.length > 0 ? (
+                                      <div className="employee-review-tags">
+                                        {form.languages.map((lang) => (
+                                          <span key={lang} className="employee-review-tag employee-review-tag--lang">{lang}</span>
+                                        ))}
+                                      </div>
+                                    ) : (
+                                      <span className="employee-review-field-value is-empty">None recorded</span>
+                                    )}
+                                  </div>
+                                  <div className="employee-review-field employee-review-field--two-span">
+                                    <span className="employee-review-field-label">Candidate Skills</span>
+                                    {form.skills?.length > 0 ? (
+                                      <div className="employee-review-tags">
+                                        {form.skills.map((skill) => (
+                                          <span key={skill} className="employee-review-tag">{skill}</span>
+                                        ))}
+                                      </div>
+                                    ) : (
+                                      <span className="employee-review-field-value is-empty">None recorded</span>
+                                    )}
+                                  </div>
+                                  <div className="employee-review-field employee-review-field--full">
+                                    <span className="employee-review-field-label">Overseas Work Experience</span>
+                                    {(() => {
+                                      const validExp = form.experiences?.filter((item) => item.country || item.years !== '') || []
+                                      if (validExp.length === 0) {
+                                        return <span className="employee-review-field-value is-empty">No prior international employment recorded</span>
+                                      }
+                                      return (
+                                        <div className="employee-review-exp-list">
+                                          {validExp.map((exp, idx) => (
+                                            <div key={`exp-${idx}`} className="employee-review-exp-badge">
+                                              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                                                <circle cx="12" cy="12" r="10" />
+                                                <line x1="2" x2="22" y1="12" y2="12" />
+                                                <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
+                                              </svg>
+                                              <span className="employee-review-exp-country">{exp.country || 'Destination unspecified'}</span>
+                                              <span className="employee-review-exp-divider">•</span>
+                                              <span className="employee-review-exp-years">{exp.years ? `${exp.years} yr${Number(exp.years) === 1 ? '' : 's'}` : 'Duration not specified'}</span>
+                                            </div>
+                                          ))}
+                                        </div>
+                                      )
+                                    })()}
+                                  </div>
                                 </div>
-                              ) : null}
-                            </section>
-                          </>
-                        )
-                      })()}
-                    </div>
-                  </div>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* 5. Attached Documents & Verification (Step 4) */}
+                        <div className={`registration-card${!isStep4Complete ? ' is-incomplete' : ' is-complete'}${!openSummarySections.attachments ? ' is-collapsed' : ''}`}>
+                          <div className="registration-card-header">
+                            <div className="registration-card-header-left">
+                              <div className="registration-card-icon-tile" aria-hidden="true">
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                                  <polyline points="14 2 14 8 20 8" />
+                                  <line x1="16" y1="13" x2="8" y2="13" />
+                                  <line x1="16" y1="17" x2="8" y2="17" />
+                                  <polyline points="10 9 9 9 8 9" />
+                                </svg>
+                              </div>
+                              <div>
+                                <h3 className="registration-card-title">5. Attached Documents & Verification</h3>
+                                <p className="registration-card-subtitle">Identification, passport photos, medical reports, certificates, and contracts</p>
+                              </div>
+                            </div>
+                            <div className="registration-card-header-right">
+                              <span className={`registration-card-status-pill ${isStep4Complete ? 'is-complete' : 'is-incomplete'}`} title={step4Error || 'Complete'}>
+                                {isStep4Complete ? (
+                                  <>
+                                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                                      <polyline points="20 6 9 17 4 12" />
+                                    </svg>
+                                    <span>Complete</span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                                      <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z" />
+                                      <line x1="12" y1="9" x2="12" y2="13" />
+                                      <line x1="12" y1="17" x2="12.01" y2="17" />
+                                    </svg>
+                                    <span>Incomplete</span>
+                                  </>
+                                )}
+                              </span>
+                              <button
+                                type="button"
+                                className="registration-card-edit-btn"
+                                onClick={() => setActiveStep(4)}
+                                aria-label="Edit Attached Documents"
+                              >
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                                  <path d="M12 20h9" />
+                                  <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" />
+                                </svg>
+                                <span>Edit</span>
+                              </button>
+                              <button
+                                type="button"
+                                className="registration-card-toggle-btn"
+                                onClick={() => toggleSummarySection('attachments')}
+                                aria-label={openSummarySections.attachments ? 'Collapse Documents section' : 'Expand Documents section'}
+                                aria-expanded={Boolean(openSummarySections.attachments)}
+                              >
+                                <svg
+                                  className={`registration-expander-chevron${openSummarySections.attachments ? ' is-open' : ''}`}
+                                  width="13"
+                                  height="13"
+                                  viewBox="0 0 24 24"
+                                  fill="none"
+                                  stroke="currentColor"
+                                  strokeWidth="2.5"
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  aria-hidden="true"
+                                >
+                                  <polyline points="9 18 15 12 9 6" />
+                                </svg>
+                                <span>{openSummarySections.attachments ? 'Collapse' : 'Expand'}</span>
+                              </button>
+                            </div>
+                          </div>
+
+                          <div className={`registration-card-collapsible${openSummarySections.attachments ? ' is-open' : ''}`}>
+                            <div className="registration-card-collapsible-inner">
+                              <div className="registration-card-content">
+                                <div className="employee-review-doc-summary-bar">
+                                <span className="employee-review-doc-count">
+                                  {attachedDocs.length} of {ATTACHMENT_FIELDS.length} documents attached
+                                </span>
+                                {missingRequiredDocs.length === 0 ? (
+                                  <span className="employee-review-badge employee-review-badge--success">
+                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                                      <polyline points="20 6 9 17 4 12" />
+                                    </svg>
+                                    All required documents present
+                                  </span>
+                                ) : (
+                                  <span className="employee-review-badge employee-review-badge--warning">
+                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                                      <circle cx="12" cy="12" r="10" />
+                                      <line x1="12" y1="8" x2="12" y2="12" />
+                                      <line x1="12" y1="16" x2="12.01" y2="16" />
+                                    </svg>
+                                    {missingRequiredDocs.length} required document{missingRequiredDocs.length === 1 ? '' : 's'} missing
+                                  </span>
+                                )}
+                              </div>
+
+                              {attachedDocs.length === 0 && missingRequiredDocs.length === 0 ? (
+                                <div className="employee-review-empty-docs">
+                                  <h4>No documents attached yet</h4>
+                                  <p>Important identification, medical reports, or contracts have not been uploaded.</p>
+                                  <button type="button" className="btn-secondary" onClick={() => setActiveStep(4)}>
+                                    Go to Step 4 to attach documents
+                                  </button>
+                                </div>
+                              ) : (
+                                <div className="employee-review-doc-grid">
+                                  {attachedDocs.map((attachment) => {
+                                    const file = attachmentFiles[attachment.key]
+                                    const existingDoc = existingAttachmentDocs[attachment.key]
+                                    const url = file ? attachmentPreviewUrls[attachment.key] : existingDoc?.file_url
+                                    const title = attachmentLabels[attachment.key] || attachment.label
+                                    const fileName = file?.name || attachmentDisplayName(existingDoc, attachmentLabels) || 'Document file'
+                                    const isImage = Boolean(
+                                      file?.type?.startsWith('image/') ||
+                                      (!file && typeof url === 'string' && url.match(/\.(png|jpe?g|webp|gif)(\?|#|$)/i))
+                                    )
+                                    const isPdf = typeof url === 'string' && isPdfDocumentUrl(url)
+                                    const isRequired = MANDATORY_ATTACHMENT_KEYS.includes(attachment.key)
+                                    const expiryVal = attachment.expiryField ? form[attachment.expiryField] : null
+
+                                    return (
+                                      <div key={attachment.key} className="employee-review-doc-card is-attached">
+                                        <div className="employee-review-doc-card-header">
+                                          <div className="employee-review-doc-thumb-wrap">
+                                            {url && isImage ? (
+                                              <img src={url} alt={title} className="employee-review-doc-thumb-img" />
+                                            ) : (
+                                              <div className={`employee-review-doc-thumb-placeholder${isPdf ? ' is-pdf' : ''}`}>
+                                                {getAttachmentIcon(attachment.key)}
+                                                <span className="employee-review-doc-type-badge">{isPdf ? 'PDF' : isImage ? 'IMG' : 'DOC'}</span>
+                                              </div>
+                                            )}
+                                          </div>
+                                          <div className="employee-review-doc-title-block">
+                                            <h4 className="employee-review-doc-title" title={title}>{title}</h4>
+                                            <div className="employee-review-doc-tag-row">
+                                              {isRequired ? <span className="employee-review-doc-req-pill">Required</span> : <span className="employee-review-doc-opt-pill">Optional</span>}
+                                              {expiryVal ? (
+                                                <span className="employee-review-doc-date-pill">
+                                                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                                                    <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
+                                                    <line x1="16" y1="2" x2="16" y2="6" />
+                                                    <line x1="8" y1="2" x2="8" y2="6" />
+                                                    <line x1="3" y1="10" x2="21" y2="10" />
+                                                  </svg>
+                                                  <span>{expiryVal}</span>
+                                                </span>
+                                              ) : null}
+                                            </div>
+                                          </div>
+                                          <div className="employee-review-doc-status-wrap">
+                                            <span className="employee-review-doc-status is-attached">
+                                              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                                                <polyline points="20 6 9 17 4 12" />
+                                              </svg>
+                                              Attached
+                                            </span>
+                                          </div>
+                                        </div>
+
+                                        <div className="employee-review-doc-card-footer">
+                                          <p className="employee-review-doc-filename" title={fileName}>{fileName}</p>
+                                          {url ? (
+                                            <button
+                                              type="button"
+                                              className="employee-review-doc-action-btn"
+                                              onClick={() =>
+                                                openDocumentPreview({
+                                                  url,
+                                                  name: fileName,
+                                                  label: title,
+                                                  type: file?.type || '',
+                                                  isImage,
+                                                  isPdf
+                                                })
+                                              }
+                                              title={`Preview ${title}`}
+                                            >
+                                              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                                                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                                                <circle cx="12" cy="12" r="3" />
+                                              </svg>
+                                              <span>Preview</span>
+                                            </button>
+                                          ) : null}
+                                        </div>
+                                      </div>
+                                    )
+                                  })}
+
+                                  {missingRequiredDocs.map((attachment) => {
+                                    const title = attachmentLabels[attachment.key] || attachment.label
+
+                                    return (
+                                      <div key={attachment.key} className="employee-review-doc-card is-missing">
+                                        <div className="employee-review-doc-card-header">
+                                          <div className="employee-review-doc-thumb-wrap">
+                                            <div className="employee-review-doc-thumb-placeholder is-missing">
+                                              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                                                <circle cx="12" cy="12" r="10" />
+                                                <line x1="12" y1="8" x2="12" y2="12" />
+                                                <line x1="12" y1="16" x2="12.01" y2="16" />
+                                              </svg>
+                                              <span className="employee-review-doc-type-badge">REQ</span>
+                                            </div>
+                                          </div>
+                                          <div className="employee-review-doc-title-block">
+                                            <h4 className="employee-review-doc-title" title={title}>{title}</h4>
+                                            <div className="employee-review-doc-tag-row">
+                                              <span className="employee-review-doc-req-pill is-missing">Required</span>
+                                            </div>
+                                          </div>
+                                          <div className="employee-review-doc-status-wrap">
+                                            <span className="employee-review-doc-status is-missing">
+                                              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                                                <circle cx="12" cy="12" r="10" />
+                                                <line x1="12" y1="8" x2="12" y2="12" />
+                                                <line x1="12" y1="16" x2="12.01" y2="16" />
+                                              </svg>
+                                              Missing
+                                            </span>
+                                          </div>
+                                        </div>
+
+                                        <div className="employee-review-doc-card-footer">
+                                          <p className="employee-review-doc-filename is-missing">Mandatory document not uploaded</p>
+                                          <button
+                                            type="button"
+                                            className="employee-review-doc-action-btn is-upload"
+                                            onClick={() => setActiveStep(4)}
+                                            title={`Upload ${title}`}
+                                          >
+                                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                                              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                                              <polyline points="17 8 12 3 7 8" />
+                                              <line x1="12" y1="3" x2="12" y2="15" />
+                                            </svg>
+                                            <span>Upload</span>
+                                          </button>
+                                        </div>
+                                      </div>
+                                    )
+                                  })}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                      </>
+                    )
+                  })()}
                 </div>
-                ) : null}
+              ) : null}
               <div className="employee-modal-actions">
                 <div className="employee-modal-actions-left">
                   <button
                     type="button"
                     className="btn-secondary"
-                    onClick={() => navigate('/dashboard/employees/list')}
+                    onClick={() => navigate('/dashboard/candidates/list')}
                     disabled={saving}
                   >
                     Cancel
@@ -3596,7 +4579,7 @@ export default function EmployeeRegisterPage() {
                       onClick={submitRegistration}
                       disabled={saving || readOnly}
                     >
-                      {saving ? 'Saving...' : editingEmployeeId ? 'Update Employee' : 'Complete Registration'}
+                      {saving ? 'Saving...' : editingEmployeeId ? 'Update Candidate' : 'Complete Registration'}
                     </button>
                   )}
                 </div>
@@ -3606,362 +4589,655 @@ export default function EmployeeRegisterPage() {
             </div>
           </div>
         </div>
-      {scanImportModalOpen ? (
-        <div className="app-confirm-backdrop" role="presentation" onClick={closeScanImportModal}>
-          <div
-            className="employee-review-modal employee-scan-modal"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="employee-scan-title"
-            onClick={(event) => event.stopPropagation()}
-          >
-            <div className="employee-review-header">
-              <h2 id="employee-scan-title">Scan from document</h2>
-            </div>
-            <p className="app-confirm-message">
-              Choose how you want to bring the document in, then use Auto fill to let the backend extract matching employee fields.
-            </p>
-            <div className="notification-reminder-options employee-scan-option-grid">
-              <button
-                type="button"
-                className={`notification-reminder-option employee-scan-option-card${ocrImportSource === 'camera' ? ' is-selected' : ''}`}
-                onClick={() => triggerScanImport('camera')}
-              >
-                <span className="employee-scan-option-icon" aria-hidden="true">
-                  <svg width="48" height="48" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <path d="M4 7h4l2-2h4l2 2h4v12H4V7Z" />
-                    <path d="M12 17a4 4 0 1 0 0-8 4 4 0 0 0 0 8Z" />
-                  </svg>
-                </span>
-                <span className="employee-scan-option-copy">
-                  <strong>From camera</strong>
-                  <span>Capture a document photo from this device and stage it for OCR.</span>
-                </span>
-              </button>
-              <button
-                type="button"
-                className={`notification-reminder-option employee-scan-option-card${ocrImportSource === 'scanner' ? ' is-selected' : ''}`}
-                onClick={() => triggerScanImport('scanner')}
-              >
-                <span className="employee-scan-option-icon" aria-hidden="true">
-                  <svg width="48" height="48" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <path d="M6 9V4h12v5" />
-                    <path d="M6 17H4v-6a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v6h-2" />
-                    <path d="M7 14h10v6H7v-6Z" />
-                  </svg>
-                </span>
-                <span className="employee-scan-option-copy">
-                  <strong>Scanner</strong>
-                  <span>Choose a scanned PDF or image from a scanner workflow on this device.</span>
-                </span>
-              </button>
-              <button
-                type="button"
-                className={`notification-reminder-option employee-scan-option-card${ocrImportSource === 'upload' ? ' is-selected' : ''}`}
-                onClick={() => triggerScanImport('upload')}
-              >
-                <span className="employee-scan-option-icon" aria-hidden="true">
-                  <svg width="48" height="48" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <path d="M12 16V4" />
-                    <path d="M8 8l4-4 4 4" />
-                    <path d="M4 20h16" />
-                  </svg>
-                </span>
-                <span className="employee-scan-option-copy">
-                  <strong>Upload a document</strong>
-                  <span>Select an existing PDF or image so OCR can later read it and prefill the registration form.</span>
-                </span>
-              </button>
-            </div>
-            <div className="app-confirm-actions">
-              <button type="button" className="btn-secondary" onClick={openOcrSetupModal}>OCR setup</button>
-              <button type="button" className="btn-secondary" onClick={closeScanImportModal}>Cancel</button>
-            </div>
-          </div>
-        </div>
-      ) : null}
-      {cameraCaptureModalOpen ? (
-        <div className="app-confirm-backdrop" role="presentation" onClick={closeCameraCapture}>
-          <div
-            className="employee-review-modal employee-scan-modal employee-camera-modal"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="employee-camera-title"
-            onClick={(event) => event.stopPropagation()}
-          >
-            <div className="employee-review-header">
-              <h2 id="employee-camera-title">Capture from camera</h2>
-            </div>
-            <p className="app-confirm-message">
-              Position the document inside the preview, then capture a photo for OCR staging.
-            </p>
-            <div className="employee-camera-preview">
-              {cameraStream ? (
-                <video ref={scanCameraVideoRef} autoPlay playsInline muted />
-              ) : (
-                <div className="employee-camera-placeholder">
-                  {cameraError || 'Starting camera...'}
-                </div>
-              )}
-              <canvas ref={scanCameraCanvasRef} aria-hidden="true" />
-            </div>
-            {cameraError ? <p className="error-message employee-modal-error">{cameraError}</p> : null}
-            <div className="app-confirm-actions">
-              <button type="button" className="btn-secondary" onClick={backToScanOptionsFromCamera}>Back</button>
-              <button type="button" className="btn-secondary" onClick={closeCameraCapture}>Cancel</button>
-              <button type="button" onClick={captureCameraDocument} disabled={!cameraStream}>Capture photo</button>
-            </div>
-          </div>
-        </div>
-      ) : null}
-      {uploadDocumentModalOpen ? (
-        <div className="app-confirm-backdrop" role="presentation" onClick={closeUploadDocumentModal}>
-          <div
-            className="employee-review-modal employee-scan-modal employee-upload-modal"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="employee-upload-title"
-            onClick={(event) => event.stopPropagation()}
-          >
-            <div className="employee-review-header">
-              <h2 id="employee-upload-title">
-                {uploadDocumentPurpose === 'attachment' ? 'Upload a generic document' : 'Upload a document'}
-              </h2>
-            </div>
-            <p className="app-confirm-message">
-              {uploadDocumentPurpose === 'attachment'
-                ? 'Select or drop a PDF or image document, then continue to adjust and attach the visible area to employee attachment slots.'
-                : 'Select or drop a PDF or image document, then continue to stage it for OCR.'}
-            </p>
-            <div
-              className={`employee-upload-dropzone${uploadDragActive ? ' is-dragging' : ''}${uploadDraftFile ? ' has-file' : ''}`}
-              role="button"
-              tabIndex={0}
-              onClick={() => scanUploadInputRef.current?.click()}
-              onKeyDown={(event) => {
-                if (event.key === 'Enter' || event.key === ' ') {
-                  event.preventDefault()
-                  scanUploadInputRef.current?.click()
-                }
-              }}
-              onDragEnter={(event) => {
-                event.preventDefault()
-                setUploadDragActive(true)
-              }}
-              onDragOver={(event) => {
-                event.preventDefault()
-                setUploadDragActive(true)
-              }}
-              onDragLeave={(event) => {
-                event.preventDefault()
-                setUploadDragActive(false)
-              }}
-              onDrop={handleUploadDrop}
-            >
-              <strong>{uploadDraftFile ? uploadDraftFile.name : 'Choose or drop a document'}</strong>
-              <span>{uploadDraftFile ? `${Math.max(1, Math.round(uploadDraftFile.size / 1024))} KB selected` : 'PDF, JPG, JPEG, or PNG'}</span>
-            </div>
-            <input
-              ref={scanUploadInputRef}
-              type="file"
-              accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png"
-              className="visually-hidden-file"
-              onChange={(event) => handleUploadDraftPick(event.target.files?.[0] || null)}
-            />
-            {uploadError ? <p className="error-message employee-modal-error">{uploadError}</p> : null}
-            <div className="app-confirm-actions">
-              {uploadDocumentPurpose === 'attachment' ? (
+      <EmployeeBatchRegistrationModal
+        isOpen={batchModalOpen}
+        onClose={() => setBatchModalOpen(false)}
+        onBatchSuccess={() => {
+          setBatchModalOpen(false)
+          navigate('/dashboard/candidates/list')
+        }}
+      />
+
+      <EmployeeScanImportModal
+        isOpen={scanImportModalOpen}
+        closeScanImportModal={closeScanImportModal}
+        ocrImportSource={ocrImportSource}
+        triggerScanImport={triggerScanImport}
+        openOcrSetupModal={openOcrSetupModal}
+      />
+
+      <EmployeeCameraModal
+        isOpen={cameraCaptureModalOpen}
+        closeCameraCapture={closeCameraCapture}
+        cameraStream={cameraStream}
+        scanCameraVideoRef={scanCameraVideoRef}
+        scanCameraCanvasRef={scanCameraCanvasRef}
+        cameraError={cameraError}
+        cameraLoading={cameraLoading}
+        retryCameraCapture={openCameraCapture}
+        backToScanOptionsFromCamera={backToScanOptionsFromCamera}
+        captureCameraDocument={captureCameraDocument}
+      />
+      <Modal
+        isOpen={uploadDocumentModalOpen}
+        onClose={closeUploadDocumentModal}
+        title={uploadDocumentPurpose === 'attachment' ? 'Upload Generic Document' : 'Upload Candidate Document'}
+        subtitle={
+          uploadDocumentPurpose === 'attachment'
+            ? 'Select or drop a PDF or image document, then adjust and attach the visible area to employee attachment slots.'
+            : 'Select or drop a PDF or image document, then continue to stage it for automated OCR field extraction.'
+        }
+        maxWidth="560px"
+        className="employee-scan-modal employee-upload-modal"
+        backdropClassName="employee-scan-backdrop"
+        footer={
+          <>
+            {uploadDocumentPurpose === 'attachment' ? (
+              <button type="button" className="btn-secondary" onClick={closeUploadDocumentModal}>Cancel</button>
+            ) : (
+              <>
+                <button type="button" className="btn-secondary" onClick={backToScanOptionsFromUpload}>Back</button>
                 <button type="button" className="btn-secondary" onClick={closeUploadDocumentModal}>Cancel</button>
-              ) : (
-                <>
-                  <button type="button" className="btn-secondary" onClick={backToScanOptionsFromUpload}>Back</button>
-                  <button type="button" className="btn-secondary" onClick={closeUploadDocumentModal}>Cancel</button>
-                </>
-              )}
-              <button type="button" onClick={submitUploadDocument} disabled={!uploadDraftFile}>
-                {uploadDocumentPurpose === 'attachment' ? 'Use for attachments' : 'Use document'}
-              </button>
+              </>
+            )}
+            <button type="button" className="btn-primary" onClick={submitUploadDocument} disabled={!uploadDraftFile}>
+              {uploadDocumentPurpose === 'attachment' ? 'Use for attachments' : 'Use document'}
+            </button>
+          </>
+        }
+      >
+        {uploadDraftFile ? (
+          <div className="employee-upload-selected-card">
+            <div className="employee-upload-file-icon" aria-hidden="true">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                <polyline points="14 2 14 8 20 8" />
+                <line x1="16" y1="13" x2="8" y2="13" />
+                <line x1="16" y1="17" x2="8" y2="17" />
+                <polyline points="10 9 9 9 8 9" />
+              </svg>
             </div>
-          </div>
-        </div>
-      ) : null}
-      {scannerModalOpen ? (
-        <div className="app-confirm-backdrop" role="presentation" onClick={closeScannerModal}>
-          <div
-            className="employee-review-modal employee-scan-modal employee-scanner-modal"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="employee-scanner-title"
-            onClick={(event) => event.stopPropagation()}
-          >
-            <div className="employee-review-header">
-              <h2 id="employee-scanner-title">Scanner</h2>
-            </div>
-            <p className="app-confirm-message">
-              The system connects through Asprise Scanner, which uses the local Asprise scan app and the TWAIN/WIA scanner driver before staging the scan for OCR.
-            </p>
-            <div className={`employee-scanner-status employee-scanner-status--${scannerStatus}`}>
-              <strong>
-                {scannerStatus === 'checking'
-                  ? 'Checking Asprise Scanner...'
-                  : scannerStatus === 'scanning'
-                    ? 'Scanning document...'
-                    : scannerStatus === 'ready'
-                      ? 'Asprise scanner connection is ready'
-                      : scannerStatus === 'no-devices'
-                        ? 'Service found, no scanner detected'
-                        : 'Asprise scanner app is not ready'}
-              </strong>
-              {scannerError ? <span>{scannerError}</span> : null}
-            </div>
-            {scannerStatus === 'service-missing' ? (
-              <div className="employee-scanner-service-actions">
-                <a className="btn-secondary" href={ASPRISE_SCANNER_LINKS.download} target="_blank" rel="noreferrer">Install scan app</a>
-                <button type="button" onClick={checkScannerService}>I started the app - check again</button>
+            <div className="employee-upload-file-info">
+              <div className="employee-upload-file-header">
+                <span className="employee-upload-filename" title={uploadDraftFile.name}>{uploadDraftFile.name}</span>
+                <span className="employee-upload-ready-badge">Selected</span>
               </div>
+              <span className="employee-upload-filesize">
+                {Math.max(1, Math.round(uploadDraftFile.size / 1024))} KB • {uploadDraftFile.type || 'Document file'}
+              </span>
+            </div>
+            <button
+              type="button"
+              className="btn-secondary employee-upload-change-btn"
+              onClick={() => scanUploadInputRef.current?.click()}
+              title="Select a different document"
+            >
+              Change
+            </button>
+          </div>
+        ) : (
+          <div
+            className={`employee-upload-dropzone${uploadDragActive ? ' is-dragging' : ''}`}
+            role="button"
+            tabIndex={0}
+            onClick={() => scanUploadInputRef.current?.click()}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter' || event.key === ' ') {
+                event.preventDefault()
+                scanUploadInputRef.current?.click()
+              }
+            }}
+            onDragEnter={(event) => {
+              event.preventDefault()
+              setUploadDragActive(true)
+            }}
+            onDragOver={(event) => {
+              event.preventDefault()
+              setUploadDragActive(true)
+            }}
+            onDragLeave={(event) => {
+              event.preventDefault()
+              setUploadDragActive(false)
+            }}
+            onDrop={handleUploadDrop}
+          >
+            <div className="employee-upload-dropzone-icon" aria-hidden="true">
+              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                <polyline points="17 8 12 3 7 8" />
+                <line x1="12" y1="3" x2="12" y2="15" />
+              </svg>
+            </div>
+            <div className="employee-upload-dropzone-text">
+              <strong>Choose or drop a candidate document</strong>
+              <span>PDF, JPG, JPEG, or PNG supported (up to 10MB)</span>
+            </div>
+            <button
+              type="button"
+              className="btn-secondary employee-upload-browse-btn"
+              onClick={(e) => {
+                e.stopPropagation()
+                scanUploadInputRef.current?.click()
+              }}
+            >
+              Browse Files
+            </button>
+          </div>
+        )}
+        <input
+          ref={scanUploadInputRef}
+          type="file"
+          accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png"
+          className="visually-hidden-file"
+          onChange={(event) => handleUploadDraftPick(event.target.files?.[0] || null)}
+        />
+        {uploadError ? <p className="error-message employee-modal-error">{uploadError}</p> : null}
+      </Modal>
+      <Modal
+        isOpen={scannerModalOpen}
+        onClose={closeScannerModal}
+        title="Physical Scanner Connection"
+        subtitle="The system connects through Asprise Scanner, which uses the local scan app and TWAIN/WIA driver before staging for OCR."
+        maxWidth="560px"
+        className="employee-scan-modal employee-scanner-modal"
+        backdropClassName="employee-scan-backdrop"
+        footer={
+          <>
+            <button type="button" className="btn-secondary" onClick={backToScanOptionsFromScanner}>Back</button>
+            <button type="button" className="btn-secondary" onClick={closeScannerModal}>Cancel</button>
+            {scannerStatus === 'no-devices' ? (
+              <button type="button" className="btn-primary" onClick={checkScannerService}>Check again</button>
             ) : null}
             {scannerStatus === 'ready' ? (
-              <label className="employee-scanner-device-picker">
-                Scanner device
-                <select value={selectedScannerIndex} onChange={(event) => setSelectedScannerIndex(Number(event.target.value))}>
-                  {scannerDevices.map((device, index) => (
-                    <option key={`${device.displayName || device.name || 'scanner'}-${index}`} value={index}>
-                      {device.displayName || device.name || `Scanner ${index + 1}`}
-                    </option>
-                  ))}
-                </select>
-            </label>
+              <button type="button" className="btn-primary" onClick={scanFromSelectedScanner}>Scan document</button>
             ) : null}
-            <div className="app-confirm-actions">
-              <button type="button" className="btn-secondary" onClick={backToScanOptionsFromScanner}>Back</button>
-              <button type="button" className="btn-secondary" onClick={closeScannerModal}>Cancel</button>
-              {scannerStatus === 'no-devices' ? (
-                <button type="button" onClick={checkScannerService}>Check again</button>
-              ) : null}
-              {scannerStatus === 'ready' ? (
-                <button type="button" onClick={scanFromSelectedScanner}>Scan document</button>
-              ) : null}
-            </div>
+          </>
+        }
+      >
+        <div className={`employee-scanner-status employee-scanner-status--${scannerStatus}`}>
+          <div className="employee-scanner-status-icon" aria-hidden="true">
+            {scannerStatus === 'ready' ? (
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="20 6 9 17 4 12" />
+              </svg>
+            ) : scannerStatus === 'checking' || scannerStatus === 'scanning' ? (
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" className="is-spinning">
+                <path d="M21 12a9 9 0 1 1-6.219-8.56" />
+              </svg>
+            ) : (
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="12" cy="12" r="10" />
+                <line x1="12" y1="8" x2="12" y2="12" />
+                <line x1="12" y1="16" x2="12.01" y2="16" />
+              </svg>
+            )}
+          </div>
+          <div className="employee-scanner-status-body">
+            <strong>
+              {scannerStatus === 'checking'
+                ? 'Checking Asprise Scanner...'
+                : scannerStatus === 'scanning'
+                  ? 'Scanning document...'
+                  : scannerStatus === 'ready'
+                    ? 'Asprise scanner connection is ready'
+                    : scannerStatus === 'no-devices'
+                      ? 'Service found, no scanner detected'
+                      : 'Asprise scanner app is not ready'}
+            </strong>
+            {scannerError ? <span>{scannerError}</span> : (
+              <span>
+                {scannerStatus === 'ready'
+                  ? 'Hardware bridge connected. Select your device below and trigger scan.'
+                  : scannerStatus === 'service-missing'
+                  ? 'Local scanning companion service is required to communicate with TWAIN/WIA hardware.'
+                  : 'Searching for connected hardware scanners...'}
+              </span>
+            )}
           </div>
         </div>
-      ) : null}
-      {scanAttachmentModalOpen ? (
-        <div className="app-confirm-backdrop" role="presentation" onClick={closeScanAttachmentModal}>
-          <div
-            className="employee-review-modal employee-scan-modal employee-scan-attach-modal"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="employee-scan-attach-title"
-            onClick={(event) => event.stopPropagation()}
-          >
-            <div className="employee-review-header">
-              <h2 id="employee-scan-attach-title">Attach from document</h2>
+        {scannerStatus === 'service-missing' ? (
+          <div className="employee-scanner-service-actions">
+            <a className="btn-secondary" href={ASPRISE_SCANNER_LINKS.download} target="_blank" rel="noreferrer">Install scan app</a>
+            <button type="button" className="btn-primary" onClick={checkScannerService}>I started the app - check again</button>
+          </div>
+        ) : null}
+        {scannerStatus === 'ready' ? (
+          <label className="employee-scanner-device-picker">
+            <span>Scanner device</span>
+            <select value={selectedScannerIndex} onChange={(event) => setSelectedScannerIndex(Number(event.target.value))}>
+              {scannerDevices.map((device, index) => (
+                <option key={`${device.displayName || device.name || 'scanner'}-${index}`} value={index}>
+                  {device.displayName || device.name || `Scanner ${index + 1}`}
+                </option>
+              ))}
+            </select>
+          </label>
+        ) : null}
+      </Modal>
+      <Modal
+        isOpen={scanAttachmentModalOpen}
+        onClose={closeScanAttachmentModal}
+        title="Attach from Document"
+        subtitle="Select candidate slots to assign this document. For images, adjust the crop frame."
+        maxWidth="1040px"
+        className="employee-scan-modal employee-scan-attach-modal"
+        backdropClassName="employee-scan-backdrop"
+        footer={
+          <div className="employee-scan-modal-footer">
+            <div className="employee-scan-footer-summary">
+              {scanAttachmentKeys.length > 0 ? (
+                <span>
+                  Targeting <strong>{scanAttachmentKeys.length}</strong> {scanAttachmentKeys.length === 1 ? 'slot' : 'slots'}
+                </span>
+              ) : (
+                <span className="text-warning">Select at least one slot</span>
+              )}
             </div>
-            <p className="app-confirm-message">
-              Adjust the document and choose which attachment records should receive this image.
-            </p>
-            <div className="employee-scan-attach-workspace">
-              <div className="employee-scan-attach-preview">
-                {scanAttachmentSourcePreviewUrl && scanAttachmentSourceFile?.type?.startsWith('image/') ? (
-                  <div
-                    ref={scanAttachmentFrameRef}
-                    className={`employee-scan-attach-image-frame${scanAttachmentZoom > 1 ? ' is-zoomed' : ''}${scanAttachmentDragging ? ' is-dragging' : ''}`}
-                    onMouseDown={handleScanAttachmentPointerDown}
+            <div className="employee-scan-footer-buttons">
+              <button type="button" className="btn-secondary" onClick={closeScanAttachmentModal}>Cancel</button>
+              <button
+                type="button"
+                className="btn-primary"
+                onClick={attachSelectedFromScan}
+                disabled={scanAttachmentKeys.length === 0}
+              >
+                {scanAttachmentKeys.length > 0
+                  ? `Attach to ${scanAttachmentKeys.length} ${scanAttachmentKeys.length === 1 ? 'Slot' : 'Slots'}`
+                  : 'Attach selected'}
+              </button>
+            </div>
+          </div>
+        }
+      >
+        <div className="employee-scan-attach-workspace">
+          <div className="employee-scan-attach-preview">
+            <div className="employee-scan-preview-tag">
+              <span>{scanAttachmentSourceFile?.type?.startsWith('image/') ? 'Image Framing' : 'Original Document (PDF)'}</span>
+            </div>
+
+            {scanAttachmentSourcePreviewUrl && scanAttachmentSourceFile?.type?.startsWith('image/') ? (
+              <>
+                <div
+                  ref={scanAttachmentFrameRef}
+                  className={`employee-scan-attach-image-frame${scanAttachmentZoom > 1 ? ' is-zoomed' : ''}${scanAttachmentDragging ? ' is-dragging' : ''}`}
+                  onMouseDown={handleScanAttachmentPointerDown}
+                >
+                  <div className="employee-scan-frame-guide" aria-hidden="true" />
+                  <img
+                    ref={scanAttachmentImgRef}
+                    src={scanAttachmentSourcePreviewUrl}
+                    alt="Scanned document preview"
+                    draggable="false"
+                    style={{
+                      transform: `translate(${scanAttachmentOffset.x}px, ${scanAttachmentOffset.y}px) rotate(${scanAttachmentRotation}deg) scale(${(scanAttachmentFlipX ? -1 : 1) * scanAttachmentZoom}, ${(scanAttachmentFlipY ? -1 : 1) * scanAttachmentZoom})`
+                    }}
+                  />
+                </div>
+                <div className="employee-scan-attach-toolbar" aria-label="Image adjustment controls">
+                  <button
+                    type="button"
+                    className="employee-scan-toolbar-btn"
+                    onClick={() => setScanAttachmentRotation((prev) => (prev + 270) % 360)}
+                    title="Rotate left 90°"
+                    aria-label="Rotate left"
                   >
-                    <img
-                      src={scanAttachmentSourcePreviewUrl}
-                      alt="Scanned document preview"
-                      draggable="false"
-                      style={{
-                        transform: `translate(${scanAttachmentOffset.x}px, ${scanAttachmentOffset.y}px) rotate(${scanAttachmentRotation}deg) scale(${(scanAttachmentFlipX ? -1 : 1) * scanAttachmentZoom}, ${(scanAttachmentFlipY ? -1 : 1) * scanAttachmentZoom})`
-                      }}
-                    />
-                  </div>
-                ) : scanAttachmentSourcePreviewUrl ? (
-                  <embed src={scanAttachmentSourcePreviewUrl} title="Scanned document preview" />
-                ) : (
-                  <div className="employee-camera-placeholder">No scanned preview is available.</div>
-                )}
-              </div>
-              <div className="employee-scan-attach-controls">
-                <div className="employee-scan-adjust-panel">
-                  <strong>Adjust</strong>
-                  <div className="employee-scan-adjust-actions">
-                    <button type="button" className="btn-secondary" onClick={() => setScanAttachmentRotation((prev) => (prev + 270) % 360)}>Rotate left</button>
-                    <button type="button" className="btn-secondary" onClick={() => setScanAttachmentRotation((prev) => (prev + 90) % 360)}>Rotate right</button>
-                    <button type="button" className="btn-secondary" onClick={() => setScanAttachmentFlipX((prev) => !prev)}>Flip horizontal</button>
-                    <button type="button" className="btn-secondary" onClick={() => setScanAttachmentFlipY((prev) => !prev)}>Flip vertical</button>
-                    <button type="button" className="btn-secondary" onClick={() => setScanAttachmentZoom((prev) => Math.min(5, Number((prev + 0.25).toFixed(2))))}>Zoom in</button>
-                    <button type="button" className="btn-secondary" onClick={() => setScanAttachmentZoom((prev) => {
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ overflow: 'visible' }}>
+                      <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
+                      <path d="M3 3v5h5" />
+                    </svg>
+                  </button>
+                  <button
+                    type="button"
+                    className="employee-scan-toolbar-btn"
+                    onClick={() => setScanAttachmentRotation((prev) => (prev + 90) % 360)}
+                    title="Rotate right 90°"
+                    aria-label="Rotate right"
+                  >
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ overflow: 'visible' }}>
+                      <path d="M21 12a9 9 0 1 1-9-9 9.75 9.75 0 0 1 6.74 2.74L21 8" />
+                      <path d="M21 3v5h-5" />
+                    </svg>
+                  </button>
+                  <button
+                    type="button"
+                    className={`employee-scan-toolbar-btn${scanAttachmentFlipX ? ' is-active' : ''}`}
+                    onClick={() => setScanAttachmentFlipX((prev) => !prev)}
+                    title="Flip horizontally"
+                    aria-label="Flip horizontal"
+                  >
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ overflow: 'visible' }}>
+                      <polyline points="8 4 4 8 8 12" />
+                      <polyline points="16 12 20 16 16 20" />
+                      <line x1="4" y1="8" x2="16" y2="8" />
+                      <line x1="8" y1="16" x2="20" y2="16" />
+                    </svg>
+                  </button>
+                  <button
+                    type="button"
+                    className={`employee-scan-toolbar-btn${scanAttachmentFlipY ? ' is-active' : ''}`}
+                    onClick={() => setScanAttachmentFlipY((prev) => !prev)}
+                    title="Flip vertically"
+                    aria-label="Flip vertical"
+                  >
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ overflow: 'visible' }}>
+                      <polyline points="4 8 8 4 12 8" />
+                      <polyline points="12 16 16 20 20 16" />
+                      <line x1="8" y1="4" x2="8" y2="16" />
+                      <line x1="16" y1="8" x2="16" y2="20" />
+                    </svg>
+                  </button>
+                  <span className="employee-scan-toolbar-divider" />
+                  <button
+                    type="button"
+                    className="employee-scan-toolbar-btn"
+                    onClick={() => setScanAttachmentZoom((prev) => {
                       const next = Math.max(1, Number((prev - 0.25).toFixed(2)))
                       if (next === 1) setScanAttachmentOffset({ x: 0, y: 0 })
                       return next
-                    })}>Zoom out</button>
-                    <button type="button" className="btn-secondary" onClick={resetScanAttachmentView}>Reset view</button>
-                  </div>
-                  {scanAttachmentSourceFile?.type?.startsWith('image/') ? (
-                    <p className="muted-text employee-step-note">Use the mouse wheel to zoom from the cursor, then drag the image to frame the part you want. Attach selected saves what is currently visible.</p>
-                  ) : (
-                    <p className="muted-text employee-step-note">PDF scans can be attached directly. Crop, rotate, and flip are available for image scans.</p>
-                  )}
+                    })}
+                    disabled={scanAttachmentZoom <= 1}
+                    title="Zoom out"
+                    aria-label="Zoom out"
+                  >
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ overflow: 'visible' }}>
+                      <circle cx="11" cy="11" r="8" />
+                      <line x1="21" y1="21" x2="16.65" y2="16.65" />
+                      <line x1="8" y1="11" x2="14" y2="11" />
+                    </svg>
+                  </button>
+                  <span className="employee-scan-toolbar-zoom-badge" title="Zoom level">
+                    {Math.round(scanAttachmentZoom * 100)}%
+                  </span>
+                  <button
+                    type="button"
+                    className="employee-scan-toolbar-btn"
+                    onClick={() => setScanAttachmentZoom((prev) => Math.min(5, Number((prev + 0.25).toFixed(2))))}
+                    disabled={scanAttachmentZoom >= 5}
+                    title="Zoom in"
+                    aria-label="Zoom in"
+                  >
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ overflow: 'visible' }}>
+                      <circle cx="11" cy="11" r="8" />
+                      <line x1="21" y1="21" x2="16.65" y2="16.65" />
+                      <line x1="11" y1="8" x2="11" y2="14" />
+                      <line x1="8" y1="11" x2="14" y2="11" />
+                    </svg>
+                  </button>
+                  <span className="employee-scan-toolbar-divider" />
+                  <button
+                    type="button"
+                    className="employee-scan-toolbar-btn"
+                    onClick={resetScanAttachmentView}
+                    title="Reset view (100% zoom, 0 offset)"
+                    aria-label="Reset view"
+                  >
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ overflow: 'visible' }}>
+                      <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
+                      <path d="M3 3v5h5" />
+                    </svg>
+                  </button>
                 </div>
-                <div className="employee-scan-attachment-list">
-                  <strong>Attachment list</strong>
-                  <div className="employee-scan-attachment-options">
-                    {ATTACHMENT_FIELDS.map((attachment) => (
-                      <label key={attachment.key} className={`checkbox-pill${scanAttachmentKeys.includes(attachment.key) ? ' is-checked' : ''}`}>
-                        <input
-                          type="checkbox"
-                          checked={scanAttachmentKeys.includes(attachment.key)}
-                          onChange={() => handleScanAttachmentKeyToggle(attachment.key)}
-                        />
-                        <span>{attachmentLabels[attachment.key] || attachment.label}</span>
-                      </label>
-                    ))}
-                  </div>
+              </>
+            ) : scanAttachmentSourcePreviewUrl ? (
+              <>
+                <iframe
+                  key={scanAttachmentPdfUrl}
+                  src={scanAttachmentPdfUrl}
+                  title="Scanned document preview"
+                  className="employee-scan-attach-pdf-frame"
+                  scrolling="no"
+                />
+                <div className="employee-scan-attach-toolbar" aria-label="PDF adjustment controls">
+                  <button
+                    type="button"
+                    className={`employee-scan-toolbar-btn${scanAttachmentPdfFit === 'FitH' && scanAttachmentPdfZoom === 100 ? ' is-active' : ''}`}
+                    onClick={() => {
+                      setScanAttachmentPdfFit('FitH')
+                      setScanAttachmentPdfZoom(100)
+                    }}
+                    title="Fit to width"
+                    aria-label="Fit to width"
+                  >
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ overflow: 'visible' }}>
+                      <line x1="2" y1="12" x2="22" y2="12" />
+                      <polyline points="6 8 2 12 6 16" />
+                      <polyline points="18 8 22 12 18 16" />
+                    </svg>
+                  </button>
+                  <button
+                    type="button"
+                    className={`employee-scan-toolbar-btn${scanAttachmentPdfFit === 'Fit' && scanAttachmentPdfZoom === 100 ? ' is-active' : ''}`}
+                    onClick={() => {
+                      setScanAttachmentPdfFit('Fit')
+                      setScanAttachmentPdfZoom(100)
+                    }}
+                    title="Fit entire page in view"
+                    aria-label="Fit entire page in view"
+                  >
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ overflow: 'visible' }}>
+                      <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3" />
+                    </svg>
+                  </button>
+                  <span className="employee-scan-toolbar-divider" />
+                  <button
+                    type="button"
+                    className="employee-scan-toolbar-btn"
+                    onClick={() => {
+                      setScanAttachmentPdfZoom((prev) => Math.max(50, prev - 25))
+                      setScanAttachmentPdfFit('')
+                    }}
+                    disabled={scanAttachmentPdfZoom <= 50}
+                    title="Zoom out"
+                    aria-label="Zoom out"
+                  >
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ overflow: 'visible' }}>
+                      <circle cx="11" cy="11" r="8" />
+                      <line x1="21" y1="21" x2="16.65" y2="16.65" />
+                      <line x1="8" y1="11" x2="14" y2="11" />
+                    </svg>
+                  </button>
+                  <span className="employee-scan-toolbar-zoom-badge" title="Zoom level">
+                    {scanAttachmentPdfZoom !== 100 ? `${scanAttachmentPdfZoom}%` : scanAttachmentPdfFit === 'Fit' ? 'Fit Page' : 'Fit Width'}
+                  </span>
+                  <button
+                    type="button"
+                    className="employee-scan-toolbar-btn"
+                    onClick={() => {
+                      setScanAttachmentPdfZoom((prev) => Math.min(300, prev + 25))
+                      setScanAttachmentPdfFit('')
+                    }}
+                    disabled={scanAttachmentPdfZoom >= 300}
+                    title="Zoom in"
+                    aria-label="Zoom in"
+                  >
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ overflow: 'visible' }}>
+                      <circle cx="11" cy="11" r="8" />
+                      <line x1="21" y1="21" x2="16.65" y2="16.65" />
+                      <line x1="11" y1="8" x2="11" y2="14" />
+                      <line x1="8" y1="11" x2="14" y2="11" />
+                    </svg>
+                  </button>
+                  <span className="employee-scan-toolbar-divider" />
+                  <button
+                    type="button"
+                    className="employee-scan-toolbar-btn"
+                    onClick={() => {
+                      setScanAttachmentPdfFit('FitH')
+                      setScanAttachmentPdfZoom(100)
+                    }}
+                    title="Reset view (Fit to width, 100%)"
+                    aria-label="Reset view"
+                  >
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ overflow: 'visible' }}>
+                      <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
+                      <path d="M3 3v5h5" />
+                    </svg>
+                  </button>
+                </div>
+              </>
+            ) : (
+              <div className="employee-camera-placeholder">No scanned preview is available.</div>
+            )}
+          </div>
+
+          <div className="employee-scan-attach-controls">
+            <div className="employee-scan-slots-panel">
+              <div className="employee-scan-slots-header">
+                <div>
+                  <strong>Target Attachment Slots</strong>
+                  <span className="employee-scan-slots-subtitle">
+                    Select candidate slots to receive this file
+                  </span>
+                </div>
+                <div className="employee-scan-slots-quick-actions">
+                  <button
+                    type="button"
+                    className="employee-scan-quick-btn"
+                    onClick={() => {
+                      const missing = MANDATORY_ATTACHMENT_KEYS.filter((k) => !attachmentFiles[k] && !existingAttachmentDocs[k])
+                      setScanAttachmentKeys(missing.length > 0 ? missing : [...MANDATORY_ATTACHMENT_KEYS])
+                    }}
+                    title="Select mandatory slots"
+                  >
+                    Mandatory
+                  </button>
+                  <button
+                    type="button"
+                    className="employee-scan-quick-btn"
+                    onClick={() => setScanAttachmentKeys(ATTACHMENT_FIELDS.map((a) => a.key))}
+                    title="Select all slots"
+                  >
+                    All
+                  </button>
+                  <button
+                    type="button"
+                    className="employee-scan-quick-btn"
+                    onClick={() => setScanAttachmentKeys([])}
+                    title="Clear selection"
+                  >
+                    Clear
+                  </button>
                 </div>
               </div>
-            </div>
-            {scanAttachmentError ? <p className="error-message employee-modal-error">{scanAttachmentError}</p> : null}
-            <div className="app-confirm-actions">
-              <button type="button" className="btn-secondary" onClick={closeScanAttachmentModal}>Cancel</button>
-              <button type="button" onClick={attachSelectedFromScan} disabled={scanAttachmentKeys.length === 0}>Attach selected</button>
+
+              <div className="employee-scan-slot-list">
+                {ATTACHMENT_FIELDS.map((attachment) => {
+                  const isSelected = scanAttachmentKeys.includes(attachment.key)
+                  const isMandatory = MANDATORY_ATTACHMENT_KEYS.includes(attachment.key)
+                  const isFilled = Boolean(attachmentFiles[attachment.key] || existingAttachmentDocs[attachment.key]?.file_url)
+
+                  return (
+                    <div
+                      key={attachment.key}
+                      className={`employee-scan-slot-item${isSelected ? ' is-selected' : ''}`}
+                      onClick={() => handleScanAttachmentKeyToggle(attachment.key)}
+                      role="checkbox"
+                      aria-checked={isSelected}
+                      tabIndex={0}
+                      onKeyDown={(e) => {
+                        if (e.key === ' ' || e.key === 'Enter') {
+                          e.preventDefault()
+                          handleScanAttachmentKeyToggle(attachment.key)
+                        }
+                      }}
+                    >
+                      <div className="employee-scan-slot-checkbox" aria-hidden="true">
+                        {isSelected ? (
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" style={{ overflow: 'visible' }}>
+                            <polyline points="20 6 9 17 4 12" />
+                          </svg>
+                        ) : null}
+                      </div>
+                      <div className="employee-scan-slot-content">
+                        <span className="employee-scan-slot-title">
+                          {attachmentLabels[attachment.key] || attachment.label}
+                        </span>
+                        {isMandatory && <span className="employee-scan-slot-tag-req">Required</span>}
+                      </div>
+                      {isFilled && (
+                        <span className="employee-scan-slot-filled-indicator" title="Already has an attached document">
+                          Has file
+                        </span>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+
+              {scanAttachmentSourceFile?.type?.startsWith('image/') ? (
+                <div className="employee-scan-hint-banner">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" style={{ overflow: 'visible' }}>
+                    <circle cx="12" cy="12" r="10" />
+                    <line x1="12" y1="16" x2="12" y2="12" />
+                    <line x1="12" y1="8" x2="12.01" y2="8" />
+                  </svg>
+                  <span>Crop tip: The exact framed area shown on the left will be saved into the selected slots.</span>
+                </div>
+              ) : null}
             </div>
           </div>
         </div>
-      ) : null}
-      {ocrSetupModalOpen ? (
-        <div className="app-confirm-backdrop" role="presentation" onClick={closeOcrSetupModal}>
-          <div
-            className="employee-review-modal employee-scan-modal employee-ocr-setup-modal"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="employee-ocr-setup-title"
-            onClick={(event) => event.stopPropagation()}
-          >
-            <div className="employee-review-header">
-              <h2 id="employee-ocr-setup-title">OCR setup</h2>
-            </div>
-            <p className="app-confirm-message">
-              Make sure the configured OCR service is running and reachable from this portal backend, then check again so employee document autofill can run.
-            </p>
-            <div className={`employee-scanner-status employee-scanner-status--${ocrStatus.ready ? 'ready' : 'service-missing'}`}>
-              <strong>{ocrStatus.ready ? 'OCR service is ready' : 'OCR service is not ready'}</strong>
-              <span>{ocrStatusLoading ? 'Checking OCR service...' : normalizeOcrStatusMessage(ocrStatus.message)}</span>
-            </div>
-            {!ocrStatus.ready ? (
-              <div className="employee-scanner-service-actions">
-                <button type="button" onClick={checkOcrStatus} disabled={ocrStatusLoading}>
-                  {ocrStatusLoading ? 'Checking...' : 'I started it - check again'}
-                </button>
-              </div>
-            ) : null}
-            <div className="app-confirm-actions">
-              <button type="button" className="btn-secondary" onClick={closeOcrSetupModal}>Close</button>
-            </div>
+        {scanAttachmentError ? <p className="error-message employee-modal-error">{scanAttachmentError}</p> : null}
+      </Modal>
+      <Modal
+        isOpen={ocrSetupModalOpen}
+        onClose={closeOcrSetupModal}
+        title="OCR Service Status & Setup"
+        subtitle="Make sure the OCR service provider is reachable. Then  check again so document autofill can run."
+        maxWidth="520px"
+        className="employee-scan-modal employee-ocr-setup-modal"
+        backdropClassName="employee-scan-backdrop"
+        footer={
+          <div className="employee-scan-modal-footer">
+            <button type="button" className="btn-secondary" onClick={closeOcrSetupModal}>Close</button>
+            <button type="button" className="btn-primary" onClick={checkOcrStatus} disabled={ocrStatusLoading}>
+              {ocrStatusLoading ? 'Connecting...' : 'Connect'}
+            </button>
+          </div>
+        }
+      >
+        <div className={`employee-scanner-status employee-scanner-status--${ocrStatus.ready ? 'ready' : 'service-missing'}`}>
+          <div className="employee-scanner-status-icon" aria-hidden="true">
+            {ocrStatus.ready ? (
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="20 6 9 17 4 12" />
+              </svg>
+            ) : ocrStatusLoading ? (
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" className="is-spinning">
+                <path d="M21 12a9 9 0 1 1-6.219-8.56" />
+              </svg>
+            ) : (
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="12" cy="12" r="10" />
+                <line x1="12" y1="8" x2="12" y2="12" />
+                <line x1="12" y1="16" x2="12.01" y2="16" />
+              </svg>
+            )}
+          </div>
+          <div className="employee-scanner-status-body">
+            <strong>{ocrStatus.ready ? 'OCR service is online and ready' : 'OCR service is not ready'}</strong>
+            <span>{ocrStatusLoading ? 'Checking OCR service reachability...' : normalizeOcrStatusMessage(ocrStatus.message)}</span>
           </div>
         </div>
-      ) : null}
+        <div className="employee-ocr-support-hint">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <rect width="20" height="16" x="2" y="4" rx="2" />
+            <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7" />
+          </svg>
+          <span>
+            If you are struggling with the connection, you can send an email to{' '}
+            <a
+              href="https://mail.google.com/mail/?view=cm&fs=1&to=qedamaitechnologies@gmail.com&su=OCR%20Service%20Connection%20Support"
+              target="_blank"
+              rel="noopener noreferrer"
+              title="Compose email to qedamaitechnologies@gmail.com"
+            >
+              Qedamai Technologies
+            </a>
+            .
+          </span>
+        </div>
+      </Modal>
       {floatingAttachmentPreview && typeof document !== 'undefined'
         ? createPortal(
           <div

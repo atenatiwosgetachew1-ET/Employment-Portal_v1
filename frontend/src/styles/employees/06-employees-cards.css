@@ -1,4 +1,4 @@
-﻿.employee-cards {
+.employee-cards {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 6px;
@@ -71,6 +71,728 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* ==========================================================================
+   Candidate List Filtration System
+   Professional, modern, and meaningful filtration with instant search,
+   quick filters, expandable multi-dimensional drawer, and active chips.
+   ========================================================================== */
+
+.candidate-filter-system {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  margin-bottom: 36px;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+/* 1. Main Razor-Clean Toolbar (Single compact row) */
+.candidate-list-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: nowrap;
+  padding: 6px 12px;
+  height: 50px;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  background: var(--color-card);
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.04);
+  overflow: hidden;
+}
+
+/* 1. First container: Search input & Filter toggling button (Fixed width) */
+.candidate-toolbar-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: nowrap;
+  flex: 0 0 auto;
+  flex-shrink: 0;
+  min-width: 0;
+}
+
+/* 2. Second container: Actively applied filter values (Takes all remaining width) */
+.candidate-toolbar-middle,
+.candidate-chips-scroll-container {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: nowrap;
+  flex: 1 1 0px;
+  min-width: 0;
+  width: 0;
+  max-width: none;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none !important;
+  scrollbar-color: transparent transparent !important;
+  -ms-overflow-style: none !important;
+  padding: 2px 4px 2px 2px;
+  scroll-behavior: smooth;
+  -webkit-overflow-scrolling: touch;
+  /* Right-edge fade mask: extended range so pills entering the right edge gradually fade in opacity under the hood */
+  -webkit-mask-image: linear-gradient(to right, #000 0%, #000 calc(100% - 215px), transparent 100%);
+  mask-image: linear-gradient(to right, #000 0%, #000 calc(100% - 215px), transparent 100%);
+}
+
+.candidate-chips-scroll-container:empty {
+  display: none;
+}
+
+.candidate-toolbar-middle::-webkit-scrollbar,
+.candidate-chips-scroll-container::-webkit-scrollbar,
+.candidate-toolbar-middle *::-webkit-scrollbar,
+.candidate-chips-scroll-container *::-webkit-scrollbar {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+  min-width: 0 !important;
+  min-height: 0 !important;
+  max-width: 0 !important;
+  max-height: 0 !important;
+  background: transparent !important;
+  border: 0 !important;
+}
+
+.candidate-toolbar-middle::-webkit-scrollbar-thumb,
+.candidate-chips-scroll-container::-webkit-scrollbar-thumb,
+.candidate-toolbar-middle::-webkit-scrollbar-track,
+.candidate-chips-scroll-container::-webkit-scrollbar-track,
+.candidate-toolbar-middle::-webkit-scrollbar-corner,
+.candidate-chips-scroll-container::-webkit-scrollbar-corner,
+.candidate-toolbar-middle::-webkit-scrollbar-button,
+.candidate-chips-scroll-container::-webkit-scrollbar-button {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+  background: transparent !important;
+  border: 0 !important;
+}
+
+/* Integrated Compact Search Box */
+.candidate-search-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+  width: 240px;
+  min-width: 200px;
+  flex-shrink: 0;
+}
+
+.candidate-search-icon {
+  position: absolute;
+  left: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 15px;
+  height: 15px;
+  color: var(--color-muted-foreground);
+  pointer-events: none;
+  z-index: 2;
+}
+
+.candidate-search-input {
+  width: 100%;
+  height: 36px;
+  padding-left: 34px !important;
+  padding-right: 28px !important;
+  padding-top: 0 !important;
+  padding-bottom: 0 !important;
+  border-radius: 8px;
+  border: 1px solid var(--color-border);
+  background: color-mix(in oklch, var(--color-card) 95%, var(--color-muted));
+  color: var(--color-foreground);
+  font-size: 0.84rem;
+  transition: all 160ms ease;
+  box-sizing: border-box;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.candidate-search-input::placeholder {
+  color: var(--color-muted-foreground);
+  opacity: 0.85;
+}
+
+.candidate-search-input:focus {
+  outline: none;
+  border-color: rgb(var(--accent-active-border));
+  box-shadow: 0 0 0 2px rgb(var(--accent-active) / 0.2);
+  background: var(--color-card);
+}
+
+.candidate-search-clear {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: transparent;
+  border: none;
+  color: var(--color-muted-foreground);
+  cursor: pointer;
+  font-size: 1.15rem;
+  line-height: 1;
+  padding: 2px 4px;
+  z-index: 2;
+  transition: color 150ms ease;
+}
+
+.candidate-search-clear:hover {
+  color: var(--color-foreground);
+}
+
+/* Anchored Filter Button & Popover Container */
+.candidate-filter-trigger-wrap {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
+.candidate-filter-toggle-btn,
+.candidate-filter-trigger-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  height: 36px;
+  padding: 0 12px;
+  font-size: 0.82rem;
+  font-weight: 500;
+  border-radius: 8px;
+  border: 1px solid var(--color-border);
+  background: color-mix(in oklch, var(--color-card) 95%, var(--color-muted));
+  color: var(--color-foreground);
+  cursor: pointer;
+  transition: all 160ms ease;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.candidate-filter-toggle-btn:hover,
+.candidate-filter-trigger-btn:hover {
+  background: color-mix(in oklch, var(--color-foreground) 6%, var(--color-card));
+  border-color: color-mix(in oklch, var(--color-border) 85%, var(--color-foreground));
+}
+
+.candidate-filter-toggle-btn.is-active,
+.candidate-filter-toggle-btn.has-filters,
+.candidate-filter-trigger-btn.is-active,
+.candidate-filter-trigger-btn.has-filters {
+  background: color-mix(in oklch, rgb(var(--accent-active)) 12%, var(--color-card));
+  color: rgb(var(--accent-active));
+  border-color: color-mix(in oklch, rgb(var(--accent-active-border)) 85%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in oklch, rgb(var(--accent-active)) 35%, transparent);
+}
+
+.candidate-filter-chevron {
+  transition: transform 180ms ease;
+}
+
+.candidate-filter-chevron.is-rotated {
+  transform: rotate(180deg);
+}
+
+.candidate-filter-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: rgb(var(--accent-active));
+  color: var(--color-background);
+  font-size: 0.7rem;
+  font-weight: 700;
+  line-height: 1;
+}
+
+/* 2. Candidate Filter Options Container Below candidate-list-toolbar */
+.candidate-filters-container {
+  background: var(--color-card);
+  border: 1px solid var(--color-border);
+  border-radius: 0 0 5px 5px;
+  padding: 5px 16px 25px 16px;
+  box-shadow: 0 1px 4px 0 rgb(0 0 0 / 0.04);
+  animation: filterContainerSlideDown 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes filterContainerSlideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.candidate-filters-header {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding: 0;
+  margin-bottom: 4px;
+  border-bottom: none;
+}
+
+.candidate-filters-reset-btn {
+  all: unset !important;
+  box-sizing: border-box !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  width: 22px !important;
+  height: 22px !important;
+  min-width: 22px !important;
+  min-height: 22px !important;
+  max-width: 22px !important;
+  max-height: 22px !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  border: none !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  color: var(--color-muted-foreground);
+  border-radius: 5px;
+  cursor: pointer;
+  line-height: 1;
+  transition: color 150ms ease, background-color 150ms ease, transform 180ms ease, opacity 150ms ease;
+}
+
+.candidate-filters-reset-btn:hover:not(:disabled) {
+  color: rgb(var(--accent-active)) !important;
+  background: color-mix(in oklch, rgb(var(--accent-active)) 15%, transparent) !important;
+  transform: rotate(-35deg) scale(1.1);
+  box-shadow: none !important;
+}
+
+.candidate-filters-reset-btn:active:not(:disabled) {
+  transform: rotate(-180deg) scale(0.92);
+}
+
+.candidate-filters-reset-btn:focus-visible {
+  outline: 2px solid rgb(var(--accent-active) / 0.5);
+  outline-offset: 1px;
+}
+
+.candidate-filters-reset-btn:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+.candidate-filters-reset-btn svg {
+  display: block;
+  width: 13px;
+  height: 13px;
+  stroke: currentColor;
+}
+
+.candidate-filters-grid {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.candidate-filters-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 0.76rem;
+  font-weight: 500;
+  color: var(--color-muted-foreground);
+  cursor: pointer;
+  min-width: 0;
+}
+
+.candidate-filters-select {
+  height: 34px;
+  padding: 0 26px 0 9px;
+  border-radius: 7px;
+  border: 1px solid var(--color-border);
+  background-color: color-mix(in oklch, var(--color-card) 95%, var(--color-muted));
+  color: var(--color-foreground);
+  font-size: 0.8rem;
+  cursor: pointer;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23888888' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 7px center;
+  background-size: 10px;
+  appearance: none;
+  -webkit-appearance: none;
+  width: 100%;
+  transition: all 140ms ease;
+}
+
+.candidate-filters-select:focus {
+  outline: none;
+  border-color: rgb(var(--accent-active-border));
+  box-shadow: 0 0 0 2px rgb(var(--accent-active) / 0.2);
+  background-color: var(--color-card);
+}
+
+.candidate-filters-select.has-value {
+  border-color: color-mix(in oklch, rgb(var(--accent-active-border)) 80%, transparent);
+  background-color: color-mix(in oklch, rgb(var(--accent-active)) 7%, var(--color-card));
+  font-weight: 600;
+  color: var(--color-foreground);
+}
+
+.candidate-filters-select option {
+  background: var(--color-card);
+  color: var(--color-foreground);
+}
+
+/* 3. Third container: Sort & View Layout Toggle (Strictly fixed width) */
+.candidate-toolbar-right {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 0 0 auto;
+  flex-shrink: 0;
+  width: fit-content;
+  max-width: fit-content;
+  white-space: nowrap;
+  margin-left: auto;
+}
+
+.candidate-sort-wrap {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.candidate-sort-label {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--color-muted-foreground);
+  white-space: nowrap;
+}
+
+.candidate-sort-select {
+  height: 34px;
+  padding: 0 22px 0 8px;
+  border-radius: 8px;
+  border: 1px solid var(--color-border);
+  background-color: color-mix(in oklch, var(--color-card) 95%, var(--color-muted));
+  color: var(--color-foreground);
+  font-size: 0.8rem;
+  cursor: pointer;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23888888' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 6px center;
+  background-size: 10px;
+  appearance: none;
+  -webkit-appearance: none;
+  min-width: 105px;
+  max-width: 120px;
+  transition: all 160ms ease;
+}
+
+.candidate-sort-select:focus {
+  outline: none;
+  border-color: rgb(var(--accent-active-border));
+  box-shadow: 0 0 0 2px rgb(var(--accent-active) / 0.2);
+  background-color: var(--color-card);
+}
+
+.candidate-sort-select option {
+  background: var(--color-card);
+  color: var(--color-foreground);
+}
+
+/* View Style Toggle (Compact) */
+.candidate-view-toggle {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid color-mix(in oklch, var(--color-border) 70%, transparent);
+  border-radius: 8px;
+  overflow: hidden;
+  background: color-mix(in oklch, var(--color-card) 70%, black 30%);
+  height: 34px;
+  flex-shrink: 0;
+}
+
+.candidate-view-toggle-btn {
+  all: unset !important;
+  box-sizing: border-box !important;
+  width: 38px !important;
+  height: 34px !important;
+  min-width: 38px !important;
+  min-height: 34px !important;
+  max-width: 38px !important;
+  max-height: 34px !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  border: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  color: var(--color-muted-foreground) !important;
+  display: grid !important;
+  place-items: center !important;
+  cursor: pointer !important;
+  transition: all 150ms ease !important;
+}
+
+.candidate-view-toggle-btn:hover:not(.is-active) {
+  background: rgb(255 255 255 / 0.08) !important;
+  color: var(--color-foreground) !important;
+}
+
+.candidate-view-toggle-btn.is-active {
+  background: color-mix(in oklch, rgb(var(--accent-active)) 18%, var(--color-card)) !important;
+  color: rgb(var(--accent-active)) !important;
+  box-shadow: none !important;
+}
+
+.candidate-view-toggle-btn.is-active:hover {
+  background: color-mix(in oklch, rgb(var(--accent-active)) 24%, var(--color-card)) !important;
+  color: rgb(var(--accent-active)) !important;
+  box-shadow: none !important;
+}
+
+.candidate-view-toggle-btn svg {
+  display: block;
+  width: 18px;
+  height: 18px;
+}
+
+
+/* 2. Active Chips Bar (Compact Dismissible Badges) */
+.candidate-active-chips-strip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  padding: 2px 2px 4px;
+}
+
+.candidate-chips-label {
+  font-size: 0.73rem;
+  font-weight: 700;
+  color: var(--color-muted-foreground);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-right: 2px;
+}
+
+/* Applied Filter Chip (Decorated identically to registration checkbox-pill is-checked) */
+.candidate-filter-chip,
+.checkbox-pill.is-checked.candidate-filter-chip {
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 6px !important;
+  height: 28px !important;
+  min-height: 28px !important;
+  max-height: 28px !important;
+  padding: 0 8px 0 10px !important;
+  border: 1px solid rgb(var(--accent-active)) !important;
+  border-radius: 999px !important;
+  background: color-mix(in oklch, rgb(var(--accent-active)) 22%, var(--color-card)) !important;
+  color: #ffffff !important;
+  font-size: 0.78rem !important;
+  font-weight: 600 !important;
+  line-height: 1 !important;
+  white-space: nowrap !important;
+  user-select: none !important;
+  box-shadow: 0 0 0 1px rgb(var(--accent-active) / 0.45), 0 2px 10px rgb(var(--accent-active) / 0.2) !important;
+  transition: all 0.16s ease !important;
+  box-sizing: border-box !important;
+  cursor: default !important;
+  flex-shrink: 0 !important;
+}
+
+.candidate-filter-chip::before,
+.checkbox-pill.is-checked.candidate-filter-chip::before {
+  content: '✓' !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  width: 15px !important;
+  height: 15px !important;
+  min-width: 15px !important;
+  max-width: 15px !important;
+  min-height: 15px !important;
+  max-height: 15px !important;
+  font-size: 0.68rem !important;
+  font-weight: 800 !important;
+  line-height: 1 !important;
+  border-radius: 999px !important;
+  background: rgb(var(--accent-active)) !important;
+  color: #111111 !important;
+  margin-right: 1px !important;
+  flex-shrink: 0 !important;
+}
+
+html[data-theme='light'] .candidate-filter-chip,
+html[data-theme='light'] .checkbox-pill.is-checked.candidate-filter-chip {
+  background: color-mix(in oklch, #111111 12%, #ffffff) !important;
+  color: #111111 !important;
+  border-color: #111111 !important;
+  box-shadow: 0 0 0 1px rgb(0 0 0 / 0.28) !important;
+}
+
+html[data-theme='light'] .candidate-filter-chip::before,
+html[data-theme='light'] .checkbox-pill.is-checked.candidate-filter-chip::before {
+  background: #111111 !important;
+  color: #ffffff !important;
+}
+
+.candidate-chip-key {
+  font-weight: 500;
+  opacity: 0.85;
+}
+
+.candidate-chip-val {
+  font-weight: 700;
+}
+
+/* Bulletproof override for chip remove button:
+   Completely wipes out global button min-height and padding from 07-primitives.css and 09-density.css */
+button.candidate-chip-remove,
+.candidate-filter-chip button.candidate-chip-remove,
+.candidate-filter-chip .candidate-chip-remove,
+html[data-density='compact'] button.candidate-chip-remove,
+html[data-density='compact'] .candidate-filter-chip button.candidate-chip-remove,
+html[data-density='compact'] .candidate-filter-chip .candidate-chip-remove {
+  all: unset !important;
+  box-sizing: border-box !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  width: 16px !important;
+  height: 16px !important;
+  min-width: 16px !important;
+  max-width: 16px !important;
+  min-height: 16px !important;
+  max-height: 16px !important;
+  padding: 0 !important;
+  margin: 0 0 0 4px !important;
+  border: 0 !important;
+  border-radius: 999px !important;
+  background: color-mix(in oklch, currentColor 20%, transparent) !important;
+  color: inherit !important;
+  cursor: pointer !important;
+  line-height: 1 !important;
+  font-size: 0 !important;
+  flex: 0 0 16px !important;
+  flex-shrink: 0 !important;
+  overflow: hidden !important;
+  transition: all 140ms ease !important;
+}
+
+button.candidate-chip-remove:hover,
+.candidate-filter-chip button.candidate-chip-remove:hover,
+.candidate-filter-chip .candidate-chip-remove:hover {
+  background: #ef4444 !important;
+  color: #ffffff !important;
+  transform: scale(1.15) !important;
+}
+
+.candidate-chip-remove svg {
+  display: block !important;
+  width: 8px !important;
+  height: 8px !important;
+  min-width: 8px !important;
+  max-width: 8px !important;
+  min-height: 8px !important;
+  max-height: 8px !important;
+  pointer-events: none !important;
+  stroke: currentColor !important;
+  stroke-width: 3 !important;
+}
+
+.employee-listing-view-wrapper {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  overflow-x: clip;
+}
+
+@media (max-width: 768px) {
+  .candidate-list-toolbar {
+    flex-direction: column;
+    align-items: stretch;
+    height: auto;
+    gap: 10px;
+    padding: 10px;
+  }
+
+  .candidate-toolbar-left {
+    width: 100%;
+    max-width: 100%;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .candidate-search-wrap {
+    min-width: 100%;
+    max-width: 100%;
+    width: 100%;
+    flex-shrink: 0;
+  }
+
+  .candidate-filter-toggle-btn,
+  .candidate-filter-trigger-btn {
+    width: auto;
+    flex-shrink: 0;
+  }
+
+  .candidate-chips-scroll-container {
+    max-width: 100%;
+    width: 100%;
+    overflow-x: auto;
+    overflow-y: hidden;
+    flex-wrap: nowrap;
+    scrollbar-width: none !important;
+    scrollbar-color: transparent transparent !important;
+    -ms-overflow-style: none !important;
+  }
+
+  .candidate-chips-scroll-container::-webkit-scrollbar,
+  .candidate-chips-scroll-container::-webkit-scrollbar-thumb,
+  .candidate-chips-scroll-container::-webkit-scrollbar-track {
+    display: none !important;
+    width: 0 !important;
+    height: 0 !important;
+  }
+
+  .candidate-filters-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+  }
+
+  .candidate-toolbar-right {
+    width: 100%;
+    margin-left: 0;
+    justify-content: space-between;
+  }
+}
+
+@media (max-width: 1180px) {
+  .candidate-filters-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 12px;
+  }
+}
+
+@media (max-width: 500px) {
+  .candidate-filters-grid {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
 }
 
 .employee-records-header {
@@ -1012,4 +1734,35 @@ html[data-theme='light'] .employee-doc-preview:focus-within .employee-doc-previe
   gap: 10px;
   margin-top: 8px;
 }
+
+/* Empty Candidate Feedback State */
+.candidate-list-empty-feedback {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 48px 20px;
+  color: var(--color-muted-foreground);
+}
+
+.candidate-list-empty-feedback svg {
+  margin-bottom: 12px;
+  color: var(--color-muted-foreground);
+  opacity: 0.6;
+}
+
+.candidate-list-empty-feedback h3 {
+  margin: 0 0 6px;
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: var(--color-foreground);
+}
+
+.candidate-list-empty-feedback p {
+  margin: 0 0 10px;
+  font-size: 0.86rem;
+  max-width: 440px;
+}
+
 

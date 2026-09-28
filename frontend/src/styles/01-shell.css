@@ -56,6 +56,28 @@
   overflow-y: auto;
 }
 
+.dashboard-content > * {
+  animation: pageViewEntrance 0.25s cubic-bezier(0.16, 1, 0.3, 1) both;
+  will-change: opacity, transform;
+}
+
+@keyframes pageViewEntrance {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dashboard-content > * {
+    animation: none !important;
+  }
+}
+
 .dashboard-panel h1 {
   margin: 0 0 12px;
   font-size: 1.5rem;

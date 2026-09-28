@@ -218,8 +218,8 @@ export default function EmployeeCard({
               type="button"
               className="employee-card-menu-item employee-card-menu-item--select"
               role="menuitem"
-              aria-label={isSelectedByCurrentAgent ? 'Unselect employee' : 'Select employee'}
-              title={isSelectedByCurrentAgent && !canUnselectSelection ? 'Only the selecting account or agent owner can unselect this employee.' : undefined}
+              aria-label={isSelectedByCurrentAgent ? 'Unselect candidate' : 'Select candidate'}
+              title={isSelectedByCurrentAgent && !canUnselectSelection ? 'Only the selecting account or agent owner can unselect this candidate.' : undefined}
               disabled={readOnly || !isAgentSideUser || actionBusyId === employee.id || (isSelectedByCurrentAgent && !canUnselectSelection)}
               onClick={(event) => {
                 event.preventDefault()

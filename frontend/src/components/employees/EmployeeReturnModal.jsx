@@ -26,20 +26,20 @@ export default function EmployeeReturnModal({
           <div>
             <p className="employee-modal-eyebrow">Returned list</p>
             <h2>Create return request</h2>
-            <p className="muted-text">Initiate a return from the employed employees and attach at least one evidence file.</p>
+            <p className="muted-text">Initiate a return from the employed candidates and attach at least one evidence file.</p>
           </div>
           <button type="button" className="btn-secondary" onClick={closeReturnRequestModal}>Close</button>
         </div>
         {returnRequestError ? <p className="error-message employee-modal-error">{returnRequestError}</p> : null}
         <div className="employee-summary-grid">
           <div className="employee-summary-card">
-            <h3>Choose employee</h3>
+            <h3>Choose candidate</h3>
             <label>
-              Search employed employees 
+              Search employed candidates 
               <input
                 value={returnRequestSearch}
                 onChange={(event) => setReturnRequestSearch(event.target.value)}
-                placeholder="Search employed employee"
+                placeholder="Search employed candidate"
               />
             </label>
             <div className="inline-actions inline-actions--mt-12">
@@ -68,7 +68,7 @@ export default function EmployeeReturnModal({
                 </button>
               ))}
               {!returnRequestLoading && returnRequestEmployees.length === 0 ? (
-                <span className="muted-text">No eligible employed employees found.</span>
+                <span className="muted-text">No eligible employed candidates found.</span>
               ) : null}
             </div>
           </div>

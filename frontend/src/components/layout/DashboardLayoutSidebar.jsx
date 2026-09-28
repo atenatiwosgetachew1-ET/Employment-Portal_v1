@@ -148,7 +148,7 @@ function ChevronIcon({ expanded }) {
 function iconForRoute(to) {
   if (to === '/dashboard') return 'dashboard'
   if (to.startsWith('/dashboard/notifications')) return 'notifications'
-  if (to.startsWith('/dashboard/employees')) return 'employees'
+  if (to.startsWith('/dashboard/employees') || to.startsWith('/dashboard/candidates')) return 'employees'
   if (to.startsWith('/dashboard/travel')) return 'travel'
   if (to.startsWith('/dashboard/chats')) return 'chats'
   if (to.startsWith('/dashboard/compliances')) return 'compliances'
@@ -172,12 +172,16 @@ function DashboardSidebar() {
     employees: false
   }))
   const isEmployeesRoute =
+    location.pathname === '/dashboard/candidates' ||
+    location.pathname.startsWith('/dashboard/candidates/') ||
     location.pathname === '/dashboard/employees' ||
     location.pathname.startsWith('/dashboard/employees/')
   const employeesView = isEmployeesRoute
-    ? (location.pathname.startsWith('/dashboard/employees/')
-        ? location.pathname.replace('/dashboard/employees/', '').split('/')[0] || 'list'
-        : (new URLSearchParams(location.search).get('view') || 'list'))
+    ? (location.pathname.startsWith('/dashboard/candidates/')
+        ? location.pathname.replace('/dashboard/candidates/', '').split('/')[0] || 'list'
+        : location.pathname.startsWith('/dashboard/employees/')
+          ? location.pathname.replace('/dashboard/employees/', '').split('/')[0] || 'list'
+          : (new URLSearchParams(location.search).get('view') || 'list'))
     : ''
   const isNotificationsRoute =
     location.pathname === '/dashboard/notifications' ||
@@ -219,7 +223,7 @@ function DashboardSidebar() {
     { to: '/dashboard', label: 'Dashboard', end: true },
     { to: '/dashboard/notifications', label: 'Notifications', end: false },
     ...(canManageEmployees
-      ? [{ to: '/dashboard/employees', label: 'Employees', end: false }]
+      ? [{ to: '/dashboard/candidates', label: 'Candidates', end: false }]
       : []),
     ...(canManageEmployees
       ? [{ to: '/dashboard/travel', label: 'Travel', end: false }]
@@ -244,15 +248,15 @@ function DashboardSidebar() {
   const employeeSubItems = canManageEmployees
     ? [
         ...(canEditEmployeeRecords
-          ? [{ to: '/dashboard/employees/register', label: 'Register employee', id: 'register' }]
+          ? [{ to: '/dashboard/candidates/register', label: 'Register candidate', id: 'register' }]
           : []),
-        { to: '/dashboard/employees/list', label: 'Employees list', id: 'list' },
+        { to: '/dashboard/candidates/list', label: 'Candidates list', id: 'list' },
         ...(isAgentSideUser
-          ? [{ to: '/dashboard/employees/selected', label: 'Selected employees', id: 'selected' }]
+          ? [{ to: '/dashboard/candidates/selected', label: 'Selected candidates', id: 'selected' }]
           : []),
-        { to: '/dashboard/employees/under-process', label: 'Under process', id: 'under-process' },
-        { to: '/dashboard/employees/employed', label: 'Employed', id: 'employed' },
-        { to: '/dashboard/employees/returned', label: 'Returned', id: 'returned' }
+        { to: '/dashboard/candidates/under-process', label: 'Under process', id: 'under-process' },
+        { to: '/dashboard/candidates/employed', label: 'Employed', id: 'employed' },
+        { to: '/dashboard/candidates/returned', label: 'Returned', id: 'returned' }
       ]
     : []
 
@@ -319,7 +323,7 @@ function DashboardSidebar() {
 
   useEffect(() => {
     if (!canManageEmployees) return
-    if (!location.pathname.startsWith('/dashboard/employees')) return
+    if (!location.pathname.startsWith('/dashboard/candidates') && !location.pathname.startsWith('/dashboard/employees')) return
 
     setExpandedMenus((prev) => {
       if (prev.employees) return prev
@@ -400,14 +404,14 @@ function DashboardSidebar() {
               : location.pathname === to || location.pathname.startsWith(`${to}/`)
             const badge = count > 0 && !isCurrent ? (count > 99 ? '99+' : String(count)) : null
 
-            if (!disabled && to === '/dashboard/employees') {
+            if (!disabled && (to === '/dashboard/candidates' || to === '/dashboard/employees')) {
               const expanded = Boolean(expandedMenus.employees)
               return (
                 <div key={to} className={`dashboard-nav-group${expanded ? ' is-expanded' : ''}`}>
                   <button
                     type="button"
                     className={`dashboard-nav-trigger dashboard-nav-group-link${isEmployeesRoute ? ' is-active' : ''}`}
-                    aria-label={expanded ? 'Collapse employees menu' : 'Expand employees menu'}
+                    aria-label={expanded ? 'Collapse candidates menu' : 'Expand candidates menu'}
                     aria-expanded={expanded}
                     onClick={() => setExpandedMenus((prev) => ({ ...prev, employees: !expanded }))}
                   >
@@ -422,7 +426,7 @@ function DashboardSidebar() {
                   </button>
 
                   {expanded ? (
-                    <div className="dashboard-nav-submenu" role="group" aria-label="Employees views">
+                    <div className="dashboard-nav-submenu" role="group" aria-label="Candidates views">
                       {employeeSubItems.map((item) => (
                         <NavLink
                           key={item.to}

@@ -15,7 +15,7 @@ import {
 } from '../components/charts/D3Charts'
 
 const REPORT_TABS = [
-  { id: 'employees', label: 'Employees' },
+  { id: 'employees', label: 'Candidates' },
   { id: 'commissions', label: 'Commissions' },
   { id: 'users', label: 'Users' },
   { id: 'system', label: 'System' }
@@ -290,9 +290,9 @@ export default function ReportsPage() {
       registrationTrend: monthlyRegistrations,
       processAgeChart: processAgeBuckets,
       details: [
-        { title: 'Registration pace', body: `${last30} employees were registered in the last 30 days compared with ${previous30} in the prior 30-day window.` },
-        { title: 'Employment completion', body: `${employedCount} employees are currently employed based on confirmed travel and non-returned status.` },
-        { title: 'Under-process timing', body: `${processDurations.length} active under-process employees are averaging ${avgProcessDays} days inside the process stage.` },
+        { title: 'Registration pace', body: `${last30} candidates were registered in the last 30 days compared with ${previous30} in the prior 30-day window.` },
+        { title: 'Employment completion', body: `${employedCount} candidates are currently employed based on confirmed travel and non-returned status.` },
+        { title: 'Under-process timing', body: `${processDurations.length} active under-process candidates are averaging ${avgProcessDays} days inside the process stage.` },
         { title: 'Return analysis', body: Object.entries(returnCounts).map(([label, count]) => `${label}: ${count}`).join(' | ') || 'No return cases recorded.' }
       ]
     }
@@ -361,7 +361,7 @@ export default function ReportsPage() {
       summary: [
         { label: 'Collected commissions', value: formatCurrency(rows.reduce((sum, row) => sum + row.collected, 0)) },
         { label: 'Active commission agents', value: rows.length },
-        { label: 'Settled employee cases', value: rows.reduce((sum, row) => sum + row.settledCases, 0) },
+        { label: 'Settled candidate cases', value: rows.reduce((sum, row) => sum + row.settledCases, 0) },
         { label: 'Avg participation', value: formatPercent(rows.length ? rows.reduce((sum, row) => sum + row.participation, 0) / rows.length : 0) }
       ],
       collectedChart: rows
@@ -443,9 +443,9 @@ export default function ReportsPage() {
       favoriteChart: favoriteUsers.map((item) => ({ label: item.label, value: item.raw })),
       cards: [
         { title: 'Chat participation', items: chatParticipation, note: chatLikeRows.length ? 'Chat-derived activity' : 'Activity-log proxy due limited chat backend data' },
-        { title: 'Top registrars', items: topRegistrars, note: 'Users registering the most employees' },
-        { title: 'Document attachment proxy', items: documentAttachers, note: 'Measured from employee document totals under each registrar' },
-        { title: 'Agent favourites from org side', items: favoriteUsers, note: 'Organization-side users whose employees are selected most often by agents' },
+        { title: 'Top registrars', items: topRegistrars, note: 'Users registering the most candidates' },
+        { title: 'Document attachment proxy', items: documentAttachers, note: 'Measured from candidate document totals under each registrar' },
+        { title: 'Agent favourites from org side', items: favoriteUsers, note: 'Organization-side users whose candidates are selected most often by agents' },
         { title: 'Underrated contributors', items: underrated, note: 'High registration effort but lower downstream picks/employment' }
       ]
     }
@@ -514,7 +514,7 @@ export default function ReportsPage() {
     if (currentTab === 'system') return systemReport.summary
     return [
       { label: 'Ranking groups', value: userReport.cards.length },
-      { label: 'Employees observed', value: employees.length },
+      { label: 'Candidates observed', value: employees.length },
       { label: 'Users observed', value: users.length },
       { label: 'Audit entries used', value: auditRows.length }
     ]
@@ -623,7 +623,7 @@ export default function ReportsPage() {
 
     const reportTitle =
       currentTab === 'employees'
-        ? 'Employee Report'
+        ? 'Candidate Report'
         : currentTab === 'commissions'
           ? 'Commission Report'
           : currentTab === 'users'
@@ -639,9 +639,9 @@ export default function ReportsPage() {
       employeeReport.details.forEach((item) => addParagraph(`${item.title}: ${item.body}`))
 
       addDataTable(
-        'Employee Lifecycle Snapshot',
+        'Candidate Lifecycle Snapshot',
         employeeReport.stageChart.map((item) => [item.label, String(item.value)]),
-        ['Stage', 'Employees']
+        ['Stage', 'Candidates']
       )
       addDataTable(
         'Registration Trend',
@@ -651,16 +651,16 @@ export default function ReportsPage() {
       addDataTable(
         'Under-process Age Buckets',
         employeeReport.processAgeChart.map((item) => [item.label, String(item.value)]),
-        ['Age bucket', 'Employees']
+        ['Age bucket', 'Candidates']
       )
       addDataTable(
         'Return Breakdown',
         employeeReport.returnChart.map((item) => [item.label, String(item.value)]),
-        ['Return category', 'Employees']
+        ['Return category', 'Candidates']
       )
     } else if (currentTab === 'commissions') {
       addSectionTitle('Commission Findings')
-      addParagraph('This section summarizes collection performance, settlement throughput, and operational participation by agent based on stored settlements and current employee lifecycle signals.')
+      addParagraph('This section summarizes collection performance, settlement throughput, and operational participation by agent based on stored settlements and current candidate lifecycle signals.')
 
       addDataTable(
         'Collected Timeline',
@@ -749,10 +749,10 @@ export default function ReportsPage() {
         <div>
           <h1>Reports</h1>
           <p className="muted-text">
-            Operational reporting across employee flow, commissions, user participation, and system-level platform signals.
+            Operational reporting across candidate flow, commissions, user participation, and system-level platform signals.
           </p>
           <p className="muted-text">
-            Some user and system metrics are derived operational signals from currently available employee, audit-log, and subscription data.
+            Some user and system metrics are derived operational signals from currently available candidate, audit-log, and subscription data.
           </p>
         </div>
         <div className="employees-header-actions">
@@ -793,16 +793,16 @@ export default function ReportsPage() {
 
       {!loading && currentTab === 'employees' ? (
         <section className="concept-section">
-          <h2>Employee Reports</h2>
+          <h2>Candidate Reports</h2>
           <div className="reports-chart-grid">
             <D3StageChart
-              title="Employee stage volume"
-              subtitle="Current employee flow split across the core lifecycle states."
+              title="Candidate stage volume"
+              subtitle="Current candidate flow split across the core lifecycle states."
               data={employeeReport.stageChart}
             />
             <D3DonutChart
               title="Return breakdown"
-              subtitle="Returned employees grouped by the reason bucket currently inferred from the data."
+              subtitle="Returned candidates grouped by the reason bucket currently inferred from the data."
               data={employeeReport.returnChart}
               formatter={(value) => `${value}`}
             />
@@ -816,15 +816,15 @@ export default function ReportsPage() {
             />
             <D3HorizontalBarChart
               title="Under-process age buckets"
-              subtitle="Active under-process employees grouped by how long they have been sitting in process."
+              subtitle="Active under-process candidates grouped by how long they have been sitting in process."
               data={employeeReport.processAgeChart}
-              formatter={(value) => `${value} employees`}
+              formatter={(value) => `${value} candidates`}
             />
           </div>
           <div className="reports-grid">
             {employeeReport.details.map((item) => (
               <article key={item.title} className="concept-card">
-                <p className="concept-card-kicker">Employees</p>
+                <p className="concept-card-kicker">Candidates</p>
                 <h3>{item.title}</h3>
                 <p className="muted-text">{item.body}</p>
               </article>
@@ -860,7 +860,7 @@ export default function ReportsPage() {
             />
             <D3HorizontalBarChart
               title="Settled cases by agent"
-              subtitle="How many employee commission cases each top agent has already settled."
+              subtitle="How many candidate commission cases each top agent has already settled."
               data={commissionReport.settlementCasesChart}
               formatter={(value) => `${value} cases`}
             />
@@ -899,7 +899,7 @@ export default function ReportsPage() {
             />
             <D3HorizontalBarChart
               title="Registration leaderboard"
-              subtitle="Users with the strongest employee registration volume."
+              subtitle="Users with the strongest candidate registration volume."
               data={userReport.registrarChart}
               formatter={(value) => `${value} registrations`}
             />
@@ -907,13 +907,13 @@ export default function ReportsPage() {
           <div className="reports-chart-grid">
             <D3HorizontalBarChart
               title="Document attachment activity"
-              subtitle="Proxy volume of uploaded employee documents by registrar."
+              subtitle="Proxy volume of uploaded candidate documents by registrar."
               data={userReport.attachmentChart}
               formatter={(value) => `${value} documents`}
             />
             <D3HorizontalBarChart
               title="Agent favourites"
-              subtitle="Organization-side users whose employees are picked most often by agents."
+              subtitle="Organization-side users whose candidates are picked most often by agents."
               data={userReport.favoriteChart}
               formatter={(value) => `${value} selections`}
             />

@@ -36,7 +36,7 @@ class EmployeeSelectionView(APIView):
             .first()
         )
         if not employee:
-            return Response({"detail": "Employee not found."}, status=status.HTTP_404_NOT_FOUND)
+            return Response({"detail": "Candidate not found."}, status=status.HTTP_404_NOT_FOUND)
 
         agent = get_selection_agent_for_user(request.user, organization=organization)
         if not agent:
@@ -111,7 +111,7 @@ class EmployeeSelectionView(APIView):
             .first()
         )
         if not employee:
-            return Response({"detail": "Employee not found."}, status=status.HTTP_404_NOT_FOUND)
+            return Response({"detail": "Candidate not found."}, status=status.HTTP_404_NOT_FOUND)
 
         agent = get_selection_agent_for_user(request.user, organization=organization)
         if not agent:
@@ -178,7 +178,7 @@ class EmployeeProcessStartView(APIView):
             .first()
         )
         if not employee:
-            return Response({"detail": "Employee not found."}, status=status.HTTP_404_NOT_FOUND)
+            return Response({"detail": "Candidate not found."}, status=status.HTTP_404_NOT_FOUND)
 
         if employee.status != Employee.STATUS_APPROVED:
             return Response(
@@ -323,7 +323,7 @@ class EmployeeProcessStartView(APIView):
             .first()
         )
         if not employee:
-            return Response({"detail": "Employee not found."}, status=status.HTTP_404_NOT_FOUND)
+            return Response({"detail": "Candidate not found."}, status=status.HTTP_404_NOT_FOUND)
 
         if not (
             can_initiate_employee_process(request.user, employee)

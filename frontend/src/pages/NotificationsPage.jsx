@@ -158,7 +158,7 @@ function getCategoryInfo(item) {
   if (text.includes('employee') || text.includes('candidate') || text.includes('applicant') || text.includes('staff') || text.includes('hired') || text.includes('returned') || text.includes('profile')) {
     return {
       type: 'employee',
-      label: 'Employee',
+      label: 'Candidate',
       icon: (
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
           <path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/>
@@ -485,7 +485,7 @@ export default function NotificationsPage() {
             )}
           </div>
           <p className="muted-text">
-            Stay up to date with activity, employee movements, settlements, and system updates.
+            Stay up to date with activity, candidate movements, settlements, and system updates.
           </p>
         </div>
 

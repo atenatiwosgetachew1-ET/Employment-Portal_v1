@@ -23,7 +23,7 @@ class EmployeeDocumentUploadView(APIView):
         organization = get_user_organization(request.user)
         employee = Employee.objects.filter(pk=employee_pk, organization=organization).first()
         if not employee:
-            return Response({"detail": "Employee not found."}, status=status.HTTP_404_NOT_FOUND)
+            return Response({"detail": "Candidate not found."}, status=status.HTTP_404_NOT_FOUND)
         if not can_update_employee(request.user, employee):
             return Response(
                 {"detail": "Only organization-side users can upload employee documents."},

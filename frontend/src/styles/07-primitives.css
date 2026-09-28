@@ -162,7 +162,7 @@ html[data-theme='dark'] .notification-bell-badge {
 /* Element family: Buttons
    One shared button skeleton, then color variants only. */
 
-button,
+button:not(.candidate-chip-remove):not(.candidate-search-clear):not(.candidate-filters-reset-btn),
 .btn,
 .btn-primary,
 .btn-secondary,
@@ -192,7 +192,7 @@ button,
   border-color: var(--button-border-adaptive);
 }
 
-button:hover:not(:disabled),
+button:not(.candidate-chip-remove):not(.candidate-search-clear):not(.candidate-filters-reset-btn):hover:not(:disabled),
 .btn:hover:not(:disabled),
 .btn-primary:hover:not(:disabled),
 .btn-secondary:hover:not(:disabled),
@@ -978,6 +978,9 @@ textarea[readonly] {
   min-height: 72vh;
   border: 0;
   border-radius: 5px;
+  overflow: hidden;
+  overflow-x: hidden;
+  display: block;
 }
 
 .document-preview-image {
@@ -1491,7 +1494,6 @@ html[data-theme='light'][data-accent='natural'] .employee-registration-surface .
   color: #ffffff !important;
 }
 
-.document-preview-backdrop,
 .employee-review-backdrop {
   background: color-mix(in oklch, var(--color-foreground) 20%, transparent);
   backdrop-filter: blur(20px);
@@ -1666,7 +1668,7 @@ html[data-theme='light'][data-accent='natural'] .employee-registration-surface .
   display: grid;
   gap: 16px;
   margin: auto;
-  padding: 22px;
+  padding: 30px;
   border: 1px solid color-mix(in oklch, var(--color-border) 78%, transparent);
   border-radius: 5px;
   background: color-mix(in oklch, var(--color-card) 92%, transparent);
@@ -1698,7 +1700,6 @@ html[data-theme='light'] .app-confirm-backdrop {
 }
 
 html[data-theme='light'] .employee-review-backdrop,
-html[data-theme='light'] .document-preview-backdrop,
 html[data-theme='light'] .app-confirm-backdrop {
   background: rgb(255 255 255 / 0.46);
 }
@@ -1721,6 +1722,7 @@ html[data-theme='light'] .app-confirm-backdrop {
   justify-content: flex-end;
   gap: 10px;
   flex-wrap: wrap;
+  margin-top: 20px;
 }
 
 .notifications-page-header,
@@ -1803,5 +1805,32 @@ html::-webkit-scrollbar-corner,
 body::-webkit-scrollbar-corner,
 *::-webkit-scrollbar-corner {
   background: transparent;
+}
+
+/* Explicitly hide scrollbar for candidate chips horizontal scroller */
+.candidate-chips-scroll-container,
+.candidate-toolbar-middle {
+  scrollbar-width: none !important;
+  scrollbar-color: transparent transparent !important;
+  -ms-overflow-style: none !important;
+}
+
+.candidate-chips-scroll-container::-webkit-scrollbar,
+.candidate-toolbar-middle::-webkit-scrollbar,
+.candidate-chips-scroll-container::-webkit-scrollbar-thumb,
+.candidate-toolbar-middle::-webkit-scrollbar-thumb,
+.candidate-chips-scroll-container::-webkit-scrollbar-track,
+.candidate-toolbar-middle::-webkit-scrollbar-track,
+.candidate-chips-scroll-container::-webkit-scrollbar-corner,
+.candidate-toolbar-middle::-webkit-scrollbar-corner,
+.candidate-chips-scroll-container::-webkit-scrollbar-button,
+.candidate-toolbar-middle::-webkit-scrollbar-button {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+  min-width: 0 !important;
+  min-height: 0 !important;
+  background: transparent !important;
+  border: 0 !important;
 }
 

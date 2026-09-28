@@ -1049,7 +1049,7 @@ html[data-theme='dark'] .employee-review-modal.notification-reminder-modal-dialo
   border: 1px solid color-mix(in oklch, var(--color-border) 80%, transparent) !important;
   border-radius: 14px !important;
   box-shadow: 0 24px 54px -12px rgba(0, 0, 0, 0.75), 0 0 0 1px rgba(255, 255, 255, 0.05) !important;
-  padding: 22px 24px 20px 24px !important;
+  padding: 30px !important;
   max-width: 500px !important;
   width: min(500px, calc(100vw - 32px)) !important;
   color: var(--color-foreground) !important;
@@ -1068,16 +1068,18 @@ html[data-theme='dark'] .employee-review-modal.notification-reminder-modal-dialo
 }
 
 .notification-reminder-modal-dialog .employee-review-header h2 {
-  font-size: 1.15rem !important;
-  font-weight: 600 !important;
+  font-size: 1.05rem !important;
+  font-weight: 550 !important;
   letter-spacing: -0.01em;
   color: var(--color-foreground) !important;
   margin: 0 !important;
+  line-height: 1.3 !important;
 }
 
 .notification-reminder-modal-dialog .employee-review-header p.app-confirm-message {
   margin: 4px 0 0 !important;
-  font-size: 0.82rem !important;
+  font-size: 0.8125rem !important;
+  font-weight: 400 !important;
   line-height: 1.45 !important;
   color: var(--color-muted-foreground) !important;
   padding: 0 !important;
@@ -1158,8 +1160,8 @@ html[data-theme='dark'] .employee-review-modal.notification-reminder-modal-dialo
 }
 
 .notification-reminder-target-title {
-  font-size: 0.88rem;
-  font-weight: 600;
+  font-size: 0.86rem;
+  font-weight: 500;
   color: var(--color-foreground);
   line-height: 1.35;
   word-break: break-word;
@@ -1167,10 +1169,11 @@ html[data-theme='dark'] .employee-review-modal.notification-reminder-modal-dialo
 
 .notification-reminder-target-body {
   margin: 0;
-  font-size: 0.8rem;
+  font-size: 0.78rem;
+  font-weight: 400;
   line-height: 1.4;
   color: var(--color-muted-foreground);
-  opacity: 0.72;
+  opacity: 0.8;
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
@@ -1179,8 +1182,8 @@ html[data-theme='dark'] .employee-review-modal.notification-reminder-modal-dialo
 
 /* 6. Section Labels & Presets Grid */
 .notification-reminder-section-label {
-  font-size: 0.76rem;
-  font-weight: 600;
+  font-size: 0.72rem;
+  font-weight: 500;
   text-transform: uppercase;
   letter-spacing: 0.04em;
   color: var(--color-muted-foreground);
@@ -1279,21 +1282,22 @@ html[data-theme='dark'] .employee-review-modal.notification-reminder-modal-dialo
 }
 
 .notification-reminder-option-title {
-  font-size: 0.84rem;
-  font-weight: 500;
+  font-size: 0.835rem;
+  font-weight: 450;
   color: var(--color-foreground);
   line-height: 1.25;
 }
 
 .notification-reminder-card-option.is-selected .notification-reminder-option-title {
-  font-weight: 600;
+  font-weight: 550;
   color: var(--color-foreground);
 }
 
 .notification-reminder-option-time {
-  font-size: 0.74rem;
+  font-size: 0.73rem;
+  font-weight: 400;
   color: var(--color-muted-foreground);
-  opacity: 0.85;
+  opacity: 0.75;
   line-height: 1.2;
 }
 
@@ -1335,8 +1339,8 @@ html[data-theme='dark'] .employee-review-modal.notification-reminder-modal-dialo
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  font-size: 0.76rem;
-  font-weight: 600;
+  font-size: 0.72rem;
+  font-weight: 500;
   text-transform: uppercase;
   letter-spacing: 0.04em;
   color: var(--color-muted-foreground);
@@ -1351,7 +1355,7 @@ html[data-theme='dark'] .employee-review-modal.notification-reminder-modal-dialo
 }
 
 .notification-reminder-custom-preview {
-  font-size: 0.76rem;
+  font-size: 0.74rem;
   color: rgb(var(--accent-active));
   font-weight: 500;
 }
@@ -1428,8 +1432,8 @@ html[data-theme='light'] .notification-reminder-input-wrap input[type="datetime-
   height: 36px;
   padding: 0 16px;
   border-radius: 8px;
-  font-size: 0.84rem;
-  font-weight: 500;
+  font-size: 0.82rem;
+  font-weight: 450;
   border: 1px solid var(--color-border);
   background: color-mix(in oklch, var(--color-card) 92%, var(--color-muted));
   color: var(--color-foreground);
@@ -1446,23 +1450,61 @@ html[data-theme='light'] .notification-reminder-input-wrap input[type="datetime-
   height: 36px;
   padding: 0 20px;
   border-radius: 8px;
-  font-size: 0.84rem;
-  font-weight: 500;
+  font-size: 0.82rem;
+  font-weight: 550;
   border: 1px solid transparent;
   background: rgb(var(--accent-active));
-  color: #ffffff;
+  color: #111111;
   cursor: pointer;
   transition: all 140ms ease;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  gap: 6px;
 }
 
 .notification-reminder-modal-dialog .app-confirm-actions .btn-primary:hover:not(:disabled) {
   filter: brightness(1.1);
   box-shadow: 0 2px 10px rgb(var(--accent-active) / 0.45);
 }
+/* Contrast-aware button rules for Notification Reminder Modal */
+html[data-theme='dark'] .notification-reminder-modal-dialog .app-confirm-actions .btn-primary {
+  background: rgb(var(--accent-active)) !important;
+  color: #111111 !important;
+}
+html[data-theme='dark'] .notification-reminder-modal-dialog .btn-primary svg {
+  stroke: #111111 !important;
+  color: #111111 !important;
+}
+
+html[data-theme='dark'][data-accent='orange'] .notification-reminder-modal-dialog .app-confirm-actions .btn-primary {
+  background: rgb(var(--accent-active)) !important;
+  color: #ffffff !important;
+}
+html[data-theme='dark'][data-accent='orange'] .notification-reminder-modal-dialog .btn-primary svg {
+  stroke: #ffffff !important;
+  color: #ffffff !important;
+}
+
+html[data-theme='light'] .notification-reminder-modal-dialog .app-confirm-actions .btn-primary {
+  background: #18181b !important;
+  color: #ffffff !important;
+}
+html[data-theme='light'] .notification-reminder-modal-dialog .btn-primary svg {
+  stroke: #ffffff !important;
+  color: #ffffff !important;
+}
+
+html[data-theme='light'][data-accent='orange'] .notification-reminder-modal-dialog .app-confirm-actions .btn-primary {
+  background: rgb(var(--accent-active)) !important;
+  color: #ffffff !important;
+}
+html[data-theme='light'][data-accent='orange'] .notification-reminder-modal-dialog .btn-primary svg {
+  stroke: #ffffff !important;
+  color: #ffffff !important;
+}
+
 
 .notification-reminder-modal-dialog .app-confirm-actions button:disabled {
   opacity: 0.55;
@@ -1471,7 +1513,7 @@ html[data-theme='light'] .notification-reminder-input-wrap input[type="datetime-
 
 /* 11. Compact Density Adjustments */
 html[data-density='compact'] .employee-review-modal.notification-reminder-modal-dialog {
-  padding: 16px 18px 16px 18px !important;
+  padding: 30px !important;
   border-radius: 10px !important;
 }
 
@@ -1558,19 +1600,6 @@ html[data-density='compact'] .notification-expand-chevron {
   }
 }
 
-.employee-scan-modal {
-  width: min(520px, calc(100vw - 32px));
-}
-
-.employee-scan-modal .app-confirm-header {
-  padding-bottom: 12px;
-  border-bottom: 1px solid color-mix(in oklch, var(--color-border) 58%, transparent);
-}
-
-.employee-scan-modal .app-confirm-message {
-  max-width: 44rem;
-}
-
 .notification-reminder-options {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -1616,135 +1645,6 @@ html[data-density='compact'] .notification-expand-chevron {
 
 .notification-reminder-custom input {
   width: 100%;
-}
-
-.employee-scan-option-grid {
-  gap: 10px;
-}
-
-.employee-scan-option-card {
-  width: 100%;
-  flex-direction: column;
-  justify-content: flex-start;
-  align-items: flex-start;
-  gap: 5px;
-  text-align: left;
-}
-
-.employee-scan-option-card strong,
-.employee-scan-option-card span {
-  display: block;
-}
-
-.employee-scan-option-card span {
-  color: var(--color-muted-foreground);
-  line-height: 1.45;
-}
-
-.employee-camera-preview {
-  position: relative;
-  overflow: hidden;
-  min-height: 280px;
-  border: 1px solid color-mix(in oklch, var(--color-border) 58%, transparent);
-  border-radius: 5px;
-  background: #111111;
-}
-
-.employee-camera-preview video,
-.employee-camera-placeholder {
-  width: 100%;
-  min-height: 280px;
-}
-
-.employee-camera-preview video {
-  display: block;
-  object-fit: cover;
-}
-
-.employee-camera-placeholder {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 18px;
-  box-sizing: border-box;
-  color: #ffffff;
-  text-align: center;
-}
-
-.employee-camera-preview canvas {
-  display: none;
-}
-
-.employee-upload-dropzone {
-  display: grid;
-  gap: 6px;
-  place-items: center;
-  min-height: 160px;
-  padding: 20px;
-  border: 1px dashed color-mix(in oklch, var(--color-border) 72%, transparent);
-  border-radius: 5px;
-  background: color-mix(in oklch, var(--color-card) 88%, var(--color-muted));
-  color: var(--color-foreground);
-  text-align: center;
-  cursor: pointer;
-}
-
-.employee-upload-dropzone:hover,
-.employee-upload-dropzone:focus-visible,
-.employee-upload-dropzone.is-dragging {
-  border-color: color-mix(in oklch, var(--color-ring) 42%, var(--color-border));
-  background: color-mix(in oklch, var(--color-card) 82%, var(--color-muted));
-  outline: none;
-}
-
-.employee-upload-dropzone.has-file {
-  border-style: solid;
-}
-
-.employee-upload-dropzone span {
-  color: var(--color-muted-foreground);
-  font-size: 0.88rem;
-}
-
-.employee-scanner-status {
-  display: grid;
-  gap: 6px;
-  padding: var(--density-card-padding);
-  border: 1px solid color-mix(in oklch, var(--color-border) 66%, transparent);
-  border-radius: 5px;
-  background: color-mix(in oklch, var(--color-card) 88%, var(--color-muted));
-}
-
-.employee-scanner-status span {
-  color: var(--color-muted-foreground);
-  line-height: 1.45;
-}
-
-.employee-scanner-status--service-missing,
-.employee-scanner-status--no-devices {
-  border-color: color-mix(in oklch, var(--color-destructive) 32%, var(--color-border));
-}
-
-.employee-scanner-status--ready {
-  border-color: color-mix(in oklch, rgb(var(--color-chart-2)) 36%, var(--color-border));
-}
-
-.employee-scanner-service-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: calc(var(--density-section-gap) - 6px);
-}
-
-.employee-scanner-service-actions .btn-secondary {
-  text-decoration: none;
-}
-
-.employee-scanner-device-picker {
-  display: grid;
-  gap: calc(var(--density-section-gap) - 8px);
-  color: var(--color-foreground);
-  font-size: 0.86rem;
-  font-weight: 650;
 }
 
 .notification-reminder-custom {

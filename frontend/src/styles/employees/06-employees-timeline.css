@@ -1,4 +1,4 @@
-﻿.employee-review-stepper {
+.employee-review-stepper {
   margin: 0;
   padding: 0 0 0 14px;
   list-style: none;
@@ -150,17 +150,20 @@
   color: rgb(var(--accent-active));
 }
 
-.employee-review-doc-grid {
+.employee-review-doc-scroller .employee-review-doc-grid,
+.employee-review-panel--documents .employee-review-doc-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
   gap: 12px;
 }
 
-.employee-review-doc-grid--evidence {
+.employee-review-doc-scroller .employee-review-doc-grid--evidence,
+.employee-review-panel--documents .employee-review-doc-grid--evidence {
   grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
 }
 
-.employee-review-doc-card {
+.employee-review-doc-scroller .employee-review-doc-card,
+.employee-review-panel--documents .employee-review-doc-card {
   text-align: left;
   padding: 5px;
   border-radius: 18px;
@@ -172,18 +175,21 @@
   user-select: none;
 }
 
-.employee-review-doc-card:hover {
+.employee-review-doc-scroller .employee-review-doc-card:hover,
+.employee-review-panel--documents .employee-review-doc-card:hover {
   transform: translateY(-1px);
   border-color: rgb(var(--accent-active) / 0.22);
   box-shadow: 0 18px 52px rgb(0 0 0 / 0.22);
   background: rgba(255, 255, 255, 0.039);
 }
 
-.employee-review-doc-card:active {
+.employee-review-doc-scroller .employee-review-doc-card:active,
+.employee-review-panel--documents .employee-review-doc-card:active {
   background: rgba(255, 255, 255, 0);
 }
 
-.employee-review-doc-card:focus-visible {
+.employee-review-doc-scroller .employee-review-doc-card:focus-visible,
+.employee-review-panel--documents .employee-review-doc-card:focus-visible {
   outline: 2px solid rgb(var(--accent-active) / 0.35);
   outline-offset: 3px;
 }
@@ -638,85 +644,358 @@
   display: none;
 }
 
-.document-preview-backdrop {
-  position: fixed;
-  inset: -12px 0 0 0;
-  width: 100vw;
-  min-height: calc(100dvh + 12px);
-  display: grid;
-  place-items: center;
-  margin: 0;
-  padding: 24px;
-  overflow: auto;
-  background: rgb(0 0 0 / 0.66);
-  z-index: 120;
+/* Document Preview Backdrop */
+.document-preview-backdrop,
+.app-confirm-backdrop.document-preview-backdrop {
+  position: fixed !important;
+  inset: 0 !important;
+  width: 100vw !important;
+  height: 100dvh !important;
+  min-height: 100dvh !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  margin: 0 !important;
+  padding: 16px !important;
+  background: rgba(0, 0, 0, 0.68) !important;
+  backdrop-filter: blur(8px) !important;
+  -webkit-backdrop-filter: blur(8px) !important;
+  z-index: 1000 !important;
+  box-sizing: border-box !important;
 }
 
-.document-preview-modal {
-  width: min(1200px, 100%);
-  max-height: calc(100vh - 48px);
-  display: flex;
-  flex-direction: column;
-  margin: auto;
-  gap: 16px;
-  padding: 20px;
-  border-radius: 5px;
-  background: color-mix(in oklch, black 88%, var(--color-card) 12%);
-  color: var(--color-primary-foreground);
-  box-shadow: 0 28px 80px rgb(0 0 0 / 0.34);
+/* Document Preview Modal Container (dimensions preserved per requirement) */
+html .document-preview-modal,
+html[data-theme='dark'] .document-preview-modal,
+html .employee-review-modal.document-preview-modal {
+  width: min(1200px, calc(100vw - 32px)) !important;
+  max-width: 1200px !important;
+  height: min(92dvh, 880px) !important;
+  min-height: min(600px, 85dvh) !important;
+  max-height: min(94dvh, 920px) !important;
+  display: flex !important;
+  flex-direction: column !important;
+  margin: 0 !important;
+  padding: 30px !important;
+  border-radius: 14px !important;
+  border: 1px solid color-mix(in oklch, var(--color-border) 80%, transparent) !important;
+  background: color-mix(in oklch, var(--color-card) 96%, var(--color-muted)) !important;
+  background-color: color-mix(in oklch, var(--color-card) 96%, var(--color-muted)) !important;
+  color: var(--color-foreground) !important;
+  box-shadow: 0 24px 54px -12px rgba(0, 0, 0, 0.75), 0 0 0 1px rgba(255, 255, 255, 0.05) !important;
+  box-sizing: border-box !important;
+  animation: notification-reminder-fade-in 0.2s cubic-bezier(0.16, 1, 0.3, 1) !important;
+  overflow: hidden !important;
 }
 
-.document-preview-toolbar {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 16px;
-  flex-wrap: wrap;
-  padding: var(--density-card-padding);
-  border: 1px solid color-mix(in oklch, var(--color-border) 68%, transparent);
-  border-radius: 5px;
-  background: color-mix(in oklch, var(--color-card) 90%, var(--color-muted));
+html[data-theme='light'] .document-preview-modal {
+  background: color-mix(in oklch, var(--color-card) 98%, var(--color-muted)) !important;
+  background-color: color-mix(in oklch, var(--color-card) 98%, var(--color-muted)) !important;
+  border: 1px solid color-mix(in oklch, var(--color-border) 85%, transparent) !important;
+  box-shadow: 0 20px 48px -10px rgba(0, 0, 0, 0.18), 0 0 0 1px rgba(0, 0, 0, 0.06) !important;
+  color: var(--color-foreground) !important;
+}
+
+html[data-density='compact'] .document-preview-modal,
+html[data-density='compact'] .employee-review-modal.document-preview-modal {
+  height: min(92dvh, 880px) !important;
+  min-height: min(600px, 85dvh) !important;
+  max-height: min(94dvh, 920px) !important;
+  padding: 30px !important;
+  border-radius: 14px !important;
+}
+
+/* Header & Close Ergonomics */
+.document-preview-modal .employee-review-header,
+.document-preview-modal .document-preview-toolbar {
+  padding: 0 0 14px 0 !important;
+  margin-bottom: 16px !important;
+  border: none !important;
+  border-bottom: 1px solid color-mix(in oklch, var(--color-border) 55%, transparent) !important;
+  background: transparent !important;
+  border-radius: 0 !important;
+  display: flex !important;
+  align-items: flex-start !important;
+  justify-content: space-between !important;
+  gap: 16px !important;
+  flex-wrap: nowrap !important;
+  flex-shrink: 0 !important;
+}
+
+.document-preview-modal .document-preview-title,
+.document-preview-modal .employee-review-header h2 {
+  font-size: 1.05rem !important;
+  font-weight: 650 !important;
+  color: var(--color-foreground) !important;
+  margin: 0 0 4px 0 !important;
+  letter-spacing: -0.015em !important;
+}
+
+.document-preview-modal .document-preview-subtitle,
+.document-preview-modal .employee-review-header p.muted-text,
+.document-preview-modal .employee-review-header p.app-confirm-message {
+  font-size: 0.81rem !important;
+  color: var(--color-muted-foreground) !important;
+  margin: 0 !important;
+  line-height: 1.4 !important;
+}
+
+/* Right-aligned Header Controls */
+.document-preview-header-right {
+  display: flex !important;
+  align-items: center !important;
+  gap: 10px !important;
+  flex-shrink: 0 !important;
 }
 
 .document-preview-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
+  display: flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+  flex-wrap: nowrap !important;
 }
 
-.document-preview-download {
-  display: inline-flex;
-  align-items: center;
-  text-decoration: none;
+/* Header Buttons: Matching other popup windows (.btn-secondary style) */
+.document-preview-modal .document-preview-actions .document-preview-download,
+.document-preview-modal .document-preview-actions .document-preview-print {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 6px !important;
+  height: 32px !important;
+  min-height: 32px !important;
+  padding: 0 14px !important;
+  font-size: 0.82rem !important;
+  font-weight: 500 !important;
+  cursor: pointer !important;
+  white-space: nowrap !important;
+  user-select: none !important;
+  text-decoration: none !important;
 }
 
+.document-preview-modal .document-preview-actions .document-preview-download svg,
+.document-preview-modal .document-preview-actions .document-preview-print svg {
+  width: 14px !important;
+  height: 14px !important;
+  stroke: currentColor !important;
+  flex-shrink: 0 !important;
+}
+
+.document-preview-modal .document-preview-actions .document-preview-download:disabled,
+.document-preview-modal .document-preview-actions .document-preview-print:disabled {
+  opacity: 0.38 !important;
+  cursor: not-allowed !important;
+  transform: none !important;
+}
+
+/* Close button matching other popup headers */
+.document-preview-modal .document-preview-close-btn {
+  width: 28px !important;
+  height: 28px !important;
+  min-height: 28px !important;
+  min-width: 28px !important;
+  padding: 0 !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  border-radius: 6px !important;
+  cursor: pointer !important;
+  flex-shrink: 0 !important;
+  box-shadow: none !important;
+}
+
+.document-preview-modal .document-preview-close-btn svg {
+  width: 14px !important;
+  height: 14px !important;
+  stroke: currentColor !important;
+}
+
+/* Document Preview Canvas Surface */
 .document-preview-canvas {
-  flex: 1;
-  min-height: 60vh;
-  overflow: auto;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 16px;
-  border-radius: 5px;
-  background: rgba(255, 255, 255, 0.04);
-}
-
-.document-preview-canvas.is-zoomed {
-  cursor: grab;
+  position: relative !important;
+  flex: 1 1 auto !important;
+  height: 100% !important;
+  min-height: 0 !important;
+  max-height: none !important;
+  overflow: hidden !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  padding: 24px !important;
+  border-radius: 10px !important;
+  border: 1px solid color-mix(in oklch, var(--color-border) 75%, transparent) !important;
+  background: radial-gradient(circle at center, #18181c 0%, #0d0d0e 100%) !important;
+  box-shadow: inset 0 2px 10px rgba(0, 0, 0, 0.45) !important;
+  box-sizing: border-box !important;
+  user-select: none !important;
+  touch-action: none !important;
+  cursor: grab !important;
 }
 
 .document-preview-canvas.is-dragging {
-  cursor: grabbing;
+  cursor: grabbing !important;
 }
 
 .document-preview-canvas img {
-  max-width: 100%;
-  max-height: 100%;
-  object-fit: contain;
-  transform-origin: center center;
-  transition: transform 0.15s ease;
-  user-select: none;
+  display: block !important;
+  max-width: 100% !important;
+  max-height: calc(100% - 10px) !important;
+  width: auto !important;
+  height: auto !important;
+  object-fit: contain !important;
+  transform-origin: center center !important;
+  user-select: none !important;
+  pointer-events: none !important;
+  box-shadow: 0 10px 36px rgba(0, 0, 0, 0.65) !important;
+  border-radius: 4px !important;
+  transition: transform 0.16s cubic-bezier(0.2, 0, 0, 1) !important;
+  will-change: transform !important;
+}
+
+.document-preview-canvas.is-interacting img,
+.document-preview-canvas.is-dragging img {
+  transition: none !important;
+}
+
+.document-preview-canvas:has(.document-preview-frame) {
+  overflow-x: hidden !important;
+  padding: 0 !important;
+  background: #0d0d0e !important;
+}
+
+.document-preview-canvas .document-preview-frame {
+  width: 100% !important;
+  height: 100% !important;
+  min-height: 100% !important;
+  border: 0 !important;
+  border-radius: 8px !important;
+  display: block !important;
+  background: #ffffff !important;
+}
+
+/* Floating Bottom Toolbar on Preview Canvas */
+.document-preview-floating-toolbar {
+  position: absolute !important;
+  bottom: 16px !important;
+  left: 50% !important;
+  transform: translateX(-50%) !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 3px !important;
+  padding: 4px 8px !important;
+  border-radius: 999px !important;
+  background: rgba(22, 22, 28, 0.88) !important;
+  backdrop-filter: blur(12px) !important;
+  -webkit-backdrop-filter: blur(12px) !important;
+  border: 1px solid rgba(255, 255, 255, 0.16) !important;
+  box-shadow: 0 8px 24px -4px rgba(0, 0, 0, 0.6) !important;
+  z-index: 20 !important;
+  user-select: none !important;
+  pointer-events: auto !important;
+}
+
+.document-preview-floating-toolbar .document-preview-toolbar-btn {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  width: 28px !important;
+  height: 28px !important;
+  min-width: 28px !important;
+  min-height: 28px !important;
+  border-radius: 0 !important;
+  border: none !important;
+  background: transparent !important;
+  background-color: transparent !important;
+  box-shadow: none !important;
+  color: rgba(255, 255, 255, 0.65) !important;
+  opacity: 0.8 !important;
+  cursor: pointer !important;
+  transition: color 0.18s ease, opacity 0.18s ease, transform 0.18s cubic-bezier(0.16, 1, 0.3, 1) !important;
+  padding: 0 !important;
+  margin: 0 !important;
+}
+
+.document-preview-floating-toolbar .document-preview-toolbar-btn svg {
+  display: block !important;
+  stroke: currentColor !important;
+  transition: stroke 0.18s ease, transform 0.18s ease !important;
+}
+
+.document-preview-floating-toolbar .document-preview-toolbar-btn:hover:not(:disabled) {
+  background: transparent !important;
+  background-color: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  color: #ffffff !important;
+  opacity: 1 !important;
+  transform: scale(1.18) !important;
+}
+
+.document-preview-floating-toolbar .document-preview-toolbar-btn:active:not(:disabled) {
+  background: transparent !important;
+  background-color: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  color: rgb(var(--accent-active)) !important;
+  opacity: 1 !important;
+  transform: scale(1.05) !important;
+}
+
+.document-preview-floating-toolbar .document-preview-toolbar-btn.is-active {
+  background: transparent !important;
+  background-color: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  color: rgb(var(--accent-active)) !important;
+  opacity: 1 !important;
+}
+
+.document-preview-floating-toolbar .document-preview-toolbar-btn.is-active:hover:not(:disabled) {
+  background: transparent !important;
+  background-color: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  color: rgb(var(--accent-active)) !important;
+  filter: brightness(1.2) !important;
+  transform: scale(1.18) !important;
+}
+
+.document-preview-floating-toolbar .document-preview-toolbar-btn:disabled {
+  background: transparent !important;
+  background-color: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  color: #71717a !important;
+  opacity: 0.25 !important;
+  cursor: not-allowed !important;
+  transform: none !important;
+}
+
+.document-preview-floating-toolbar .document-preview-toolbar-divider {
+  width: 1px !important;
+  height: 16px !important;
+  background: rgba(255, 255, 255, 0.2) !important;
+  margin: 0 3px !important;
+}
+
+.document-preview-floating-toolbar .document-preview-toolbar-zoom-badge {
+  font-size: 0.72rem !important;
+  font-weight: 600 !important;
+  color: #d4d4d8 !important;
+  min-width: 44px !important;
+  padding: 0 4px !important;
+  text-align: center !important;
+  user-select: none !important;
+  white-space: nowrap !important;
+}
+
+.employee-attachment-preview-file {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  color: var(--color-muted-foreground) !important;
+  font-size: 0.88rem !important;
+  font-weight: 500 !important;
 }
 
 .employee-progress-panel {

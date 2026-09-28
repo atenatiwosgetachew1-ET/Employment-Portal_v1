@@ -23,8 +23,7 @@ html[data-density='compact'] .returned-request-item,
 html[data-density='compact'] .table-scroll,
 html[data-density='compact'] .employee-attachment-preview-card,
 html[data-density='compact'] .attachment-box,
-html[data-density='compact'] .settings-tab-card,
-html[data-density='compact'] .app-confirm-dialog {
+html[data-density='compact'] .settings-tab-card {
   padding: 0;
 }
 
@@ -35,7 +34,7 @@ html[data-density='compact'] .app-confirm-dialog,
 html[data-density='compact'] .notification-dropdown,
 html[data-density='compact'] .notification-reminder-dialog,
 html[data-density='compact'] .employee-scan-modal {
-  padding: 25px 0px;
+  padding: 30px;
 }
 
 html[data-density='compact'] .employee-review-modal.employee-scan-modal {
@@ -305,6 +304,28 @@ html[data-density='compact'] .dashboard-sidebar button:not(.dashboard-nav-trigge
   padding: 0;
 }
 
+/* Candidate chip remove button must never inherit compact button sizing */
+html[data-density='compact'] button.candidate-chip-remove,
+html[data-density='compact'] .candidate-filter-chip button,
+html[data-density='compact'] .candidate-chip-remove {
+  all: unset !important;
+  box-sizing: border-box !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  min-height: 16px !important;
+  max-height: 16px !important;
+  height: 16px !important;
+  width: 16px !important;
+  min-width: 16px !important;
+  max-width: 16px !important;
+  padding: 0 !important;
+  margin: 0 0 0 4px !important;
+  border-radius: 999px !important;
+  line-height: 1 !important;
+  cursor: pointer !important;
+}
+
 html[data-density='compact'] .dashboard-sidebar .dashboard-logout {
   min-height: 2.3125rem;
   padding: 0.58rem 0.72rem;
@@ -416,7 +437,7 @@ html[data-density='compact'] .app-confirm-dialog,
 html[data-density='compact'] .notification-dropdown,
 html[data-density='compact'] .notification-reminder-dialog,
 html[data-density='compact'] .employee-scan-modal {
-  padding: 25px 0px;
+  padding: 30px;
 }
 
 html[data-density='compact'] .employee-review-shell {

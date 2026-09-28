@@ -139,7 +139,7 @@ export const ATTACHMENT_FIELDS = [
   { key: 'portrait_photo', label: 'Portrait photo 3x4 size', expiryField: '' },
   { key: 'full_photo', label: 'Full photo', expiryField: '' },
   { key: 'passport_document', label: 'Passport', expiryField: 'passport_expires_on' },
-  { key: 'employee_id', label: 'Employee ID', expiryField: 'employee_id_expires_on' },
+  { key: 'employee_id', label: 'Candidate ID', expiryField: 'employee_id_expires_on' },
   { key: 'contact_person_id', label: 'Contact person ID', expiryField: 'contact_person_id_expires_on' },
   { key: 'medical_result', label: 'Medical result', expiryField: 'medical_expires_on' },
   { key: 'certificate_of_competency', label: 'Certificate of competency', expiryField: 'competency_certificate_expires_on' },

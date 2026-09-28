@@ -4,7 +4,7 @@ const foundation = [
   {
     kicker: 'Core workflow',
     title: 'Expiry and validity tracking',
-    description: 'Start with document expiry, missing requirement alerts, and validity summaries tied directly to employee records.'
+    description: 'Start with document expiry, missing requirement alerts, and validity summaries tied directly to candidate records.'
   },
   {
     kicker: 'Operations',

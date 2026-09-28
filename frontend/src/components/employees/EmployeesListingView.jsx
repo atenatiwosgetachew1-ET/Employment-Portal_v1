@@ -33,6 +33,7 @@ import {
   ALLOWED_ATTACHMENT_MIME_TYPES,
   ALLOWED_ATTACHMENT_EXTENSIONS,
   REGISTRATION_TEMPLATE_STORAGE_KEY,
+  LEGACY_REGISTRATION_TEMPLATE_STORAGE_KEY,
   REGISTRATION_DRAFT_DB_NAME,
   REGISTRATION_DRAFT_DB_VERSION,
   REGISTRATION_DRAFT_STORE,
@@ -131,7 +132,9 @@ import {
   writeRegistrationDraft,
   fetchPreviewBlob,
   fetchAllEmployeePages,
-  readStoredSettlements
+  readStoredSettlements,
+  printDocumentSilently,
+  filterCandidateList
 } from '../../utils/employeeHelpers'
 
 import EmployeeCard from './EmployeeCard'
@@ -154,7 +157,17 @@ export default function EmployeesListingView({ stage = "list" }) {
   const [notice, setNotice] = useState('')
   const [page, setPage] = useState(1)
   const [searchInput, setSearchInput] = useState('')
-  const [filters, setFilters] = useState({ q: '', isActive: '', tag: '' })
+  const [filters, setFilters] = useState({
+    q: '',
+    isActive: '',
+    profession: '',
+    gender: '',
+    religion: '',
+    experience: '',
+    destinationCountry: '',
+    docStatus: '',
+    tag: ''
+  })
   const [editingEmployeeId, setEditingEmployeeId] = useState(null)
   const [busyEmployeeId, setBusyEmployeeId] = useState(null)
   const [actionBusyId, setActionBusyId] = useState(null)
@@ -527,19 +540,7 @@ export default function EmployeesListingView({ stage = "list" }) {
           )
         }
 
-        if (filters.isActive === 'true') {
-          visibleListEmployees = visibleListEmployees.filter((employee) => employeeAvailability(employee) === 'Available')
-        }
-
-        if (filters.isActive === 'false') {
-          visibleListEmployees = visibleListEmployees.filter((employee) => employeeAvailability(employee) === 'Not available')
-        }
-
-        if (filters.tag) {
-          visibleListEmployees = visibleListEmployees.filter((employee) =>
-            employeeMatchesTagFilter(employee, filters.tag)
-          )
-        }
+        visibleListEmployees = filterCandidateList(visibleListEmployees, filters)
 
         setEmployeesData({
           count: visibleListEmployees.length,
@@ -665,6 +666,20 @@ export default function EmployeesListingView({ stage = "list" }) {
     if (currentView === 'register') return
     loadEmployees(currentView)
   }, [canManageEmployees, currentView, loadEmployees])
+
+  useEffect(() => {
+    window.dispatchEvent(new CustomEvent('portal:candidates-loading', { detail: { loading } }))
+  }, [loading])
+
+  useEffect(() => {
+    const handlePortalRefresh = () => {
+      loadEmployees(currentView)
+    }
+    window.addEventListener('portal:refresh-candidates', handlePortalRefresh)
+    return () => {
+      window.removeEventListener('portal:refresh-candidates', handlePortalRefresh)
+    }
+  }, [currentView, loadEmployees])
 
   const loadReturnRequestEmployees = useCallback(async (search = '') => {
     setReturnRequestLoading(true)
@@ -813,7 +828,8 @@ export default function EmployeesListingView({ stage = "list" }) {
   useEffect(() => {
     if (typeof window === 'undefined') return
     try {
-      const rawTemplate = window.localStorage.getItem(REGISTRATION_TEMPLATE_STORAGE_KEY)
+      const rawTemplate = window.localStorage.getItem(REGISTRATION_TEMPLATE_STORAGE_KEY) ||
+        window.localStorage.getItem(LEGACY_REGISTRATION_TEMPLATE_STORAGE_KEY)
       if (!rawTemplate) return
       setSavedTemplate(applyRegistrationTemplate(JSON.parse(rawTemplate)))
     } catch {
@@ -1003,7 +1019,7 @@ export default function EmployeesListingView({ stage = "list" }) {
     setScanImportModalOpen(false)
     clearScannedDocument()
     setPage(1)
-    navigate('/dashboard/employees/register')
+    navigate('/dashboard/candidates/register')
   }
 
   const handleSaveDraft = async () => {
@@ -1066,7 +1082,7 @@ export default function EmployeesListingView({ stage = "list" }) {
       })
       setAttachmentFiles(nextFiles)
       setActiveStep(0)
-      navigate('/dashboard/employees/register?edit=' + employee.id)
+      navigate('/dashboard/candidates/register?edit=' + employee.id)
       setModalNotice('Draft restored.')
     } catch (err) {
       setModalError(err?.message || 'Could not restore draft.')
@@ -1760,7 +1776,7 @@ export default function EmployeesListingView({ stage = "list" }) {
     }
     closeDocumentPreview()
     setOpenedEmployeeId(null)
-    navigate(`/dashboard/employees/register?edit=${employeeId}`)
+    navigate(`/dashboard/candidates/register?edit=${employeeId}`)
   }
 
   const handleDelete = async (employee) => {
@@ -2470,11 +2486,12 @@ export default function EmployeesListingView({ stage = "list" }) {
   const canProgressivelyRenderEmployeeCards = currentView === 'list'
 
   const visibleEmployees = useMemo(() => {
-    return employees.map((employee) => ({
+    const list = employees.map((employee) => ({
       ...employee,
       settled_commission: employee?.settled_commission || settledCommissionIds.includes(String(employee.id))
     }))
-  }, [employees, settledCommissionIds])
+    return filterCandidateList(list, filters)
+  }, [employees, filters, settledCommissionIds])
 
   const visibleEmployeesById = useMemo(() => {
     const map = new Map()
@@ -3449,75 +3466,9 @@ export default function EmployeesListingView({ stage = "list" }) {
       anchor.remove()
     }
   }, [previewDocument])
-  const handlePreviewPrint = useCallback(async () => {
-    if (!previewDocument?.url || typeof window === 'undefined') return
-    let objectUrl = ''
-    try {
-      const blob = await fetchPreviewBlob(previewDocument.url)
-      objectUrl = window.URL.createObjectURL(blob)
-      const printWindow = window.open('', '_blank')
-      if (!printWindow) return
-
-      const escapedTitle = String(previewDocument.label || 'Document preview')
-        .replaceAll('&', '&amp;')
-        .replaceAll('<', '&lt;')
-        .replaceAll('>', '&gt;')
-      const previewScreenBackground = readCssCustomProperty('--preview-window-screen-bg') || 'Canvas'
-      const previewPaperBackground = readCssCustomProperty('--preview-window-paper-bg') || 'Canvas'
-
-      if (previewDocument.isImage) {
-        printWindow.document.write(`
-          <!doctype html>
-          <html>
-            <head>
-              <title>${escapedTitle}</title>
-              <style>
-                html, body { margin: 0; background: ${previewScreenBackground}; }
-                body {
-                  display: flex;
-                  align-items: center;
-                  justify-content: center;
-                  min-height: 100vh;
-                }
-                img {
-                  max-width: 100%;
-                  max-height: 100vh;
-                  object-fit: contain;
-                }
-                @media print {
-                  html, body { background: ${previewPaperBackground}; }
-                }
-              </style>
-            </head>
-            <body>
-              <img src="${objectUrl}" alt="${escapedTitle}" onload="setTimeout(() => window.print(), 150)" />
-            </body>
-          </html>
-        `)
-        printWindow.document.close()
-      } else {
-        printWindow.location.href = objectUrl
-        window.setTimeout(() => {
-          try {
-            printWindow.focus()
-            printWindow.print()
-          } catch {}
-        }, 700)
-      }
-
-      window.setTimeout(() => {
-        if (objectUrl) window.URL.revokeObjectURL(objectUrl)
-      }, 60000)
-    } catch {
-      const fallbackWindow = window.open(previewDocument.url, '_blank')
-      if (!fallbackWindow) return
-      window.setTimeout(() => {
-        try {
-          fallbackWindow.focus()
-          fallbackWindow.print()
-        } catch {}
-      }, 700)
-    }
+  const handlePreviewPrint = useCallback(() => {
+    if (!previewDocument?.url) return
+    printDocumentSilently(previewDocument)
   }, [previewDocument])
   const handlePreviewWheel = useCallback((event) => {
     if (!previewDocument?.isImage) return
@@ -3556,72 +3507,25 @@ export default function EmployeesListingView({ stage = "list" }) {
           setFilters={setFilters}
           setPage={setPage}
           EMPLOYEE_TAG_FILTER_OPTIONS={EMPLOYEE_TAG_FILTER_OPTIONS}
+          employeeCardsLayout={employeeCardsLayout}
+          setEmployeeCardsLayout={setEmployeeCardsLayout}
+          employeeCardsSort={employeeCardsSort}
+          setEmployeeCardsSort={setEmployeeCardsSort}
+          loading={loading}
+          onRefresh={() => loadEmployees(currentView)}
+          employees={employees}
+          visibleCount={visibleEmployees.length}
+          totalCount={total}
         />
         {pageError ? <p className="error-message">{pageError}</p> : null}
         {notice ? <p className="muted-text message-block--mb-16">{notice}</p> : null}
         <div className="users-table-wrap">
-          <div className="employee-records-header">
-            <h2>
-              {currentView === 'employed'
-                ? 'Employed'
-                : currentView === 'returned'
-                ? 'Returned list'
-                : currentView === 'under-process'
-                ? 'Under process Employees'
-                : currentView === 'selected'
-                  ? 'Selected Employees'
-                  : 'Employee records'}
-            </h2>
-            <div className="employee-records-controls" aria-label="Employee list options">
-              <div className="employee-records-view-toggle" role="group" aria-label="View style">
-                <button
-                  type="button"
-                  className={`employee-view-toggle-btn${employeeCardsLayout === 'grid' ? ' is-active' : ''}`}
-                  aria-pressed={employeeCardsLayout === 'grid'}
-                  title="Grid view"
-                  onClick={() => setEmployeeCardsLayout('grid')}
-                >
-                  <svg viewBox="0 0 24 24" width="18" height="18" fill="none" aria-hidden="true">
-                    <path d="M4 4h7v7H4V4Zm9 0h7v7h-7V4ZM4 13h7v7H4v-7Zm9 0h7v7h-7v-7Z" fill="currentColor" />
-                  </svg>
-                </button>
-                <button
-                  type="button"
-                  className={`employee-view-toggle-btn${employeeCardsLayout === 'list' ? ' is-active' : ''}`}
-                  aria-pressed={employeeCardsLayout === 'list'}
-                  title="List view"
-                  onClick={() => setEmployeeCardsLayout('list')}
-                >
-                  <svg viewBox="0 0 24 24" width="18" height="18" fill="none" aria-hidden="true">
-                    <path d="M4 6h3v3H4V6Zm0 9h3v3H4v-3Zm5-9h11v3H9V6Zm0 9h11v3H9v-3Zm0-4.5h11v3H9v-3Z" fill="currentColor" />
-                  </svg>
-                </button>
-              </div>
-              <label className="employee-records-sort">
-                <span>Sort:</span>
-                <select value={employeeCardsSort} onChange={(event) => setEmployeeCardsSort(event.target.value)}>
-                  <option value="newest">Newest first</option>
-                  <option value="oldest">Oldest first</option>
-                  <option value="name_asc">Name A–Z</option>
-                  <option value="name_desc">Name Z–A</option>
-                </select>
-              </label>
-              <button
-                type="button"
-                className="btn-secondary"
-                onClick={() => loadEmployees(currentView)}
-                disabled={loading}
-              >
-                Refresh
-              </button>
-            </div>
-          </div>
           {!loading ? (
             currentView === 'returned' ? (
               <div className="returned-list-surface">
                 <div className="returned-list-intro">
                   <p className="muted-text message-block--mb-0">
-                    {`${returnedEmployeesHelpText()} Showing ${visibleEmployees.length} of ${total} employees.`}
+                    {`${returnedEmployeesHelpText()} Showing ${visibleEmployees.length} of ${total} candidates.`}
                   </p>
                   <button type="button" className="btn-secondary" onClick={openReturnRequestModal} disabled={readOnly}>
                     +
@@ -3702,30 +3606,68 @@ export default function EmployeesListingView({ stage = "list" }) {
               </div>
             ) : (
               <p className="muted-text message-block--mb-12">
+                {filters.q ? `Filtering by "${filters.q}" — ` : ''}
                 {currentView === 'employed'
-                  ? `${employedEmployeesHelpText()} Showing ${visibleEmployees.length} of ${total} employees.`
+                  ? `${employedEmployeesHelpText()} Showing ${visibleEmployees.length} of ${total} candidates.`
                   : currentView === 'under-process'
-                  ? `${underProcessEmployeesHelpText(user)} Showing ${visibleEmployees.length} of ${total} employees.`
+                  ? `${underProcessEmployeesHelpText(user)} Showing ${visibleEmployees.length} of ${total} candidates.`
                   : currentView === 'selected'
-                  ? `${selectedEmployeesHelpText(user)} Showing ${visibleEmployees.length} of ${total} employees.`
-                  : `Showing ${visibleEmployees.length} of ${total} employees.`}
+                  ? `${selectedEmployeesHelpText(user)} Showing ${visibleEmployees.length} of ${total} candidates.`
+                  : `Showing ${visibleEmployees.length} of ${total} candidates.`}
               </p>
             )
           ) : null}
           {loading ? (
-            <p className="muted-text">Loading employees...</p>
+            <p className="muted-text">Loading candidates...</p>
           ) : visibleEmployees.length === 0 ? (
-            <p className="muted-text">
-              {currentView === 'employed'
-                ? 'No employed employees found yet.'
-                : currentView === 'returned'
-                ? 'No returned employees found yet.'
-                : currentView === 'under-process'
-                ? 'No employees are under process for this agent yet.'
-                : currentView === 'selected'
-                  ? 'No selected employees found for this view yet.'
-                  : 'No employees found.'}
-            </p>
+            <div className="candidate-list-empty-feedback">
+              <svg viewBox="0 0 24 24" width="32" height="32" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <circle cx="11" cy="11" r="8" />
+                <line x1="21" y1="21" x2="16.65" y2="16.65" />
+              </svg>
+              <h3>
+                {filters.q || filters.isActive || filters.profession || filters.gender || filters.religion || filters.destinationCountry || filters.experience || filters.docStatus || filters.tag
+                  ? 'No candidates matched your filter criteria'
+                  : currentView === 'employed'
+                  ? 'No employed candidates found yet'
+                  : currentView === 'returned'
+                  ? 'No returned candidates found yet'
+                  : currentView === 'under-process'
+                  ? 'No candidates under process yet'
+                  : currentView === 'selected'
+                  ? 'No selected candidates found yet'
+                  : 'No candidates registered yet'}
+              </h3>
+              <p className="muted-text">
+                {filters.q || filters.isActive || filters.profession || filters.gender || filters.religion || filters.destinationCountry || filters.experience || filters.docStatus || filters.tag
+                  ? 'Try adjusting or clearing some filters to view more candidate profiles.'
+                  : 'Candidates added or assigned to this stage will appear here.'}
+              </p>
+              {(filters.q || filters.isActive || filters.profession || filters.gender || filters.religion || filters.destinationCountry || filters.experience || filters.docStatus || filters.tag) && (
+                <button
+                  type="button"
+                  className="btn-secondary"
+                  onClick={() => {
+                    setSearchInput('')
+                    setPage(1)
+                    setFilters({
+                      q: '',
+                      isActive: '',
+                      profession: '',
+                      gender: '',
+                      religion: '',
+                      experience: '',
+                      destinationCountry: '',
+                      docStatus: '',
+                      tag: ''
+                    })
+                  }}
+                  style={{ marginTop: '8px' }}
+                >
+                  Clear all filters
+                </button>
+              )}
+            </div>
           ) : (
             <>
               {primaryVisibleEmployees.length > 0 ? (
@@ -3775,7 +3717,7 @@ export default function EmployeesListingView({ stage = "list" }) {
             canProgressivelyRenderEmployeeCards ? (
               primaryVisibleEmployees.length < sortedPrimaryVisibleEmployees.length ? (
                 <div className="activity-log-pagination">
-                  <span ref={employeeCardsSentinelRef} className="muted-text">Loading more employees…</span>
+                  <span ref={employeeCardsSentinelRef} className="muted-text">Loading more candidates…</span>
                 </div>
               ) : (
                 <div className="activity-log-pagination">
@@ -3818,8 +3760,8 @@ export default function EmployeesListingView({ stage = "list" }) {
               navigateOpenedEmployee('previous')
             }}
             disabled={!previousOpenedEmployee}
-            aria-label="Previous employee"
-            title={previousOpenedEmployee ? `Previous: ${previousOpenedEmployee.full_name}` : 'No previous employee'}
+            aria-label="Previous candidate"
+            title={previousOpenedEmployee ? `Previous: ${previousOpenedEmployee.full_name}` : 'No previous candidate'}
           >
             <svg viewBox="0 0 24 24" aria-hidden="true">
               <path d="M15 5 8 12l7 7" />
@@ -3874,12 +3816,12 @@ export default function EmployeesListingView({ stage = "list" }) {
                     )}
                   </div>
                   <div className="employee-review-profile-meta">
-                    <p className="employee-modal-eyebrow">Employee review</p>
+                    <p className="employee-modal-eyebrow">Candidate review</p>
                     <h2 id="employee-review-title" className="employee-review-title">{openedEmployee.full_name}</h2>
                     <p className="muted-text employee-review-subtitle">
                       {openedEmployee.profession || openedEmployee.professional_title || '--'}
                     </p>
-                    <div className="employee-review-pills" aria-label="Employee status">
+                    <div className="employee-review-pills" aria-label="Candidate status">
                       <span className={`badge employee-card-status-badge ${openedEmployeeBadgeClass} ${employeeStatusBadgeVariantClass(openedEmployee)}`.trim()}>
                         {employeeStatusLabel(openedEmployee)}
                       </span>
@@ -3894,7 +3836,7 @@ export default function EmployeesListingView({ stage = "list" }) {
                   </div>
                 </div>
 
-                <div className="employee-review-actions" aria-label="Employee actions">
+                <div className="employee-review-actions" aria-label="Candidate actions">
                   <div className="employee-review-actions-stack">
                     <div className="employee-review-actions-secondary">
                       {canManageOrganizationProcesses &&
@@ -3938,7 +3880,7 @@ export default function EmployeesListingView({ stage = "list" }) {
                           type="button"
                           className="btn-secondary"
                           onClick={() => handleToggleSelectedEmployee(openedEmployee)}
-                          title={openedEmployeeIsSelectedByCurrentAgent && !openedEmployeeCanUnselect ? 'Only the selecting account or agent owner can unselect this employee.' : undefined}
+                          title={openedEmployeeIsSelectedByCurrentAgent && !openedEmployeeCanUnselect ? 'Only the selecting account or agent owner can unselect this candidate.' : undefined}
                           disabled={
                             readOnly ||
                             !isAgentSideUser ||
@@ -3949,8 +3891,8 @@ export default function EmployeesListingView({ stage = "list" }) {
                           {actionBusyId === openedEmployee.id
                             ? 'Saving...'
                             : openedEmployeeIsSelectedByCurrentAgent
-                              ? 'Unselect employee'
-                              : 'Select employee'}
+                              ? 'Unselect candidate'
+                              : 'Select candidate'}
                         </button>
                       ) : null}
                       {openedEmployeeReturnRequest ? (
@@ -3959,7 +3901,7 @@ export default function EmployeesListingView({ stage = "list" }) {
                           className="btn-secondary"
                           onClick={() => setOpenedEmployeeMode((prev) => (prev === 'request' ? 'full' : 'request'))}
                         >
-                          {openedEmployeeMode === 'request' ? 'Employee details' : 'Return request'}
+                          {openedEmployeeMode === 'request' ? 'Candidate details' : 'Return request'}
                         </button>
                       ) : null}
 
@@ -4582,8 +4524,8 @@ export default function EmployeesListingView({ stage = "list" }) {
               navigateOpenedEmployee('next')
             }}
             disabled={!nextOpenedEmployee}
-            aria-label="Next employee"
-            title={nextOpenedEmployee ? `Next: ${nextOpenedEmployee.full_name}` : 'No next employee'}
+            aria-label="Next candidate"
+            title={nextOpenedEmployee ? `Next: ${nextOpenedEmployee.full_name}` : 'No next candidate'}
           >
             <svg viewBox="0 0 24 24" aria-hidden="true">
               <path d="m9 5 7 7-7 7" />

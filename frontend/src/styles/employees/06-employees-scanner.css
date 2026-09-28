@@ -11,6 +11,7 @@
   color: var(--color-card-foreground);
   box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.03);
   cursor: default;
+  transition: border-color 0.2s ease, background 0.2s ease, box-shadow 0.2s ease;
 }
 
 .employee-scan-launch-card:hover,
@@ -18,6 +19,76 @@
   border-color: color-mix(in oklch, var(--color-border) 90%, transparent);
   background: color-mix(in oklch, var(--color-card) 91%, var(--color-muted));
   outline: none;
+}
+
+/* Accent-driven highlight effect when a file is selected and ready to be analyzed */
+.employee-scan-launch-card.has-selected-file {
+  border-color: color-mix(in oklch, rgb(var(--accent-active)) 45%, var(--color-border));
+  background: color-mix(in oklch, rgb(var(--accent-active)) 8%, var(--color-card));
+  box-shadow: 0 1px 4px 0 rgb(0 0 0 / 0.04), 0 0 0 1px color-mix(in oklch, rgb(var(--accent-active)) 25%, transparent);
+}
+
+.employee-scan-launch-card.has-selected-file:hover,
+.employee-scan-launch-card.has-selected-file:focus-visible {
+  border-color: color-mix(in oklch, rgb(var(--accent-active)) 65%, var(--color-border));
+  background: color-mix(in oklch, rgb(var(--accent-active)) 12%, var(--color-card));
+  box-shadow: 0 2px 8px color-mix(in oklch, rgb(var(--accent-active)) 18%, transparent), 0 0 0 1px color-mix(in oklch, rgb(var(--accent-active)) 40%, transparent);
+}
+
+.employee-scan-launch-card.has-selected-file .employee-scan-launch-icon-tile {
+  background: color-mix(in oklch, rgb(var(--accent-active)) 16%, var(--color-card));
+  color: rgb(var(--accent-active));
+}
+
+.employee-scan-launch-card.has-selected-file .employee-scan-badge {
+  background: color-mix(in oklch, rgb(var(--accent-active)) 14%, var(--color-card));
+  color: rgb(var(--accent-active));
+  border-color: color-mix(in oklch, rgb(var(--accent-active-border)) 40%, transparent);
+}
+
+.employee-scan-launch-card.has-selected-file .employee-scan-file-pill {
+  background: color-mix(in oklch, rgb(var(--accent-active)) 14%, var(--color-card));
+  border-color: color-mix(in oklch, rgb(var(--accent-active-border)) 35%, transparent);
+}
+
+.employee-scan-launch-card.has-selected-file .employee-scan-file-name {
+  color: var(--color-foreground);
+}
+
+/* Dark mode theme support for has-selected-file */
+html[data-theme='dark'] .employee-scan-launch-card.has-selected-file {
+  background: color-mix(in oklch, rgb(var(--accent-active)) 14%, var(--color-card)) !important;
+  background-color: color-mix(in oklch, rgb(var(--accent-active)) 14%, var(--color-card)) !important;
+  border-color: color-mix(in oklch, rgb(var(--accent-active)) 45%, transparent) !important;
+  box-shadow: 0 1px 4px 0 rgb(0 0 0 / 0.35), 0 0 0 1px color-mix(in oklch, rgb(var(--accent-active)) 28%, transparent);
+}
+
+html[data-theme='dark'] .employee-scan-launch-card.has-selected-file:hover,
+html[data-theme='dark'] .employee-scan-launch-card.has-selected-file:focus-visible {
+  background: color-mix(in oklch, rgb(var(--accent-active)) 18%, var(--color-card)) !important;
+  background-color: color-mix(in oklch, rgb(var(--accent-active)) 18%, var(--color-card)) !important;
+  border-color: color-mix(in oklch, rgb(var(--accent-active)) 65%, transparent) !important;
+  box-shadow: 0 2px 10px color-mix(in oklch, rgb(var(--accent-active)) 22%, transparent), 0 0 0 1px color-mix(in oklch, rgb(var(--accent-active)) 40%, transparent);
+}
+
+html[data-theme='dark'] .employee-scan-launch-card.has-selected-file .employee-scan-launch-icon-tile {
+  background: color-mix(in oklch, rgb(var(--accent-active)) 22%, transparent);
+  color: rgb(var(--accent-active));
+}
+
+html[data-theme='dark'] .employee-scan-launch-card.has-selected-file .employee-scan-badge {
+  background: color-mix(in oklch, rgb(var(--accent-active)) 18%, transparent);
+  color: rgb(var(--accent-active));
+  border-color: color-mix(in oklch, rgb(var(--accent-active-border)) 42%, transparent);
+}
+
+html[data-theme='dark'] .employee-scan-launch-card.has-selected-file .employee-scan-file-pill {
+  background: color-mix(in oklch, rgb(var(--accent-active)) 16%, transparent);
+  border-color: color-mix(in oklch, rgb(var(--accent-active-border)) 35%, transparent);
+}
+
+html[data-theme='dark'] .employee-scan-launch-card.has-selected-file .employee-scan-file-name {
+  color: var(--color-foreground);
 }
 
 .employee-scan-launch-icon-tile {
@@ -111,6 +182,109 @@
   pointer-events: auto;
 }
 
+/* Dominant 'Analyze' button styling with green text on bright accent background */
+.employee-scan-btn-analyze {
+  position: relative !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 7px !important;
+  height: 36px !important;
+  padding: 0 18px !important;
+  border-radius: 8px !important;
+  font-size: 0.84rem !important;
+  font-weight: 650 !important;
+  letter-spacing: -0.01em !important;
+  background: var(--color-primary) !important;
+  color: #15803d !important;
+  border: 1px solid color-mix(in oklch, #15803d 30%, var(--button-border-adaptive, var(--color-border))) !important;
+  cursor: pointer !important;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1) !important;
+}
+
+.employee-scan-btn-analyze svg {
+  width: 15px !important;
+  height: 15px !important;
+  flex-shrink: 0 !important;
+  overflow: visible !important;
+  stroke: #15803d !important;
+  color: #15803d !important;
+}
+
+.employee-scan-btn-analyze span {
+  color: #15803d !important;
+  font-weight: 650 !important;
+}
+
+.employee-scan-btn-analyze:not(:disabled) {
+  box-shadow: 0 2px 8px color-mix(in oklch, var(--color-primary) 40%, transparent),
+              0 0 0 1px color-mix(in oklch, #15803d 25%, transparent) !important;
+}
+
+.employee-scan-btn-analyze:hover:not(:disabled) {
+  transform: translateY(-1px) scale(1.03) !important;
+  filter: brightness(1.06) !important;
+  color: #166534 !important;
+  border-color: #15803d !important;
+  box-shadow: 0 4px 14px color-mix(in oklch, var(--color-primary) 55%, transparent),
+              0 0 0 1px #15803d !important;
+}
+
+.employee-scan-btn-analyze:hover:not(:disabled) svg {
+  stroke: #166534 !important;
+  color: #166534 !important;
+}
+
+.employee-scan-btn-analyze:hover:not(:disabled) span {
+  color: #166534 !important;
+}
+
+.employee-scan-btn-analyze:active:not(:disabled) {
+  transform: translateY(0) scale(0.99) !important;
+}
+
+.employee-scan-btn-analyze:disabled {
+  opacity: 0.55 !important;
+  cursor: not-allowed !important;
+  box-shadow: none !important;
+  transform: none !important;
+}
+
+@keyframes analyzeGlowPulse {
+  0%, 100% {
+    box-shadow: 0 2px 8px color-mix(in oklch, var(--color-primary) 35%, transparent),
+                0 0 0 0 color-mix(in oklch, #15803d 30%, transparent);
+  }
+  50% {
+    box-shadow: 0 4px 16px color-mix(in oklch, var(--color-primary) 65%, transparent),
+                0 0 0 4px color-mix(in oklch, #15803d 25%, transparent);
+  }
+}
+
+.employee-scan-btn-analyze.is-ready-pulse:not(:disabled) {
+  animation: analyzeGlowPulse 2.4s ease-in-out infinite;
+}
+
+/* Ensure high-priority override for natural accent and themes */
+html[data-accent='natural'] .employee-scan-btn-analyze,
+html[data-theme='light'][data-accent='natural'] .employee-scan-btn-analyze,
+html[data-theme='dark'][data-accent='natural'] .employee-scan-btn-analyze {
+  color: #15803d !important;
+}
+
+html[data-accent='natural'] .employee-scan-btn-analyze svg,
+html[data-theme='light'][data-accent='natural'] .employee-scan-btn-analyze svg,
+html[data-theme='dark'][data-accent='natural'] .employee-scan-btn-analyze svg {
+  stroke: #15803d !important;
+  color: #15803d !important;
+}
+
+html[data-accent='natural'] .employee-scan-btn-analyze span,
+html[data-theme='light'][data-accent='natural'] .employee-scan-btn-analyze span,
+html[data-theme='dark'][data-accent='natural'] .employee-scan-btn-analyze span {
+  color: #15803d !important;
+}
+
 .employee-scan-step-assist {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
@@ -129,30 +303,36 @@
   left: 50%;
   bottom: calc(100% + 10px);
   width: min(320px, 92vw);
-  padding: 10px 10px;
+  padding: 12px 14px;
   font-size: 0.78rem;
-  border-radius: 5px;
-  border: 1px solid color-mix(in oklch, var(--color-border) 62%, transparent);
-  background: transparent;
-  color: var(--color-foreground);
+  border-radius: 8px;
+  border: 1px solid color-mix(in oklch, var(--color-border) 80%, transparent);
+  background: var(--color-card, #171717);
+  color: var(--color-card-foreground, #efefef);
   opacity: 0;
   transform: translate(-50%, 4px);
   pointer-events: none;
   transition: opacity 140ms ease, transform 140ms ease;
-  box-shadow: 0 20px 38px rgb(0 0 0 / 0.22);
+  box-shadow: 0 16px 36px -4px rgb(0 0 0 / 0.4), 0 4px 14px rgb(0 0 0 / 0.2);
   backdrop-filter: blur(18px);
   -webkit-backdrop-filter: blur(18px);
-  z-index: 10;
+  z-index: 25;
 }
 
 .employee-registration-help:hover .employee-registration-help-tooltip,
 .employee-registration-help:focus-within .employee-registration-help-tooltip {
   opacity: 1;
   transform: translate(-50%, 0);
+  pointer-events: auto;
 }
 
 .employee-registration-help-tooltip .employee-modal-eyebrow {
-  margin: 0 0 6px;
+  margin: 0 0 8px;
+  font-weight: 600;
+  font-size: 0.75rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--color-muted-foreground);
 }
 
 .employee-registration-help-tooltip-list {
@@ -160,8 +340,8 @@
   margin: 0;
   padding: 0;
   display: grid;
-  gap: 5px;
-  color: var(--color-muted-foreground);
+  gap: 6px;
+  color: var(--color-card-foreground);
 }
 
 .employee-registration-help-tooltip-list li {
@@ -180,6 +360,28 @@
   -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='black' d='M20 6 9 17l-5-5'/%3E%3C/svg%3E") no-repeat center / contain;
   mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='black' d='M20 6 9 17l-5-5'/%3E%3C/svg%3E") no-repeat center / contain;
   opacity: 0.9;
+}
+
+.employee-registration-tooltip-footer {
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px solid color-mix(in oklch, var(--color-border) 60%, transparent);
+}
+
+.employee-registration-tooltip-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: color-mix(in oklch, rgb(var(--accent-active, 59 130 246)) 85%, var(--color-foreground));
+  text-decoration: none;
+  transition: color 140ms ease;
+}
+
+.employee-registration-tooltip-link:hover {
+  text-decoration: underline;
+  color: var(--color-foreground);
 }
 
 .employee-scan-step-assist div {
@@ -228,30 +430,41 @@
 }
 
 .employee-scan-attach-preview {
-  min-height: 460px;
+  height: 100%;
+  min-height: 0;
   overflow: hidden;
+  overflow-x: hidden;
   border: 1px solid color-mix(in oklch, var(--color-border) 68%, transparent);
-  border-radius: 5px;
+  border-radius: 8px;
   background: color-mix(in oklch, var(--color-card) 88%, var(--color-muted));
 }
 
-.employee-scan-attach-preview embed {
+.employee-scan-attach-preview embed,
+.employee-scan-attach-preview iframe,
+.employee-scan-attach-pdf-frame {
   width: 100%;
-  height: 460px;
+  height: 100%;
   border: 0;
+  overflow: hidden;
+  overflow-x: hidden;
+  display: block;
 }
 
 .employee-scan-attach-image-frame {
   position: relative;
-  display: grid;
-  place-items: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
   height: 100%;
-  min-height: 460px;
+  min-height: 0;
   overflow: hidden;
+  padding: 16px 16px 54px 16px;
+  box-sizing: border-box;
   background: #111111;
 }
 
-.employee-scan-attach-image-frame.is-zoomed {
+.employee-scan-attach-image-frame {
   cursor: grab;
 }
 
@@ -262,10 +475,11 @@
 .employee-scan-attach-image-frame img {
   display: block;
   max-width: 100%;
-  max-height: 460px;
+  max-height: 100%;
   object-fit: contain;
   transform-origin: center;
   user-select: none;
+  pointer-events: none;
 }
 
 .employee-scan-crop-frame {
@@ -436,6 +650,18 @@
   color: rgb(120 190 255);
   border-radius: 5px;
   font-size: 10px;
+  animation: noticeFadeIn 0.25s ease-out;
+}
+
+@keyframes noticeFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-3px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .alert.employee-modal-notice::before {

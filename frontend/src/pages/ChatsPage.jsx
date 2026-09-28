@@ -8,8 +8,8 @@ const foundation = [
   },
   {
     kicker: 'Operations',
-    title: 'Employee-linked chat context',
-    description: 'Let teams open discussions from employee records so operational decisions stay attached to the right case.'
+    title: 'Candidate-linked chat context',
+    description: 'Let teams open discussions from candidate records so operational decisions stay attached to the right case.'
   },
   {
     kicker: 'Guardrails',
@@ -32,7 +32,7 @@ const roadmap = [
   {
     kicker: 'Phase 3',
     title: 'Escalation and handoff',
-    description: 'Add approval-aware chat flows for high-friction employee and licensing scenarios.'
+    description: 'Add approval-aware chat flows for high-friction candidate and licensing scenarios.'
   }
 ]
 
@@ -40,7 +40,7 @@ export default function ChatsPage() {
   return (
     <OperationsConceptPage
       title="Chats"
-      description="A concept page for operational communication across employee movement, approvals, and handoffs."
+      description="A concept page for operational communication across candidate movement, approvals, and handoffs."
       foundation={foundation}
       roadmap={roadmap}
     />

@@ -957,10 +957,10 @@ export default function TravelPage() {
         <div>
           <h1>Travel</h1>
           <p className="muted-text">
-            Move employees from completed process work into ticketing, booking control, and departure coordination.
+            Move candidates from completed process work into ticketing, booking control, and departure coordination.
           </p>
           <p className="muted-text">
-            Awaiting Travel captures process-complete employees, Booked Travels stores ticket records linked by PNR and ticket number, and Travelers gives the live departure calendar.
+            Awaiting Travel captures process-complete candidates, Booked Travels stores ticket records linked by PNR and ticket number, and Travelers gives the live departure calendar.
           </p>
         </div>
         <div className="employees-header-actions">
@@ -1009,7 +1009,7 @@ export default function TravelPage() {
           <input
             value={searchQuery}
             onChange={(event) => setSearchQuery(event.target.value)}
-            placeholder="Employee, profession, passport, PNR, ticket number"
+            placeholder="Candidate, profession, passport, PNR, ticket number"
           />
         </label>
         <label>
@@ -1062,7 +1062,7 @@ export default function TravelPage() {
               checked={allAwaitingEmployeesSelected}
               onChange={handleToggleAllAwaitingEmployees}
             />
-            <span>Select all employees</span>
+            <span>Select all candidates</span>
           </label>
           <div className="travel-bulk-toolbar-actions">
             <span className="muted-text">{selectedAwaitingEmployeeIds.length} selected</span>
@@ -1088,7 +1088,7 @@ export default function TravelPage() {
             awaitingTravelEmployees.length === 0 ? (
               <article className="employee-summary-card">
                 <h3>Awaiting Travel</h3>
-                <p className="muted-text">No employees are waiting for ticket booking right now.</p>
+                <p className="muted-text">No candidates are waiting for ticket booking right now.</p>
               </article>
             ) : (
               <div className="table-scroll activity-log-table-wrap">
@@ -1096,7 +1096,7 @@ export default function TravelPage() {
                     <thead>
                       <tr>
                         <th />
-                        <th>Employee</th>
+                        <th>Candidate</th>
                         <th>Profession</th>
                         <th>Progress</th>
                         <th>Owner</th>
@@ -1116,7 +1116,7 @@ export default function TravelPage() {
                               <label className="toggle-cell travel-select-cell">
                                 <input
                                   type="checkbox"
-                                  aria-label="Select employee"
+                                  aria-label="Select candidate"
                                   checked={isSelected}
                                   onChange={() => handleToggleAwaitingEmployeeSelection(employee.id)}
                                 />
@@ -1162,7 +1162,7 @@ export default function TravelPage() {
                   <table className="users-table activity-log-table">
                     <thead>
                       <tr>
-                        <th>Employee</th>
+                        <th>Candidate</th>
                         <th>Profession</th>
                         <th>Airline</th>
                         <th>Ticket</th>
@@ -1225,7 +1225,7 @@ export default function TravelPage() {
                           <table className="users-table activity-log-table">
                             <thead>
                               <tr>
-                                <th>Employee</th>
+                                <th>Candidate</th>
                                 <th>Airline</th>
                                 <th>Route</th>
                                 <th>PNR</th>
@@ -1285,7 +1285,7 @@ export default function TravelPage() {
               <h2 id="travel-bulk-booking-title">Book a ticket</h2>
             </div>
             <p className="muted-text">
-              Apply one shared itinerary to {bulkBookingEmployees.length} selected employees, then enter each employee&apos;s ticket number and PNR.
+              Apply one shared itinerary to {bulkBookingEmployees.length} selected candidates, then enter each candidate&apos;s ticket number and PNR.
             </p>
             <div className="travel-live-search">
               <div className="travel-live-search-header">
@@ -1396,7 +1396,7 @@ export default function TravelPage() {
               <table className="users-table activity-log-table">
                 <thead>
                   <tr>
-                    <th>Employee</th>
+                    <th>Candidate</th>
                     <th>Profession</th>
                     <th>Ticket number</th>
                     <th>PNR</th>
@@ -1508,7 +1508,7 @@ export default function TravelPage() {
               <h2 id="travel-booking-editor-title">Book Now</h2>
             </div>
             <p className="muted-text">
-              Search and prepare the flight booking for {bookingEditorEmployee.full_name}, then save the ticket details to move the employee into Booked Travels.
+              Search and prepare the flight booking for {bookingEditorEmployee.full_name}, then save the ticket details to move the candidate into Booked Travels.
             </p>
             <div className="travel-live-search">
               <div className="travel-live-search-header">

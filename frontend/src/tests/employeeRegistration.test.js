@@ -1,11 +1,14 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import {
   REGISTRATION_STEPS,
   validateStepFields,
   getValidationStep,
   applyRegistrationTemplate,
   buildRegistrationTemplate,
-  emptyForm
+  emptyForm,
+  cleanupPrintFrame,
+  printDocumentSilently,
+  PORTAL_PRINT_FRAME_ID
 } from '../utils/employeeHelpers'
 
 describe('Employee Registration Configuration & Canonical Steps', () => {
@@ -136,5 +139,90 @@ describe('Employee Registration Configuration & Canonical Steps', () => {
     expect(restored.application_countries).toEqual(['UAE', 'Saudi Arabia'])
     expect(restored.profession).toBe('Housekeeper')
     expect(restored.first_name).toBe('')
+  })
+
+  it('loads EmployeeRegisterPage without syntax or evaluation errors', async () => {
+    const mod = await import('../pages/employees/EmployeeRegisterPage')
+    expect(mod.default).toBeDefined()
+    expect(typeof mod.default).toBe('function')
+  })
+
+  it('loads EmployeeDocumentPreview without syntax or evaluation errors', async () => {
+    const mod = await import('../components/employees/EmployeeDocumentPreview')
+    expect(mod.default).toBeDefined()
+    expect(typeof mod.default).toBe('function')
+  })
+})
+
+describe('Document Silent Print Mechanism', () => {
+  it('safely handles non-DOM environments without crashing', async () => {
+    expect(() => cleanupPrintFrame()).not.toThrow()
+    await expect(printDocumentSilently({ url: 'test.jpg' })).resolves.toBeUndefined()
+  })
+
+  it('cleans up print frames and creates hidden iframe without window.open when DOM is present', async () => {
+    const createdElements = []
+    const fakeDoc = {
+      createElement: vi.fn((tag) => {
+        const el = {
+          tagName: tag.toUpperCase(),
+          id: '',
+          className: '',
+          style: {},
+          setAttribute: vi.fn(),
+          remove: vi.fn(),
+          contentWindow: {
+            focus: vi.fn(),
+            print: vi.fn(),
+            addEventListener: vi.fn()
+          },
+          contentDocument: {
+            open: vi.fn(),
+            write: vi.fn(),
+            close: vi.fn(),
+            getElementById: vi.fn(() => ({ complete: true }))
+          }
+        }
+        createdElements.push(el)
+        return el
+      }),
+      querySelectorAll: vi.fn((sel) => {
+        return createdElements.filter((el) => {
+          if (el.id && sel.includes(el.id)) return true
+          if (el.className && sel.includes(el.className)) return true
+          return false
+        })
+      }),
+      body: {
+        appendChild: vi.fn()
+      }
+    }
+    const fakeWin = {
+      open: vi.fn(),
+      URL: {
+        createObjectURL: vi.fn(),
+        revokeObjectURL: vi.fn()
+      }
+    }
+
+    globalThis.document = fakeDoc
+    globalThis.window = fakeWin
+
+    try {
+      const dummy = fakeDoc.createElement('iframe')
+      dummy.id = PORTAL_PRINT_FRAME_ID
+      expect(fakeDoc.querySelectorAll(`#${PORTAL_PRINT_FRAME_ID}`).length).toBe(1)
+
+      cleanupPrintFrame()
+      expect(dummy.remove).toHaveBeenCalled()
+
+      await printDocumentSilently({ url: 'data:image/png;base64,abc', isImage: true })
+
+      expect(fakeWin.open).not.toHaveBeenCalled()
+      expect(fakeDoc.createElement).toHaveBeenCalledWith('iframe')
+    } finally {
+      delete globalThis.document
+      delete globalThis.window
+    }
   })
 })

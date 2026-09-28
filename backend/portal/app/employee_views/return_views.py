@@ -43,7 +43,7 @@ class EmployeeReturnRequestView(APIView):
 
         employee = self._get_employee(request, employee_pk)
         if not employee:
-            return Response({"detail": "Employee not found."}, status=status.HTTP_404_NOT_FOUND)
+            return Response({"detail": "Candidate not found."}, status=status.HTTP_404_NOT_FOUND)
 
         employee = auto_finalize_overdue_return(employee)
         if not can_initiate_return_request(request.user, employee):
@@ -111,7 +111,7 @@ class EmployeeReturnRequestView(APIView):
 
         employee = self._get_employee(request, employee_pk)
         if not employee:
-            return Response({"detail": "Employee not found."}, status=status.HTTP_404_NOT_FOUND)
+            return Response({"detail": "Candidate not found."}, status=status.HTTP_404_NOT_FOUND)
 
         return_request = getattr(employee, "return_request", None)
         if not return_request:
@@ -160,7 +160,7 @@ class EmployeeReturnRequestDecisionView(APIView):
             .first()
         )
         if not employee:
-            return Response({"detail": "Employee not found."}, status=status.HTTP_404_NOT_FOUND)
+            return Response({"detail": "Candidate not found."}, status=status.HTTP_404_NOT_FOUND)
         if not can_manage_process_for_organization(request.user, organization):
             return Response(
                 {"detail": "Only organization-side admins can review a pending return request."},
