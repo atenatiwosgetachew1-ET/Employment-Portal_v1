@@ -475,11 +475,6 @@ export default function EmployeesListingView({ stage = "list" }) {
     declinedIdsOverride = travelConfirmationDeclinedIds,
     confirmedIdsOverride = travelConfirmationConfirmedIds
   ) => {
-    const invokedFromEvent = viewOverride && typeof viewOverride !== 'string'
-    if (invokedFromEvent) {
-      window.location.reload()
-      return
-    }
     const resolvedView = typeof viewOverride === 'string' ? viewOverride : currentView
     if (resolvedView === 'register') {
       setPageError('')
@@ -491,7 +486,7 @@ export default function EmployeesListingView({ stage = "list" }) {
       }
       return
     }
-    const shouldShowLoading = invokedFromEvent || !hasLoadedOnceRef.current
+    const shouldShowLoading = !hasLoadedOnceRef.current && !employeesData
     if (shouldShowLoading) setLoading(true)
     setPageError('')
     try {
@@ -637,14 +632,14 @@ export default function EmployeesListingView({ stage = "list" }) {
         returnedScope: resolvedView === 'returned' ? (isAgentSideUser ? 'mine' : 'organization') : ''
       })
       setEmployeesData(data)
-      hasLoadedOnceRef.current = true
     } catch (err) {
       setPageError(err.message || 'Failed to load employees')
       setEmployeesData(null)
     } finally {
+      hasLoadedOnceRef.current = true
       if (shouldShowLoading) setLoading(false)
     }
-  }, [currentView, filters, isAgentSideUser, loadFormOptions, page, selectedScope, travelConfirmationDeclinedIds, travelConfirmationConfirmedIds])
+  }, [currentView, filters.q, isAgentSideUser, loadFormOptions, page, selectedScope, travelConfirmationDeclinedIds, travelConfirmationConfirmedIds])
 
   useEffect(() => {
     if (!canManageEmployees) {
@@ -1988,7 +1983,7 @@ export default function EmployeesListingView({ stage = "list" }) {
         if (currentView === 'returned') return null
         return nextEmployee
       })
-      setNotice('Employee moved back to Employed.')
+      showToast('Employee moved back to Employed.', { tone: 'success' })
     } catch (err) {
       setPageError(err.message || 'Could not restore employee to employed')
     } finally {
@@ -2002,7 +1997,7 @@ export default function EmployeesListingView({ stage = "list" }) {
     setNotice('')
     try {
       await employeesService.updateEmployee(employee.id, { status: nextStatus })
-      setNotice(`Employee ${actionLabel.toLowerCase()} successfully.`)
+      showToast(`Employee ${actionLabel.toLowerCase()} successfully.`, { tone: 'success' })
       await loadEmployees(currentView)
     } catch (err) {
       setPageError(err.message || `Could not ${actionLabel.toLowerCase()} employee`)
@@ -2022,13 +2017,31 @@ export default function EmployeesListingView({ stage = "list" }) {
           return
         }
         await employeesService.unselectEmployee(employee.id)
-        setNotice('Employee removed from Selected Employees.')
-        await loadEmployees(currentView === 'selected' ? 'selected' : currentView)
+        showToast('Candidate removed from Selected.', { tone: 'info' })
+        patchEmployeeCollections(employee.id, (emp) => ({
+          ...emp,
+          selection_state: {
+            ...emp.selection_state,
+            selected_by_current_agent: false,
+            can_unselect: false,
+            selection: null
+          }
+        }))
+        if (currentView === 'selected') {
+          patchEmployeeCollections(employee.id, () => null)
+        }
       } else {
-        await employeesService.selectEmployee(employee.id)
-        setNotice('Employee added to Selected Employees.')
-        setPage(1)
-        await loadEmployees(currentView)
+        const res = await employeesService.selectEmployee(employee.id)
+        showToast('Candidate added to Selected.', { tone: 'success' })
+        patchEmployeeCollections(employee.id, (emp) => ({
+          ...emp,
+          selection_state: {
+            ...emp.selection_state,
+            selected_by_current_agent: true,
+            can_unselect: true,
+            selection: res?.selection || emp.selection_state?.selection || {}
+          }
+        }))
       }
     } catch (err) {
       setPageError(err.message || 'Could not update employee selection')
@@ -2070,7 +2083,7 @@ export default function EmployeesListingView({ stage = "list" }) {
         : isReadyForNextStage
           ? 'Employee process started and the employee is now visible in Employed under Travel confirmation pending.'
           : 'Employee moved to Under process Employees.'
-      setNotice(nextProcessNotice)
+      showToast(nextProcessNotice, { tone: 'success' })
       if (currentView !== 'under-process') {
         setOpenedEmployeeId((prev) => (prev === employee.id ? null : prev))
       }
@@ -2097,7 +2110,7 @@ export default function EmployeesListingView({ stage = "list" }) {
     setNotice('')
     try {
       await employeesService.declineEmployeeProcess(employee.id)
-      setNotice('Employee removed from Under process Employees and returned to Selected Employees.')
+      showToast('Employee removed from Under process Employees and returned to Selected Employees.', { tone: 'info' })
       if (currentView === 'under-process') {
         setOpenedEmployeeId((prev) => (prev === employee.id ? null : prev))
       }
@@ -2154,10 +2167,11 @@ export default function EmployeesListingView({ stage = "list" }) {
                 results: otherEmployees
               }
         })
-        setNotice(
+        showToast(
           didTravel
             ? 'Employee travel confirmed and moved into Employed.'
-            : 'Employee returned to Under process until travel is confirmed.'
+            : 'Employee returned to Under process until travel is confirmed.',
+          { tone: didTravel ? 'success' : 'info' }
         )
         await loadEmployees(currentView, nextDeclinedIds, nextConfirmedIds)
       } catch (err) {
@@ -2201,10 +2215,11 @@ export default function EmployeesListingView({ stage = "list" }) {
         progress_override_complete: true,
         did_travel: didTravel
       })
-      setNotice(
+      showToast(
         didTravel
           ? 'Employee progress marked as 100% and travel confirmed.'
-          : 'Employee progress marked as 100%. Travel remains pending.'
+          : 'Employee progress marked as 100%. Travel remains pending.',
+        { tone: 'success' }
       )
       await loadEmployees(currentView, nextDeclinedIds, nextConfirmedIds)
     } catch (err) {
@@ -2593,7 +2608,7 @@ export default function EmployeesListingView({ stage = "list" }) {
 
       try {
         await Promise.all(unmarkedIds.map((id) => employeesService.selectEmployee(id)))
-        setNotice(`${unmarkedIds.length} employee(s) marked as Selected.`)
+        showToast(`${unmarkedIds.length} candidate(s) marked as Selected.`, { tone: 'success' })
         setSelectedEmployeeCardIds(new Set())
         await loadEmployees(currentView)
       } catch (err) {
@@ -2602,7 +2617,7 @@ export default function EmployeesListingView({ stage = "list" }) {
         setActionBusyId(null)
       }
     })()
-  }, [confirm, currentView, hasWheelSelectTargets, loadEmployees, selectedEmployeeCardIds, visibleEmployeesById])
+  }, [confirm, currentView, hasWheelSelectTargets, loadEmployees, selectedEmployeeCardIds, showToast, visibleEmployeesById])
 
   const handleScrollWheelUnselectEmployees = useCallback((event) => {
     event?.preventDefault?.()
@@ -2634,7 +2649,7 @@ export default function EmployeesListingView({ stage = "list" }) {
 
       try {
         await Promise.all(targetIds.map((id) => employeesService.unselectEmployee(id)))
-        setNotice(`${targetIds.length} employee(s) removed from Selected Employees.`)
+        showToast(`${targetIds.length} candidate(s) removed from Selected.`, { tone: 'info' })
         setSelectedEmployeeCardIds(new Set())
         await loadEmployees(currentView === 'selected' ? 'selected' : currentView)
       } catch (err) {
@@ -2643,7 +2658,7 @@ export default function EmployeesListingView({ stage = "list" }) {
         setActionBusyId(null)
       }
     })()
-  }, [confirm, currentView, hasWheelUnselectTargets, loadEmployees, selectedEmployeeCardIds, visibleEmployeesById])
+  }, [confirm, currentView, hasWheelUnselectTargets, loadEmployees, selectedEmployeeCardIds, showToast, visibleEmployeesById])
 
   const handleScrollWheelStartProcessSelectedEmployees = useCallback((event) => {
     event?.preventDefault?.()
@@ -2692,7 +2707,7 @@ export default function EmployeesListingView({ stage = "list" }) {
             })
           ))
         )
-        setNotice(`Employee process started for ${selectedEmployees.length} employee(s).`)
+        showToast(`Process started for ${selectedEmployees.length} candidate(s).`, { tone: 'success' })
         setSelectedEmployeeCardIds(new Set())
         await loadEmployees(currentView)
       } catch (err) {
@@ -2710,6 +2725,7 @@ export default function EmployeesListingView({ stage = "list" }) {
     loadEmployees,
     processAgentAssignments,
     selectedEmployeeCardIds,
+    showToast,
     user?.organization?.name,
     visibleEmployeesById
   ])
@@ -3152,6 +3168,7 @@ export default function EmployeesListingView({ stage = "list" }) {
 
   useLayoutEffect(() => {
     if (typeof window === 'undefined') return
+    if (employeeCardsLayout !== 'grid') return
     let rafId = 0
     const schedule = () => {
       if (rafId) return
@@ -3202,12 +3219,13 @@ export default function EmployeesListingView({ stage = "list" }) {
       if (rafId) window.cancelAnimationFrame(rafId)
       window.clearTimeout(timeoutId)
     }
-  }, [primaryVisibleEmployees.length, reflowEmployeeCardsMasonry])
+  }, [employeeCardsLayout, primaryVisibleEmployees.length, reflowEmployeeCardsMasonry])
 
   useLayoutEffect(() => {
     if (typeof window === 'undefined') return
+    if (employeeCardsLayout !== 'grid') return
     reflowEmployeeCardsMasonry()
-  }, [expandedEmployeeCardId])
+  }, [employeeCardsLayout, expandedEmployeeCardId, reflowEmployeeCardsMasonry])
 
   useEffect(() => {
     setReviewDocumentsTab('all')
@@ -3626,7 +3644,7 @@ export default function EmployeesListingView({ stage = "list" }) {
               </p>
             )
           ) : null}
-          {loading ? (
+          {loading && !employeesData ? (
             <p className="muted-text">Loading candidates...</p>
           ) : visibleEmployees.length === 0 ? (
             <div className="candidate-list-empty-feedback">

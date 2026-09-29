@@ -204,12 +204,83 @@ export default function EmployeeFilters({
     return list
   }, [filters, EMPLOYEE_TAG_FILTER_OPTIONS])
 
+  const [isPinned, setIsPinned] = useState(false)
+  const sentinelRef = useRef(null)
+  const filterRef = useRef(null)
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+
+    const filterEl = filterRef.current
+    const sentinelEl = sentinelRef.current
+    if (!filterEl) return
+
+    const scroller = filterEl.closest('.dashboard-content') || window
+
+    const updatePinned = () => {
+      if (!filterEl) return
+      const filterRect = filterEl.getBoundingClientRect()
+      const scrollerRect = scroller instanceof Element
+        ? scroller.getBoundingClientRect()
+        : { top: 0 }
+
+      const pinned = filterRect.top <= (scrollerRect.top + 4)
+      setIsPinned((prev) => (prev !== pinned ? pinned : prev))
+    }
+
+    let observer = null
+    if (typeof IntersectionObserver !== 'undefined' && sentinelEl) {
+      observer = new IntersectionObserver(
+        (entries) => {
+          for (const entry of entries) {
+            const rootTop = entry.rootBounds ? entry.rootBounds.top : 0
+            const isPast = !entry.isIntersecting && entry.boundingClientRect.top <= rootTop + 4
+            setIsPinned((prev) => (prev !== isPast ? isPast : prev))
+          }
+        },
+        {
+          root: scroller instanceof Element ? scroller : null,
+          threshold: [0, 1]
+        }
+      )
+      observer.observe(sentinelEl)
+    }
+
+    let rafId = null
+    const handleScroll = () => {
+      if (rafId) return
+      rafId = window.requestAnimationFrame(() => {
+        rafId = null
+        updatePinned()
+      })
+    }
+
+    scroller.addEventListener('scroll', handleScroll, { passive: true })
+    updatePinned()
+
+    return () => {
+      scroller.removeEventListener('scroll', handleScroll)
+      if (rafId) window.cancelAnimationFrame(rafId)
+      if (observer) observer.disconnect()
+    }
+  }, [])
+
   return (
-    <div className="candidate-filter-system" role="search" aria-label="Candidate search and filtration system">
-      {/* 1. Main Razor-Clean Toolbar (Single compact row) */}
-      <form className="candidate-list-toolbar" onSubmit={handleSubmit}>
-        {/* 1. First container: Search input & Filter toggling button */}
-        <div className="candidate-toolbar-left">
+    <>
+      <div ref={sentinelRef} className="candidate-filter-sentinel" aria-hidden="true" />
+      <div
+        ref={filterRef}
+        className={`candidate-filter-system${isPinned ? ' is-pinned' : ''}${isFiltersOpen ? ' is-expanded' : ''}`}
+        role="search"
+        aria-label="Candidate search and filtration system"
+      >
+        {/* 1. Main Razor-Clean Toolbar (Single compact row) */}
+        <form
+          className={`candidate-list-toolbar${isPinned ? ' is-pinned' : ''}${isFiltersOpen ? ' is-expanded' : ''}`}
+          onSubmit={handleSubmit}
+        >
+          {/* 1. First container: Search input & Filter toggling button */}
+          <div className="candidate-toolbar-left">
           {/* Search Input */}
           <div className="candidate-search-wrap">
             <svg
@@ -381,10 +452,9 @@ export default function EmployeeFilters({
           <div className="candidate-filters-header">
             <button
               type="button"
-              className="candidate-filters-reset-btn"
+              className={`candidate-filters-reset-btn${hasAnyFilter ? ' has-filters' : ''}`}
               onClick={handleResetAll}
-              disabled={!hasAnyFilter}
-              title="Reset all filters"
+              title={hasAnyFilter ? 'Reset all filters' : 'All filters clear'}
               aria-label="Reset all filters"
             >
               <svg
@@ -406,7 +476,13 @@ export default function EmployeeFilters({
 
           <div className="candidate-filters-grid">
             <label className="candidate-filters-field">
-              <span>Profession / Trade</span>
+              <span className="candidate-filters-title">
+                <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <rect x="2" y="7" width="20" height="14" rx="2" ry="2" />
+                  <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16" />
+                </svg>
+                <span>Profession / Trade</span>
+              </span>
               <select
                 className={`candidate-filters-select${filters.profession ? ' has-value' : ''}`}
                 value={filters.profession || ''}
@@ -420,7 +496,13 @@ export default function EmployeeFilters({
             </label>
 
             <label className="candidate-filters-field">
-              <span>Workflow Tag</span>
+              <span className="candidate-filters-title">
+                <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z" />
+                  <line x1="7" y1="7" x2="7.01" y2="7" />
+                </svg>
+                <span>Workflow Tag</span>
+              </span>
               <select
                 className={`candidate-filters-select${filters.tag ? ' has-value' : ''}`}
                 value={filters.tag || ''}
@@ -433,7 +515,15 @@ export default function EmployeeFilters({
             </label>
 
             <label className="candidate-filters-field">
-              <span>Gender</span>
+              <span className="candidate-filters-title">
+                <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+                  <circle cx="9" cy="7" r="4" />
+                  <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
+                  <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+                </svg>
+                <span>Gender</span>
+              </span>
               <select
                 className={`candidate-filters-select${filters.gender ? ' has-value' : ''}`}
                 value={filters.gender || ''}
@@ -447,7 +537,13 @@ export default function EmployeeFilters({
             </label>
 
             <label className="candidate-filters-field">
-              <span>Religion</span>
+              <span className="candidate-filters-title">
+                <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
+                  <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
+                </svg>
+                <span>Religion</span>
+              </span>
               <select
                 className={`candidate-filters-select${filters.religion ? ' has-value' : ''}`}
                 value={filters.religion || ''}
@@ -461,7 +557,13 @@ export default function EmployeeFilters({
             </label>
 
             <label className="candidate-filters-field">
-              <span>Target Destination</span>
+              <span className="candidate-filters-title">
+                <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
+                  <circle cx="12" cy="10" r="3" />
+                </svg>
+                <span>Target Destination</span>
+              </span>
               <select
                 className={`candidate-filters-select${filters.destinationCountry ? ' has-value' : ''}`}
                 value={filters.destinationCountry || ''}
@@ -475,7 +577,13 @@ export default function EmployeeFilters({
             </label>
 
             <label className="candidate-filters-field">
-              <span>Experience Level</span>
+              <span className="candidate-filters-title">
+                <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <circle cx="12" cy="8" r="6" />
+                  <path d="M15.477 12.89 17 22l-5-3-5 3 1.523-9.11" />
+                </svg>
+                <span>Experience Level</span>
+              </span>
               <select
                 className={`candidate-filters-select${filters.experience ? ' has-value' : ''}`}
                 value={filters.experience || ''}
@@ -490,5 +598,6 @@ export default function EmployeeFilters({
         </div>
       )}
     </div>
+    </>
   )
 }

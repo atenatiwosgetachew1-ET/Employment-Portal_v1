@@ -27,6 +27,15 @@
   align-items: stretch;
 }
 
+.employee-cards.is-list .employee-card-menu {
+  display: none !important;
+}
+
+.employee-cards.is-list .employee-card-header-meta {
+  right: 18px;
+  top: 16px;
+}
+
 .employee-cards.is-list .employee-card-identity {
   align-items: stretch;
   gap: 18px;
@@ -103,6 +112,191 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* ==========================================================================
+   Candidate List Mode Right-Side Widget (Target, Readiness & Quick Actions)
+   ========================================================================== */
+
+.employee-cards.is-list .employee-card-list-side {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  align-items: flex-end;
+  flex: 0 0 260px;
+  min-width: 240px;
+  max-width: 290px;
+  margin-left: auto;
+  padding-top: 36px;
+  padding-bottom: 2px;
+  box-sizing: border-box;
+  gap: 12px;
+  z-index: 2;
+}
+
+.employee-card-list-side-top {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+  width: 100%;
+}
+
+.employee-card-list-side-dest {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 8px;
+  border-radius: 6px;
+  font-size: 0.73rem;
+  background: color-mix(in oklch, var(--color-card) 60%, var(--color-muted) 40%);
+  border: 1px solid color-mix(in oklch, var(--color-border) 70%, transparent);
+  color: var(--color-foreground);
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.employee-card-list-side-dest-icon {
+  display: inline-flex;
+  align-items: center;
+  color: var(--color-muted-foreground);
+}
+
+.employee-card-list-side-dest-label {
+  color: var(--color-muted-foreground);
+  font-weight: 450;
+}
+
+.employee-card-list-side-dest-val {
+  font-weight: 550;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.employee-card-list-readiness {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.employee-card-list-doc-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 7px;
+  border-radius: 5px;
+  font-size: 0.69rem;
+  font-weight: 500;
+  line-height: 1.2;
+}
+
+.employee-card-list-doc-tag.is-ready {
+  background: color-mix(in oklch, #10b981 12%, var(--color-card));
+  color: #10b981;
+  border: 1px solid color-mix(in oklch, #10b981 30%, transparent);
+}
+
+.employee-card-list-doc-tag.is-pending {
+  background: color-mix(in oklch, var(--color-card) 75%, var(--color-muted));
+  color: var(--color-muted-foreground);
+  border: 1px dashed color-mix(in oklch, var(--color-border) 60%, transparent);
+  opacity: 0.8;
+}
+
+.employee-card-list-side-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  justify-content: flex-end;
+}
+
+.employee-card-list-side-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  height: 28px;
+  padding: 0 10px;
+  border-radius: 6px;
+  font-size: 0.74rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 140ms ease;
+  white-space: nowrap;
+  box-sizing: border-box;
+}
+
+.employee-card-list-side-btn--profile,
+.employee-card-list-side-btn--docs {
+  background: #222222;
+  border: 1px solid #444;
+  color: var(--color-foreground);
+}
+
+.employee-card-list-side-btn--profile:hover,
+.employee-card-list-side-btn--docs:hover {
+  background: #333333;
+  border-color: #666;
+  filter: brightness(1.08);
+}
+
+.employee-card-list-side-btn--select {
+  background: rgb(var(--accent-active));
+  border: 1px solid rgb(var(--accent-active-border));
+  color: #111111;
+  font-weight: 600;
+}
+
+.employee-card-list-side-btn--select:hover {
+  filter: brightness(1.12);
+  box-shadow: 0 2px 8px rgb(var(--accent-active) / 0.35);
+}
+
+.employee-card-list-side-btn--unselect {
+  background: color-mix(in oklch, #ef4444 14%, var(--color-card));
+  border: 1px solid color-mix(in oklch, #ef4444 35%, transparent);
+  color: #ef4444;
+}
+
+.employee-card-list-side-btn--unselect:hover {
+  background: color-mix(in oklch, #ef4444 24%, var(--color-card));
+}
+
+html[data-theme='light'] .employee-card-list-side-btn--profile,
+html[data-theme='light'] .employee-card-list-side-btn--docs {
+  background: color-mix(in oklch, var(--color-card) 85%, var(--color-muted));
+  border-color: color-mix(in oklch, var(--color-border) 80%, transparent);
+}
+
+html[data-theme='light'] .employee-card-list-side-btn--profile:hover,
+html[data-theme='light'] .employee-card-list-side-btn--docs:hover {
+  background: color-mix(in oklch, var(--color-card) 80%, rgb(var(--accent-active-border) / 0.1));
+}
+
+@media (max-width: 1080px) {
+  .employee-cards.is-list .employee-card-list-side {
+    flex: 0 0 220px;
+    min-width: 200px;
+  }
+}
+
+@media (max-width: 860px) {
+  .employee-cards.is-list .employee-card-header {
+    flex-wrap: wrap;
+  }
+  .employee-cards.is-list .employee-card-list-side {
+    flex: 1 1 100%;
+    max-width: 100%;
+    margin-left: 0;
+    padding-top: 10px;
+    align-items: flex-start;
+    flex-direction: row;
+    justify-content: space-between;
+  }
 }
 
 /* ==========================================================================
@@ -225,15 +419,32 @@
    quick filters, expandable multi-dimensional drawer, and active chips.
    ========================================================================== */
 
+.candidate-filter-sentinel {
+  height: 1px;
+  width: 100%;
+  margin-bottom: -1px;
+  pointer-events: none;
+  visibility: hidden;
+}
+
 .candidate-filter-system {
+  position: sticky;
+  top: -22px;
+  z-index: 45;
+  background: none;
+  padding-bottom: 0;
+  margin-bottom: 36px;
   display: flex;
   flex-direction: column;
-  gap: 3px;
-  margin-bottom: 36px;
+  gap: 0;
   width: 100%;
   max-width: 100%;
   min-width: 0;
   box-sizing: border-box;
+}
+
+html[data-density='compact'] .candidate-filter-system {
+  top: -10px;
 }
 
 /* 1. Main Razor-Clean Toolbar (Single compact row) */
@@ -254,6 +465,39 @@
   border-radius: 10px;
   box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.04);
   overflow: hidden;
+  transition: box-shadow 0.2s ease, background 0.2s ease, border-color 0.2s ease, border-radius 0.15s ease;
+}
+
+.candidate-list-toolbar.is-expanded,
+.candidate-filter-system.is-expanded .candidate-list-toolbar,
+.candidate-filter-system:has(.candidate-filters-container) .candidate-list-toolbar {
+  border-bottom: none;
+  border-radius: 10px 10px 0 0;
+}
+
+.candidate-list-toolbar.is-pinned,
+.candidate-filter-system.is-pinned .candidate-list-toolbar {
+  background: color-mix(in oklch, var(--color-card) 92%, white 8%);
+  border-color: transparent;
+  box-shadow: 0 8px 8px 1px rgb(0 0 0 / 40%);
+}
+
+.candidate-filter-system.is-pinned .candidate-filters-container {
+  background: color-mix(in oklch, var(--color-card) 92%, white 8%);
+  border-color: transparent;
+  border-top: 1px dashed color-mix(in oklch, var(--color-border) 80%, white 20%);
+  box-shadow: 0 8px 8px 1px rgb(0 0 0 / 40%);
+}
+
+html[data-theme='light'] .candidate-list-toolbar.is-pinned,
+html[data-theme='light'] .candidate-filter-system.is-pinned .candidate-list-toolbar,
+html[data-theme='light'] .candidate-filter-system.is-pinned .candidate-filters-container {
+  background: #ffffff;
+  border-color: transparent;
+}
+
+html[data-theme='light'] .candidate-filter-system.is-pinned .candidate-filters-container {
+  border-top: 1px dashed color-mix(in oklch, var(--color-border) 85%, black 15%);
 }
 
 /* 1. First container: Search input & Filter toggling button (Fixed width) */
@@ -466,10 +710,12 @@
 .candidate-filters-container {
   background: var(--color-card);
   border: 1px solid var(--color-border);
+  border-top: 1px dashed color-mix(in oklch, var(--color-border) 60%, transparent);
   border-radius: 0 0 5px 5px;
-  padding: 5px 16px 25px 16px;
+  padding: 0px 16px 25px 16px;
   box-shadow: 0 1px 4px 0 rgb(0 0 0 / 0.04);
   animation: filterContainerSlideDown 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: box-shadow 0.2s ease, background 0.2s ease, border-color 0.2s ease;
 }
 
 @keyframes filterContainerSlideDown {
@@ -498,44 +744,28 @@
   display: inline-flex !important;
   align-items: center !important;
   justify-content: center !important;
-  width: 22px !important;
-  height: 22px !important;
-  min-width: 22px !important;
-  min-height: 22px !important;
-  max-width: 22px !important;
-  max-height: 22px !important;
+  width: 24px !important;
+  height: 24px !important;
+  min-width: 24px !important;
+  min-height: 24px !important;
+  max-width: 24px !important;
+  max-height: 24px !important;
   padding: 0 !important;
   margin: 0 !important;
   border: none !important;
-  background: transparent !important;
+  background: color-mix(in oklch, white 5%, transparent) !important;
   box-shadow: none !important;
   color: var(--color-muted-foreground);
-  border-radius: 5px;
+  border-radius: 6px;
   cursor: pointer;
   line-height: 1;
-  transition: color 150ms ease, background-color 150ms ease, transform 180ms ease, opacity 150ms ease;
+  opacity: 0.85;
+  transition: color 160ms ease, background-color 160ms ease, opacity 160ms ease;
 }
 
-.candidate-filters-reset-btn:hover:not(:disabled) {
-  color: rgb(var(--accent-active)) !important;
-  background: color-mix(in oklch, rgb(var(--accent-active)) 15%, transparent) !important;
-  transform: rotate(-35deg) scale(1.1);
-  box-shadow: none !important;
-}
-
-.candidate-filters-reset-btn:active:not(:disabled) {
-  transform: rotate(-180deg) scale(0.92);
-}
-
-.candidate-filters-reset-btn:focus-visible {
-  outline: 2px solid rgb(var(--accent-active) / 0.5);
-  outline-offset: 1px;
-}
-
-.candidate-filters-reset-btn:disabled {
-  opacity: 0.3;
-  cursor: not-allowed;
-  pointer-events: none;
+.candidate-filters-reset-btn.has-filters {
+  opacity: 1;
+  color: var(--color-foreground);
 }
 
 .candidate-filters-reset-btn svg {
@@ -543,6 +773,36 @@
   width: 13px;
   height: 13px;
   stroke: currentColor;
+  transition: transform 0.4s cubic-bezier(0.34, 1.4, 0.64, 1);
+}
+
+.candidate-filters-reset-btn:hover {
+  opacity: 1;
+  color: var(--color-foreground) !important;
+  background: color-mix(in oklch, white 12%, transparent) !important;
+  box-shadow: none !important;
+}
+
+.candidate-filters-reset-btn:hover svg {
+  transform: rotate(-180deg);
+}
+
+.candidate-filters-reset-btn:active svg {
+  transform: rotate(-360deg) scale(0.9);
+}
+
+.candidate-filters-reset-btn:focus-visible {
+  outline: 2px solid rgb(var(--accent-active) / 0.5);
+  outline-offset: 1px;
+}
+
+html[data-theme='light'] .candidate-filters-reset-btn {
+  background: color-mix(in oklch, black 4%, transparent) !important;
+}
+
+html[data-theme='light'] .candidate-filters-reset-btn:hover {
+  background: color-mix(in oklch, black 9%, transparent) !important;
+  color: var(--color-foreground) !important;
 }
 
 .candidate-filters-grid {
@@ -560,6 +820,22 @@
   color: var(--color-muted-foreground);
   cursor: pointer;
   min-width: 0;
+}
+
+.candidate-filters-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.76rem;
+  font-weight: 500;
+  color: var(--color-muted-foreground);
+  line-height: 1.2;
+}
+
+.candidate-filters-title svg {
+  flex-shrink: 0;
+  color: var(--color-muted-foreground);
+  opacity: 0.85;
 }
 
 .candidate-filters-select {
@@ -864,7 +1140,7 @@ button.candidate-chip-remove:hover,
   width: 100%;
   max-width: 100%;
   min-width: 0;
-  overflow-x: clip;
+  overflow: visible;
 }
 
 @media (max-width: 768px) {

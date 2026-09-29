@@ -81,6 +81,16 @@ export default function EmployeeCard({
   const destinationLabel = employee.application_countries?.length
     ? employee.application_countries.join(', ')
     : '—'
+  const hasPassport = Boolean(findEmployeeDocument(employee, ['passport_photo', 'passport_document'])?.file_url)
+  const hasMedical = Boolean(findEmployeeDocument(employee, ['medical'])?.file_url)
+  const hasClearance = Boolean(findEmployeeDocument(employee, ['clearance'])?.file_url)
+  const canSelectCandidate =
+    !isEmployedEmployee &&
+    !isTravelledEmployee &&
+    !isReturnedEmployee &&
+    !isUnderProcess &&
+    isAvailableEmployee &&
+    isAgentSideUser
   const phoneLabel = employee.phone || employee.mobile_number || '—'
   const emailLabel = employee.email || '—'
   const availabilityLabel = employeeAvailability(employee) || '—'
@@ -185,93 +195,95 @@ export default function EmployeeCard({
         }
       }}
     >
-      <div
-        className={`employee-card-menu${isMenuOpen ? ' is-open' : ''}`}
-        data-menu-employee-id={employee.id}
-        onClick={(event) => event.stopPropagation()}
-        onKeyDown={(event) => event.stopPropagation()}
-      >
-        <button
-          type="button"
-          className="employee-card-menu-btn"
-          aria-label="Open employee actions"
-          aria-expanded={isMenuOpen}
-          onClick={(event) => {
-            event.preventDefault()
-            event.stopPropagation()
-            setOpenEmployeeCardMenuId((prev) => (prev === employee.id ? null : employee.id))
-          }}
+      {!isListLayout ? (
+        <div
+          className={`employee-card-menu${isMenuOpen ? ' is-open' : ''}`}
+          data-menu-employee-id={employee.id}
+          onClick={(event) => event.stopPropagation()}
+          onKeyDown={(event) => event.stopPropagation()}
         >
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true" xmlns="http://www.w3.org/2000/svg">
-            <circle cx="5" cy="12" r="1.8" fill="currentColor" />
-            <circle cx="12" cy="12" r="1.8" fill="currentColor" />
-            <circle cx="19" cy="12" r="1.8" fill="currentColor" />
-          </svg>
-        </button>
-
-        <div className="employee-card-menu-panel" role="menu" aria-label="Employee actions">
           <button
             type="button"
-            className="employee-card-menu-item employee-card-menu-item--details"
-            role="menuitem"
-            aria-label={isOpened ? 'Close employee details' : 'Open employee details'}
+            className="employee-card-menu-btn"
+            aria-label="Open employee actions"
+            aria-expanded={isMenuOpen}
             onClick={(event) => {
               event.preventDefault()
               event.stopPropagation()
-              setOpenEmployeeCardMenuId(null)
-              setOpenedEmployeeMode('full')
-              setOpenedEmployeeId((prev) => (prev === employee.id ? null : employee.id))
-            }}
-          >
-            <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
-              {isOpened ? (
-                <path
-                  d="M18 6 6 18M6 6l12 12"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2.5"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-              ) : (
-                <path
-                  d="M9 4H4v5M15 4h5v5M9 20H4v-5M15 20h5v-5"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2.5"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-              )}
-            </svg>
-          </button>
-
-          {(!isEmployedEmployee && !isTravelledEmployee) && !isReturnedEmployee && !isUnderProcess && isAvailableEmployee ? (
-            <button
-              type="button"
-              className="employee-card-menu-item employee-card-menu-item--select"
-              role="menuitem"
-              aria-label={isSelectedByCurrentAgent ? 'Unselect candidate' : 'Select candidate'}
-              title={isSelectedByCurrentAgent && !canUnselectSelection ? 'Only the selecting account or agent owner can unselect this candidate.' : undefined}
-              disabled={readOnly || !isAgentSideUser || actionBusyId === employee.id || (isSelectedByCurrentAgent && !canUnselectSelection)}
-              onClick={(event) => {
-                event.preventDefault()
-              event.stopPropagation()
-              setOpenEmployeeCardMenuId(null)
-              handleToggleSelectedEmployee(employee)
+              setOpenEmployeeCardMenuId((prev) => (prev === employee.id ? null : employee.id))
             }}
           >
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true" xmlns="http://www.w3.org/2000/svg">
-              {isSelectedByCurrentAgent ? (
-                <path d="M7 7l10 10M17 7 7 17" style={{ stroke: 'currentColor', strokeWidth: 2.1, strokeLinecap: 'round', strokeLinejoin: 'round' }} />
-              ) : (
-                <path d="M20 6 9 17l-5-5" style={{ stroke: 'currentColor', strokeWidth: 1.9, strokeLinecap: 'round', strokeLinejoin: 'round' }} />
-              )}
+              <circle cx="5" cy="12" r="1.8" fill="currentColor" />
+              <circle cx="12" cy="12" r="1.8" fill="currentColor" />
+              <circle cx="19" cy="12" r="1.8" fill="currentColor" />
             </svg>
           </button>
-        ) : null}
+
+          <div className="employee-card-menu-panel" role="menu" aria-label="Employee actions">
+            <button
+              type="button"
+              className="employee-card-menu-item employee-card-menu-item--details"
+              role="menuitem"
+              aria-label={isOpened ? 'Close employee details' : 'Open employee details'}
+              onClick={(event) => {
+                event.preventDefault()
+                event.stopPropagation()
+                setOpenEmployeeCardMenuId(null)
+                setOpenedEmployeeMode('full')
+                setOpenedEmployeeId((prev) => (prev === employee.id ? null : employee.id))
+              }}
+            >
+              <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
+                {isOpened ? (
+                  <path
+                    d="M18 6 6 18M6 6l12 12"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2.5"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                ) : (
+                  <path
+                    d="M9 4H4v5M15 4h5v5M9 20H4v-5M15 20h5v-5"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2.5"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                )}
+              </svg>
+            </button>
+
+            {(!isEmployedEmployee && !isTravelledEmployee) && !isReturnedEmployee && !isUnderProcess && isAvailableEmployee ? (
+              <button
+                type="button"
+                className="employee-card-menu-item employee-card-menu-item--select"
+                role="menuitem"
+                aria-label={isSelectedByCurrentAgent ? 'Unselect candidate' : 'Select candidate'}
+                title={isSelectedByCurrentAgent && !canUnselectSelection ? 'Only the selecting account or agent owner can unselect this candidate.' : undefined}
+                disabled={readOnly || !isAgentSideUser || actionBusyId === employee.id || (isSelectedByCurrentAgent && !canUnselectSelection)}
+                onClick={(event) => {
+                  event.preventDefault()
+                  event.stopPropagation()
+                  setOpenEmployeeCardMenuId(null)
+                  handleToggleSelectedEmployee(employee)
+                }}
+              >
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true" xmlns="http://www.w3.org/2000/svg">
+                  {isSelectedByCurrentAgent ? (
+                    <path d="M7 7l10 10M17 7 7 17" style={{ stroke: 'currentColor', strokeWidth: 2.1, strokeLinecap: 'round', strokeLinejoin: 'round' }} />
+                  ) : (
+                    <path d="M20 6 9 17l-5-5" style={{ stroke: 'currentColor', strokeWidth: 1.9, strokeLinecap: 'round', strokeLinejoin: 'round' }} />
+                  )}
+                </svg>
+              </button>
+            ) : null}
+          </div>
         </div>
-      </div>
+      ) : null}
       <div className="employee-card-header">
         <div className="employee-card-identity">
           <div className="employee-card-avatar">
@@ -393,6 +405,103 @@ export default function EmployeeCard({
             ) : null}
           </div>
         </div>
+        {isListLayout ? (
+          <aside className="employee-card-list-side" onClick={(e) => e.stopPropagation()}>
+            <div className="employee-card-list-side-top">
+              <div className="employee-card-list-side-dest" title={`Target destination: ${destinationLabel}`}>
+                <span className="employee-card-list-side-dest-icon" aria-hidden="true">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20M2 12h20"/></svg>
+                </span>
+                <span className="employee-card-list-side-dest-label">Target:</span>
+                <span className="employee-card-list-side-dest-val">{destinationLabel === '—' ? 'Any' : destinationLabel}</span>
+              </div>
+
+              <div className="employee-card-list-readiness" aria-label="Key document readiness">
+                <span className={`employee-card-list-doc-tag ${hasPassport ? 'is-ready' : 'is-pending'}`} title={hasPassport ? 'Passport uploaded' : 'Passport missing'}>
+                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    {hasPassport ? <polyline points="20 6 9 17 4 12"/> : <circle cx="12" cy="12" r="8"/>}
+                  </svg>
+                  <span>Passport</span>
+                </span>
+                <span className={`employee-card-list-doc-tag ${hasMedical ? 'is-ready' : 'is-pending'}`} title={hasMedical ? 'Medical check uploaded' : 'Medical check pending'}>
+                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    {hasMedical ? <polyline points="20 6 9 17 4 12"/> : <circle cx="12" cy="12" r="8"/>}
+                  </svg>
+                  <span>Medical</span>
+                </span>
+                <span className={`employee-card-list-doc-tag ${hasClearance ? 'is-ready' : 'is-pending'}`} title={hasClearance ? 'Clearance uploaded' : 'Clearance pending'}>
+                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    {hasClearance ? <polyline points="20 6 9 17 4 12"/> : <circle cx="12" cy="12" r="8"/>}
+                  </svg>
+                  <span>Clearance</span>
+                </span>
+              </div>
+            </div>
+
+            <div className="employee-card-list-side-actions">
+              <button
+                type="button"
+                className="employee-card-list-side-btn employee-card-list-side-btn--profile"
+                title="View full candidate profile"
+                onClick={(e) => {
+                  e.preventDefault()
+                  e.stopPropagation()
+                  setOpenedEmployeeMode('full')
+                  setOpenedEmployeeId(employee.id)
+                }}
+              >
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/>
+                  <circle cx="12" cy="12" r="3"/>
+                </svg>
+                <span>Profile</span>
+              </button>
+
+              {canSelectCandidate ? (
+                <button
+                  type="button"
+                  className={`employee-card-list-side-btn ${isSelectedByCurrentAgent ? 'employee-card-list-side-btn--unselect' : 'employee-card-list-side-btn--select'}`}
+                  disabled={readOnly || actionBusyId === employee.id || (isSelectedByCurrentAgent && !canUnselectSelection)}
+                  title={isSelectedByCurrentAgent ? 'Unselect candidate' : 'Select candidate'}
+                  onClick={(e) => {
+                    e.preventDefault()
+                    e.stopPropagation()
+                    handleToggleSelectedEmployee(employee)
+                  }}
+                >
+                  {isSelectedByCurrentAgent ? (
+                    <>
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                      <span>Unselect</span>
+                    </>
+                  ) : (
+                    <>
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                      <span>Select</span>
+                    </>
+                  )}
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  className="employee-card-list-side-btn employee-card-list-side-btn--docs"
+                  title={isExpanded ? 'Collapse documents' : 'Expand document previews'}
+                  onClick={(e) => {
+                    e.preventDefault()
+                    e.stopPropagation()
+                    toggleEmployeeCardExpanded(employee.id)
+                  }}
+                >
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                    <polyline points="14 2 14 8 20 8"/>
+                  </svg>
+                  <span>{isExpanded ? 'Hide Docs' : 'Docs'}</span>
+                </button>
+              )}
+            </div>
+          </aside>
+        ) : null}
         <div className="employee-card-header-meta">
           {employee.return_request?.status === 'pending' ? <span className="badge badge-warning">Return requested</span> : null}
           <span className={`badge employee-card-status-badge ${employeeStatusBadgeClass(employee)} ${employeeStatusBadgeVariantClass(employee)}`.trim()}>{employeeStatusLabel(employee)}</span>
