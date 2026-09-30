@@ -1,18 +1,177 @@
-import React from 'react'
+import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { Modal } from '../common'
 
+/**
+ * EmployeeCameraModal
+ *
+ * Dual-Mode Camera Modal:
+ * 1. Controlled mode: Accepts external cameraStream, scanCameraVideoRef, scanCameraCanvasRef, etc.
+ * 2. Autonomous mode: Self-manages mediaStream, getUserMedia requests, video/canvas refs, and stream cleanup.
+ *
+ * Exposes capture result via onCapture({ blob, file, dataUrl }).
+ */
 export default function EmployeeCameraModal({
   isOpen,
   closeCameraCapture,
-  cameraStream,
-  scanCameraVideoRef,
-  scanCameraCanvasRef,
-  cameraError,
-  cameraLoading = false,
-  retryCameraCapture,
+  onClose,
+  cameraStream: externalCameraStream,
+  scanCameraVideoRef: externalVideoRef,
+  scanCameraCanvasRef: externalCanvasRef,
+  cameraError: externalCameraError,
+  cameraLoading: externalCameraLoading = false,
+  retryCameraCapture: externalRetryCapture,
   backToScanOptionsFromCamera,
-  captureCameraDocument,
+  captureCameraDocument: externalCaptureDocument,
+  onCapture,
+  title = 'Capture from Camera',
+  subtitle = 'Position the document inside the preview, then capture a photo for OCR staging.',
 }) {
+  const isAutonomous = externalCameraStream === undefined && externalVideoRef === undefined
+
+  // Autonomous state & refs
+  const localVideoRef = useRef(null)
+  const localCanvasRef = useRef(null)
+  const localStreamRef = useRef(null)
+  const requestCounterRef = useRef(0)
+
+  const [localStream, setLocalStream] = useState(null)
+  const [localLoading, setLocalLoading] = useState(false)
+  const [localError, setLocalError] = useState('')
+
+  const videoRef = externalVideoRef || localVideoRef
+  const canvasRef = externalCanvasRef || localCanvasRef
+  const cameraStream = isAutonomous ? localStream : externalCameraStream
+  const cameraLoading = isAutonomous ? localLoading : externalCameraLoading
+  const cameraError = isAutonomous ? localError : externalCameraError
+
+  const handleClose = onClose || closeCameraCapture
+
+  // Stop stream helper
+  const stopAutonomousStream = useCallback(() => {
+    if (localStreamRef.current) {
+      localStreamRef.current.getTracks().forEach((track) => track.stop())
+      localStreamRef.current = null
+    }
+    if (localVideoRef.current) {
+      localVideoRef.current.srcObject = null
+    }
+    setLocalStream(null)
+  }, [])
+
+  // Start stream helper
+  const startAutonomousStream = useCallback(async () => {
+    const requestId = ++requestCounterRef.current
+    setLocalError('')
+    setLocalLoading(true)
+
+    if (!navigator.mediaDevices?.getUserMedia) {
+      setLocalLoading(false)
+      setLocalError('This browser does not support direct camera capture. Use scanner or upload instead.')
+      return
+    }
+
+    try {
+      stopAutonomousStream()
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          facingMode: { ideal: 'environment' },
+          width: { ideal: 1600 },
+          height: { ideal: 1200 },
+        },
+        audio: false,
+      })
+
+      if (requestCounterRef.current !== requestId) {
+        stream.getTracks().forEach((t) => t.stop())
+        return
+      }
+
+      localStreamRef.current = stream
+      setLocalStream(stream)
+      setLocalError('')
+    } catch (err) {
+      if (requestCounterRef.current === requestId) {
+        const isDenied =
+          err?.name === 'NotAllowedError' ||
+          /permission|denied|dismissed|notallowed/i.test(err?.message || '')
+        setLocalError(
+          isDenied
+            ? 'Permission denied. Please allow camera permissions in your browser to take a photo.'
+            : err?.message || 'Could not access the camera. Check browser permissions and try again.'
+        )
+      }
+    } finally {
+      if (requestCounterRef.current === requestId) {
+        setLocalLoading(false)
+      }
+    }
+  }, [stopAutonomousStream])
+
+  // Attach stream to video element when ready in autonomous mode
+  useEffect(() => {
+    if (isAutonomous && videoRef.current && cameraStream) {
+      videoRef.current.srcObject = cameraStream
+      videoRef.current.play?.().catch(() => {})
+    }
+  }, [isAutonomous, cameraStream, videoRef])
+
+  // Autonomous lifecycle hook
+  useEffect(() => {
+    if (!isAutonomous) return undefined
+    if (isOpen) {
+      startAutonomousStream()
+    } else {
+      stopAutonomousStream()
+      setLocalError('')
+      setLocalLoading(false)
+    }
+    return () => {
+      stopAutonomousStream()
+    }
+  }, [isAutonomous, isOpen, startAutonomousStream, stopAutonomousStream])
+
+  // Capture photo handler
+  const handleCapture = useCallback(() => {
+    if (externalCaptureDocument) {
+      externalCaptureDocument()
+      return
+    }
+
+    const video = videoRef.current
+    const canvas = canvasRef.current
+    if (!video || !canvas || !video.videoWidth || !video.videoHeight) {
+      if (isAutonomous) setLocalError('Camera preview is not ready yet.')
+      return
+    }
+
+    canvas.width = video.videoWidth
+    canvas.height = video.videoHeight
+    const context = canvas.getContext('2d')
+    if (!context) {
+      if (isAutonomous) setLocalError('Could not prepare camera frame capture.')
+      return
+    }
+
+    context.drawImage(video, 0, 0, canvas.width, canvas.height)
+    canvas.toBlob((blob) => {
+      if (!blob) {
+        if (isAutonomous) setLocalError('Could not capture camera frame.')
+        return
+      }
+      const file = new File([blob], `camera-capture-${Date.now()}.jpg`, { type: 'image/jpeg' })
+      const dataUrl = canvas.toDataURL('image/jpeg', 0.92)
+
+      if (onCapture) {
+        onCapture({ blob, file, dataUrl })
+      }
+      if (handleClose) {
+        handleClose()
+      }
+    }, 'image/jpeg', 0.92)
+  }, [externalCaptureDocument, videoRef, canvasRef, isAutonomous, onCapture, handleClose])
+
+  const handleRetry = externalRetryCapture || (isAutonomous ? startAutonomousStream : null)
+
   const isPermissionDenied =
     Boolean(cameraError) &&
     /permission|denied|dismissed|notallowed/i.test(cameraError)
@@ -20,21 +179,27 @@ export default function EmployeeCameraModal({
   return (
     <Modal
       isOpen={isOpen}
-      onClose={closeCameraCapture}
-      title="Capture from Camera"
-      subtitle="Position the document inside the preview, then capture a photo for OCR staging."
+      onClose={handleClose}
+      title={title}
+      subtitle={subtitle}
       maxWidth="600px"
       className="employee-scan-modal employee-camera-modal"
       backdropClassName="employee-scan-backdrop"
       footer={
         <>
-          <button type="button" className="btn-secondary" onClick={backToScanOptionsFromCamera}>Back</button>
-          <button type="button" className="btn-secondary" onClick={closeCameraCapture}>Cancel</button>
-          {cameraError && retryCameraCapture ? (
+          {backToScanOptionsFromCamera && (
+            <button type="button" className="btn-secondary" onClick={backToScanOptionsFromCamera}>
+              Back
+            </button>
+          )}
+          <button type="button" className="btn-secondary" onClick={handleClose}>
+            Cancel
+          </button>
+          {cameraError && handleRetry ? (
             <button
               type="button"
               className="btn-primary"
-              onClick={retryCameraCapture}
+              onClick={handleRetry}
               disabled={cameraLoading}
             >
               <svg
@@ -59,7 +224,7 @@ export default function EmployeeCameraModal({
             <button
               type="button"
               className="btn-primary"
-              onClick={captureCameraDocument}
+              onClick={handleCapture}
               disabled={!cameraStream || cameraLoading}
             >
               <svg
@@ -86,7 +251,7 @@ export default function EmployeeCameraModal({
       <div className="employee-camera-preview">
         {cameraStream ? (
           <div className="employee-camera-stream-wrap">
-            <video ref={scanCameraVideoRef} autoPlay playsInline muted />
+            <video ref={videoRef} autoPlay playsInline muted />
             <div className="employee-camera-hud">
               <div className="employee-camera-live-pill">
                 <span className="employee-camera-live-dot" />
@@ -168,7 +333,7 @@ export default function EmployeeCameraModal({
             )}
           </div>
         )}
-        <canvas ref={scanCameraCanvasRef} aria-hidden="true" style={{ display: 'none' }} />
+        <canvas ref={canvasRef} aria-hidden="true" style={{ display: 'none' }} />
       </div>
       {cameraError && !isPermissionDenied ? <p className="error-message employee-modal-error">{cameraError}</p> : null}
     </Modal>

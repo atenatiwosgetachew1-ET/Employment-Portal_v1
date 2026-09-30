@@ -1,3 +1,4 @@
+from django.db.models import Q
 from django.utils import timezone
 from rest_framework import status
 from rest_framework.parsers import FormParser, MultiPartParser
@@ -6,7 +7,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from ..licensing import get_access_restriction, get_user_organization
-from ..models import Employee, EmployeeReturnRequest
+from ..models import Employee, EmployeeReturnRequest, Notification, Profile
 from ..serializers import EmployeeSerializer
 from .helpers import (
     EmployeesEnabled,
@@ -98,6 +99,53 @@ class EmployeeReturnRequestView(APIView):
                 setattr(return_request, f"evidence_file_{index}", file_obj)
         return_request.save()
 
+        requester = request.user
+        requester_profile = getattr(requester, "profile", None)
+        requester_is_agent = False
+        if requester_profile:
+            if requester_profile.role == Profile.ROLE_CUSTOMER:
+                requester_is_agent = True
+            elif requester_profile.role == Profile.ROLE_STAFF:
+                staff_side = (requester_profile.staff_side or "").strip()
+                org_name = (employee.organization.name or "").strip() if employee.organization else ""
+                if staff_side and staff_side != org_name:
+                    requester_is_agent = True
+
+        recipient_user_ids = []
+        org_name_lower = (employee.organization.name or "").strip().lower() if employee.organization else ""
+        if requester_is_agent:
+            if employee.organization_id:
+                org_profiles = Profile.objects.filter(
+                    organization_id=employee.organization_id,
+                    role__in=[Profile.ROLE_SUPERADMIN, Profile.ROLE_ADMIN, Profile.ROLE_STAFF],
+                ).exclude(user_id=requester.id)
+                for p in org_profiles:
+                    s_side = (p.staff_side or "").strip().lower()
+                    if not s_side or s_side == org_name_lower:
+                        recipient_user_ids.append(p.user_id)
+        else:
+            selection = getattr(employee, "selection", None)
+            if selection and selection.agent_id:
+                recipient_user_ids.append(selection.agent_id)
+                agent_user = selection.agent
+                agent_names = {agent_user.username.lower(), (agent_user.get_full_name() or "").lower()} if agent_user else set()
+                agent_profiles = Profile.objects.filter(
+                    organization_id=employee.organization_id,
+                    role=Profile.ROLE_STAFF,
+                ).exclude(user_id=requester.id)
+                for p in agent_profiles:
+                    s_side = (p.staff_side or "").strip().lower()
+                    if s_side and (s_side in agent_names or s_side.replace(" ", "_") in agent_names):
+                        recipient_user_ids.append(p.user_id)
+
+        for uid in set(recipient_user_ids):
+            Notification.objects.create(
+                user_id=uid,
+                title=f"Return request: {employee.full_name}",
+                body=f"Return requested by {request.user.username}: \"{remark}\"",
+                kind=Notification.KIND_WARNING,
+            )
+
         employee.refresh_from_db()
         return Response(
             EmployeeSerializer(employee, context={"request": request}).data,
@@ -131,6 +179,11 @@ class EmployeeReturnRequestView(APIView):
         return_request.approved_by = request.user
         return_request.approved_at = timezone.now()
         return_request.save(update_fields=["status", "approved_by", "approved_at", "updated_at"])
+        full_name_clean = (employee.full_name or "").strip()
+        Notification.objects.filter(
+            Q(title__icontains=full_name_clean) | Q(body__icontains=full_name_clean),
+            title__istartswith="Return request:"
+        ).delete()
         employee.refresh_from_db()
         return Response(
             EmployeeSerializer(employee, context={"request": request}).data,
@@ -185,6 +238,12 @@ class EmployeeReturnRequestDecisionView(APIView):
             employee.returned_from_employment = True
             employee.returned_recorded_by = request.user
             employee.save(update_fields=["returned_from_employment", "returned_recorded_by", "is_active", "updated_at"])
+
+        full_name_clean = (employee.full_name or "").strip()
+        Notification.objects.filter(
+            Q(title__icontains=full_name_clean) | Q(body__icontains=full_name_clean),
+            title__istartswith="Return request:"
+        ).delete()
 
         employee.refresh_from_db()
         return Response(

@@ -1,4 +1,5 @@
-﻿import { useEffect, useRef } from 'react'
+import { useEffect, useRef } from 'react'
+import { useOverlayZIndex } from '../../utils/overlayZIndex'
 import { createPortal } from 'react-dom'
 
 /**
@@ -35,9 +36,12 @@ export default function Modal({
   maxWidth,
   ...rest
 }) {
+  const zIndex = useOverlayZIndex(isOpen)
   const dialogRef = useRef(null)
   const previousActiveElement = useRef(null)
   const titleId = ariaLabelledBy || (title ? `modal-title-${title.toLowerCase().replace(/[^a-z0-9]+/g, '-')}` : undefined)
+  const onCloseRef = useRef(onClose)
+  onCloseRef.current = onClose
 
   useEffect(() => {
     if (!isOpen) return
@@ -51,7 +55,7 @@ export default function Modal({
     const handleKeyDown = (e) => {
       if (closeOnEscape && e.key === 'Escape') {
         e.stopPropagation()
-        onClose?.()
+        onCloseRef.current?.()
       }
     }
 
@@ -68,7 +72,7 @@ export default function Modal({
         }
       }
     }
-  }, [isOpen, closeOnEscape, onClose])
+  }, [isOpen, closeOnEscape])
 
   if (!isOpen) return null
 
@@ -83,6 +87,10 @@ export default function Modal({
       className={`app-confirm-backdrop ${backdropClassName}`.trim()}
       role="presentation"
       onClick={handleBackdropClick}
+      style={{
+        zIndex,
+        '--overlay-z-index': zIndex,
+      }}
     >
       <div
         ref={dialogRef}

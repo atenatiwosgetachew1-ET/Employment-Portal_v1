@@ -839,20 +839,22 @@ export function employeeWorkflowState(employee) {
 
 export async function fetchAllEmployeePages(params = {}) {
   let page = 1
-  let aggregated = []
-  let pageCount = 1
+  const results = []
+  let hasNext = true
 
-  while (page <= pageCount) {
+  while (hasNext) {
     const response = await employeesService.fetchEmployees({
-      ...params,
-      page
+      page,
+      ...params
     })
-    aggregated = aggregated.concat(response.results || [])
-    pageCount = response.total_pages || response.totalPages || 1
+    const items = response.results || []
+    results.push(...items)
+    hasNext = Boolean(response.next)
     page += 1
+    if (page > 50 || items.length === 0) break
   }
 
-  return aggregated
+  return results
 }
 
 export function prettyStatus(value, fallback = '--') {
@@ -890,6 +892,9 @@ export function employeeStatusLabel(employee) {
 }
 
 export function employeeStatusBadgeClass(employee) {
+  if (employee?.return_request?.status === 'pending') {
+    return 'badge-danger'
+  }
   switch (employeeWorkflowState(employee)) {
     case 'approved':
       return 'badge-success'
@@ -912,6 +917,7 @@ export function employeeStatusBadgeClass(employee) {
 }
 
 export function employeeStatusBadgeVariantClass(employee) {
+  if (employee?.return_request?.status === 'pending') return ''
   if (['traveled', 'employed'].includes(employeeWorkflowState(employee))) return 'employee-card-status-badge--employed'
   return ''
 }

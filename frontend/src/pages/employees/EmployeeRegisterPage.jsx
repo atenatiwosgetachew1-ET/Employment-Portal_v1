@@ -67,11 +67,12 @@ import {
   isPdfDocumentUrl,
   printDocumentSilently
 } from '../../utils/employeeHelpers'
-import EmployeeDocumentPreview from '../../components/employees/EmployeeDocumentPreview'
+import { useDocumentPreview } from '../../context/PortalOverlayContext'
 
 import EmployeeCameraModal from '../../components/employees/EmployeeCameraModal'
 import EmployeeScanImportModal from '../../components/employees/EmployeeScanImportModal'
 import EmployeeBatchRegistrationModal from '../../components/employees/EmployeeBatchRegistrationModal'
+import EmployeeScanAttachmentModal from '../../components/employees/EmployeeScanAttachmentModal'
 
 const MEDICAL_ATTACHMENT_KEYS = ['medical_result', 'certificate_of_competency', 'insurance']
 const LEGAL_ATTACHMENT_KEYS = ['visa', 'contract', 'clearance', 'employee_id', 'contact_person_id']
@@ -437,92 +438,7 @@ export default function EmployeeRegisterPage() {
   const floatingAttachmentPreviewCloseTimer = useRef(null)
   const floatingAttachmentPreviewPopoverRef = useRef(null)
 
-  const [previewDocument, setPreviewDocument] = useState(null)
-  const [previewZoom, setPreviewZoom] = useState(1)
-  const [previewOffset, setPreviewOffset] = useState({ x: 0, y: 0 })
-  const [previewDragging, setPreviewDragging] = useState(false)
-  const previewDragStartRef = useRef({ x: 0, y: 0, originX: 0, originY: 0 })
-
-  const openDocumentPreview = useCallback((payload) => {
-    setPreviewDocument(payload)
-    setPreviewZoom(1)
-    setPreviewOffset({ x: 0, y: 0 })
-    setPreviewDragging(false)
-  }, [])
-
-  const closeDocumentPreview = useCallback(() => {
-    setPreviewDocument(null)
-  }, [])
-
-  const handlePreviewDownload = useCallback(() => {
-    if (!previewDocument?.url) return
-    const anchor = document.createElement('a')
-    anchor.href = previewDocument.url
-    anchor.download = previewDocument.label || 'document'
-    anchor.target = '_blank'
-    anchor.rel = 'noreferrer'
-    anchor.click()
-  }, [previewDocument])
-
-  const handlePreviewPrint = useCallback(() => {
-    if (!previewDocument?.url) return
-    printDocumentSilently(previewDocument)
-  }, [previewDocument])
-
-  const handlePreviewZoomIn = useCallback(() => {
-    setPreviewZoom((prev) => Math.min(4, Math.round((prev + 0.25) * 100) / 100))
-  }, [])
-
-  const handlePreviewZoomOut = useCallback(() => {
-    setPreviewZoom((prev) => Math.max(1, Math.round((prev - 0.25) * 100) / 100))
-  }, [])
-
-  const handlePreviewReset = useCallback(() => {
-    setPreviewZoom(1)
-    setPreviewOffset({ x: 0, y: 0 })
-  }, [])
-
-  const handlePreviewWheel = useCallback((event) => {
-    event.preventDefault()
-    const zoomFactor = event.deltaY < 0 ? 0.2 : -0.2
-    setPreviewZoom((prev) => Math.min(4, Math.max(1, Math.round((prev + zoomFactor) * 100) / 100)))
-  }, [])
-
-  const handlePreviewPointerDown = useCallback((event) => {
-    if (previewZoom <= 1) return
-    previewDragStartRef.current = {
-      x: event.clientX,
-      y: event.clientY,
-      originX: previewOffset.x,
-      originY: previewOffset.y
-    }
-    setPreviewDragging(true)
-  }, [previewOffset, previewZoom])
-
-  useEffect(() => {
-    if (!previewDragging) return undefined
-
-    const handlePointerMove = (event) => {
-      const { x, y, originX, originY } = previewDragStartRef.current
-      setPreviewOffset({
-        x: originX + (event.clientX - x),
-        y: originY + (event.clientY - y)
-      })
-    }
-
-    const handlePointerUp = () => {
-      setPreviewDragging(false)
-    }
-
-    window.addEventListener('mousemove', handlePointerMove)
-    window.addEventListener('mouseup', handlePointerUp)
-
-    return () => {
-      window.removeEventListener('mousemove', handlePointerMove)
-      window.removeEventListener('mouseup', handlePointerUp)
-    }
-  }, [previewDragging])
-
+  const { openDocumentPreview, closeDocumentPreview } = useDocumentPreview()
 
   const [scanImportModalOpen, setScanImportModalOpen] = useState(() => !editId)
   const [batchModalOpen, setBatchModalOpen] = useState(false)
@@ -4814,371 +4730,31 @@ export default function EmployeeRegisterPage() {
           </label>
         ) : null}
       </Modal>
-      <Modal
+      <EmployeeScanAttachmentModal
         isOpen={scanAttachmentModalOpen}
         onClose={closeScanAttachmentModal}
-        title="Attach from Document"
-        subtitle="Select candidate slots to assign this document. For images, adjust the crop frame."
-        maxWidth="1040px"
-        className="employee-scan-modal employee-scan-attach-modal"
-        backdropClassName="employee-scan-backdrop"
-        footer={
-          <div className="employee-scan-modal-footer">
-            <div className="employee-scan-footer-summary">
-              {scanAttachmentKeys.length > 0 ? (
-                <span>
-                  Targeting <strong>{scanAttachmentKeys.length}</strong> {scanAttachmentKeys.length === 1 ? 'slot' : 'slots'}
-                </span>
-              ) : (
-                <span className="text-warning">Select at least one slot</span>
-              )}
-            </div>
-            <div className="employee-scan-footer-buttons">
-              <button type="button" className="btn-secondary" onClick={closeScanAttachmentModal}>Cancel</button>
-              <button
-                type="button"
-                className="btn-primary"
-                onClick={attachSelectedFromScan}
-                disabled={scanAttachmentKeys.length === 0}
-              >
-                {scanAttachmentKeys.length > 0
-                  ? `Attach to ${scanAttachmentKeys.length} ${scanAttachmentKeys.length === 1 ? 'Slot' : 'Slots'}`
-                  : 'Attach selected'}
-              </button>
-            </div>
-          </div>
-        }
-      >
-        <div className="employee-scan-attach-workspace">
-          <div className="employee-scan-attach-preview">
-            <div className="employee-scan-preview-tag">
-              <span>{scanAttachmentSourceFile?.type?.startsWith('image/') ? 'Image Framing' : 'Original Document (PDF)'}</span>
-            </div>
-
-            {scanAttachmentSourcePreviewUrl && scanAttachmentSourceFile?.type?.startsWith('image/') ? (
-              <>
-                <div
-                  ref={scanAttachmentFrameRef}
-                  className={`employee-scan-attach-image-frame${scanAttachmentZoom > 1 ? ' is-zoomed' : ''}${scanAttachmentDragging ? ' is-dragging' : ''}`}
-                  onMouseDown={handleScanAttachmentPointerDown}
-                >
-                  <div className="employee-scan-frame-guide" aria-hidden="true" />
-                  <img
-                    ref={scanAttachmentImgRef}
-                    src={scanAttachmentSourcePreviewUrl}
-                    alt="Scanned document preview"
-                    draggable="false"
-                    style={{
-                      transform: `translate(${scanAttachmentOffset.x}px, ${scanAttachmentOffset.y}px) rotate(${scanAttachmentRotation}deg) scale(${(scanAttachmentFlipX ? -1 : 1) * scanAttachmentZoom}, ${(scanAttachmentFlipY ? -1 : 1) * scanAttachmentZoom})`
-                    }}
-                  />
-                </div>
-                <div className="employee-scan-attach-toolbar" aria-label="Image adjustment controls">
-                  <button
-                    type="button"
-                    className="employee-scan-toolbar-btn"
-                    onClick={() => setScanAttachmentRotation((prev) => (prev + 270) % 360)}
-                    title="Rotate left 90°"
-                    aria-label="Rotate left"
-                  >
-                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ overflow: 'visible' }}>
-                      <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
-                      <path d="M3 3v5h5" />
-                    </svg>
-                  </button>
-                  <button
-                    type="button"
-                    className="employee-scan-toolbar-btn"
-                    onClick={() => setScanAttachmentRotation((prev) => (prev + 90) % 360)}
-                    title="Rotate right 90°"
-                    aria-label="Rotate right"
-                  >
-                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ overflow: 'visible' }}>
-                      <path d="M21 12a9 9 0 1 1-9-9 9.75 9.75 0 0 1 6.74 2.74L21 8" />
-                      <path d="M21 3v5h-5" />
-                    </svg>
-                  </button>
-                  <button
-                    type="button"
-                    className={`employee-scan-toolbar-btn${scanAttachmentFlipX ? ' is-active' : ''}`}
-                    onClick={() => setScanAttachmentFlipX((prev) => !prev)}
-                    title="Flip horizontally"
-                    aria-label="Flip horizontal"
-                  >
-                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ overflow: 'visible' }}>
-                      <polyline points="8 4 4 8 8 12" />
-                      <polyline points="16 12 20 16 16 20" />
-                      <line x1="4" y1="8" x2="16" y2="8" />
-                      <line x1="8" y1="16" x2="20" y2="16" />
-                    </svg>
-                  </button>
-                  <button
-                    type="button"
-                    className={`employee-scan-toolbar-btn${scanAttachmentFlipY ? ' is-active' : ''}`}
-                    onClick={() => setScanAttachmentFlipY((prev) => !prev)}
-                    title="Flip vertically"
-                    aria-label="Flip vertical"
-                  >
-                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ overflow: 'visible' }}>
-                      <polyline points="4 8 8 4 12 8" />
-                      <polyline points="12 16 16 20 20 16" />
-                      <line x1="8" y1="4" x2="8" y2="16" />
-                      <line x1="16" y1="8" x2="16" y2="20" />
-                    </svg>
-                  </button>
-                  <span className="employee-scan-toolbar-divider" />
-                  <button
-                    type="button"
-                    className="employee-scan-toolbar-btn"
-                    onClick={() => setScanAttachmentZoom((prev) => {
-                      const next = Math.max(1, Number((prev - 0.25).toFixed(2)))
-                      if (next === 1) setScanAttachmentOffset({ x: 0, y: 0 })
-                      return next
-                    })}
-                    disabled={scanAttachmentZoom <= 1}
-                    title="Zoom out"
-                    aria-label="Zoom out"
-                  >
-                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ overflow: 'visible' }}>
-                      <circle cx="11" cy="11" r="8" />
-                      <line x1="21" y1="21" x2="16.65" y2="16.65" />
-                      <line x1="8" y1="11" x2="14" y2="11" />
-                    </svg>
-                  </button>
-                  <span className="employee-scan-toolbar-zoom-badge" title="Zoom level">
-                    {Math.round(scanAttachmentZoom * 100)}%
-                  </span>
-                  <button
-                    type="button"
-                    className="employee-scan-toolbar-btn"
-                    onClick={() => setScanAttachmentZoom((prev) => Math.min(5, Number((prev + 0.25).toFixed(2))))}
-                    disabled={scanAttachmentZoom >= 5}
-                    title="Zoom in"
-                    aria-label="Zoom in"
-                  >
-                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ overflow: 'visible' }}>
-                      <circle cx="11" cy="11" r="8" />
-                      <line x1="21" y1="21" x2="16.65" y2="16.65" />
-                      <line x1="11" y1="8" x2="11" y2="14" />
-                      <line x1="8" y1="11" x2="14" y2="11" />
-                    </svg>
-                  </button>
-                  <span className="employee-scan-toolbar-divider" />
-                  <button
-                    type="button"
-                    className="employee-scan-toolbar-btn"
-                    onClick={resetScanAttachmentView}
-                    title="Reset view (100% zoom, 0 offset)"
-                    aria-label="Reset view"
-                  >
-                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ overflow: 'visible' }}>
-                      <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
-                      <path d="M3 3v5h5" />
-                    </svg>
-                  </button>
-                </div>
-              </>
-            ) : scanAttachmentSourcePreviewUrl ? (
-              <>
-                <iframe
-                  key={scanAttachmentPdfUrl}
-                  src={scanAttachmentPdfUrl}
-                  title="Scanned document preview"
-                  className="employee-scan-attach-pdf-frame"
-                  scrolling="no"
-                />
-                <div className="employee-scan-attach-toolbar" aria-label="PDF adjustment controls">
-                  <button
-                    type="button"
-                    className={`employee-scan-toolbar-btn${scanAttachmentPdfFit === 'FitH' && scanAttachmentPdfZoom === 100 ? ' is-active' : ''}`}
-                    onClick={() => {
-                      setScanAttachmentPdfFit('FitH')
-                      setScanAttachmentPdfZoom(100)
-                    }}
-                    title="Fit to width"
-                    aria-label="Fit to width"
-                  >
-                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ overflow: 'visible' }}>
-                      <line x1="2" y1="12" x2="22" y2="12" />
-                      <polyline points="6 8 2 12 6 16" />
-                      <polyline points="18 8 22 12 18 16" />
-                    </svg>
-                  </button>
-                  <button
-                    type="button"
-                    className={`employee-scan-toolbar-btn${scanAttachmentPdfFit === 'Fit' && scanAttachmentPdfZoom === 100 ? ' is-active' : ''}`}
-                    onClick={() => {
-                      setScanAttachmentPdfFit('Fit')
-                      setScanAttachmentPdfZoom(100)
-                    }}
-                    title="Fit entire page in view"
-                    aria-label="Fit entire page in view"
-                  >
-                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ overflow: 'visible' }}>
-                      <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3" />
-                    </svg>
-                  </button>
-                  <span className="employee-scan-toolbar-divider" />
-                  <button
-                    type="button"
-                    className="employee-scan-toolbar-btn"
-                    onClick={() => {
-                      setScanAttachmentPdfZoom((prev) => Math.max(50, prev - 25))
-                      setScanAttachmentPdfFit('')
-                    }}
-                    disabled={scanAttachmentPdfZoom <= 50}
-                    title="Zoom out"
-                    aria-label="Zoom out"
-                  >
-                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ overflow: 'visible' }}>
-                      <circle cx="11" cy="11" r="8" />
-                      <line x1="21" y1="21" x2="16.65" y2="16.65" />
-                      <line x1="8" y1="11" x2="14" y2="11" />
-                    </svg>
-                  </button>
-                  <span className="employee-scan-toolbar-zoom-badge" title="Zoom level">
-                    {scanAttachmentPdfZoom !== 100 ? `${scanAttachmentPdfZoom}%` : scanAttachmentPdfFit === 'Fit' ? 'Fit Page' : 'Fit Width'}
-                  </span>
-                  <button
-                    type="button"
-                    className="employee-scan-toolbar-btn"
-                    onClick={() => {
-                      setScanAttachmentPdfZoom((prev) => Math.min(300, prev + 25))
-                      setScanAttachmentPdfFit('')
-                    }}
-                    disabled={scanAttachmentPdfZoom >= 300}
-                    title="Zoom in"
-                    aria-label="Zoom in"
-                  >
-                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ overflow: 'visible' }}>
-                      <circle cx="11" cy="11" r="8" />
-                      <line x1="21" y1="21" x2="16.65" y2="16.65" />
-                      <line x1="11" y1="8" x2="11" y2="14" />
-                      <line x1="8" y1="11" x2="14" y2="11" />
-                    </svg>
-                  </button>
-                  <span className="employee-scan-toolbar-divider" />
-                  <button
-                    type="button"
-                    className="employee-scan-toolbar-btn"
-                    onClick={() => {
-                      setScanAttachmentPdfFit('FitH')
-                      setScanAttachmentPdfZoom(100)
-                    }}
-                    title="Reset view (Fit to width, 100%)"
-                    aria-label="Reset view"
-                  >
-                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ overflow: 'visible' }}>
-                      <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
-                      <path d="M3 3v5h5" />
-                    </svg>
-                  </button>
-                </div>
-              </>
-            ) : (
-              <div className="employee-camera-placeholder">No scanned preview is available.</div>
-            )}
-          </div>
-
-          <div className="employee-scan-attach-controls">
-            <div className="employee-scan-slots-panel">
-              <div className="employee-scan-slots-header">
-                <div>
-                  <strong>Target Attachment Slots</strong>
-                  <span className="employee-scan-slots-subtitle">
-                    Select candidate slots to receive this file
-                  </span>
-                </div>
-                <div className="employee-scan-slots-quick-actions">
-                  <button
-                    type="button"
-                    className="employee-scan-quick-btn"
-                    onClick={() => {
-                      const missing = MANDATORY_ATTACHMENT_KEYS.filter((k) => !attachmentFiles[k] && !existingAttachmentDocs[k])
-                      setScanAttachmentKeys(missing.length > 0 ? missing : [...MANDATORY_ATTACHMENT_KEYS])
-                    }}
-                    title="Select mandatory slots"
-                  >
-                    Mandatory
-                  </button>
-                  <button
-                    type="button"
-                    className="employee-scan-quick-btn"
-                    onClick={() => setScanAttachmentKeys(ATTACHMENT_FIELDS.map((a) => a.key))}
-                    title="Select all slots"
-                  >
-                    All
-                  </button>
-                  <button
-                    type="button"
-                    className="employee-scan-quick-btn"
-                    onClick={() => setScanAttachmentKeys([])}
-                    title="Clear selection"
-                  >
-                    Clear
-                  </button>
-                </div>
-              </div>
-
-              <div className="employee-scan-slot-list">
-                {ATTACHMENT_FIELDS.map((attachment) => {
-                  const isSelected = scanAttachmentKeys.includes(attachment.key)
-                  const isMandatory = MANDATORY_ATTACHMENT_KEYS.includes(attachment.key)
-                  const isFilled = Boolean(attachmentFiles[attachment.key] || existingAttachmentDocs[attachment.key]?.file_url)
-
-                  return (
-                    <div
-                      key={attachment.key}
-                      className={`employee-scan-slot-item${isSelected ? ' is-selected' : ''}`}
-                      onClick={() => handleScanAttachmentKeyToggle(attachment.key)}
-                      role="checkbox"
-                      aria-checked={isSelected}
-                      tabIndex={0}
-                      onKeyDown={(e) => {
-                        if (e.key === ' ' || e.key === 'Enter') {
-                          e.preventDefault()
-                          handleScanAttachmentKeyToggle(attachment.key)
-                        }
-                      }}
-                    >
-                      <div className="employee-scan-slot-checkbox" aria-hidden="true">
-                        {isSelected ? (
-                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" style={{ overflow: 'visible' }}>
-                            <polyline points="20 6 9 17 4 12" />
-                          </svg>
-                        ) : null}
-                      </div>
-                      <div className="employee-scan-slot-content">
-                        <span className="employee-scan-slot-title">
-                          {attachmentLabels[attachment.key] || attachment.label}
-                        </span>
-                        {isMandatory && <span className="employee-scan-slot-tag-req">Required</span>}
-                      </div>
-                      {isFilled && (
-                        <span className="employee-scan-slot-filled-indicator" title="Already has an attached document">
-                          Has file
-                        </span>
-                      )}
-                    </div>
-                  )
-                })}
-              </div>
-
-              {scanAttachmentSourceFile?.type?.startsWith('image/') ? (
-                <div className="employee-scan-hint-banner">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" style={{ overflow: 'visible' }}>
-                    <circle cx="12" cy="12" r="10" />
-                    <line x1="12" y1="16" x2="12" y2="12" />
-                    <line x1="12" y1="8" x2="12.01" y2="8" />
-                  </svg>
-                  <span>Crop tip: The exact framed area shown on the left will be saved into the selected slots.</span>
-                </div>
-              ) : null}
-            </div>
-          </div>
-        </div>
-        {scanAttachmentError ? <p className="error-message employee-modal-error">{scanAttachmentError}</p> : null}
-      </Modal>
+        sourceFile={scanAttachmentSourceFile}
+        sourcePreviewUrl={scanAttachmentSourcePreviewUrl}
+        sourceFileName={scanAttachmentSourceFileName}
+        attachmentFields={ATTACHMENT_FIELDS}
+        mandatoryKeys={MANDATORY_ATTACHMENT_KEYS}
+        attachmentFiles={attachmentFiles}
+        existingAttachmentDocs={existingAttachmentDocs}
+        attachmentLabels={attachmentLabels}
+        initialSelectedKeys={scanAttachmentKeys}
+        onAttach={async ({ selectedKeys, file }) => {
+          setAttachmentFiles((prev) => {
+            const next = { ...prev }
+            selectedKeys.forEach((key) => {
+              next[key] = file
+            })
+            return next
+          })
+          setModalNotice(
+            `${selectedKeys.length} attachment${selectedKeys.length === 1 ? '' : 's'} attached from the scanned document.`
+          )
+        }}
+      />
       <Modal
         isOpen={ocrSetupModalOpen}
         onClose={closeOcrSetupModal}
@@ -5258,20 +4834,6 @@ export default function EmployeeRegisterPage() {
         )
         : null}
 
-      <EmployeeDocumentPreview
-        previewDocument={previewDocument}
-        closeDocumentPreview={closeDocumentPreview}
-        handlePreviewDownload={handlePreviewDownload}
-        handlePreviewPrint={handlePreviewPrint}
-        previewZoom={previewZoom}
-        handlePreviewZoomOut={handlePreviewZoomOut}
-        handlePreviewZoomIn={handlePreviewZoomIn}
-        handlePreviewReset={handlePreviewReset}
-        previewOffset={previewOffset}
-        previewDragging={previewDragging}
-        handlePreviewWheel={handlePreviewWheel}
-        handlePreviewPointerDown={handlePreviewPointerDown}
-      />
 
       {/* Document Expiration / Scheduled Date Modal */}
       <Modal

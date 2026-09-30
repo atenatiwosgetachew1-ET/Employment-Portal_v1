@@ -745,12 +745,19 @@ textarea[readonly] {
 }
 
 .dashboard-content,
-.employees-page,
 .commissions-page,
 .users-management {
   display: grid;
   gap: 20px;
   align-content: start;
+}
+
+.employees-page {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: calc(100vh - 120px);
+  min-height: calc(100dvh - 120px);
 }
 
 .dashboard-panel > * + *,
@@ -775,6 +782,32 @@ textarea[readonly] {
 .document-preview-modal > * + *,
 .app-confirm-dialog > * + * {
   margin-top: 0;
+}
+
+.employee-listing-view-wrapper {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: calc(100vh - 160px);
+  min-height: calc(100dvh - 160px);
+}
+
+.users-table-wrap {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: calc(100vh - 220px);
+  min-height: calc(100dvh - 220px);
+  box-sizing: border-box;
+}
+
+.employee-listing-view-wrapper > .users-table-wrap {
+  overflow: visible;
+}
+
+.users-table-wrap > .activity-log-pagination,
+.activity-log-pagination {
+  margin-top: auto !important;
 }
 
 /* Element family: Card composition
@@ -1573,7 +1606,7 @@ html[data-theme='light'][data-accent='natural'] .employee-registration-surface .
   display: grid;
   gap: 12px;
   width: min(360px, calc(100vw - 32px));
-  z-index: 70000;
+  z-index: var(--overlay-z-index, 10000) !important;
   pointer-events: none;
 }
 

@@ -3,146 +3,50 @@ import { createPortal } from 'react-dom'
 import { Navigate, useNavigate, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
 import { useUiFeedback } from '../../context/UiFeedbackContext'
-import {
-  ATTACHMENT_FIELDS,
-  EMPLOYMENT_TYPE_OPTIONS,
-  EXPERIENCE_COUNTRIES,
-  GENDER_OPTIONS,
-  LANGUAGE_OPTIONS,
-  MARITAL_STATUS_OPTIONS,
-  PROFESSION_OPTIONS,
-  PROFESSION_SKILLS,
-  RELIGION_OPTIONS,
-  RESIDENCE_COUNTRY_OPTIONS
-} from '../../constants/employeeOptions'
-import {
-  ASPRISE_SCANNER_LINKS,
-  checkAspriseScannerService,
-  resetAspriseScannerService,
-  scanWithAspriseScanner
-} from '../../services/aspriseScannerService'
 import * as employeesService from '../../services/employeesService'
 import { normalizeSearchValue } from '../../utils/filtering'
 
 import {
-  MINIMUM_EMPLOYEE_AGE,
-  PHONE_ALLOWED_CHARS,
-  DOCUMENT_NUMBER_PATTERN,
-  OPTIONAL_DATE_FIELDS,
-  MANDATORY_ATTACHMENT_KEYS,
-  ALLOWED_ATTACHMENT_MIME_TYPES,
-  ALLOWED_ATTACHMENT_EXTENSIONS,
-  REGISTRATION_TEMPLATE_STORAGE_KEY,
-  LEGACY_REGISTRATION_TEMPLATE_STORAGE_KEY,
-  REGISTRATION_DRAFT_DB_NAME,
-  REGISTRATION_DRAFT_DB_VERSION,
-  REGISTRATION_DRAFT_STORE,
-  REGISTRATION_DRAFT_KEY,
-  TRAVEL_CONFIRMATION_DECLINED_STORAGE_KEY,
-  TRAVEL_CONFIRMATION_CONFIRMED_STORAGE_KEY,
-  COMMISSION_SETTLEMENT_STORAGE_KEY,
-  COMMISSION_STORAGE_DB_NAME,
-  COMMISSION_STORAGE_DB_VERSION,
-  COMMISSION_STORAGE_SETTLEMENT_STORE,
-  COMMISSION_STORAGE_PRIMARY_KEY,
-  TEMPLATE_FORM_FIELDS,
-  EMPLOYEE_OCR_FIELD_LABELS,
-  OCR_UNREACHABLE_MESSAGE,
-  EMPLOYEE_CARD_MASONRY_DEBUG_FLAG,
-  EMPLOYEE_CARD_MASONRY_DEBUG_STORAGE_KEY,
   employeeCardMasonryDebugEnabled,
   employeeCardMasonryDebugLog,
   employeeCardMasonryAttachScrollLogger,
-  normalizeOcrStatusMessage,
-  readCssCustomProperty,
-  emptyExperience,
-  REGISTRATION_STEPS,
   EMPLOYEE_VIEW_TABS,
   EMPLOYEE_TAG_FILTER_OPTIONS,
-  GRID_CARD_PREVIEW_DOCUMENTS,
   EMPLOYEE_CARDS_BATCH_SIZE,
-  LIST_CARD_PREVIEW_DOCUMENTS,
-  buildOcrCacheKey,
-  emptyForm,
-  computeAge,
-  loadImageFromUrl,
-  normalizeEmployeeForm,
-  buildRegistrationTemplate,
-  applyRegistrationTemplate,
-  normalizeDraftForm,
-  openRegistrationDraftDb,
   fileLabel,
-  findEmployeeDocument,
-  isImageDocument,
-  isPdfDocumentUrl,
-  buildDownloadName,
   attachmentFileAllowed,
-  attachmentDisplayName,
-  employeeProfilePhoto,
   isEmployeeReturned,
-  normalizedTravelStatus,
-  isEmployeeTravelled,
   isEmployeeEmployed,
   isEmployeeUnderProcess,
-  isEmployeeReadyForEmploymentStage,
-  isEmployeeTravelConfirmationPending,
   isEmployeeSelected,
-  readTravelConfirmationDeclinedIds,
-  writeTravelConfirmationDeclinedIds,
-  readTravelConfirmationConfirmedIds,
-  writeTravelConfirmationConfirmedIds,
   patchEmployeeCollection,
-  isEmployeeInEmployedStage,
-  isEmployeeEmployedInView,
-  employeeWorkflowState,
-  prettyStatus,
-  employeeAvailability,
-  employeeStatusLabel,
-  employeeStatusBadgeClass,
-  employeeStatusBadgeVariantClass,
-  employeeMatchesTagFilter,
-  statusTone,
   employedEmployeesHelpText,
   returnedEmployeesHelpText,
-  normalizeAgentMatchValue,
-  employeeBelongsToCurrentAgent,
-  formatDateTime,
-  formatShortDate,
-  formatShortTime,
-  resolveLatestDate,
-  employedCommissionLabel,
-  openCommissionStorageDb,
-  progressTone,
-  buildProgressDonut,
-  formatDateForPrompt,
   isAgentSideWorkspace,
   selectedEmployeesHelpText,
   underProcessEmployeesHelpText,
-  resolvedProcessAgentId,
-  isValidPhoneNumber,
-  isValidDocumentNumber,
-  isValidEmailAddress,
-  getValidationStep,
-  getValidationTarget,
-  validateEmployeeForm,
-  validateStepFields,
-  buildEmployeePayload,
   errorMessage,
-  readRegistrationDraft,
-  writeRegistrationDraft,
-  fetchPreviewBlob,
-  fetchAllEmployeePages,
   readStoredSettlements,
-  printDocumentSilently,
-  filterCandidateList
+  filterCandidateList,
+  resolvedProcessAgentId,
+  readTravelConfirmationDeclinedIds,
+  readTravelConfirmationConfirmedIds,
+  writeTravelConfirmationDeclinedIds,
+  writeTravelConfirmationConfirmedIds,
+  fetchAllEmployeePages,
+  employeeBelongsToCurrentAgent,
+  employeeAvailability,
+  isEmployeeInEmployedStage,
+  formatDateForPrompt,
+  employeeWorkflowState
 } from '../../utils/employeeHelpers'
+import { ATTACHMENT_FIELDS } from '../../constants/employeeOptions'
 
 import EmployeeCard from './EmployeeCard'
-import EmployeeCameraModal from './EmployeeCameraModal'
 import EmployeeFilters from './EmployeeFilters'
-import EmployeeDocumentPreview from './EmployeeDocumentPreview'
+import { useDocumentPreview } from '../../context/PortalOverlayContext'
 import EmployeeReturnModal from './EmployeeReturnModal'
-import EmployeeScanImportModal from './EmployeeScanImportModal'
+import EmployeeReviewModal from './EmployeeReviewModal'
 export default function EmployeesListingView({ stage = "list" }) {
   const navigate = useNavigate();
   const { user } = useAuth()
@@ -168,31 +72,17 @@ export default function EmployeesListingView({ stage = "list" }) {
     docStatus: '',
     tag: ''
   })
-  const [editingEmployeeId, setEditingEmployeeId] = useState(null)
-  const [busyEmployeeId, setBusyEmployeeId] = useState(null)
   const [actionBusyId, setActionBusyId] = useState(null)
-  const [form, setForm] = useState(emptyForm)
   const [formOptions, setFormOptions] = useState({ destination_countries: [], salary_options_by_country: {}, agent_options: [] })
-  const [attachmentFiles, setAttachmentFiles] = useState({})
-  const [attachmentLabels, setAttachmentLabels] = useState({})
-  const [existingAttachmentDocs, setExistingAttachmentDocs] = useState({})
-  const [attachmentPreviewUrls, setAttachmentPreviewUrls] = useState({})
-  const [savedTemplate, setSavedTemplate] = useState(null)
-  const [savedDraftMeta, setSavedDraftMeta] = useState(null)
   const [processAgentAssignments, setProcessAgentAssignments] = useState({})
   const [openedEmployeeId, setOpenedEmployeeId] = useState(null)
   const [openedEmployeeMode, setOpenedEmployeeMode] = useState('full')
-  const [reviewDocumentsTab, setReviewDocumentsTab] = useState('all')
   const [expandedEmployeeCardId, setExpandedEmployeeCardId] = useState(null)
   const [expandedEmployeeCardReadyId, setExpandedEmployeeCardReadyId] = useState(null)
   const employeeCardsGridRef = useRef(null)
   const employeeCardItemRefs = useRef(new Map())
   const employeeCardResizeObserverRef = useRef(null)
-  const reviewDocsScrollerRef = useRef(null)
-  const [reviewDocsCanScrollLeft, setReviewDocsCanScrollLeft] = useState(false)
-  const [reviewDocsCanScrollRight, setReviewDocsCanScrollRight] = useState(false)
-  const reviewDocsScrollRafRef = useRef(0)
-  const reviewDocsScrollStateRef = useRef({ left: false, right: false })
+
   const [selectedEmployeeCardIds, setSelectedEmployeeCardIds] = useState(() => new Set())
   const [selectDeniedEmployeeCardIds, setSelectDeniedEmployeeCardIds] = useState(() => new Set())
   const selectDeniedTimersRef = useRef(new Map())
@@ -246,68 +136,49 @@ export default function EmployeesListingView({ stage = "list" }) {
   const [returnRequestEvidenceFiles, setReturnRequestEvidenceFiles] = useState([null, null, null])
   const [requestedReturns, setRequestedReturns] = useState([])
   const [requestedReturnsLoading, setRequestedReturnsLoading] = useState(false)
-  const [previewDocument, setPreviewDocument] = useState(null)
-  const [previewZoom, setPreviewZoom] = useState(1)
-  const [previewOffset, setPreviewOffset] = useState({ x: 0, y: 0 })
-  const [previewDragging, setPreviewDragging] = useState(false)
+  const { openDocumentPreview, closeDocumentPreview, previewDocument } = useDocumentPreview()
   const [travelConfirmationDeclinedIds, setTravelConfirmationDeclinedIds] = useState(() => readTravelConfirmationDeclinedIds())
   const [travelConfirmationConfirmedIds, setTravelConfirmationConfirmedIds] = useState(() => readTravelConfirmationConfirmedIds())
   const [settledCommissionIds, setSettledCommissionIds] = useState([])
-  const [activeStep, setActiveStep] = useState(0)
-  const [openSummarySections, setOpenSummarySections] = useState({
-    identity: false,
-    application: false,
-    profile: false,
-    contact: false,
-    notes: false,
-    attachments: false
-  })
-  const [dragOverAttachmentKey, setDragOverAttachmentKey] = useState('')
-  const [otherDocumentsModalOpen, setOtherDocumentsModalOpen] = useState(false)
+  const [hiddenEmployeeIds, setHiddenEmployeeIds] = useState(() => new Set())
+  const hiddenEmployeeIdsRef = useRef(new Set())
+
+  const hideEmployeeId = useCallback((employeeId) => {
+    if (!employeeId) return
+    const idStr = String(employeeId)
+    const idNum = Number(employeeId)
+    setHiddenEmployeeIds((prev) => {
+      const next = new Set(prev)
+      next.add(idStr)
+      if (!Number.isNaN(idNum)) next.add(idNum)
+      hiddenEmployeeIdsRef.current = next
+      return next
+    })
+    setEmployeesData((prev) => {
+      if (!prev) return prev
+      const nextResults = (prev.results || []).filter(
+        (emp) => String(emp.id) !== idStr && emp.id !== idNum
+      )
+      return {
+        ...prev,
+        count: Math.max(0, (typeof prev.count === 'number' ? prev.count : prev.results.length) - ((prev.results || []).length - nextResults.length)),
+        results: nextResults
+      }
+    })
+    setRequestedReturns((prev) =>
+      prev.filter((emp) => String(emp.id) !== idStr && emp.id !== idNum)
+    )
+  }, [])
+  const attachmentLabels = useMemo(() => {
+    return ATTACHMENT_FIELDS.reduce((acc, field) => {
+      acc[field.key] = field.label
+      return acc
+    }, {})
+  }, [])
   const [floatingAttachmentPreview, setFloatingAttachmentPreview] = useState(null)
   const floatingAttachmentPreviewCloseTimer = useRef(null)
   const floatingAttachmentPreviewPopoverRef = useRef(null)
-  const employeeModalFormRef = useRef(null)
   const [openEmployeeCardMenuId, setOpenEmployeeCardMenuId] = useState(null)
-  const [invalidStepErrors, setInvalidStepErrors] = useState({})
-  const [attemptedRegistrationSteps, setAttemptedRegistrationSteps] = useState({})
-  const [pendingValidationHighlight, setPendingValidationHighlight] = useState(null)
-  const prevFormRef = useRef(form)
-  const [scanImportModalOpen, setScanImportModalOpen] = useState(false)
-  const [cameraCaptureModalOpen, setCameraCaptureModalOpen] = useState(false)
-  const [cameraStream, setCameraStream] = useState(null)
-  const [cameraError, setCameraError] = useState('')
-  const [uploadDocumentModalOpen, setUploadDocumentModalOpen] = useState(false)
-  const [uploadDraftFile, setUploadDraftFile] = useState(null)
-  const [uploadDocumentPurpose, setUploadDocumentPurpose] = useState('ocr')
-  const [uploadError, setUploadError] = useState('')
-  const [uploadDragActive, setUploadDragActive] = useState(false)
-  const [scannerModalOpen, setScannerModalOpen] = useState(false)
-  const [scannerStatus, setScannerStatus] = useState('idle')
-  const [scannerDevices, setScannerDevices] = useState([])
-  const [selectedScannerIndex, setSelectedScannerIndex] = useState(0)
-  const [scannerError, setScannerError] = useState('')
-  const [ocrImportSource, setOcrImportSource] = useState('')
-  const [ocrImportFileName, setOcrImportFileName] = useState('')
-  const [ocrImportFile, setOcrImportFile] = useState(null)
-  const [ocrImportPreviewUrl, setOcrImportPreviewUrl] = useState('')
-  const [attachmentStageFileName, setAttachmentStageFileName] = useState('')
-  const [attachmentStageFile, setAttachmentStageFile] = useState(null)
-  const [attachmentStagePreviewUrl, setAttachmentStagePreviewUrl] = useState('')
-  const [ocrCachedResult, setOcrCachedResult] = useState(null)
-  const [ocrBusy, setOcrBusy] = useState(false)
-  const [ocrSetupModalOpen, setOcrSetupModalOpen] = useState(false)
-  const [ocrStatus, setOcrStatus] = useState({ ready: false, message: '' })
-  const [ocrStatusLoading, setOcrStatusLoading] = useState(false)
-  const [scanAttachmentModalOpen, setScanAttachmentModalOpen] = useState(false)
-  const [scanAttachmentSourceMode, setScanAttachmentSourceMode] = useState('scan')
-  const [scanAttachmentKeys, setScanAttachmentKeys] = useState([])
-  const [scanAttachmentRotation, setScanAttachmentRotation] = useState(0)
-  const [scanAttachmentFlipX, setScanAttachmentFlipX] = useState(false)
-  const [scanAttachmentFlipY, setScanAttachmentFlipY] = useState(false)
-  const [scanAttachmentZoom, setScanAttachmentZoom] = useState(1)
-  const [scanAttachmentOffset, setScanAttachmentOffset] = useState({ x: 0, y: 0 })
-  const [scanAttachmentDragging, setScanAttachmentDragging] = useState(false)
 
   const openFloatingAttachmentPreview = useCallback((anchorEl, url, label) => {
     if (!anchorEl || !url) return
@@ -389,16 +260,6 @@ export default function EmployeesListingView({ stage = "list" }) {
       'Z'
     ].join(' ')
   }, [])
-  const [scanAttachmentError, setScanAttachmentError] = useState('')
-  const registrationRef = useRef(null)
-  const scanUploadInputRef = useRef(null)
-  const scanCameraVideoRef = useRef(null)
-  const scanCameraCanvasRef = useRef(null)
-  const scanCameraStreamRef = useRef(null)
-  const scanCameraRequestRef = useRef(0)
-  const scanAttachmentFrameRef = useRef(null)
-  const scanAttachmentDragRef = useRef({ startX: 0, startY: 0, originX: 0, originY: 0 })
-  const previewDragRef = useRef({ startX: 0, startY: 0, originX: 0, originY: 0 })
   const hasLoadedOnceRef = useRef(false)
 
   const canManageEmployees = Boolean(user?.feature_flags?.employees_enabled)
@@ -409,7 +270,6 @@ export default function EmployeesListingView({ stage = "list" }) {
   const canManageOrganizationProcesses = user?.role === 'superadmin' || user?.role === 'admin'
   const canOverrideProgress = canManageOrganizationProcesses
   const selectedScope = isAgentSideUser ? 'mine' : 'organization'
-  const age = computeAge(form.date_of_birth)
 
   const allowedEmployeeViewIds = useMemo(() => {
     return EMPLOYEE_VIEW_TABS
@@ -429,6 +289,11 @@ export default function EmployeesListingView({ stage = "list" }) {
     return allowedEmployeeViewIds[0] || stage || 'list'
   }, [allowedEmployeeViewIds, searchParams, stage])
 
+  useEffect(() => {
+    setHiddenEmployeeIds(new Set())
+    hiddenEmployeeIdsRef.current = new Set()
+  }, [currentView])
+
   const setView = useCallback((nextView, { replace = false } = {}) => {
     const next = new URLSearchParams(searchParams)
     const current = (searchParams.get('view') || '').trim()
@@ -436,31 +301,10 @@ export default function EmployeesListingView({ stage = "list" }) {
     next.set('view', nextView)
     setSearchParams(next, { replace })
   }, [searchParams, setSearchParams])
-  const stopCameraCapture = useCallback(() => {
-    if (scanCameraStreamRef.current) {
-      scanCameraStreamRef.current.getTracks().forEach((track) => track.stop())
-      scanCameraStreamRef.current = null
-    }
-    if (scanCameraVideoRef.current) {
-      scanCameraVideoRef.current.srcObject = null
-    }
-    setCameraStream(null)
-  }, [])
-
-  const closeCameraCapture = useCallback(() => {
-    scanCameraRequestRef.current += 1
-    stopCameraCapture()
-    setCameraCaptureModalOpen(false)
-    setCameraError('')
-  }, [stopCameraCapture])
-
   const isTravelConfirmationDeclined = useCallback(
     (employee) => travelConfirmationDeclinedIds.includes(employee?.id),
     [travelConfirmationDeclinedIds]
   )
-  const ageRestrictionError = age !== '' && age < MINIMUM_EMPLOYEE_AGE
-    ? `Employee must be at least ${MINIMUM_EMPLOYEE_AGE} years old.`
-    : ''
 
   const loadFormOptions = useCallback(async () => {
     try {
@@ -612,7 +456,7 @@ export default function EmployeesListingView({ stage = "list" }) {
         })
         const visibleReturnedEmployees = baseEmployees
           .map(applyTravelOverrides)
-          .filter((employee) => isVisibleForCurrentAgent(employee) && isEmployeeReturned(employee))
+          .filter((employee) => isVisibleForCurrentAgent(employee) && (isEmployeeReturned(employee) || employee.return_request?.status === 'pending'))
         setEmployeesData({
           count: visibleReturnedEmployees.length,
           results: visibleReturnedEmployees,
@@ -631,7 +475,19 @@ export default function EmployeesListingView({ stage = "list" }) {
         employedScope: resolvedView === 'employed' ? (isAgentSideUser ? 'mine' : 'organization') : '',
         returnedScope: resolvedView === 'returned' ? (isAgentSideUser ? 'mine' : 'organization') : ''
       })
-      setEmployeesData(data)
+      if (data && Array.isArray(data.results)) {
+        const filteredResults = data.results.filter(
+          (emp) => !hiddenEmployeeIdsRef.current.has(String(emp.id)) && !hiddenEmployeeIdsRef.current.has(Number(emp.id))
+        )
+        const countDiff = data.results.length - filteredResults.length
+        setEmployeesData({
+          ...data,
+          count: Math.max(0, (typeof data.count === 'number' ? data.count : data.results.length) - countDiff),
+          results: filteredResults
+        })
+      } else {
+        setEmployeesData(data)
+      }
     } catch (err) {
       setPageError(err.message || 'Failed to load employees')
       setEmployeesData(null)
@@ -681,14 +537,10 @@ export default function EmployeesListingView({ stage = "list" }) {
     try {
       const scope = isAgentSideUser ? 'mine' : 'organization'
       const [baseEmployees, processEmployees] = await Promise.all([
-        isAgentSideUser
-          ? fetchAllEmployeePages({
-              q: search,
-              employedScope: scope
-            })
-          : fetchAllEmployeePages({
-              q: search
-            }),
+        fetchAllEmployeePages({
+          q: search,
+          employedScope: scope
+        }),
         fetchAllEmployeePages({
           q: search,
           processScope: scope
@@ -741,7 +593,11 @@ export default function EmployeesListingView({ stage = "list" }) {
         q: filters.q,
         employedScope: isAgentSideUser ? 'mine' : 'organization'
       })
-      setRequestedReturns((data.results || []).filter((employee) => employee.return_request?.status === 'pending'))
+      setRequestedReturns(
+        (data.results || [])
+          .filter((employee) => employee.return_request?.status === 'pending')
+          .filter((employee) => !hiddenEmployeeIdsRef.current.has(String(employee.id)) && !hiddenEmployeeIdsRef.current.has(Number(employee.id)))
+      )
     } catch (err) {
       setPageError(err.message || 'Could not load requested returns')
       setRequestedReturns([])
@@ -775,162 +631,28 @@ export default function EmployeesListingView({ stage = "list" }) {
     if (modalError) showToast(modalError, { tone: 'danger', title: 'Action failed' })
   }, [modalError, showToast])
 
-  useEffect(() => {
-    if (!scanCameraVideoRef.current) return
-    scanCameraVideoRef.current.srcObject = cameraStream
-  }, [cameraStream])
-
-  useEffect(() => () => {
-    stopCameraCapture()
-  }, [stopCameraCapture])
-
-  useEffect(() => () => {
-    if (ocrImportPreviewUrl && typeof URL !== 'undefined') {
-      URL.revokeObjectURL(ocrImportPreviewUrl)
-    }
-  }, [ocrImportPreviewUrl])
-
-  useEffect(() => {
-    if (typeof URL === 'undefined') return () => {}
-    const nextUrls = {}
-    for (const [key, file] of Object.entries(attachmentFiles || {})) {
-      if (!file) continue
-      nextUrls[key] = URL.createObjectURL(file)
-    }
-
-    setAttachmentPreviewUrls((prev) => {
-      for (const url of Object.values(prev || {})) {
-        if (!url) continue
-        URL.revokeObjectURL(url)
-      }
-      return nextUrls
-    })
-
-    return () => {
-      for (const url of Object.values(nextUrls)) {
-        if (!url) continue
-        URL.revokeObjectURL(url)
-      }
-    }
-  }, [attachmentFiles])
-
-  useEffect(() => () => {
-    if (attachmentStagePreviewUrl && typeof URL !== 'undefined') {
-      URL.revokeObjectURL(attachmentStagePreviewUrl)
-    }
-  }, [attachmentStagePreviewUrl])
-
-  useEffect(() => {
-    if (typeof window === 'undefined') return
-    try {
-      const rawTemplate = window.localStorage.getItem(REGISTRATION_TEMPLATE_STORAGE_KEY) ||
-        window.localStorage.getItem(LEGACY_REGISTRATION_TEMPLATE_STORAGE_KEY)
-      if (!rawTemplate) return
-      setSavedTemplate(applyRegistrationTemplate(JSON.parse(rawTemplate)))
-    } catch {
-      setSavedTemplate(null)
-    }
-  }, [])
-
-  useEffect(() => {
-    let cancelled = false
-    ;(async () => {
-      try {
-        const draft = await readRegistrationDraft()
-        if (cancelled) return
-        setSavedDraftMeta(draft ? { savedAt: draft.savedAt || null } : null)
-      } catch {
-        if (!cancelled) setSavedDraftMeta(null)
-      }
-    })()
-    return () => {
-      cancelled = true
-    }
-  }, [])
-
   const patchEmployeeCollections = useCallback((employeeId, updater) => {
     setEmployeesData((prev) => {
       if (!prev) return prev
+      const nextResults = prev.results
+        .map((employee) => (String(employee.id) === String(employeeId) || Number(employee.id) === Number(employeeId) ? updater(employee) : employee))
+        .filter(Boolean)
+      const countDiff = prev.results.length - nextResults.length
       return {
         ...prev,
-        results: prev.results
-          .map((employee) => (employee.id === employeeId ? updater(employee) : employee))
-          .filter(Boolean)
+        count: Math.max(0, (typeof prev.count === 'number' ? prev.count : prev.results.length) - countDiff),
+        results: nextResults
       }
     })
 
     setRequestedReturns((prev) =>
       prev
-        .map((employee) => (employee.id === employeeId ? updater(employee) : employee))
+        .map((employee) => (String(employee.id) === String(employeeId) || Number(employee.id) === Number(employeeId) ? updater(employee) : employee))
         .filter(Boolean)
     )
   }, [])
 
-  useEffect(() => {
-    if (!previewDragging) return undefined
 
-    function handlePointerMove(event) {
-      const { startX, startY, originX, originY } = previewDragRef.current
-      setPreviewOffset({
-        x: originX + (event.clientX - startX),
-        y: originY + (event.clientY - startY)
-      })
-    }
-
-    function handlePointerUp() {
-      setPreviewDragging(false)
-    }
-
-    window.addEventListener('mousemove', handlePointerMove)
-    window.addEventListener('mouseup', handlePointerUp)
-
-    return () => {
-      window.removeEventListener('mousemove', handlePointerMove)
-      window.removeEventListener('mouseup', handlePointerUp)
-    }
-  }, [previewDragging])
-
-  useEffect(() => {
-    if (!scanAttachmentDragging) return undefined
-
-    function handlePointerMove(event) {
-      const { startX, startY, originX, originY } = scanAttachmentDragRef.current
-      setScanAttachmentOffset({
-        x: originX + (event.clientX - startX),
-        y: originY + (event.clientY - startY)
-      })
-    }
-
-    function handlePointerUp() {
-      setScanAttachmentDragging(false)
-    }
-
-    window.addEventListener('mousemove', handlePointerMove)
-    window.addEventListener('mouseup', handlePointerUp)
-
-    return () => {
-      window.removeEventListener('mousemove', handlePointerMove)
-      window.removeEventListener('mouseup', handlePointerUp)
-    }
-  }, [scanAttachmentDragging])
-
-  useEffect(() => {
-    if (currentView !== 'register') return
-    const stepError = invalidStepErrors[activeStep]
-    if (!stepError) return
-    const target = getValidationTarget(stepError)
-    if (!target || target.step !== activeStep || !target.selector || !registrationRef.current) return
-    const timer = window.setTimeout(() => {
-      const element = registrationRef.current?.querySelector(target.selector)
-      if (element && typeof element.focus === 'function') {
-        element.focus()
-        if (typeof element.scrollIntoView === 'function') {
-          element.scrollIntoView({ behavior: 'smooth', block: 'center' })
-        }
-      }
-    }, 40)
-    return () => window.clearTimeout(timer)
-  }, [activeStep, currentView, invalidStepErrors])
 
   useEffect(() => {
     let cancelled = false
@@ -945,824 +667,6 @@ export default function EmployeesListingView({ stage = "list" }) {
       cancelled = true
     }
   }, [])
-
-  const availableSkillOptions = useMemo(() => PROFESSION_SKILLS[form.profession] || [], [form.profession])
-  const salaryOptions = useMemo(() => {
-    const values = new Set()
-    form.application_countries.forEach((country) => {
-      ;(formOptions.salary_options_by_country[country] || []).forEach((salary) => values.add(salary))
-    })
-    return Array.from(values)
-  }, [form.application_countries, formOptions.salary_options_by_country])
-
-  const createFormFromTemplate = useCallback(() => applyRegistrationTemplate(savedTemplate), [savedTemplate])
-  const activeOcrCacheKey = buildOcrCacheKey(ocrImportFile)
-  const hasAnalyzedScan = Boolean(activeOcrCacheKey && ocrCachedResult?.cacheKey === activeOcrCacheKey)
-  const scanAttachmentSourceFile = scanAttachmentSourceMode === 'upload' ? attachmentStageFile : ocrImportFile
-  const scanAttachmentSourceFileName = scanAttachmentSourceMode === 'upload' ? attachmentStageFileName : ocrImportFileName
-  const scanAttachmentSourcePreviewUrl = scanAttachmentSourceMode === 'upload' ? attachmentStagePreviewUrl : ocrImportPreviewUrl
-
-  const clearScannedDocument = useCallback(() => {
-    setOcrImportSource('')
-    setOcrImportFileName('')
-    setOcrImportFile(null)
-    setOcrImportPreviewUrl('')
-    setOcrCachedResult(null)
-    setOcrBusy(false)
-    setScanAttachmentModalOpen(false)
-    setScanAttachmentSourceMode('scan')
-    setScanAttachmentKeys([])
-    setScanAttachmentRotation(0)
-    setScanAttachmentFlipX(false)
-    setScanAttachmentFlipY(false)
-    setScanAttachmentZoom(1)
-    setScanAttachmentOffset({ x: 0, y: 0 })
-    setScanAttachmentDragging(false)
-    setScanAttachmentError('')
-  }, [])
-
-  const clearAttachmentStageDocument = useCallback(() => {
-    setAttachmentStageFileName('')
-    setAttachmentStageFile(null)
-    setAttachmentStagePreviewUrl('')
-  }, [])
-
-  const resetForm = useCallback(() => {
-    setEditingEmployeeId(null)
-    setForm(emptyForm)
-    setAttachmentFiles({})
-    setAttachmentLabels({})
-    setExistingAttachmentDocs({})
-    setActiveStep(0)
-    setScanImportModalOpen(false)
-    clearScannedDocument()
-    setModalError('')
-    setModalNotice('')
-  }, [clearScannedDocument])
-
-  const openCreateModal = () => {
-    setEditingEmployeeId(null)
-    setForm(createFormFromTemplate())
-    setAttachmentFiles({})
-    setAttachmentLabels({})
-    setExistingAttachmentDocs({})
-    setActiveStep(0)
-    setPageError('')
-    setModalError('')
-    setModalNotice('')
-    setNotice('')
-    setScanImportModalOpen(false)
-    clearScannedDocument()
-    setPage(1)
-    navigate('/dashboard/candidates/register')
-  }
-
-  const handleSaveDraft = async () => {
-    setNotice('')
-    setModalError('')
-    setModalNotice('')
-    try {
-      const payload = {
-        version: 1,
-        savedAt: new Date().toISOString(),
-        editingEmployeeId: editingEmployeeId || null,
-        form,
-        attachmentLabels,
-        existingAttachmentDocs,
-        attachmentFiles: Object.fromEntries(
-          Object.entries(attachmentFiles || {})
-            .filter(([, file]) => file instanceof File)
-            .map(([key, file]) => [
-              key,
-              {
-                name: file.name || key,
-                type: file.type || '',
-                lastModified: file.lastModified || Date.now(),
-                blob: file
-              }
-            ])
-        )
-      }
-      await writeRegistrationDraft(payload)
-      setSavedDraftMeta({ savedAt: payload.savedAt })
-      setModalNotice('Draft saved. You can restore it later.')
-    } catch (err) {
-      setModalError(err?.message || 'Could not save draft.')
-    }
-  }
-
-  const handleRestoreDraft = async () => {
-    setNotice('')
-    setModalError('')
-    setModalNotice('')
-    try {
-      const draft = await readRegistrationDraft()
-      if (!draft) {
-        setSavedDraftMeta(null)
-        setModalError('No draft found.')
-        return
-      }
-      setEditingEmployeeId(draft.editingEmployeeId || null)
-      setForm(normalizeDraftForm(draft.form))
-      setAttachmentLabels(draft.attachmentLabels && typeof draft.attachmentLabels === 'object' ? draft.attachmentLabels : {})
-      setExistingAttachmentDocs(draft.existingAttachmentDocs && typeof draft.existingAttachmentDocs === 'object' ? draft.existingAttachmentDocs : {})
-      const nextFiles = {}
-      const fileEntries = draft.attachmentFiles && typeof draft.attachmentFiles === 'object' ? Object.entries(draft.attachmentFiles) : []
-      fileEntries.forEach(([key, stored]) => {
-        if (!stored?.blob) return
-        nextFiles[key] = new File([stored.blob], stored.name || key, {
-          type: stored.type || '',
-          lastModified: stored.lastModified || Date.now()
-        })
-      })
-      setAttachmentFiles(nextFiles)
-      setActiveStep(0)
-      navigate('/dashboard/candidates/register?edit=' + employee.id)
-      setModalNotice('Draft restored.')
-    } catch (err) {
-      setModalError(err?.message || 'Could not restore draft.')
-    }
-  }
-
-  const handleResetRegistrationToTemplate = () => {
-    const hasTemplate = Boolean(savedTemplate)
-    setForm(hasTemplate ? createFormFromTemplate() : emptyForm)
-    setAttachmentFiles({})
-    setAttachmentLabels({})
-    setExistingAttachmentDocs({})
-    setActiveStep(0)
-    setModalError('')
-    setModalNotice(
-      hasTemplate
-        ? 'Registration reset to the saved template. Current scanned document is still available for Auto fill.'
-        : 'Registration reset to a blank form. Current scanned document is still available for Auto fill.'
-    )
-  }
-
-  const openScanImportModal = () => {
-    setScanImportModalOpen(true)
-    setModalError('')
-  }
-
-  const checkOcrStatus = async () => {
-    setOcrStatusLoading(true)
-    try {
-      const status = await employeesService.fetchEmployeeOcrStatus()
-      const normalizedStatus = status.ready
-        ? status
-        : { ...status, message: normalizeOcrStatusMessage(status.message) }
-      setOcrStatus(normalizedStatus)
-      if (normalizedStatus.ready) {
-        setOcrSetupModalOpen(false)
-        setModalNotice('OCR service is ready. Try Auto fill again.')
-      }
-      return normalizedStatus
-    } catch (err) {
-      const status = { ready: false, message: normalizeOcrStatusMessage(err?.message) }
-      setOcrStatus(status)
-      return status
-    } finally {
-      setOcrStatusLoading(false)
-    }
-  }
-
-  const openOcrSetupModal = async () => {
-    setOcrSetupModalOpen(true)
-    await checkOcrStatus()
-  }
-
-  const closeOcrSetupModal = () => {
-    setOcrSetupModalOpen(false)
-  }
-
-  const closeScanImportModal = () => {
-    setScanImportModalOpen(false)
-  }
-
-  const openUploadDocumentModal = (purpose = 'ocr') => {
-    setScanImportModalOpen(false)
-    setUploadDocumentPurpose(purpose)
-    setUploadDocumentModalOpen(true)
-    setUploadDraftFile(null)
-    setUploadError('')
-    setUploadDragActive(false)
-    if (scanUploadInputRef.current) {
-      scanUploadInputRef.current.value = ''
-    }
-  }
-
-  const closeUploadDocumentModal = () => {
-    setUploadDocumentModalOpen(false)
-    setUploadDraftFile(null)
-    setUploadDocumentPurpose('ocr')
-    setUploadError('')
-    setUploadDragActive(false)
-    if (scanUploadInputRef.current) {
-      scanUploadInputRef.current.value = ''
-    }
-  }
-
-  const backToScanOptionsFromUpload = () => {
-    closeUploadDocumentModal()
-    setScanImportModalOpen(true)
-  }
-
-  const handleUploadDraftPick = (file) => {
-    if (!file) return
-    if (!attachmentFileAllowed(file)) {
-      setUploadDraftFile(null)
-      setUploadError('Upload must be a PDF, JPG, JPEG, or PNG file.')
-      return
-    }
-    setUploadError('')
-    setUploadDraftFile(file)
-  }
-
-  const handleUploadDrop = (event) => {
-    event.preventDefault()
-    setUploadDragActive(false)
-    handleUploadDraftPick(event.dataTransfer.files?.[0] || null)
-  }
-
-  const submitUploadDocument = () => {
-    if (!uploadDraftFile) {
-      setUploadError('Choose a document before continuing.')
-      return
-    }
-    const selectedFile = uploadDraftFile
-    const purpose = uploadDocumentPurpose
-    closeUploadDocumentModal()
-    if (purpose === 'attachment') {
-      handleAttachmentStagePick(selectedFile)
-      setTimeout(() => {
-        setScanAttachmentError('')
-        setScanAttachmentKeys([ATTACHMENT_FIELDS[0].key])
-        setScanAttachmentRotation(0)
-        setScanAttachmentFlipX(false)
-        setScanAttachmentFlipY(false)
-        setScanAttachmentZoom(1)
-        setScanAttachmentOffset({ x: 0, y: 0 })
-        setScanAttachmentDragging(false)
-        setScanAttachmentModalOpen(true)
-        setModalNotice('Generic document uploaded. Adjust it and attach the visible area to the selected attachment slots.')
-      }, 0)
-      return
-    }
-    handleOcrDocumentPick('upload', selectedFile)
-  }
-
-  const checkScannerService = async () => {
-    setScannerStatus('checking')
-    setScannerError('')
-    try {
-      const { devices } = await checkAspriseScannerService()
-      setScannerDevices(devices)
-      setSelectedScannerIndex(0)
-      setScannerStatus(devices.length > 0 ? 'ready' : 'no-devices')
-      if (devices.length === 0) {
-        setScannerError('No scanner source was found. Connect a scanner and install its TWAIN/WIA driver, then check again.')
-      }
-    } catch (err) {
-      setScannerDevices([])
-      setScannerStatus('service-missing')
-      setScannerError(err?.message || 'Asprise Scanner or its local scan app is not ready.')
-    }
-  }
-
-  const openScannerModal = () => {
-    setScanImportModalOpen(false)
-    setScannerModalOpen(true)
-    setScannerDevices([])
-    setSelectedScannerIndex(0)
-    setScannerError('')
-    setScannerStatus('checking')
-    window.setTimeout(() => {
-      checkScannerService()
-    }, 0)
-  }
-
-  const closeScannerModal = () => {
-    resetAspriseScannerService()
-    setScannerModalOpen(false)
-    setScannerError('')
-  }
-
-  const backToScanOptionsFromScanner = () => {
-    closeScannerModal()
-    setScanImportModalOpen(true)
-  }
-
-  const backToScanOptionsFromCamera = () => {
-    closeCameraCapture()
-    setScanImportModalOpen(true)
-  }
-
-  const scanFromSelectedScanner = async () => {
-    const device = scannerDevices[selectedScannerIndex]
-    setScannerStatus('scanning')
-    setScannerError('')
-    try {
-      const file = await scanWithAspriseScanner(device)
-      closeScannerModal()
-      handleOcrDocumentPick('scanner', file)
-    } catch (err) {
-      setScannerStatus(scannerDevices.length > 0 ? 'ready' : 'service-missing')
-      setScannerError(err?.message || 'Scanner acquisition failed.')
-    }
-  }
-
-  const openCameraCapture = async () => {
-    const requestId = scanCameraRequestRef.current + 1
-    scanCameraRequestRef.current = requestId
-    setScanImportModalOpen(false)
-    setCameraError('')
-
-    if (!navigator.mediaDevices?.getUserMedia) {
-      setCameraCaptureModalOpen(true)
-      setCameraError('This browser does not support direct camera capture. Use scanner or upload instead.')
-      return
-    }
-
-    try {
-      stopCameraCapture()
-      setCameraCaptureModalOpen(true)
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: {
-          facingMode: { ideal: 'environment' },
-          width: { ideal: 1600 },
-          height: { ideal: 1200 }
-        },
-        audio: false
-      })
-      if (scanCameraRequestRef.current !== requestId) {
-        stream.getTracks().forEach((track) => track.stop())
-        return
-      }
-      scanCameraStreamRef.current = stream
-      setCameraStream(stream)
-    } catch (err) {
-      setCameraCaptureModalOpen(true)
-      setCameraError(err?.message || 'Could not access the camera. Check browser permissions and try again.')
-    }
-  }
-
-  const triggerScanImport = (source) => {
-    if (source === 'camera') {
-      openCameraCapture()
-      return
-    }
-    if (source === 'upload') {
-      openUploadDocumentModal()
-      return
-    }
-    if (source === 'scanner') {
-      openScannerModal()
-      return
-    }
-    const inputRef = scanUploadInputRef
-    setScanImportModalOpen(false)
-    if (!inputRef.current) return
-    inputRef.current.value = ''
-    inputRef.current.click()
-  }
-
-  const captureCameraDocument = () => {
-    const video = scanCameraVideoRef.current
-    const canvas = scanCameraCanvasRef.current
-    if (!video || !canvas || !video.videoWidth || !video.videoHeight) {
-      setCameraError('Camera preview is not ready yet.')
-      return
-    }
-
-    canvas.width = video.videoWidth
-    canvas.height = video.videoHeight
-    const context = canvas.getContext('2d')
-    if (!context) {
-      setCameraError('Could not prepare the camera capture.')
-      return
-    }
-
-    context.drawImage(video, 0, 0, canvas.width, canvas.height)
-    canvas.toBlob((blob) => {
-      if (!blob) {
-        setCameraError('Could not capture the camera frame.')
-        return
-      }
-      const file = new File([blob], `camera-capture-${Date.now()}.jpg`, { type: 'image/jpeg' })
-      closeCameraCapture()
-      handleOcrDocumentPick('camera', file)
-    }, 'image/jpeg', 0.92)
-  }
-
-  const handleOcrDocumentPick = (source, file) => {
-    if (!file) return
-    if (!attachmentFileAllowed(file)) {
-      setModalError('Scan imports must be PDF, JPG, JPEG, or PNG files only.')
-      return
-    }
-    setModalError('')
-    setActiveStep(0)
-    setOcrImportSource(source)
-    setOcrImportFileName(file.name || 'Selected document')
-    setOcrImportFile(file)
-    setOcrImportPreviewUrl(typeof URL !== 'undefined' ? URL.createObjectURL(file) : '')
-    setOcrCachedResult(null)
-    setOcrBusy(false)
-    setScanAttachmentError('')
-    const sourceLabel =
-      source === 'camera'
-        ? 'Camera capture'
-        : source === 'scanner'
-          ? 'Scanner import'
-          : 'Document upload'
-
-    setModalNotice(
-      `${sourceLabel} is ready for OCR. ` +
-      'Move through the registration steps and use Auto fill to map detected text into the matching fields.'
-    )
-  }
-
-  const handleAttachmentStagePick = (file) => {
-    if (!file) return
-    if (!attachmentFileAllowed(file)) {
-      setUploadError('Upload must be a PDF, JPG, JPEG, or PNG file.')
-      return
-    }
-    setAttachmentStageFileName(file.name || 'Selected document')
-    setAttachmentStageFile(file)
-    setAttachmentStagePreviewUrl(typeof URL !== 'undefined' ? URL.createObjectURL(file) : '')
-  }
-
-  const handleAutoFillFromScan = async () => {
-    if (!ocrImportFile) {
-      setModalNotice('')
-      setModalError('Scan, capture, or upload a document from the first step before using auto fill.')
-      setActiveStep(0)
-      return
-    }
-    const cacheKey = buildOcrCacheKey(ocrImportFile)
-    const hasCachedResult = ocrCachedResult?.cacheKey === cacheKey
-    if (!hasCachedResult) {
-      setModalNotice('')
-      setModalError('Analyze the scanned document first, then use Auto fill for the current step.')
-      return
-    }
-    setModalError('')
-    setModalNotice(
-      `Using the analyzed OCR result for ${REGISTRATION_STEPS[activeStep].label.toLowerCase()} fields...`
-    )
-
-    try {
-      const result = ocrCachedResult
-      const updatesByStep = result?.updatesByStep && typeof result.updatesByStep === 'object' ? result.updatesByStep : {}
-      const updates = updatesByStep[String(activeStep)] && typeof updatesByStep[String(activeStep)] === 'object'
-        ? updatesByStep[String(activeStep)]
-        : result?.updates && typeof result.updates === 'object'
-          ? result.updates
-          : {}
-      const updatedFields = Object.keys(updates)
-      if (updatedFields.length === 0) {
-        setModalNotice(
-          'OCR finished, but no matching fields were found for this step.'
-        )
-        return
-      }
-
-      setForm((prev) => ({ ...prev, ...updates }))
-      const fieldLabels = updatedFields
-        .map((field) => EMPLOYEE_OCR_FIELD_LABELS[field] || field.replace(/_/g, ' '))
-        .slice(0, 5)
-        .join(', ')
-      setModalNotice(
-        `OCR filled ${updatedFields.length} ${updatedFields.length === 1 ? 'field' : 'fields'} for ${REGISTRATION_STEPS[activeStep].label.toLowerCase()}: ` +
-        `${fieldLabels}${updatedFields.length > 5 ? ', ...' : ''}.`
-      )
-    } catch (err) {
-      setModalNotice('')
-      const rawMessage = err?.message || 'OCR could not read this scanned document.'
-      const message = normalizeOcrStatusMessage(rawMessage)
-      setModalError(message)
-      if (rawMessage.includes('Backend OCR is not configured yet') || rawMessage.toLowerCase().includes('ocr service is not reachable')) {
-        setOcrStatus({ ready: false, message })
-        await openOcrSetupModal()
-      }
-    }
-  }
-
-  const handleAnalyzeScan = async () => {
-    if (!ocrImportFile) {
-      setModalNotice('')
-      setModalError('Scan, capture, or upload a document from the first step before analyzing it.')
-      setActiveStep(0)
-      return
-    }
-    setModalError('')
-    setOcrBusy(true)
-    const cacheKey = buildOcrCacheKey(ocrImportFile)
-    const hasCachedResult = ocrCachedResult?.cacheKey === cacheKey
-    if (hasCachedResult) {
-      setModalNotice('This scanned document is already analyzed. Use Auto fill on any step to apply the detected fields.')
-      setOcrBusy(false)
-      return
-    }
-
-    setModalNotice(`Analyzing ${ocrImportFileName || 'the scanned document'} and preparing OCR matches for all registration steps...`)
-
-    try {
-      const result = await employeesService.extractEmployeeDocumentFields(ocrImportFile, 0, formOptions)
-      const updatesByStep = result?.updatesByStep && typeof result.updatesByStep === 'object' ? result.updatesByStep : {}
-      const mappedFieldCount = Object.values(updatesByStep).reduce((count, value) => {
-        if (!value || typeof value !== 'object') return count
-        return count + Object.keys(value).length
-      }, 0)
-      setOcrCachedResult({ ...result, cacheKey })
-      setModalNotice(
-        mappedFieldCount > 0
-          ? `Analysis completed. OCR found ${mappedFieldCount} mapped ${mappedFieldCount === 1 ? 'field' : 'fields'} across the registration steps.`
-          : 'Analysis completed, but no matching registration fields were found. You can still rescan or attach the document.'
-      )
-    } catch (err) {
-      setModalNotice('')
-      const rawMessage = err?.message || 'OCR could not read this scanned document.'
-      const message = normalizeOcrStatusMessage(rawMessage)
-      setModalError(message)
-      if (rawMessage.includes('Backend OCR is not configured yet') || rawMessage.toLowerCase().includes('ocr service is not reachable')) {
-        setOcrStatus({ ready: false, message })
-        await openOcrSetupModal()
-      }
-    } finally {
-      setOcrBusy(false)
-    }
-  }
-
-  const openScanAttachmentModal = (sourceMode = 'scan') => {
-    const selectedSourceFile = sourceMode === 'upload' ? attachmentStageFile : ocrImportFile
-    const missingMessage = sourceMode === 'upload'
-      ? 'Upload a generic document before attaching it.'
-      : 'Select or analyze a scanned document from step 1 before attaching it.'
-    if (!selectedSourceFile) {
-      setModalNotice('')
-      setModalError(missingMessage)
-      return
-    }
-    setScanAttachmentSourceMode(sourceMode)
-    const missingRequiredKeys = MANDATORY_ATTACHMENT_KEYS.filter((key) => !attachmentFiles[key] && !existingAttachmentDocs[key])
-    setScanAttachmentKeys(missingRequiredKeys.length > 0 ? missingRequiredKeys : [ATTACHMENT_FIELDS[0].key])
-    setScanAttachmentRotation(0)
-    setScanAttachmentFlipX(false)
-    setScanAttachmentFlipY(false)
-    setScanAttachmentZoom(1)
-    setScanAttachmentOffset({ x: 0, y: 0 })
-    setScanAttachmentDragging(false)
-    setScanAttachmentError('')
-    setModalError('')
-    setScanAttachmentModalOpen(true)
-  }
-
-  const closeScanAttachmentModal = () => {
-    setScanAttachmentModalOpen(false)
-    setScanAttachmentDragging(false)
-    setScanAttachmentError('')
-  }
-
-  const handleScanAttachmentKeyToggle = (key) => {
-    setScanAttachmentKeys((prev) =>
-      prev.includes(key) ? prev.filter((item) => item !== key) : [...prev, key]
-    )
-  }
-
-  const handleScanAttachmentWheel = (event) => {
-    if (!scanAttachmentSourceFile?.type?.startsWith('image/')) return
-    event.preventDefault()
-    const frame = scanAttachmentFrameRef.current
-    if (!frame) return
-    const rect = frame.getBoundingClientRect()
-    const point = {
-      x: event.clientX - rect.left - rect.width / 2,
-      y: event.clientY - rect.top - rect.height / 2
-    }
-    setScanAttachmentZoom((prev) => {
-      const next = Math.min(5, Math.max(1, Number((prev + (event.deltaY < 0 ? 0.18 : -0.18)).toFixed(2))))
-      setScanAttachmentOffset((offset) => {
-        if (next === 1) return { x: 0, y: 0 }
-        const ratio = next / prev
-        return {
-          x: point.x - (point.x - offset.x) * ratio,
-          y: point.y - (point.y - offset.y) * ratio
-        }
-      })
-      return next
-    })
-  }
-
-  useEffect(() => {
-    const frame = scanAttachmentFrameRef.current
-    if (!frame || !scanAttachmentModalOpen || !scanAttachmentSourceFile?.type?.startsWith('image/')) return undefined
-    const handleWheel = (event) => handleScanAttachmentWheel(event)
-    frame.addEventListener('wheel', handleWheel, { passive: false })
-    return () => {
-      frame.removeEventListener('wheel', handleWheel)
-    }
-  }, [handleScanAttachmentWheel, scanAttachmentModalOpen, scanAttachmentSourceFile])
-
-  const handleScanAttachmentPointerDown = (event) => {
-    if (!scanAttachmentSourceFile?.type?.startsWith('image/') || scanAttachmentZoom <= 1) return
-    scanAttachmentDragRef.current = {
-      startX: event.clientX,
-      startY: event.clientY,
-      originX: scanAttachmentOffset.x,
-      originY: scanAttachmentOffset.y
-    }
-    setScanAttachmentDragging(true)
-  }
-
-  const resetScanAttachmentView = () => {
-    setScanAttachmentZoom(1)
-    setScanAttachmentOffset({ x: 0, y: 0 })
-    setScanAttachmentDragging(false)
-  }
-
-  const buildAdjustedScanAttachment = async () => {
-    if (!scanAttachmentSourceFile) throw new Error('No scanned document is ready.')
-    if (!scanAttachmentSourceFile.type?.startsWith('image/')) return scanAttachmentSourceFile
-    if (typeof document === 'undefined' || !scanAttachmentSourcePreviewUrl) return scanAttachmentSourceFile
-
-    const image = await loadImageFromUrl(scanAttachmentSourcePreviewUrl)
-    const frame = scanAttachmentFrameRef.current
-    const frameWidth = Math.max(1, Math.round(frame?.clientWidth || image.naturalWidth))
-    const frameHeight = Math.max(1, Math.round(frame?.clientHeight || image.naturalHeight))
-    const pixelRatio = 2
-    const imageRatio = image.naturalWidth / image.naturalHeight
-    const frameRatio = frameWidth / frameHeight
-    const drawWidth = imageRatio > frameRatio ? frameWidth : frameHeight * imageRatio
-    const drawHeight = imageRatio > frameRatio ? frameWidth / imageRatio : frameHeight
-    const rotation = ((scanAttachmentRotation % 360) + 360) % 360
-    const outputCanvas = document.createElement('canvas')
-    outputCanvas.width = Math.round(frameWidth * pixelRatio)
-    outputCanvas.height = Math.round(frameHeight * pixelRatio)
-    const outputContext = outputCanvas.getContext('2d')
-    if (!outputContext) throw new Error('Could not prepare the adjusted scanned image.')
-    outputContext.fillStyle = '#ffffff'
-    outputContext.fillRect(0, 0, outputCanvas.width, outputCanvas.height)
-    outputContext.scale(pixelRatio, pixelRatio)
-    outputContext.translate(frameWidth / 2 + scanAttachmentOffset.x, frameHeight / 2 + scanAttachmentOffset.y)
-    outputContext.rotate((rotation * Math.PI) / 180)
-    outputContext.scale(
-      (scanAttachmentFlipX ? -1 : 1) * scanAttachmentZoom,
-      (scanAttachmentFlipY ? -1 : 1) * scanAttachmentZoom
-    )
-    outputContext.drawImage(image, -drawWidth / 2, -drawHeight / 2, drawWidth, drawHeight)
-
-    const blob = await new Promise((resolve, reject) => {
-      outputCanvas.toBlob((nextBlob) => {
-        if (nextBlob) resolve(nextBlob)
-        else reject(new Error('Could not create the adjusted scanned attachment.'))
-      }, 'image/jpeg', 0.92)
-    })
-    return new File([blob], `scan-attachment-${Date.now()}.jpg`, { type: 'image/jpeg' })
-  }
-
-  const attachSelectedFromScan = async () => {
-    if (scanAttachmentKeys.length === 0) {
-      setScanAttachmentError('Select at least one attachment type.')
-      return
-    }
-    setScanAttachmentError('')
-    try {
-      const file = await buildAdjustedScanAttachment()
-      setAttachmentFiles((prev) => {
-        const next = { ...prev }
-        scanAttachmentKeys.forEach((key) => {
-          next[key] = file
-        })
-        return next
-      })
-      setModalNotice(`${scanAttachmentKeys.length} attachment${scanAttachmentKeys.length === 1 ? '' : 's'} attached from the scanned document.`)
-      closeScanAttachmentModal()
-    } catch (err) {
-      setScanAttachmentError(err?.message || 'Could not attach from the scanned document.')
-    }
-  }
-
-  const handleCheckboxList = (field, value) => {
-    setForm((prev) => ({
-      ...prev,
-      [field]: prev[field].includes(value) ? prev[field].filter((item) => item !== value) : [...prev[field], value]
-    }))
-  }
-
-  const handleExperienceChange = (index, field, value) => {
-    setForm((prev) => ({
-      ...prev,
-      experiences: prev.experiences.map((item, itemIndex) => itemIndex === index ? { ...item, [field]: value } : item)
-    }))
-  }
-
-  const handleAttachmentPick = (key, file) => {
-    if (file && !attachmentFileAllowed(file)) {
-      setModalError('Attachments must be PDF, JPG, JPEG, or PNG files only.')
-      return
-    }
-    setModalError('')
-    setAttachmentFiles((prev) => ({ ...prev, [key]: file || null }))
-  }
-
-  const validateAttachmentDates = () => {
-    for (const attachment of ATTACHMENT_FIELDS) {
-      if (!attachment.expiryField) continue
-      if (attachmentFiles[attachment.key] && !form[attachment.expiryField]) {
-        throw new Error(`${attachment.label} date is required when a file is selected.`)
-      }
-    }
-    for (const key of MANDATORY_ATTACHMENT_KEYS) {
-      const existingDocument = editingEmployeeId ? Boolean(existingAttachmentDocs[key]) : false
-      if (!attachmentFiles[key] && !existingDocument) {
-        const attachment = ATTACHMENT_FIELDS.find((item) => item.key === key)
-        throw new Error(`${attachment?.label || key} is required.`)
-      }
-    }
-  }
-
-  const uploadPendingAttachments = async (employeeId) => {
-    validateAttachmentDates()
-    const uploads = ATTACHMENT_FIELDS.filter((item) => attachmentFiles[item.key]).map((item) =>
-      employeesService.uploadEmployeeDocument(
-        employeeId,
-        item.key,
-        attachmentLabels[item.key] || item.label,
-        attachmentFiles[item.key],
-        item.expiryField ? form[item.expiryField] : ''
-      )
-    )
-    if (uploads.length > 0) await Promise.all(uploads)
-  }
-
-  const submitRegistration = async () => {
-    if (!canEditEmployeeRecords) {
-      setModalError('Only organization-side users can edit employee records.')
-      return
-    }
-    const isEditing = Boolean(editingEmployeeId)
-    if (ageRestrictionError) {
-      setModalError(ageRestrictionError)
-      setActiveStep(0)
-      return
-    }
-    const validationError = validateEmployeeForm(form)
-    if (validationError) {
-      setModalError(validationError)
-      const targetStep = getValidationStep(validationError)
-      if (targetStep !== null) setActiveStep(targetStep)
-      return
-    }
-    setSaving(true)
-    setModalError('')
-    setNotice('')
-    setModalNotice('')
-    try {
-      const payload = buildEmployeePayload(form, editingEmployeeId)
-      const employee = editingEmployeeId ? await employeesService.updateEmployee(editingEmployeeId, payload) : await employeesService.createEmployee(payload)
-      await uploadPendingAttachments(employee.id)
-      const viewAfterSave = isEditing ? 'list' : currentView
-      if (isEditing) {
-        setNotice('Employee updated successfully.')
-        setPage(1)
-        setView('list')
-        resetForm()
-      } else {
-        setNotice('Employee registered successfully.')
-        setEditingEmployeeId(null)
-        setForm(createFormFromTemplate())
-        setAttachmentFiles({})
-        setAttachmentLabels({})
-        setExistingAttachmentDocs({})
-        setActiveStep(0)
-        clearScannedDocument()
-        setPage(1)
-        setView('register')
-      }
-      await Promise.all([loadEmployees(viewAfterSave), loadFormOptions()])
-    } catch (err) {
-      console.error('Employee registration failed:', err)
-      const nextError = errorMessage(err, 'Could not save employee')
-      setModalError(nextError)
-      const targetStep = getValidationStep(nextError)
-      if (targetStep !== null) setActiveStep(targetStep)
-      const nextAttempted = {
-        ...attemptedRegistrationSteps,
-        [targetStep ?? activeStep]: true,
-        ...(targetStep !== null ? { [targetStep]: true } : {})
-      }
-      setAttemptedRegistrationSteps(nextAttempted)
-      setInvalidStepErrors((prev) => ({
-        ...computeInvalidStepErrors(nextAttempted),
-        [targetStep ?? activeStep]: nextError
-      }))
-      setPendingValidationHighlight({ message: nextError, stepIndex: targetStep ?? activeStep })
-    } finally {
-      setSaving(false)
-    }
-  }
 
   const handleEdit = (employeeId) => {
     if (!canEditEmployeeRecords) {
@@ -1787,7 +691,7 @@ export default function EmployeesListingView({ stage = "list" }) {
     setNotice('')
     try {
       await employeesService.deleteEmployee(employee.id)
-      if (editingEmployeeId === employee.id) resetForm()
+      if (openedEmployeeId === employee.id) setOpenedEmployeeId(null)
       setNotice('Employee removed.')
       await loadEmployees(currentView)
     } catch (err) {
@@ -1807,7 +711,7 @@ export default function EmployeesListingView({ stage = "list" }) {
     }
   }
 
-  const openReturnRequestModal = async () => {
+  const openReturnRequestModal = useCallback(async () => {
     setReturnRequestModalOpen(true)
     setReturnRequestError('')
     setReturnRequestSearch('')
@@ -1815,16 +719,26 @@ export default function EmployeesListingView({ stage = "list" }) {
     setReturnRequestRemark('')
     setReturnRequestEvidenceFiles([null, null, null])
     await loadReturnRequestEmployees('')
-  }
+  }, [loadReturnRequestEmployees])
 
-  const closeReturnRequestModal = () => {
+  useEffect(() => {
+    const handlePortalOpenReturn = () => {
+      openReturnRequestModal()
+    }
+    window.addEventListener('portal:open-return-request', handlePortalOpenReturn)
+    return () => {
+      window.removeEventListener('portal:open-return-request', handlePortalOpenReturn)
+    }
+  }, [openReturnRequestModal])
+
+  const closeReturnRequestModal = useCallback(() => {
     setReturnRequestModalOpen(false)
     setReturnRequestError('')
     setReturnRequestSearch('')
     setSelectedReturnEmployeeId('')
     setReturnRequestRemark('')
     setReturnRequestEvidenceFiles([null, null, null])
-  }
+  }, [])
 
   const handleReturnRequestEvidencePick = (index, file) => {
     if (file && !attachmentFileAllowed(file)) {
@@ -1859,6 +773,10 @@ export default function EmployeesListingView({ stage = "list" }) {
       })
       setNotice('Return request submitted successfully.')
       closeReturnRequestModal()
+      showToast('Return request submitted successfully.', { tone: 'success' })
+      localStorage.setItem('portal:cross_tab_sync', String(Date.now()))
+      window.dispatchEvent(new Event('notifications:updated'))
+      window.dispatchEvent(new Event('portal:refresh-candidates'))
       await Promise.all([loadEmployees(currentView), loadRequestedReturns()])
     } catch (err) {
       setReturnRequestError(err.message || 'Could not create return request')
@@ -1877,20 +795,36 @@ export default function EmployeesListingView({ stage = "list" }) {
     })
     if (!confirmed) return
     setActionBusyId(employee.id)
+    if (currentView === 'employed') {
+      hideEmployeeId(employee.id)
+    }
     setPageError('')
     setNotice('')
     try {
       await employeesService.approveEmployeeReturnRequest(employee.id)
-      patchEmployeeCollections(employee.id, (current) => ({
-        ...current,
-        returned_from_employment: true,
-        return_status: 'returned',
-        return_request: current.return_request
-          ? { ...current.return_request, status: 'approved' }
-          : { status: 'approved' }
-      }))
-      setRequestedReturns((prev) => prev.filter((item) => item.id !== employee.id))
+      hideEmployeeId(employee.id)
+      patchEmployeeCollections(employee.id, (current) => {
+        if (currentView === 'employed') return null
+        return {
+          ...current,
+          returned_from_employment: true,
+          return_status: 'returned',
+          return_request: current.return_request
+            ? { ...current.return_request, status: 'approved' }
+            : { status: 'approved' }
+        }
+      })
+      setRequestedReturns((prev) => prev.filter((item) => String(item.id) !== String(employee.id) && item.id !== Number(employee.id)))
+      if (currentView === 'employed' && openedEmployeeId === employee.id) {
+        setOpenedEmployeeId(null)
+      }
+      localStorage.removeItem(`notification_remind_return_${employee.id}`)
+      localStorage.setItem('portal:cross_tab_sync', String(Date.now()))
+      window.dispatchEvent(new Event('notifications:updated'))
+      window.dispatchEvent(new Event('portal:refresh-candidates'))
       setNotice('Return request approved and employee moved to Returned list.')
+      showToast('Return request approved.', { tone: 'success' })
+      await loadEmployees(currentView)
     } catch (err) {
       setPageError(err.message || 'Could not approve employee return')
     } finally {
@@ -1908,18 +842,34 @@ export default function EmployeesListingView({ stage = "list" }) {
     })
     if (!confirmed) return
     setActionBusyId(employee.id)
+    if (currentView === 'returned') {
+      hideEmployeeId(employee.id)
+    }
     setPageError('')
     setNotice('')
     try {
       await employeesService.refuseEmployeeReturnRequest(employee.id)
-      patchEmployeeCollections(employee.id, (current) => ({
-        ...current,
-        return_request: current.return_request
-          ? { ...current.return_request, status: 'refused' }
-          : null
-      }))
-      setRequestedReturns((prev) => prev.filter((item) => item.id !== employee.id))
+      hideEmployeeId(employee.id)
+      patchEmployeeCollections(employee.id, (current) => {
+        if (currentView === 'returned') return null
+        return {
+          ...current,
+          return_request: current.return_request
+            ? { ...current.return_request, status: 'refused' }
+            : null
+        }
+      })
+      setRequestedReturns((prev) => prev.filter((item) => String(item.id) !== String(employee.id) && item.id !== Number(employee.id)))
+      if (currentView === 'returned' && openedEmployeeId === employee.id) {
+        setOpenedEmployeeId(null)
+      }
+      localStorage.removeItem(`notification_remind_return_${employee.id}`)
+      localStorage.setItem('portal:cross_tab_sync', String(Date.now()))
+      window.dispatchEvent(new Event('notifications:updated'))
+      window.dispatchEvent(new Event('portal:refresh-candidates'))
       setNotice('Return request refused.')
+      showToast('Return request refused.', { tone: 'info' })
+      await loadEmployees(currentView)
     } catch (err) {
       setPageError(err.message || 'Could not refuse return request')
     } finally {
@@ -1937,16 +887,32 @@ export default function EmployeesListingView({ stage = "list" }) {
     })
     if (!confirmed) return
     setActionBusyId(employee.id)
+    if (currentView === 'returned') {
+      hideEmployeeId(employee.id)
+    }
     setPageError('')
     setNotice('')
     try {
       await employeesService.cancelEmployeeReturnRequest(employee.id)
-      patchEmployeeCollections(employee.id, (current) => ({
-        ...current,
-        return_request: null
-      }))
-      setRequestedReturns((prev) => prev.filter((item) => item.id !== employee.id))
+      hideEmployeeId(employee.id)
+      patchEmployeeCollections(employee.id, (current) => {
+        if (currentView === 'returned') return null
+        return {
+          ...current,
+          return_request: null
+        }
+      })
+      setRequestedReturns((prev) => prev.filter((item) => String(item.id) !== String(employee.id) && item.id !== Number(employee.id)))
+      if (currentView === 'returned' && openedEmployeeId === employee.id) {
+        setOpenedEmployeeId(null)
+      }
+      localStorage.removeItem(`notification_remind_return_${employee.id}`)
+      localStorage.setItem('portal:cross_tab_sync', String(Date.now()))
+      window.dispatchEvent(new Event('notifications:updated'))
+      window.dispatchEvent(new Event('portal:refresh-candidates'))
       setNotice('Return request cancelled.')
+      showToast('Return request cancelled.', { tone: 'info' })
+      await loadEmployees(currentView)
     } catch (err) {
       setPageError(err.message || 'Could not cancel return request')
     } finally {
@@ -1964,12 +930,16 @@ export default function EmployeesListingView({ stage = "list" }) {
     })
     if (!confirmed) return
     setActionBusyId(employee.id)
+    if (currentView === 'returned') {
+      hideEmployeeId(employee.id)
+    }
     setPageError('')
     setNotice('')
     try {
       await employeesService.updateEmployee(employee.id, {
         returned_from_employment: false
       })
+      hideEmployeeId(employee.id)
       patchEmployeeCollections(employee.id, (current) => {
         const nextEmployee = {
           ...current,
@@ -1983,7 +953,15 @@ export default function EmployeesListingView({ stage = "list" }) {
         if (currentView === 'returned') return null
         return nextEmployee
       })
+      if (currentView === 'returned' && openedEmployeeId === employee.id) {
+        setOpenedEmployeeId(null)
+      }
+      localStorage.removeItem(`notification_remind_return_${employee.id}`)
+      localStorage.setItem('portal:cross_tab_sync', String(Date.now()))
+      window.dispatchEvent(new Event('notifications:updated'))
+      window.dispatchEvent(new Event('portal:refresh-candidates'))
       showToast('Employee moved back to Employed.', { tone: 'success' })
+      await loadEmployees(currentView)
     } catch (err) {
       setPageError(err.message || 'Could not restore employee to employed')
     } finally {
@@ -2229,271 +1207,6 @@ export default function EmployeesListingView({ stage = "list" }) {
     }
   }
 
-  const validateStep = (stepIndex) => {
-    return validateStepFields(form, stepIndex, ageRestrictionError, validateAttachmentDates)
-  }
-
-  const computeInvalidStepErrors = (attemptedSteps) => {
-    const errors = {}
-    for (let index = 0; index <= 4; index += 1) {
-      if (!attemptedSteps || !attemptedSteps[index]) continue
-      const message = validateStep(index)
-      if (message) errors[index] = message
-    }
-    return errors
-  }
-
-  const syncEmployeeModalFieldValidity = useCallback((formEl, stepIndex) => {
-    if (!formEl) return
-
-    const setValidity = (fieldName, message) => {
-      if (!fieldName) return
-      const el = formEl.querySelector(`[name="${CSS.escape(fieldName)}"]`)
-      if (el && typeof el.setCustomValidity === 'function') {
-        el.setCustomValidity(message || '')
-      }
-    }
-
-    // Clear previous custom validity.
-    ;[
-      'mobile_number',
-      'passport_number',
-      'id_number',
-      'labour_id',
-      'passport_expires_on',
-      'contact_person_mobile',
-      'phone',
-      'email',
-      'contact_person_id_number'
-    ].forEach((name) => setValidity(name, ''))
-    formEl.querySelectorAll('input[name^="experience_years_"]').forEach((el) => {
-      if (el && typeof el.setCustomValidity === 'function') el.setCustomValidity('')
-    })
-
-    if (stepIndex === 0) {
-      if (ageRestrictionError) {
-        setValidity('date_of_birth', ageRestrictionError)
-      }
-      if (form.mobile_number.trim() && !isValidPhoneNumber(form.mobile_number)) {
-        setValidity('mobile_number', 'Enter a valid mobile number.')
-      }
-      if (form.passport_number.trim() && !isValidDocumentNumber(form.passport_number)) {
-        setValidity('passport_number', 'Passport number is invalid.')
-      }
-      if (form.id_number.trim() && !isValidDocumentNumber(form.id_number)) {
-        setValidity('id_number', 'ID number is invalid.')
-      }
-      if (form.labour_id.trim() && !isValidDocumentNumber(form.labour_id)) {
-        setValidity('labour_id', 'Labour ID is invalid.')
-      }
-    }
-
-    if (stepIndex === 2) {
-      if (!isValidPhoneNumber(form.phone)) {
-        setValidity('phone', 'Enter a valid secondary phone number.')
-      }
-      if ((form.contact_person_mobile || '').trim() && !isValidPhoneNumber(form.contact_person_mobile)) {
-        setValidity('contact_person_mobile', 'Enter a valid contact person mobile number.')
-      }
-      if (!isValidEmailAddress(form.email)) {
-        setValidity('email', 'Enter a valid email address.')
-      }
-      if (!isValidDocumentNumber(form.contact_person_id_number)) {
-        setValidity('contact_person_id_number', 'Contact person ID number is invalid.')
-      }
-    }
-  }, [form])
-
-  const getValidationFieldForStep = useCallback((message, stepIndex) => {
-    if (!message) return ''
-    const normalized = String(message).toLowerCase()
-
-    if (stepIndex === 0) {
-      if (normalized.includes('first name is required')) return 'first_name'
-      if (normalized.includes('middle name is required')) return 'middle_name'
-      if (normalized.includes('last name is required')) return 'last_name'
-      if (normalized.includes('date of birth is required')) return 'date_of_birth'
-      if (normalized.includes('at least') && normalized.includes('age')) return 'date_of_birth'
-      if (normalized.includes('gender is required')) return 'gender'
-      if (normalized.includes('passport number is required')) return 'passport_number'
-      if (normalized.includes('passport number') && normalized.includes('already exists')) return 'passport_number'
-      if (normalized.includes('mobile number is required')) return 'mobile_number'
-      if (normalized.includes('valid mobile number')) return 'mobile_number'
-      if (normalized.includes('passport number may only')) return 'passport_number'
-      if (normalized.includes('id number may only')) return 'id_number'
-      if (normalized.includes('labour id may only')) return 'labour_id'
-      return ''
-    }
-
-    if (stepIndex === 1) {
-      if (normalized.includes('religion is required')) return 'religion'
-      if (normalized.includes('marital status is required')) return 'marital_status'
-      if (normalized.includes('residence country is required')) return 'residence_country'
-      if (normalized.includes('weight cannot be negative')) return 'weight_kg'
-      if (normalized.includes('height cannot be negative')) return 'height_cm'
-      if (normalized.includes('children count cannot be negative')) return 'children_count'
-      return ''
-    }
-
-    if (stepIndex === 2) {
-      if (normalized.includes('contact person name is required')) return 'contact_person_name'
-      if (normalized.includes('contact person mobile is required')) return 'contact_person_mobile'
-      if (normalized.includes('valid secondary phone')) return 'phone'
-      if (normalized.includes('valid contact person mobile')) return 'contact_person_mobile'
-      if (normalized.includes('valid email')) return 'email'
-      if (normalized.includes('contact person id number')) return 'contact_person_id_number'
-      return ''
-    }
-
-    if (stepIndex === 3) {
-      if (normalized.includes('destination country')) return 'application_countries'
-      if (normalized.includes('profession is required')) return 'profession'
-      if (normalized.includes('type is required')) return 'employment_type'
-      if (normalized.includes('salary is required')) return 'application_salary'
-      if (normalized.includes('select at least one skill')) return 'skills'
-      if (normalized.includes('select at least one language')) return 'languages'
-      if (normalized.includes('fill in years')) return 'experiences'
-      if (normalized.includes('salary cannot be negative')) return 'application_salary'
-      return ''
-    }
-
-    if (stepIndex === 4) {
-      if (normalized.includes('passport date is required')) return 'passport_expires_on'
-      if (normalized.includes('passport expires on')) return 'passport_expires_on'
-      return ''
-    }
-
-    return ''
-  }, [])
-
-  const highlightEmployeeModalValidationTarget = useCallback((message, stepIndex) => {
-    const formEl = employeeModalFormRef.current
-    if (!formEl) return
-
-    // Clear existing invalid markers first.
-    formEl.querySelectorAll('[aria-invalid="true"]').forEach((el) => el.removeAttribute('aria-invalid'))
-
-    syncEmployeeModalFieldValidity(formEl, stepIndex)
-    const fieldName = getValidationFieldForStep(message, stepIndex)
-    if (!fieldName) return
-
-    let target = formEl.querySelector(`[name="${CSS.escape(fieldName)}"]`)
-
-    // Special-case: "Experiences" validation is about the *years* input for the first selected country.
-    if (fieldName === 'experiences') {
-      const rows = Array.from(formEl.querySelectorAll('.experience-row'))
-      const firstInvalidYears = rows
-        .map((row) => ({
-          country: row.querySelector('select[name^="experience_country_"]'),
-          years: row.querySelector('input[name^="experience_years_"]')
-        }))
-        .find(({ country, years }) => {
-          const countryValue = country && 'value' in country ? String(country.value || '').trim() : ''
-          const yearsValue = years && 'value' in years ? String(years.value || '').trim() : ''
-          return countryValue && !yearsValue
-        })?.years
-
-      if (firstInvalidYears instanceof HTMLElement) {
-        target = firstInvalidYears
-        if (typeof target.setCustomValidity === 'function') {
-          target.setCustomValidity('Years is required.')
-        }
-      }
-    }
-
-    if (!(target instanceof HTMLElement)) return
-    target.setAttribute('aria-invalid', 'true')
-    const checkboxGrid = target.closest('.checkbox-grid')
-    if (checkboxGrid instanceof HTMLElement) checkboxGrid.setAttribute('aria-invalid', 'true')
-    if (
-      fieldName === 'passport_expires_on' &&
-      typeof target.setCustomValidity === 'function'
-    ) {
-      target.setCustomValidity(message || 'Passport date is required.')
-    }
-    if (typeof target.focus === 'function') target.focus()
-  }, [getValidationFieldForStep, syncEmployeeModalFieldValidity])
-
-  useEffect(() => {
-    const formEl = employeeModalFormRef.current
-    if (!formEl) return
-    const handler = (event) => {
-      const target = event.target
-      if (!(target instanceof HTMLElement)) return
-      if (!(target.matches('input, select, textarea'))) return
-
-      if (!target.hasAttribute('aria-invalid')) return
-      if (typeof target.checkValidity === 'function' && target.checkValidity()) {
-        target.removeAttribute('aria-invalid')
-      }
-    }
-    formEl.addEventListener('input', handler, true)
-    formEl.addEventListener('change', handler, true)
-    return () => {
-      formEl.removeEventListener('input', handler, true)
-      formEl.removeEventListener('change', handler, true)
-    }
-  }, [activeStep, getValidationFieldForStep, invalidStepErrors])
-
-  useEffect(() => {
-    const prevForm = prevFormRef.current
-    prevFormRef.current = form
-    if (currentView !== 'register') return
-    const stepError = invalidStepErrors[activeStep]
-    if (!stepError) return
-    const stepField = getValidationFieldForStep(stepError, activeStep)
-    if (!stepField) return
-    if (prevForm?.[stepField] === form?.[stepField]) return
-    setInvalidStepErrors((prev) => {
-      if (!prev[activeStep]) return prev
-      const next = { ...prev }
-      delete next[activeStep]
-      return next
-    })
-    setModalError((prev) => (prev === stepError ? '' : prev))
-  }, [activeStep, currentView, form, getValidationFieldForStep, invalidStepErrors])
-
-  useEffect(() => {
-    if (!pendingValidationHighlight) return
-    if (currentView !== 'register') return
-    const { message, stepIndex } = pendingValidationHighlight
-    // Wait for the step's fields to be rendered before focusing/marking.
-    requestAnimationFrame(() => {
-      highlightEmployeeModalValidationTarget(message, stepIndex)
-      setPendingValidationHighlight(null)
-    })
-  }, [currentView, highlightEmployeeModalValidationTarget, pendingValidationHighlight])
-
-  const goToNextStep = () => {
-    const stepError = validateStep(activeStep)
-    if (stepError) {
-      setModalError(stepError)
-      const targetStep = getValidationStep(stepError)
-      if (targetStep !== null) setActiveStep(targetStep)
-      const nextAttempted = {
-        ...attemptedRegistrationSteps,
-        [activeStep]: true,
-        ...(targetStep !== null ? { [targetStep]: true } : {})
-      }
-      setAttemptedRegistrationSteps(nextAttempted)
-      setInvalidStepErrors(computeInvalidStepErrors(nextAttempted))
-      requestAnimationFrame(() => {
-        highlightEmployeeModalValidationTarget(stepError, targetStep ?? activeStep)
-      })
-      return
-    }
-    setModalError('')
-    const nextAttempted = { ...attemptedRegistrationSteps, [activeStep]: true }
-    setAttemptedRegistrationSteps(nextAttempted)
-    setInvalidStepErrors(computeInvalidStepErrors(nextAttempted))
-    setActiveStep((prev) => Math.min(REGISTRATION_STEPS.length - 1, prev + 1))
-  }
-
-  const goToPreviousStep = () => {
-    setModalError('')
-    setActiveStep((prev) => Math.max(0, prev - 1))
-  }
-
   const employees = useMemo(() => employeesData?.results ?? [], [employeesData])
   const total = useMemo(() => employeesData?.count ?? employees.length, [employeesData, employees.length])
   const hasNext = useMemo(() => Boolean(employeesData?.next), [employeesData])
@@ -2501,12 +1214,14 @@ export default function EmployeesListingView({ stage = "list" }) {
   const canProgressivelyRenderEmployeeCards = currentView === 'list'
 
   const visibleEmployees = useMemo(() => {
-    const list = employees.map((employee) => ({
-      ...employee,
-      settled_commission: employee?.settled_commission || settledCommissionIds.includes(String(employee.id))
-    }))
+    const list = employees
+      .filter((emp) => !hiddenEmployeeIds.has(String(emp.id)) && !hiddenEmployeeIds.has(Number(emp.id)))
+      .map((employee) => ({
+        ...employee,
+        settled_commission: employee?.settled_commission || settledCommissionIds.includes(String(employee.id))
+      }))
     return filterCandidateList(list, filters)
-  }, [employees, filters, settledCommissionIds])
+  }, [employees, filters, hiddenEmployeeIds, settledCommissionIds])
 
   const visibleEmployeesById = useMemo(() => {
     const map = new Map()
@@ -2870,10 +1585,19 @@ export default function EmployeesListingView({ stage = "list" }) {
   useEffect(() => {
     if (!openedEmployee || previewDocument) return undefined
 
+    const originalOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+
     const handleEmployeeModalKeyDown = (event) => {
       const activeElement = document.activeElement
       const isTypingTarget = activeElement?.matches?.('input, textarea, select, [contenteditable="true"]')
       if (isTypingTarget) return
+
+      if (event.key === 'Escape') {
+        event.preventDefault()
+        setOpenedEmployeeId(null)
+        return
+      }
 
       if (event.key === 'ArrowLeft') {
         event.preventDefault()
@@ -2887,122 +1611,11 @@ export default function EmployeesListingView({ stage = "list" }) {
     }
 
     document.addEventListener('keydown', handleEmployeeModalKeyDown, true)
-    return () => document.removeEventListener('keydown', handleEmployeeModalKeyDown, true)
-  }, [navigateOpenedEmployee, openedEmployee, previewDocument])
-
-  const visibleTabs = useMemo(() => {
-    return EMPLOYEE_VIEW_TABS.filter((tab) => {
-      if (tab.id === 'selected') return isAgentSideUser
-      if (tab.id === 'register') return canEditEmployeeRecords
-      return true
-    })
-  }, [canEditEmployeeRecords, isAgentSideUser])
-
-  const openedEmployeeProgress = useMemo(() => buildProgressDonut(openedEmployee?.progress_status), [openedEmployee])
-  const openedEmployeeProfileDocument = useMemo(() => employeeProfilePhoto(openedEmployee), [openedEmployee])
-  const openedEmployeeIsReturned = useMemo(() => isEmployeeReturned(openedEmployee), [openedEmployee])
-  const openedEmployeeIsEmployed = useMemo(() => isEmployeeEmployedInView(openedEmployee, currentView), [currentView, openedEmployee])
-  const openedEmployeeWorkflowState = useMemo(() => employeeWorkflowState(openedEmployee), [openedEmployee])
-  const openedEmployeeSelectionState = useMemo(() => openedEmployee?.selection_state || {}, [openedEmployee])
-  const openedEmployeeIsSelectedByCurrentAgent = useMemo(
-    () => Boolean(openedEmployeeSelectionState.selected_by_current_agent),
-    [openedEmployeeSelectionState]
-  )
-  const openedEmployeeCanUnselect = useMemo(
-    () => Boolean(openedEmployeeSelectionState.can_unselect),
-    [openedEmployeeSelectionState]
-  )
-  const openedEmployeeIsUnderProcess = openedEmployeeWorkflowState === 'under_process'
-  const openedEmployeeIsTravelled = openedEmployeeWorkflowState === 'traveled'
-  const openedEmployeeIsAvailable = useMemo(
-    () => employeeAvailability(openedEmployee) === 'Available',
-    [openedEmployee]
-  )
-  const openedEmployeeBadgeClass = useMemo(() => employeeStatusBadgeClass(openedEmployee), [openedEmployee])
-  const openedEmployeeAssignedAgentId = useMemo(
-    () => {
-      if (!openedEmployee) return ''
-      return resolvedProcessAgentId(
-        openedEmployee,
-        processAgentAssignments,
-        formOptions.agent_options
-      )
-    },
-    [formOptions.agent_options, openedEmployee, processAgentAssignments]
-  )
-  const openedEmployeeReturnRequest = useMemo(() => openedEmployee?.return_request || null, [openedEmployee])
-  const canApproveOpenedEmployeeReturn = Boolean(
-    openedEmployee &&
-    !openedEmployeeIsReturned &&
-    openedEmployeeReturnRequest?.status === 'pending' &&
-    canManageOrganizationProcesses
-  )
-  const canRefuseOpenedEmployeeReturn = canApproveOpenedEmployeeReturn
-  const canCancelOpenedEmployeeReturnRequest = Boolean(
-    openedEmployee &&
-    !openedEmployeeIsReturned &&
-    openedEmployeeReturnRequest?.status === 'pending' &&
-    isAgentSideUser &&
-    openedEmployee.selection_state?.selected_by_current_agent
-  )
-  const canReinstateOpenedEmployeeEmployment = Boolean(
-    openedEmployee &&
-    openedEmployeeIsReturned &&
-    canManageOrganizationProcesses
-  )
-  const openDocumentPreview = useCallback((payload) => {
-    setPreviewDocument(payload)
-    setPreviewZoom(1)
-    setPreviewOffset({ x: 0, y: 0 })
-    setPreviewDragging(false)
-  }, [])
-
-  const updateReviewDocsScrollState = useCallback(() => {
-    const node = reviewDocsScrollerRef.current
-    if (!node) {
-      if (reviewDocsScrollStateRef.current.left || reviewDocsScrollStateRef.current.right) {
-        reviewDocsScrollStateRef.current = { left: false, right: false }
-        setReviewDocsCanScrollLeft(false)
-        setReviewDocsCanScrollRight(false)
-      }
-      return
+    return () => {
+      document.body.style.overflow = originalOverflow
+      document.removeEventListener('keydown', handleEmployeeModalKeyDown, true)
     }
-
-    const maxScrollLeft = Math.max(0, node.scrollWidth - node.clientWidth)
-    const left = node.scrollLeft
-    const epsilon = 2
-    const nextLeft = left > epsilon
-    const nextRight = left < maxScrollLeft - epsilon
-    const prev = reviewDocsScrollStateRef.current
-    if (prev.left === nextLeft && prev.right === nextRight) return
-    reviewDocsScrollStateRef.current = { left: nextLeft, right: nextRight }
-    setReviewDocsCanScrollLeft(nextLeft)
-    setReviewDocsCanScrollRight(nextRight)
-  }, [])
-
-  const scheduleReviewDocsScrollStateUpdate = useCallback(() => {
-    if (reviewDocsScrollRafRef.current) return
-    reviewDocsScrollRafRef.current = window.requestAnimationFrame(() => {
-      reviewDocsScrollRafRef.current = 0
-      updateReviewDocsScrollState()
-    })
-  }, [updateReviewDocsScrollState])
-
-  const scrollReviewDocumentsNext = useCallback(() => {
-    const node = reviewDocsScrollerRef.current
-    if (!node) return
-    const delta = Math.max(240, Math.floor(node.clientWidth * 0.85))
-    node.scrollBy({ left: delta, behavior: 'smooth' })
-    scheduleReviewDocsScrollStateUpdate()
-  }, [scheduleReviewDocsScrollStateUpdate])
-
-  const scrollReviewDocumentsPrev = useCallback(() => {
-    const node = reviewDocsScrollerRef.current
-    if (!node) return
-    const delta = Math.max(240, Math.floor(node.clientWidth * 0.85))
-    node.scrollBy({ left: -delta, behavior: 'smooth' })
-    scheduleReviewDocsScrollStateUpdate()
-  }, [scheduleReviewDocsScrollStateUpdate])
+  }, [navigateOpenedEmployee, openedEmployee, previewDocument])
 
   const toggleEmployeeCardExpanded = useCallback((employeeId) => {
     employeeCardMasonryDebugLog('toggle expand', { employeeId })
@@ -3228,202 +1841,8 @@ export default function EmployeesListingView({ stage = "list" }) {
   }, [employeeCardsLayout, expandedEmployeeCardId, reflowEmployeeCardsMasonry])
 
   useEffect(() => {
-    setReviewDocumentsTab('all')
-    setOpenedEmployeeMode('full')
-  }, [openedEmployeeId])
-
-  useEffect(() => {
-    if (typeof window === 'undefined') return
-    scheduleReviewDocsScrollStateUpdate()
-    return () => {
-      if (reviewDocsScrollRafRef.current) {
-        window.cancelAnimationFrame(reviewDocsScrollRafRef.current)
-        reviewDocsScrollRafRef.current = 0
-      }
-    }
-  }, [openedEmployeeId, reviewDocumentsTab, scheduleReviewDocsScrollStateUpdate])
-
-  const reviewDocumentCategory = useCallback((document) => {
-    const rawLabel = document?.label || fileLabel(document, attachmentLabels)
-    const label = String(rawLabel || '').toLowerCase()
-    const type = String(document?.document_type || '').toLowerCase()
-
-    const haystack = `${type} ${label}`
-
-    if (haystack.includes('return') || haystack.includes('evidence')) return 'returns'
-    if (haystack.includes('passport')) return 'passport'
-    if (haystack.includes('contract')) return 'contract'
-    if (haystack.includes('medical') || haystack.includes('vaccin') || haystack.includes('lab')) return 'medical'
-    if (haystack.includes('photo') || haystack.includes('portrait') || haystack.includes('full_photo') || haystack.includes('full photo')) return 'photos'
-    return 'other'
-  }, [attachmentLabels])
-
-  const openedEmployeeDocuments = useMemo(() => openedEmployee?.documents || [], [openedEmployee])
-
-  const returnAttachmentDocuments = useMemo(() => {
-    return openedEmployeeDocuments
-      .filter((document) => String(document?.document_type || '') === 'return_ticket')
-      .map((document) => ({
-        ...document,
-        id: document.id ?? `return-attachment-${document.file_url || ''}`,
-        label: fileLabel({ ...document, label: 'Return ticket' }, attachmentLabels),
-        is_return_attachment: true
-      }))
-  }, [attachmentLabels, openedEmployeeDocuments])
-
-  const returnEvidenceDocuments = useMemo(() => {
-    const urls = [
-      openedEmployeeReturnRequest?.evidence_file_1_url,
-      openedEmployeeReturnRequest?.evidence_file_2_url,
-      openedEmployeeReturnRequest?.evidence_file_3_url
-    ].filter(Boolean)
-
-    return urls.map((url, index) => ({
-      id: `return-evidence-${index + 1}`,
-      file_url: url,
-      document_type: 'returns',
-      label: `Return evidence ${index + 1}`,
-      is_return_evidence: true
-    }))
-  }, [openedEmployeeReturnRequest])
-
-  const reviewDocumentsFiltered = useMemo(() => {
-    if (reviewDocumentsTab === 'returns') return returnAttachmentDocuments.concat(returnEvidenceDocuments)
-    if (reviewDocumentsTab === 'all') return openedEmployeeDocuments.concat(returnEvidenceDocuments)
-    return openedEmployeeDocuments.filter((document) => reviewDocumentCategory(document) === reviewDocumentsTab)
-  }, [openedEmployeeDocuments, reviewDocumentCategory, reviewDocumentsTab, returnAttachmentDocuments, returnEvidenceDocuments])
-
-  const reviewDocumentsCards = useMemo(() => {
-    return reviewDocumentsFiltered.map((document) => {
-      const label = document?.label || fileLabel(document, attachmentLabels)
-      const isPdf = isPdfDocumentUrl(document.file_url)
-      const isImage = document?.is_return_evidence ? !isPdf : isImageDocument(document)
-      const kind = isPdf ? 'PDF' : isImage ? 'Image' : 'File'
-      const isReturnMaterial = Boolean(document?.is_return_evidence || document?.is_return_attachment)
-      const returnIsDone = Boolean(openedEmployeeIsReturned || openedEmployeeReturnRequest?.approved_at)
-
-      const openPayload = {
-        url: document.file_url,
-        label,
-        isImage,
-        isPdf
-      }
-
-      return (
-        <span
-          key={String(document.id)}
-          role="button"
-          tabIndex={0}
-          className="employee-review-doc-card"
-          onClick={() => openDocumentPreview(openPayload)}
-          onKeyDown={(event) => {
-            if (event.key === 'Enter' || event.key === ' ') {
-              event.preventDefault()
-              openDocumentPreview(openPayload)
-            }
-          }}
-        >
-          <div className="employee-review-doc-thumb">
-            {isReturnMaterial && returnIsDone ? (
-              <span className="employee-review-doc-thumb-badge" aria-hidden="true">
-                <svg viewBox="0 0 24 24" width="14" height="14" fill="none">
-                  <path d="M20 6 9 17l-5-5" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
-                </svg>
-              </span>
-            ) : null}
-            {isImage ? (
-              <img
-                src={document.file_url}
-                alt={label}
-                loading="eager"
-                decoding="async"
-              />
-            ) : (
-              <span>{kind}</span>
-            )}
-          </div>
-          <div className="employee-review-doc-meta employee-review-step-copy">
-            <span className="employee-review-step-label" title={label}>{label}</span>
-            <span className="employee-review-step-date muted-text">{kind}</span>
-          </div>
-        </span>
-      )
-    })
-  }, [attachmentLabels, openDocumentPreview, openedEmployeeIsReturned, openedEmployeeReturnRequest, reviewDocumentsFiltered])
-
-  useEffect(() => {
-    const node = reviewDocsScrollerRef.current
-    if (!node) return
-    node.scrollLeft = 0
-    scheduleReviewDocsScrollStateUpdate()
-  }, [openedEmployeeId, reviewDocumentsTab, scheduleReviewDocsScrollStateUpdate])
-
-  const closeDocumentPreview = useCallback(() => {
-    setPreviewDocument(null)
-    setPreviewZoom(1)
-    setPreviewOffset({ x: 0, y: 0 })
-    setPreviewDragging(false)
-  }, [])
-
-  useEffect(() => {
     const handleTopLayerEscape = (event) => {
       if (event.key !== 'Escape') return
-
-      if (previewDocument) {
-        event.preventDefault()
-        event.stopPropagation()
-        closeDocumentPreview()
-        return
-      }
-
-      if (ocrSetupModalOpen) {
-        event.preventDefault()
-        event.stopPropagation()
-        closeOcrSetupModal()
-        return
-      }
-
-      if (scanAttachmentModalOpen) {
-        event.preventDefault()
-        event.stopPropagation()
-        closeScanAttachmentModal()
-        return
-      }
-
-      if (scannerModalOpen) {
-        event.preventDefault()
-        event.stopPropagation()
-        closeScannerModal()
-        return
-      }
-
-      if (cameraCaptureModalOpen) {
-        event.preventDefault()
-        event.stopPropagation()
-        closeCameraCapture()
-        return
-      }
-
-      if (uploadDocumentModalOpen) {
-        event.preventDefault()
-        event.stopPropagation()
-        closeUploadDocumentModal()
-        return
-      }
-
-      if (scanImportModalOpen) {
-        event.preventDefault()
-        event.stopPropagation()
-        closeScanImportModal()
-        return
-      }
-
-      if (otherDocumentsModalOpen) {
-        event.preventDefault()
-        event.stopPropagation()
-        setOtherDocumentsModalOpen(false)
-        return
-      }
 
       if (returnRequestModalOpen) {
         event.preventDefault()
@@ -3442,84 +1861,9 @@ export default function EmployeesListingView({ stage = "list" }) {
     document.addEventListener('keydown', handleTopLayerEscape, true)
     return () => document.removeEventListener('keydown', handleTopLayerEscape, true)
   }, [
-    cameraCaptureModalOpen,
-    closeCameraCapture,
-    closeDocumentPreview,
-    ocrSetupModalOpen,
     openedEmployee,
-    otherDocumentsModalOpen,
-    previewDocument,
-    returnRequestModalOpen,
-    scanAttachmentModalOpen,
-    scanImportModalOpen,
-    scannerModalOpen,
-    uploadDocumentModalOpen
+    returnRequestModalOpen
   ])
-
-  const handlePreviewZoomIn = useCallback(() => {
-    setPreviewZoom((prev) => Math.min(4, Number((prev + 0.25).toFixed(2))))
-  }, [])
-  const handlePreviewZoomOut = useCallback(() => {
-    setPreviewZoom((prev) => {
-      const next = Math.max(1, Number((prev - 0.25).toFixed(2)))
-      if (next === 1) setPreviewOffset({ x: 0, y: 0 })
-      return next
-    })
-  }, [])
-  const handlePreviewReset = useCallback(() => {
-    setPreviewZoom(1)
-    setPreviewOffset({ x: 0, y: 0 })
-    setPreviewDragging(false)
-  }, [])
-  const handlePreviewDownload = useCallback(async () => {
-    if (!previewDocument?.url || typeof window === 'undefined') return
-    try {
-      const blob = await fetchPreviewBlob(previewDocument.url)
-      const objectUrl = window.URL.createObjectURL(blob)
-      const anchor = document.createElement('a')
-      anchor.href = objectUrl
-      anchor.download = buildDownloadName(previewDocument.label, previewDocument.url)
-      document.body.appendChild(anchor)
-      anchor.click()
-      anchor.remove()
-      window.setTimeout(() => window.URL.revokeObjectURL(objectUrl), 1000)
-    } catch {
-      const anchor = document.createElement('a')
-      anchor.href = previewDocument.url
-      anchor.download = buildDownloadName(previewDocument.label, previewDocument.url)
-      anchor.rel = 'noreferrer'
-      document.body.appendChild(anchor)
-      anchor.click()
-      anchor.remove()
-    }
-  }, [previewDocument])
-  const handlePreviewPrint = useCallback(() => {
-    if (!previewDocument?.url) return
-    printDocumentSilently(previewDocument)
-  }, [previewDocument])
-  const handlePreviewWheel = useCallback((event) => {
-    if (!previewDocument?.isImage) return
-    event.preventDefault()
-    if (event.deltaY < 0) {
-      setPreviewZoom((prev) => Math.min(4, Number((prev + 0.2).toFixed(2))))
-      return
-    }
-    setPreviewZoom((prev) => {
-      const next = Math.max(1, Number((prev - 0.2).toFixed(2)))
-      if (next === 1) setPreviewOffset({ x: 0, y: 0 })
-      return next
-    })
-  }, [previewDocument])
-  const handlePreviewPointerDown = useCallback((event) => {
-    if (!previewDocument?.isImage || previewZoom <= 1) return
-    previewDragRef.current = {
-      startX: event.clientX,
-      startY: event.clientY,
-      originX: previewOffset.x,
-      originY: previewOffset.y
-    }
-    setPreviewDragging(true)
-  }, [previewDocument, previewOffset, previewZoom])
 
   return (
     !canManageEmployees ? (
@@ -3548,110 +1892,58 @@ export default function EmployeesListingView({ stage = "list" }) {
         {notice ? <p className="muted-text message-block--mb-16">{notice}</p> : null}
         <div className="users-table-wrap">
           {!loading ? (
-            currentView === 'returned' ? (
-              <div className="returned-list-surface">
-                <div className="returned-list-intro">
-                  <p className="muted-text message-block--mb-0">
-                    {`${returnedEmployeesHelpText()} Showing ${visibleEmployees.length} of ${total} candidates.`}
-                  </p>
-                  <button type="button" className="btn-secondary" onClick={openReturnRequestModal} disabled={readOnly}>
-                    +
-                  </button>
-                </div>
-                <div className="returned-request-surface">
-                  <h3>Requested returns</h3>
-                    {requestedReturnsLoading ? (
-                      <p className="muted-text">Loading requested returns...</p>
-                    ) : requestedReturns.length === 0 ? (
-                      <p className="muted-text">No pending return requests right now.</p>
-                    ) : (
-                      <div className="returned-request-list">
-                        {requestedReturns.map((employee) => {
-                          const canApproveHere = canManageOrganizationProcesses
-                          const canCancelHere = isAgentSideUser && employee.selection_state?.selected_by_current_agent
-                          return (
-                            <div key={`requested-return-${employee.id}`} className="returned-request-item">
-                              <button
-                                type="button"
-                                className="returned-request-item-main"
-                                onClick={() => {
-                                  setOpenedEmployeeMode('request')
-                                  setOpenedEmployeeId(employee.id)
-                                }}
-                              >
-                                <span>
-                                  <strong>{employee.full_name}</strong>
-                                  <span className="return-request-employee-meta">
-                                    {employee.profession || employee.professional_title || '--'}
-                                  </span>
-                                  <span className="return-request-employee-meta">
-                                    Requested by {employee.return_request?.requested_by_username || '--'} on {formatDateTime(employee.return_request?.requested_at)}
-                                  </span>
-                                </span>
-                                <span className="return-request-employee-state" data-tone={statusTone(employee.return_request?.status)}>
-                                  {prettyStatus(employee.return_request?.status)}
-                                </span>
-                              </button>
-                              <div className="returned-request-actions">
-                                {canApproveHere ? (
-                                  <>
-                                    <button
-                                      type="button"
-                                      className="btn-warning"
-                                      onClick={() => handleApproveEmploymentReturn(employee)}
-                                      disabled={readOnly || actionBusyId === employee.id}
-                                    >
-                                      {actionBusyId === employee.id ? 'Saving...' : 'Acknowledge return'}
-                                    </button>
-                                    <button
-                                      type="button"
-                                      className="btn-danger"
-                                      onClick={() => handleRefuseEmployeeReturnRequest(employee)}
-                                      disabled={readOnly || actionBusyId === employee.id}
-                                    >
-                                      {actionBusyId === employee.id ? 'Saving...' : 'Refuse request'}
-                                    </button>
-                                  </>
-                                ) : null}
-                                {canCancelHere ? (
-                                  <button
-                                    type="button"
-                                    className="btn-muted-action"
-                                    onClick={() => handleCancelEmployeeReturnRequest(employee)}
-                                    disabled={readOnly || actionBusyId === employee.id}
-                                  >
-                                    {actionBusyId === employee.id ? 'Saving...' : 'Cancel request'}
-                                  </button>
-                                ) : null}
-                              </div>
-                            </div>
-                          )
-                        })}
-                      </div>
-                    )}
-                </div>
-              </div>
-            ) : (
-              <p className="muted-text message-block--mb-12">
-                {filters.q ? `Filtering by "${filters.q}" — ` : ''}
-                {currentView === 'employed'
-                  ? `${employedEmployeesHelpText()} Showing ${visibleEmployees.length} of ${total} candidates.`
-                  : currentView === 'under-process'
-                  ? `${underProcessEmployeesHelpText(user)} Showing ${visibleEmployees.length} of ${total} candidates.`
-                  : currentView === 'selected'
-                  ? `${selectedEmployeesHelpText(user)} Showing ${visibleEmployees.length} of ${total} candidates.`
-                  : `Showing ${visibleEmployees.length} of ${total} candidates.`}
-              </p>
-            )
+            <p className="muted-text message-block--mb-12">
+              {filters.q ? `Filtering by "${filters.q}" — ` : ''}
+              {currentView === 'returned'
+                ? `${returnedEmployeesHelpText()} Showing ${visibleEmployees.length} of ${total} candidates.`
+                : currentView === 'employed'
+                ? `${employedEmployeesHelpText()} Showing ${visibleEmployees.length} of ${total} candidates.`
+                : currentView === 'under-process'
+                ? `${underProcessEmployeesHelpText(user)} Showing ${visibleEmployees.length} of ${total} candidates.`
+                : currentView === 'selected'
+                ? `${selectedEmployeesHelpText(user)} Showing ${visibleEmployees.length} of ${total} candidates.`
+                : `Showing ${visibleEmployees.length} of ${total} candidates.`}
+            </p>
           ) : null}
           {loading && !employeesData ? (
             <p className="muted-text">Loading candidates...</p>
           ) : visibleEmployees.length === 0 ? (
-            <div className="candidate-list-empty-feedback">
-              <svg viewBox="0 0 24 24" width="32" height="32" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                <circle cx="11" cy="11" r="8" />
-                <line x1="21" y1="21" x2="16.65" y2="16.65" />
-              </svg>
+            <div className="candidate-list-empty-feedback notifications-page-empty">
+              <div className="notifications-empty-icon candidate-empty-icon">
+                {filters.q || filters.isActive || filters.profession || filters.gender || filters.religion || filters.destinationCountry || filters.experience || filters.docStatus || filters.tag ? (
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+                    <circle cx="11" cy="11" r="8" />
+                    <line x1="21" y1="21" x2="16.65" y2="16.65" />
+                  </svg>
+                ) : currentView === 'employed' ? (
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+                    <rect x="2" y="7" width="20" height="14" rx="2" ry="2" />
+                    <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16" />
+                  </svg>
+                ) : currentView === 'returned' ? (
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+                    <polyline points="1 4 1 10 7 10" />
+                    <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10" />
+                  </svg>
+                ) : currentView === 'under-process' ? (
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+                    <circle cx="12" cy="12" r="10" />
+                    <polyline points="12 6 12 12 16 14" />
+                  </svg>
+                ) : currentView === 'selected' ? (
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+                    <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+                    <polyline points="22 4 12 14.01 9 11.01" />
+                  </svg>
+                ) : (
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+                    <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+                    <circle cx="9" cy="7" r="4" />
+                    <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+                    <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+                  </svg>
+                )}
+              </div>
               <h3>
                 {filters.q || filters.isActive || filters.profession || filters.gender || filters.religion || filters.destinationCountry || filters.experience || filters.docStatus || filters.tag
                   ? 'No candidates matched your filter criteria'
@@ -3699,43 +1991,47 @@ export default function EmployeesListingView({ stage = "list" }) {
             <>
               {primaryVisibleEmployees.length > 0 ? (
             <div className={`employee-cards${employeeCardsLayout === 'list' ? ' is-list' : ''}`} ref={employeeCardsGridRef}>
-              {primaryVisibleEmployees.map((employee) => (
-                <EmployeeCard
-                  key={employee.id}
-                  employee={employee}
-                  openedEmployeeId={openedEmployeeId}
-                  expandedEmployeeCardId={expandedEmployeeCardId}
-                  openEmployeeCardMenuId={openEmployeeCardMenuId}
-                  employeeCardsLayout={employeeCardsLayout}
-                  selectedEmployeeCardIds={selectedEmployeeCardIds}
-                  selectDeniedEmployeeCardIds={selectDeniedEmployeeCardIds}
-                  processAgentAssignments={processAgentAssignments}
-                  formOptions={formOptions}
-                  currentSelectedCardsGroup={currentSelectedCardsGroup}
-                  expandedEmployeeCardReadyId={expandedEmployeeCardReadyId}
-                  attachmentLabels={attachmentLabels}
-                  selectionGroupForEmployee={selectionGroupForEmployee}
-                  toggleEmployeeCardExpanded={toggleEmployeeCardExpanded}
-                  toggleEmployeeCardSelected={toggleEmployeeCardSelected}
-                  flashEmployeeCardSelectDenied={flashEmployeeCardSelectDenied}
-                  setOpenEmployeeCardMenuId={setOpenEmployeeCardMenuId}
-                  setOpenedEmployeeMode={setOpenedEmployeeMode}
-                  setOpenedEmployeeId={setOpenedEmployeeId}
-                  handleToggleSelectedEmployee={handleToggleSelectedEmployee}
-                  setExpandedEmployeeCardReadyId={setExpandedEmployeeCardReadyId}
-                  reflowEmployeeCardsMasonry={reflowEmployeeCardsMasonry}
-                  cancelFloatingAttachmentPreviewClose={cancelFloatingAttachmentPreviewClose}
-                  openFloatingAttachmentPreview={openFloatingAttachmentPreview}
-                  scheduleFloatingAttachmentPreviewClose={scheduleFloatingAttachmentPreviewClose}
-                  openDocumentPreview={openDocumentPreview}
-                  employeeCardItemRefs={employeeCardItemRefs}
-                  employeeCardResizeObserverRef={employeeCardResizeObserverRef}
-                  floatingAttachmentPreviewPopoverRef={floatingAttachmentPreviewPopoverRef}
-                  isAgentSideUser={isAgentSideUser}
-                  readOnly={readOnly}
-                  actionBusyId={actionBusyId}
-                />
-              ))}
+              {primaryVisibleEmployees.map((employee) => {
+                const isHidden = hiddenEmployeeIds.has(String(employee.id)) || hiddenEmployeeIds.has(Number(employee.id))
+                if (isHidden) return null
+                return (
+                  <EmployeeCard
+                    key={employee.id}
+                    employee={employee}
+                    openedEmployeeId={openedEmployeeId}
+                    expandedEmployeeCardId={expandedEmployeeCardId}
+                    openEmployeeCardMenuId={openEmployeeCardMenuId}
+                    employeeCardsLayout={employeeCardsLayout}
+                    selectedEmployeeCardIds={selectedEmployeeCardIds}
+                    selectDeniedEmployeeCardIds={selectDeniedEmployeeCardIds}
+                    processAgentAssignments={processAgentAssignments}
+                    formOptions={formOptions}
+                    currentSelectedCardsGroup={currentSelectedCardsGroup}
+                    expandedEmployeeCardReadyId={expandedEmployeeCardReadyId}
+                    attachmentLabels={attachmentLabels}
+                    selectionGroupForEmployee={selectionGroupForEmployee}
+                    toggleEmployeeCardExpanded={toggleEmployeeCardExpanded}
+                    toggleEmployeeCardSelected={toggleEmployeeCardSelected}
+                    flashEmployeeCardSelectDenied={flashEmployeeCardSelectDenied}
+                    setOpenEmployeeCardMenuId={setOpenEmployeeCardMenuId}
+                    setOpenedEmployeeMode={setOpenedEmployeeMode}
+                    setOpenedEmployeeId={setOpenedEmployeeId}
+                    handleToggleSelectedEmployee={handleToggleSelectedEmployee}
+                    setExpandedEmployeeCardReadyId={setExpandedEmployeeCardReadyId}
+                    reflowEmployeeCardsMasonry={reflowEmployeeCardsMasonry}
+                    cancelFloatingAttachmentPreviewClose={cancelFloatingAttachmentPreviewClose}
+                    openFloatingAttachmentPreview={openFloatingAttachmentPreview}
+                    scheduleFloatingAttachmentPreviewClose={scheduleFloatingAttachmentPreviewClose}
+                    openDocumentPreview={openDocumentPreview}
+                    employeeCardItemRefs={employeeCardItemRefs}
+                    employeeCardResizeObserverRef={employeeCardResizeObserverRef}
+                    floatingAttachmentPreviewPopoverRef={floatingAttachmentPreviewPopoverRef}
+                    isAgentSideUser={isAgentSideUser}
+                    readOnly={readOnly}
+                    actionBusyId={actionBusyId}
+                  />
+                )
+              })}
             </div>
               ) : null}
             </>
@@ -3764,6 +2060,7 @@ export default function EmployeesListingView({ stage = "list" }) {
         isOpen={returnRequestModalOpen}
         closeReturnRequestModal={closeReturnRequestModal}
         returnRequestError={returnRequestError}
+        setReturnRequestError={setReturnRequestError}
         returnRequestSearch={returnRequestSearch}
         setReturnRequestSearch={setReturnRequestSearch}
         loadReturnRequestEmployees={loadReturnRequestEmployees}
@@ -3773,807 +2070,38 @@ export default function EmployeesListingView({ stage = "list" }) {
         setSelectedReturnEmployeeId={setSelectedReturnEmployeeId}
         returnRequestRemark={returnRequestRemark}
         setReturnRequestRemark={setReturnRequestRemark}
+        returnRequestEvidenceFiles={returnRequestEvidenceFiles}
         handleReturnRequestEvidencePick={handleReturnRequestEvidencePick}
         handleSubmitReturnRequest={handleSubmitReturnRequest}
         readOnly={readOnly}
       />
       {openedEmployee ? (
-        <div className="employee-review-backdrop" role="presentation" onClick={() => setOpenedEmployeeId(null)}>
-          <button
-            type="button"
-            className="employee-review-nav-btn employee-review-nav-btn--prev"
-            onClick={(event) => {
-              event.stopPropagation()
-              navigateOpenedEmployee('previous')
-            }}
-            disabled={!previousOpenedEmployee}
-            aria-label="Previous candidate"
-            title={previousOpenedEmployee ? `Previous: ${previousOpenedEmployee.full_name}` : 'No previous candidate'}
-          >
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-              <path d="M15 5 8 12l7 7" />
-            </svg>
-          </button>
-          <div
-            className="employee-review-modal"
-            data-badge={openedEmployeeBadgeClass}
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="employee-review-title"
-            onClick={(event) => event.stopPropagation()}
-          >
-            <div className="employee-review-shell">
-              <header className="employee-review-profile">
-                <div className="employee-review-profile-left">
-                  <div
-                    className={`employee-card-avatar employee-review-avatar employee-review-avatar--lg${openedEmployeeProfileDocument?.file_url && isImageDocument(openedEmployeeProfileDocument) ? ' is-clickable' : ''}`}
-                    role={openedEmployeeProfileDocument?.file_url && isImageDocument(openedEmployeeProfileDocument) ? 'button' : undefined}
-                    tabIndex={openedEmployeeProfileDocument?.file_url && isImageDocument(openedEmployeeProfileDocument) ? 0 : undefined}
-                    onClick={
-                      openedEmployeeProfileDocument?.file_url && isImageDocument(openedEmployeeProfileDocument)
-                        ? () =>
-                            openDocumentPreview({
-                              url: openedEmployeeProfileDocument.file_url,
-                              label: `${openedEmployee.full_name} portrait`,
-                              isImage: true,
-                              isPdf: false
-                            })
-                        : undefined
-                    }
-                    onKeyDown={
-                      openedEmployeeProfileDocument?.file_url && isImageDocument(openedEmployeeProfileDocument)
-                        ? (event) => {
-                            if (event.key === 'Enter' || event.key === ' ') {
-                              event.preventDefault()
-                              openDocumentPreview({
-                                url: openedEmployeeProfileDocument.file_url,
-                                label: `${openedEmployee.full_name} portrait`,
-                                isImage: true,
-                                isPdf: false
-                              })
-                            }
-                          }
-                        : undefined
-                    }
-                  >
-                    {openedEmployeeProfileDocument?.file_url && isImageDocument(openedEmployeeProfileDocument) ? (
-                      <img src={openedEmployeeProfileDocument.file_url} alt={`${openedEmployee.full_name} profile`} />
-                    ) : (
-                      <span>{openedEmployee.full_name?.charAt(0) || '?'}</span>
-                    )}
-                  </div>
-                  <div className="employee-review-profile-meta">
-                    <p className="employee-modal-eyebrow">Candidate review</p>
-                    <h2 id="employee-review-title" className="employee-review-title">{openedEmployee.full_name}</h2>
-                    <p className="muted-text employee-review-subtitle">
-                      {openedEmployee.profession || openedEmployee.professional_title || '--'}
-                    </p>
-                    <div className="employee-review-pills" aria-label="Candidate status">
-                      <span className={`badge employee-card-status-badge ${openedEmployeeBadgeClass} ${employeeStatusBadgeVariantClass(openedEmployee)}`.trim()}>
-                        {employeeStatusLabel(openedEmployee)}
-                      </span>
-                      <span className="employee-status-pill employee-status-pill--neutral">
-                        {(openedEmployee.application_countries || [])[0] || '—'}
-                      </span>
-                      <span className="employee-status-pill employee-status-pill--neutral">{employeeAvailability(openedEmployee)}</span>
-                      {openedEmployeeReturnRequest?.status === 'pending' ? (
-                        <span className="employee-status-pill employee-status-pill--warning">Return requested</span>
-                      ) : null}
-                    </div>
-                  </div>
-                </div>
-
-                <div className="employee-review-actions" aria-label="Candidate actions">
-                  <div className="employee-review-actions-stack">
-                    <div className="employee-review-actions-secondary">
-                      {canManageOrganizationProcesses &&
-                      !openedEmployeeIsUnderProcess &&
-                      (!openedEmployeeIsEmployed && !openedEmployeeIsTravelled) &&
-                      !openedEmployeeIsReturned ? (
-                        <>
-                          <select
-                            value={openedEmployeeAssignedAgentId}
-                            onChange={(event) => {
-                              setPageError('')
-                              setProcessAgentAssignments((prev) => ({
-                                ...prev,
-                                [openedEmployee.id]: event.target.value
-                              }))
-                            }}
-                            disabled={readOnly || actionBusyId === openedEmployee.id}
-                          >
-                            <option value="">{formOptions.agent_options.length <= 1 ? 'Agent auto-selected' : 'Select agent'}</option>
-                            {formOptions.agent_options.map((agent) => (
-                              <option key={agent.id} value={String(agent.id)}>
-                                {agent.name || agent.username}
-                              </option>
-                            ))}
-                          </select>
-                          <button
-                            type="button"
-                            className="btn-secondary"
-                            onClick={() => handleStartProcess(openedEmployee)}
-                            disabled={readOnly || actionBusyId === openedEmployee.id || openedEmployee.status !== 'approved' || !openedEmployeeAssignedAgentId}
-                          >
-                            {actionBusyId === openedEmployee.id ? 'Saving...' : 'Initiate process'}
-                          </button>
-                        </>
-                      ) : null}
-                      {(!openedEmployeeIsEmployed && !openedEmployeeIsTravelled) &&
-                      !openedEmployeeIsReturned &&
-                      !openedEmployeeIsUnderProcess &&
-                      openedEmployeeIsAvailable ? (
-                        <button
-                          type="button"
-                          className="btn-secondary"
-                          onClick={() => handleToggleSelectedEmployee(openedEmployee)}
-                          title={openedEmployeeIsSelectedByCurrentAgent && !openedEmployeeCanUnselect ? 'Only the selecting account or agent owner can unselect this candidate.' : undefined}
-                          disabled={
-                            readOnly ||
-                            !isAgentSideUser ||
-                            actionBusyId === openedEmployee.id ||
-                            (openedEmployeeIsSelectedByCurrentAgent && !openedEmployeeCanUnselect)
-                          }
-                        >
-                          {actionBusyId === openedEmployee.id
-                            ? 'Saving...'
-                            : openedEmployeeIsSelectedByCurrentAgent
-                              ? 'Unselect candidate'
-                              : 'Select candidate'}
-                        </button>
-                      ) : null}
-                      {openedEmployeeReturnRequest ? (
-                        <button
-                          type="button"
-                          className="btn-secondary"
-                          onClick={() => setOpenedEmployeeMode((prev) => (prev === 'request' ? 'full' : 'request'))}
-                        >
-                          {openedEmployeeMode === 'request' ? 'Candidate details' : 'Return request'}
-                        </button>
-                      ) : null}
-
-                      {(!openedEmployeeIsEmployed && !openedEmployeeIsTravelled) && !openedEmployeeIsReturned ? (
-                        <>
-                          {isMainAgentAccount && !openedEmployeeIsUnderProcess ? (
-                            <button
-                              type="button"
-                              className="btn-secondary"
-                              onClick={() => handleStartProcess(openedEmployee)}
-                              disabled={
-                                readOnly ||
-                                actionBusyId === openedEmployee.id ||
-                                !openedEmployeeIsSelectedByCurrentAgent ||
-                                openedEmployee.status !== 'approved' ||
-                                openedEmployeeIsUnderProcess
-                              }
-                            >
-                              {actionBusyId === openedEmployee.id ? 'Saving...' : 'Proceed to process'}
-                            </button>
-                          ) : null}
-
-                          {canManageOrganizationProcesses && openedEmployeeIsUnderProcess ? (
-                            <button
-                              type="button"
-                              className="btn-danger"
-                              onClick={() => handleDeclineProcess(openedEmployee)}
-                              disabled={readOnly || actionBusyId === openedEmployee.id}
-                            >
-                              {actionBusyId === openedEmployee.id ? 'Saving...' : 'Decline process'}
-                            </button>
-                          ) : null}
-
-                          {canOverrideProgress && openedEmployeeIsUnderProcess && ((openedEmployee.progress_status?.overall_completion ?? 0) < 100 || !openedEmployee.did_travel) ? (
-                            <button
-                              type="button"
-                              className="btn-info"
-                              onClick={() => handleMarkProgressComplete(openedEmployee)}
-                              disabled={readOnly || actionBusyId === openedEmployee.id}
-                            >
-                              {actionBusyId === openedEmployee.id
-                                ? 'Saving...'
-                                : (openedEmployee.progress_status?.overall_completion ?? 0) >= 100
-                                  ? 'Confirm travelled'
-                                  : 'Mark progress 100%'}
-                            </button>
-                          ) : null}
-
-                          {openedEmployeeWorkflowState === 'pending' ? (
-                            <>
-                              <button type="button" className="btn-success" onClick={() => handleAvailabilityAction(openedEmployee, 'approved', 'Approved')} disabled={actionBusyId === openedEmployee.id || readOnly || isAgentSideUser}>
-                                {actionBusyId === openedEmployee.id ? 'Saving...' : 'Approve'}
-                              </button>
-                              <button type="button" className="btn-danger" onClick={() => handleAvailabilityAction(openedEmployee, 'rejected', 'Rejected')} disabled={actionBusyId === openedEmployee.id || readOnly || isAgentSideUser}>Reject</button>
-                              <button type="button" className="btn-warning" onClick={() => handleAvailabilityAction(openedEmployee, 'suspended', 'Suspended')} disabled={actionBusyId === openedEmployee.id || readOnly || isAgentSideUser}>Suspend</button>
-                            </>
-                          ) : null}
-
-                          {openedEmployeeWorkflowState === 'rejected' || openedEmployeeWorkflowState === 'suspended' ? (
-                            <button type="button" className="btn-secondary" onClick={() => handleAvailabilityAction(openedEmployee, 'pending', 'Moved to pending')} disabled={actionBusyId === openedEmployee.id || readOnly || isAgentSideUser}>
-                              {actionBusyId === openedEmployee.id ? 'Saving...' : 'Move to pending'}
-                            </button>
-                          ) : null}
-
-                          {canEditEmployeeRecords ? (
-                            <button type="button" className="btn-secondary" onClick={() => handleEdit(openedEmployee.id)} disabled={busyEmployeeId === openedEmployee.id || readOnly}>
-                              {busyEmployeeId === openedEmployee.id ? 'Loading...' : 'Edit'}
-                            </button>
-                          ) : null}
-
-                          <button type="button" className="btn-danger" onClick={() => handleDelete(openedEmployee)} disabled={readOnly || isAgentSideUser || openedEmployeeIsUnderProcess}>Delete</button>
-                        </>
-                      ) : null}
-
-                      {canApproveOpenedEmployeeReturn ? (
-                        <button
-                          type="button"
-                          className="btn-success"
-                          onClick={() => handleApproveEmploymentReturn(openedEmployee)}
-                          disabled={actionBusyId === openedEmployee.id || readOnly}
-                        >
-                          {actionBusyId === openedEmployee.id ? 'Saving...' : 'Approve'}
-                        </button>
-                      ) : null}
-                      {canRefuseOpenedEmployeeReturn ? (
-                        <button
-                          type="button"
-                          className="btn-secondary"
-                          onClick={() => handleRefuseEmployeeReturnRequest(openedEmployee)}
-                          disabled={actionBusyId === openedEmployee.id || readOnly}
-                        >
-                          {actionBusyId === openedEmployee.id ? 'Saving...' : 'Refuse'}
-                        </button>
-                      ) : null}
-                      {canCancelOpenedEmployeeReturnRequest ? (
-                        <button
-                          type="button"
-                          className="btn-secondary"
-                          onClick={() => handleCancelEmployeeReturnRequest(openedEmployee)}
-                          disabled={actionBusyId === openedEmployee.id || readOnly}
-                        >
-                          {actionBusyId === openedEmployee.id ? 'Saving...' : 'Cancel request'}
-                        </button>
-                      ) : null}
-                      {canReinstateOpenedEmployeeEmployment ? (
-                        <button
-                          type="button"
-                          className="btn-secondary"
-                          onClick={() => handleReinstateEmployeeEmployment(openedEmployee)}
-                          disabled={actionBusyId === openedEmployee.id || readOnly}
-                        >
-                          {actionBusyId === openedEmployee.id ? 'Saving...' : 'Reverse to employed'}
-                        </button>
-                      ) : null}
-
-                      <button type="button" className="btn-secondary" onClick={() => setOpenedEmployeeId(null)}>Close</button>
-                    </div>
-                  </div>
-                </div>
-              </header>
-
-              {openedEmployeeMode === 'request' ? (
-                <div className="employee-review-dashboard employee-review-dashboard--request">
-                  <section className="employee-review-panel">
-                    <div className="employee-review-panel-header">
-                      <h3>Commission</h3>
-                    </div>
-                    <div className="employee-review-kv">
-                      <div className="employee-review-kv-row">
-                        <span>Status</span>
-                        <strong>{employedCommissionLabel(openedEmployee)}</strong>
-                      </div>
-                      <p className="muted-text">Collection from the agent side to the organization is a future settlement concept.</p>
-                    </div>
-                  </section>
-
-                  <section className="employee-review-panel">
-                    <div className="employee-review-panel-header">
-                      <h3>Return request</h3>
-                    </div>
-                    {openedEmployeeReturnRequest ? (
-                      <div className="employee-review-activity">
-                        <div className="employee-review-activity-header">
-                          <span className={`employee-status-pill employee-status-pill--${openedEmployeeReturnRequest.status === 'pending' ? 'warning' : openedEmployeeReturnRequest.status === 'cancelled' || openedEmployeeReturnRequest.status === 'refused' ? 'danger' : 'neutral'}`}>
-                            {prettyStatus(openedEmployeeReturnRequest.status)}
-                          </span>
-                        </div>
-                        <div className="employee-review-activity-grid">
-                          <div>
-                            <div className="employee-review-activity-label">Requested by</div>
-                            <div className="employee-review-activity-value">{openedEmployeeReturnRequest.requested_by_username || '--'}</div>
-                          </div>
-                          <div>
-                            <div className="employee-review-activity-label">Requested at</div>
-                            <div className="employee-review-activity-value">{formatDateTime(openedEmployeeReturnRequest.requested_at)}</div>
-                          </div>
-                          <div>
-                            <div className="employee-review-activity-label">Responded by</div>
-                            <div className="employee-review-activity-value">{openedEmployeeReturnRequest.approved_by_username || '--'}</div>
-                          </div>
-                          <div>
-                            <div className="employee-review-activity-label">Responded at</div>
-                            <div className="employee-review-activity-value">{formatDateTime(openedEmployeeReturnRequest.approved_at)}</div>
-                          </div>
-                          <div>
-                            <div className="employee-review-activity-label">Remark</div>
-                            <div
-                              className="employee-review-activity-value employee-review-activity-value--truncate"
-                              title={openedEmployeeReturnRequest.remark || ''}
-                            >
-                              {openedEmployeeReturnRequest.remark || '--'}
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    ) : (
-                      <p className="muted-text">None</p>
-                    )}
-                  </section>
-                </div>
-              ) : (
-                <>
-                  <div className="employee-review-dashboard">
-                    <section className="employee-review-panel employee-review-panel--overview">
-                      <div className="employee-review-panel-header">
-                        <h3 className="employee-review-panel-title">
-                          <span className="employee-review-panel-icon" aria-hidden="true">
-                            <svg viewBox="0 0 24 24" width="18" height="18" fill="none">
-                              <path d="M20 21a8 8 0 0 0-16 0" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-                              <path d="M12 13a5 5 0 1 0 0-10 5 5 0 0 0 0 10Z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-                            </svg>
-                          </span>
-                          Candidate Overview
-                        </h3>
-                      </div>
-                      <div className="employee-review-kv employee-review-kv--icon-list">
-                        <div className="employee-review-kv-row">
-                          <span className="employee-review-kv-icon" aria-hidden="true">
-                            <svg viewBox="0 0 24 24" width="18" height="18" fill="none">
-                              <path d="M7 3v3M17 3v3" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-                              <path d="M4 7h16" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-                              <path d="M6 5h12a2 2 0 0 1 2 2v13a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2Z" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" />
-                              <path d="M8 11h3M8 15h3M13 11h3M13 15h3" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-                            </svg>
-                          </span>
-                          <span className="employee-review-kv-label">Age</span>
-                          <span className="employee-review-kv-value">{openedEmployee.age || '—'}</span>
-                        </div>
-                        <div className="employee-review-kv-row">
-                          <span className="employee-review-kv-icon" aria-hidden="true">
-                            <svg viewBox="0 0 24 24" width="18" height="18" fill="none">
-                              <path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10Z" stroke="currentColor" strokeWidth="2" />
-                              <path d="m8.5 12.5 2.2 2.2 4.8-5.4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                            </svg>
-                          </span>
-                          <span className="employee-review-kv-label">Availability</span>
-                          <span className="employee-review-kv-value">{employeeAvailability(openedEmployee)}</span>
-                        </div>
-                        <div className="employee-review-kv-row">
-                          <span className="employee-review-kv-icon" aria-hidden="true">
-                            <svg viewBox="0 0 24 24" width="18" height="18" fill="none">
-                              <path d="M6.5 3h2l1.2 4.8-1.6 1.6a14 14 0 0 0 6.1 6.1l1.6-1.6L21 15.5v2A2.5 2.5 0 0 1 18.5 20 15.5 15.5 0 0 1 4 5.5 2.5 2.5 0 0 1 6.5 3Z" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" />
-                            </svg>
-                          </span>
-                          <span className="employee-review-kv-label">Phone</span>
-                          <span className="employee-review-kv-value">{openedEmployee.phone || openedEmployee.mobile_number || '—'}</span>
-                        </div>
-                        <div className="employee-review-kv-row">
-                          <span className="employee-review-kv-icon" aria-hidden="true">
-                            <svg viewBox="0 0 24 24" width="18" height="18" fill="none">
-                              <path d="M4 6h16v12H4V6Z" stroke="currentColor" strokeWidth="2" />
-                              <path d="m4 7 8 6 8-6" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" />
-                            </svg>
-                          </span>
-                          <span className="employee-review-kv-label">Email</span>
-                          <span className="employee-review-kv-value">{openedEmployee.email || '—'}</span>
-                        </div>
-                        <div className="employee-review-kv-row">
-                          <span className="employee-review-kv-icon" aria-hidden="true">
-                            <svg viewBox="0 0 24 24" width="18" height="18" fill="none">
-                              <path d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8Z" stroke="currentColor" strokeWidth="2" />
-                              <path d="M20 20a8 8 0 0 0-16 0" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-                            </svg>
-                          </span>
-                          <span className="employee-review-kv-label">Registered by</span>
-                          <span className="employee-review-kv-value">{openedEmployee.registered_by_username || '—'}</span>
-                        </div>
-                        {openedEmployee.selection_state?.selection ? (
-                          <div className="employee-review-kv-row">
-                            <span className="employee-review-kv-icon" aria-hidden="true">
-                              <svg viewBox="0 0 24 24" width="18" height="18" fill="none">
-                                <path d="M12 21s7-4.35 7-10a7 7 0 0 0-14 0c0 5.65 7 10 7 10Z" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" />
-                                <path d="M9.5 11.5 11 13l3.5-4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                              </svg>
-                            </span>
-                            <span className="employee-review-kv-label">{openedEmployee.selection_state.selection.status === 'under_process' ? 'Process owner' : 'Selected by'}</span>
-                            <span className="employee-review-kv-value">{openedEmployee.selection_state.selection.agent_name || '—'}</span>
-                          </div>
-                        ) : null}
-                        <div className="employee-review-kv-row">
-                          <span className="employee-review-kv-icon" aria-hidden="true">
-                            <svg viewBox="0 0 24 24" width="18" height="18" fill="none">
-                              <path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10Z" stroke="currentColor" strokeWidth="2" />
-                              <path d="M2 12h20" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-                              <path d="M12 2a15 15 0 0 1 0 20" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-                              <path d="M12 2a15 15 0 0 0 0 20" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-                            </svg>
-                          </span>
-                          <span className="employee-review-kv-label">Destination</span>
-                          <span className="employee-review-kv-value">{openedEmployee.application_countries?.join(', ') || '—'}</span>
-                        </div>
-                      </div>
-                    </section>
-
-                    <section className="employee-review-panel employee-review-panel--progress">
-                      <div className="employee-review-panel-header">
-                        <h3 className="employee-review-panel-title">
-                          <span className="employee-review-panel-icon" aria-hidden="true">
-                            <svg viewBox="0 0 24 24" width="18" height="18" fill="none">
-                              <path d="M4 18V6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-                              <path d="M4 18h16" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-                              <path d="M6 15l4-4 3 3 6-8" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                              <path d="M10 11h0" stroke="currentColor" strokeWidth="6" strokeLinecap="round" />
-                              <path d="M13 14h0" stroke="currentColor" strokeWidth="6" strokeLinecap="round" />
-                              <path d="M19 6h0" stroke="currentColor" strokeWidth="6" strokeLinecap="round" />
-                            </svg>
-                          </span>
-                          Application Progress
-                        </h3>
-                      </div>
-                      <div className="employee-review-progress">
-                        <div className="employee-review-progress-left">
-                          <div className="employee-progress-donut" aria-label={`Progress ${openedEmployeeProgress.overallProgress}%`}>
-                            <svg viewBox="0 0 120 120" role="img" aria-hidden="true">
-                              <circle cx="60" cy="60" r={openedEmployeeProgress.radius} className="employee-progress-track" />
-                              <circle
-                                cx="60"
-                                cy="60"
-                                r={openedEmployeeProgress.radius}
-                                className="employee-progress-value"
-                                style={{ stroke: `var(--employee-progress-tone, ${openedEmployeeProgress.tone})` }}
-                                strokeDasharray={openedEmployeeProgress.circumference}
-                                strokeDashoffset={openedEmployeeProgress.dashOffset}
-                              />
-                            </svg>
-                            <div className="employee-progress-donut-label">
-                              <strong>{openedEmployeeProgress.overallProgress}%</strong>
-                              <span>Overall</span>
-                            </div>
-                          </div>
-
-                          <div className="employee-review-kv employee-review-kv--icon-list employee-review-kv--metrics" aria-label="Progress metrics">
-                            <div className="employee-review-kv-row">
-                              <span className="employee-review-kv-icon" aria-hidden="true">
-                                <svg viewBox="0 0 24 24" width="18" height="18" fill="none">
-                                  <path d="M4 19V5a2 2 0 0 1 2-2h8l6 6v10a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2Z" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" />
-                                  <path d="M14 3v6h6" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" />
-                                </svg>
-                              </span>
-                              <span className="employee-review-kv-label">Fields</span>
-                              <span className="employee-review-kv-value">{openedEmployee.progress_status?.field_completion ?? 0}%</span>
-                            </div>
-                            <div className="employee-review-kv-row">
-                              <span className="employee-review-kv-icon" aria-hidden="true">
-                                <svg viewBox="0 0 24 24" width="18" height="18" fill="none">
-                                  <path d="M9 3h6l1 2h4v16a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V5h4l1-2Z" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" />
-                                  <path d="M8 11h8M8 15h8" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-                                </svg>
-                              </span>
-                              <span className="employee-review-kv-label">Documents</span>
-                              <span className="employee-review-kv-value">{openedEmployee.progress_status?.document_completion ?? 0}%</span>
-                            </div>
-                            <div className="employee-review-kv-row">
-                              <span className="employee-review-kv-icon" aria-hidden="true">
-                                <svg viewBox="0 0 24 24" width="18" height="18" fill="none">
-                                  <path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10Z" stroke="currentColor" strokeWidth="2" />
-                                  <path d="m8.5 12.5 2.2 2.2 4.8-5.4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                                </svg>
-                              </span>
-                              <span className="employee-review-kv-label">Status</span>
-                              <span className="employee-review-kv-value">{employeeStatusLabel(openedEmployee)}</span>
-                            </div>
-                          </div>
-                        </div>
-
-                        <div className="employee-review-progress-divider" aria-hidden="true" />
-
-                        <ol className="employee-review-stepper employee-review-stepper--progress" aria-label="Progress steps">
-                          {[
-                            {
-                              key: 'profile',
-                              label: 'Profile Completed',
-                              done: (openedEmployee.progress_status?.field_completion ?? 0) >= 100,
-                              date: openedEmployee?.created_at
-                            },
-                            {
-                              key: 'documents',
-                              label: 'Documents Verified',
-                              done: (openedEmployee.progress_status?.document_completion ?? 0) >= 100,
-                              date: resolveLatestDate(openedEmployeeDocuments, ['verified_at', 'updated_at', 'created_at'])
-                            },
-                            {
-                              key: 'selected',
-                              label: 'Selected',
-                              done: Boolean(openedEmployee.selection_state?.selection),
-                              date:
-                                openedEmployee.selection_state?.selection?.created_at ||
-                                openedEmployee.selection_state?.selection?.selected_at ||
-                                ''
-                            },
-                            {
-                              key: 'travel',
-                              label: 'Traveled',
-                              done: String(openedEmployee.travel_status || 'pending') !== 'pending',
-                              date: openedEmployee.departure_date || openedEmployee.travelled_at || openedEmployee.traveled_at || ''
-                            },
-                            {
-                              key: 'arrived',
-                              label: 'Arrived',
-                              done: Boolean(openedEmployee.did_travel) || String(openedEmployee.travel_status || '').includes('arrived'),
-                              date: openedEmployee.arrived_at || openedEmployee.arrival_date || ''
-                            },
-                            {
-                              key: 'returned',
-                              label: 'Returned',
-                              done: openedEmployeeIsReturned,
-                              date:
-                                openedEmployee.return_request?.approved_at ||
-                                openedEmployee.returned_at ||
-                                openedEmployee.returned_on ||
-                                ''
-                            }
-                          ].map((step) => (
-                            <li key={step.key} className={`employee-review-step${step.done ? ' is-done' : ''}`}>
-                              <span className="employee-review-step-icon" aria-hidden="true">
-                                {step.done ? (
-                                  <svg viewBox="0 0 24 24" width="12" height="12" fill="none">
-                                    <path d="M20 6 9 17l-5-5" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
-                                  </svg>
-                                ) : null}
-                              </span>
-                              <div className="employee-review-step-copy">
-                                <span className="employee-review-step-label">{step.label}</span>
-                                <span className="employee-review-step-date muted-text">
-                                  {formatShortDate(step.date)}
-                                </span>
-                              </div>
-                            </li>
-                          ))}
-                        </ol>
-                      </div>
-                    </section>
-
-                    <section className="employee-review-panel employee-review-panel--finance">
-                      <div className="employee-review-panel-header">
-                        <h3 className="employee-review-panel-title">
-                          <span className="employee-review-panel-icon" aria-hidden="true">
-                            <svg viewBox="0 0 24 24" width="18" height="18" fill="none">
-                              <path d="M12 2v20" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-                              <path d="M17 6.5c0-2-2.2-3.5-5-3.5s-5 1.5-5 3.5 2.2 3.5 5 3.5 5 1.5 5 3.5-2.2 3.5-5 3.5-5-1.5-5-3.5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                            </svg>
-                          </span>
-                          Commission / Finance
-                        </h3>
-                      </div>
-                      <div className="employee-review-finance-cards">
-                        <div className={`employee-review-finance-card${String(employedCommissionLabel(openedEmployee)).toLowerCase().includes('pending') ? ' is-pending' : ''}`}>
-                          <div className="employee-review-kv employee-review-kv--metrics">
-                            <div className="employee-review-kv-row">
-                              <span className="employee-review-kv-label">Status</span>
-                              <span className="employee-review-kv-value">{employedCommissionLabel(openedEmployee)}</span>
-                            </div>
-                          </div>
-                        </div>
-                        <div className="employee-review-finance-card">
-                          <div className="employee-review-kv employee-review-kv--metrics">
-                            <div className="employee-review-kv-row">
-                              <span className="employee-review-kv-label">Settlement</span>
-                              <span className="employee-review-kv-value">
-                                Collection from agent side to the organization is a future settlement concept.
-                              </span>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    </section>
-                  </div>
-
-                  <section className="employee-review-panel employee-review-panel--documents">
-                    <div className="employee-review-panel-header employee-review-panel-header--split employee-review-panel-header--documents">
-                      <h3 className="employee-review-panel-title">
-                        <span className="employee-review-panel-icon" aria-hidden="true">
-                          <svg viewBox="0 0 24 24" width="18" height="18" fill="none">
-                            <path d="M14 2H7a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8l-5-6Z" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" />
-                            <path d="M14 2v6h6" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" />
-                          </svg>
-                        </span>
-                        Documents
-                      </h3>
-                    </div>
-                    <div className="employee-review-doc-filters">
-                      <div className="employee-review-tabs" role="tablist" aria-label="Document filters">
-                        {[
-                          { id: 'all', label: 'All' },
-                          { id: 'passport', label: 'Passport' },
-                          { id: 'contract', label: 'Contract' },
-                          { id: 'medical', label: 'Medical' },
-                          { id: 'photos', label: 'Photos' },
-                          { id: 'returns', label: 'Returns' },
-                          { id: 'other', label: 'Other' }
-                        ].map((tab) => (
-                          <span
-                            key={tab.id}
-                            role="tab"
-                            className={`employee-review-tab${reviewDocumentsTab === tab.id ? ' is-active' : ''}`}
-                            onClick={() => setReviewDocumentsTab(tab.id)}
-                            aria-selected={reviewDocumentsTab === tab.id}
-                            tabIndex={0}
-                            onKeyDown={(event) => {
-                              if (event.key === 'Enter' || event.key === ' ') {
-                                event.preventDefault()
-                                setReviewDocumentsTab(tab.id)
-                              }
-                            }}
-                          >
-                            {tab.label}
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-                    <div className="employee-review-doc-scroller-wrap" aria-label="Employee documents">
-                      {reviewDocumentsFiltered.length === 0 ? (
-                        <p className="muted-text employee-review-empty">No documents found.</p>
-                      ) : (
-                        <>
-                          <div className="employee-review-doc-scroller" ref={reviewDocsScrollerRef} onScroll={scheduleReviewDocsScrollStateUpdate}>
-                            <div className="employee-review-doc-grid">
-                              {reviewDocumentsCards}
-                            </div>
-                          </div>
-                          <button
-                            type="button"
-                            className="employee-review-doc-scroll-btn employee-review-doc-scroll-btn--left"
-                            onClick={scrollReviewDocumentsPrev}
-                            disabled={!reviewDocsCanScrollLeft}
-                            aria-label="Scroll documents left"
-                          >
-                            <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
-                              <path d="M15 18 9 12l6-6" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
-                            </svg>
-                          </button>
-                          <button
-                            type="button"
-                            className="employee-review-doc-scroll-btn"
-                            onClick={scrollReviewDocumentsNext}
-                            disabled={!reviewDocsCanScrollRight}
-                            aria-label="Scroll documents right"
-                          >
-                            <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
-                              <path d="m9 18 6-6-6-6" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
-                            </svg>
-                          </button>
-                        </>
-                      )}
-                    </div>
-                  </section>
-
-                  <section className="employee-review-panel employee-review-panel--activity">
-                    <div className="employee-review-panel-header">
-                      <h3 className="employee-review-panel-title">
-                        <span className="employee-review-panel-icon" aria-hidden="true">
-                          <svg viewBox="0 0 24 24" width="18" height="18" fill="none">
-                            <path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10Z" stroke="currentColor" strokeWidth="2" />
-                            <path d="M12 6v6l4 2" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                          </svg>
-                        </span>
-                        Activity / Return requests
-                      </h3>
-                    </div>
-                    {openedEmployeeReturnRequest ? (
-                      <div className="employee-review-activity employee-review-activity--timeline">
-                        <ol className="employee-review-stepper employee-review-stepper--progress employee-review-stepper--activity" aria-label="Return request activity">
-                          <li className="employee-review-step is-done">
-                            <span className="employee-review-step-icon" aria-hidden="true">
-                              <svg viewBox="0 0 24 24" width="12" height="12" fill="none">
-                                <path d="M20 6 9 17l-5-5" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
-                              </svg>
-                            </span>
-                            <div className="employee-review-step-copy">
-                              <span className="employee-review-step-label">{formatShortDate(openedEmployeeReturnRequest.requested_at)}</span>
-                              <span className="employee-review-step-date muted-text">{formatShortTime(openedEmployeeReturnRequest.requested_at)}</span>
-                            </div>
-                          </li>
-                        </ol>
-                        <div className="employee-review-activity-body">
-                          <div className="employee-review-activity-header">
-                            <div className="employee-review-activity-title-row">
-                              <strong className="employee-review-activity-title">Return Request</strong>
-                              <span
-                                className={`employee-status-pill employee-status-pill--${
-                                  openedEmployeeReturnRequest.status === 'pending'
-                                    ? 'warning'
-                                    : openedEmployeeReturnRequest.status === 'cancelled' || openedEmployeeReturnRequest.status === 'refused'
-                                      ? 'danger'
-                                      : 'neutral'
-                                }`}
-                              >
-                                {prettyStatus(openedEmployeeReturnRequest.status)}
-                              </span>
-                            </div>
-                          </div>
-                          <div className="employee-review-activity-grid">
-                            <div>
-                              <div className="employee-review-activity-label">Requested by</div>
-                              <div className="employee-review-activity-value">{openedEmployeeReturnRequest.requested_by_username || '--'}</div>
-                            </div>
-                            <div>
-                              <div className="employee-review-activity-label">Requested at</div>
-                              <div className="employee-review-activity-value">{formatDateTime(openedEmployeeReturnRequest.requested_at)}</div>
-                            </div>
-                            <div>
-                              <div className="employee-review-activity-label">Responded by</div>
-                              <div className="employee-review-activity-value">{openedEmployeeReturnRequest.approved_by_username || '--'}</div>
-                            </div>
-                            <div>
-                              <div className="employee-review-activity-label">Responded at</div>
-                              <div className="employee-review-activity-value">{formatDateTime(openedEmployeeReturnRequest.approved_at)}</div>
-                            </div>
-                            {openedEmployee.returned_recorded_by_username ? (
-                              <div>
-                                <div className="employee-review-activity-label">Returned recorded by</div>
-                                <div className="employee-review-activity-value">{openedEmployee.returned_recorded_by_username}</div>
-                              </div>
-                            ) : null}
-                            <div>
-                              <div className="employee-review-activity-label">Remark</div>
-                              <div
-                                className="employee-review-activity-value employee-review-activity-value--truncate"
-                                title={openedEmployeeReturnRequest.remark || ''}
-                              >
-                                {openedEmployeeReturnRequest.remark || '--'}
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    ) : (
-                      <p className="muted-text employee-review-empty">No return requests found.</p>
-                    )}
-                  </section>
-                </>
-              )}
-            </div>
-          </div>
-          <button
-            type="button"
-            className="employee-review-nav-btn employee-review-nav-btn--next"
-            onClick={(event) => {
-              event.stopPropagation()
-              navigateOpenedEmployee('next')
-            }}
-            disabled={!nextOpenedEmployee}
-            aria-label="Next candidate"
-            title={nextOpenedEmployee ? `Next: ${nextOpenedEmployee.full_name}` : 'No next candidate'}
-          >
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-              <path d="m9 5 7 7-7 7" />
-            </svg>
-          </button>
-        </div>
+        <EmployeeReviewModal
+          isOpen={Boolean(openedEmployee)}
+          onClose={() => setOpenedEmployeeId(null)}
+          employee={openedEmployee}
+          onNavigate={navigateOpenedEmployee}
+          hasPrevious={Boolean(previousOpenedEmployee)}
+          hasNext={Boolean(nextOpenedEmployee)}
+          previousEmployee={previousOpenedEmployee}
+          nextEmployee={nextOpenedEmployee}
+          onStartProcess={handleStartProcess}
+          onToggleSelected={handleToggleSelectedEmployee}
+          onDeclineProcess={handleDeclineProcess}
+          onMarkProgressComplete={handleMarkProgressComplete}
+          onAvailabilityAction={handleAvailabilityAction}
+          onEdit={handleEdit}
+          onDelete={handleDelete}
+          onApproveReturn={handleApproveEmploymentReturn}
+          onRefuseReturn={handleRefuseEmployeeReturnRequest}
+          onCancelReturnRequest={handleCancelEmployeeReturnRequest}
+          onReinstateEmployment={handleReinstateEmployeeEmployment}
+          agentOptions={formOptions.agent_options}
+          attachmentLabels={attachmentLabels}
+          currentView={currentView}
+          readOnly={readOnly}
+        />
       ) : null}
-      <EmployeeDocumentPreview
-        previewDocument={previewDocument}
-        closeDocumentPreview={closeDocumentPreview}
-        handlePreviewDownload={handlePreviewDownload}
-        handlePreviewPrint={handlePreviewPrint}
-        previewZoom={previewZoom}
-        handlePreviewZoomOut={handlePreviewZoomOut}
-        handlePreviewZoomIn={handlePreviewZoomIn}
-        handlePreviewReset={handlePreviewReset}
-        previewOffset={previewOffset}
-        previewDragging={previewDragging}
-        handlePreviewWheel={handlePreviewWheel}
-        handlePreviewPointerDown={handlePreviewPointerDown}
-      />
       {floatingAttachmentPreview && typeof document !== 'undefined'
         ? createPortal(
           <div

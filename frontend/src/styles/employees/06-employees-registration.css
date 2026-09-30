@@ -3927,7 +3927,7 @@ html[data-density='compact'] .employee-scan-choice-footer {
   align-items: center !important;
   justify-content: center !important;
   padding: 16px !important;
-  z-index: 1000 !important;
+  z-index: var(--overlay-z-index, 1000) !important;
 }
 
 /* 2. Modal Dialog Container Elevation & Surface (Dark & Light) */

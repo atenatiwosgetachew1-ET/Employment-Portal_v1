@@ -11,6 +11,7 @@ from ..models import (
     EmployeeSelection,
     EmployeeSelectionInterest,
     EmployeeTravelBooking,
+    Profile,
 )
 from .helpers import (
     ALLOWED_EMPLOYEE_DOCUMENT_EXTENSIONS,
@@ -126,6 +127,11 @@ class EmployeeReturnRequestSerializer(serializers.ModelSerializer):
         read_only=True,
         allow_null=True,
     )
+    requested_by_id = serializers.IntegerField(
+        source="requested_by.id",
+        read_only=True,
+        allow_null=True,
+    )
     approved_by_username = serializers.CharField(
         source="approved_by.username",
         read_only=True,
@@ -134,13 +140,18 @@ class EmployeeReturnRequestSerializer(serializers.ModelSerializer):
     evidence_file_1_url = serializers.SerializerMethodField()
     evidence_file_2_url = serializers.SerializerMethodField()
     evidence_file_3_url = serializers.SerializerMethodField()
+    requested_by_side = serializers.SerializerMethodField()
+    is_requester = serializers.SerializerMethodField()
 
     class Meta:
         model = EmployeeReturnRequest
         fields = (
             "status",
             "remark",
+            "requested_by_id",
             "requested_by_username",
+            "requested_by_side",
+            "is_requester",
             "requested_at",
             "approved_by_username",
             "approved_at",
@@ -168,6 +179,39 @@ class EmployeeReturnRequestSerializer(serializers.ModelSerializer):
 
     def get_evidence_file_3_url(self, obj):
         return self._build_file_url(obj, "evidence_file_3")
+
+    def get_requested_by_side(self, obj):
+        if not obj.requested_by:
+            return "organization"
+        profile = getattr(obj.requested_by, "profile", None)
+        if not profile:
+            return "organization"
+        if profile.role == Profile.ROLE_CUSTOMER:
+            return "agent"
+        staff_side = (profile.staff_side or "").strip()
+        org_name = (obj.organization.name or "").strip() if obj.organization else ""
+        if staff_side and staff_side != org_name:
+            return "agent"
+        return "organization"
+
+    def get_is_requester(self, obj):
+        request = self.context.get("request")
+        if not request or not request.user or not request.user.is_authenticated:
+            return False
+        if obj.requested_by_id == request.user.id:
+            return True
+        user_profile = getattr(request.user, "profile", None)
+        user_is_agent = False
+        if user_profile:
+            if user_profile.role == Profile.ROLE_CUSTOMER:
+                user_is_agent = True
+            elif user_profile.role == Profile.ROLE_STAFF:
+                staff_side = (user_profile.staff_side or "").strip()
+                org_name = (obj.organization.name or "").strip() if obj.organization else ""
+                if staff_side and staff_side != org_name:
+                    user_is_agent = True
+        req_side = self.get_requested_by_side(obj)
+        return (user_is_agent and req_side == "agent") or (not user_is_agent and req_side == "organization")
 
 
 class EmployeeTravelBookingSerializer(serializers.ModelSerializer):
@@ -337,6 +381,8 @@ class EmployeeListSerializer(serializers.ModelSerializer):
             "selection_state",
             "travel_booking",
             "return_request",
+            "did_travel",
+            "progress_override_complete",
             "returned_from_employment",
             "returned_recorded_by_username",
             "registered_by_username",

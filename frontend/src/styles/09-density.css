@@ -445,6 +445,7 @@ html[data-density='compact'] .employee-review-shell {
 }
 
 html[data-density='compact'] .employee-review-profile {
+  min-height: 88px;
   padding: 12px;
   border-radius: 12px;
 }
@@ -477,9 +478,24 @@ html[data-density='compact'] .employee-review-panel {
   border-radius: 6px;
 }
 
+html[data-density='compact'] .employee-review-dashboard .employee-review-panel,
+html[data-density='compact'] .employee-review-panel--overview,
+html[data-density='compact'] .employee-review-panel--progress,
+html[data-density='compact'] .employee-review-panel--finance {
+  height: 215px;
+  min-height: 215px;
+  max-height: 215px;
+  overflow: hidden;
+}
+
 html[data-density='compact'] .employee-review-panel-header {
-  padding-bottom: 8px;
-  margin-bottom: 10px;
+  height: 34px;
+  min-height: 34px;
+  max-height: 34px;
+  padding-bottom: 7px;
+  margin-bottom: 8px;
+  box-sizing: border-box;
+  flex-shrink: 0;
 }
 
 html[data-density='compact'] .employee-review-kv {
@@ -514,18 +530,44 @@ html[data-density='compact'] .employee-review-panel-title {
   gap: 8px;
 }
 
-html[data-density='compact'] .employee-review-panel-header {
-  padding-bottom: 7px;
-  margin-bottom: 8px;
+
+html[data-density='compact'] .employee-review-panel--overview {
+  padding: 14px 18px;
 }
 
-html[data-density='compact'] .employee-review-panel--overview .employee-review-kv {
-  gap: 1px;
+html[data-density='compact'] .employee-review-panel--progress {
+  padding: 12px 14px;
 }
 
-html[data-density='compact'] .employee-review-panel--overview .employee-review-kv-row {
-  grid-template-columns: 26px minmax(0, 0.6fr) minmax(0, 1fr);
-  gap: 10px;
+html[data-density='compact'] .employee-review-overview-grid {
+  gap: 0 24px;
+}
+
+html[data-density='compact'] .employee-review-overview-item {
+  padding: 7px 6px;
+  gap: 12px;
+}
+
+html[data-density='compact'] .employee-review-overview-label {
+  font-size: 0.78rem;
+  gap: 8px;
+}
+
+html[data-density='compact'] .employee-review-overview-icon {
+  width: 20px;
+  height: 20px;
+  min-width: 20px;
+  min-height: 20px;
+  border-radius: 5px;
+}
+
+html[data-density='compact'] .employee-review-overview-icon svg {
+  width: 12px;
+  height: 12px;
+}
+
+html[data-density='compact'] .employee-review-overview-value {
+  font-size: 0.81rem;
 }
 
 html[data-density='compact'] .employee-review-kv--icon-list .employee-review-kv-row {
@@ -538,81 +580,99 @@ html[data-density='compact'] .employee-review-kv--metrics {
 }
 
 html[data-density='compact'] .employee-review-progress {
-  gap: 10px;
-}
-
-html[data-density='compact'] .employee-review-stepper {
-  gap: 6px;
-}
-
-html[data-density='compact'] .employee-review-step {
-  font-size: 0.78rem;
-}
-
-html[data-density='compact'] .employee-review-progress {
-  grid-template-columns: minmax(0, 1fr) 10px minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1.35fr) 1px minmax(0, 1fr);
+  gap: 12px;
 }
 
 html[data-density='compact'] .employee-review-progress-left {
-  gap: 1px;
+  gap: 6px;
 }
 
-html[data-density='compact'] .employee-review-metric {
-  padding: 8px 10px;
-  border-radius: 12px;
-  grid-template-columns: 24px minmax(0, 1fr) auto;
+html[data-density='compact'] .employee-review-progress-metric {
+  padding: 3.5px 0;
+  gap: 6px;
 }
 
-html[data-density='compact'] .employee-review-metric-icon {
-  width: 24px;
-  height: 24px;
-  border-radius: 9px;
+html[data-density='compact'] .employee-review-progress-metric-label {
+  font-size: 0.72rem;
+  gap: 5px;
 }
 
-html[data-density='compact'] .employee-review-metric-label {
-  font-size: 0.7rem;
+html[data-density='compact'] .employee-review-progress-metric-icon {
+  width: 16px;
+  height: 16px;
+  min-width: 16px;
+  min-height: 16px;
+  border-radius: 3px;
 }
 
-html[data-density='compact'] .employee-review-metric-value {
-  font-size: 0.78rem;
+html[data-density='compact'] .employee-review-progress-metric-icon svg {
+  width: 10px;
+  height: 10px;
 }
 
-html[data-density='compact'] .employee-review-step-icon {
-  width: 18px;
-  height: 18px;
+html[data-density='compact'] .employee-review-progress-metric-value {
+  font-size: 0.76rem;
 }
 
-html[data-density='compact'] .employee-review-step-date {
-  font-size: 0.6rem;
+html[data-density='compact'] .employee-progress-donut {
+  width: 68px;
+  height: 68px;
+  flex-basis: 68px;
 }
 
-html[data-density='compact'] .employee-review-step-label {
-  font-size: 0.7rem;
+html[data-density='compact'] .employee-progress-donut-label strong {
+  font-size: 0.74rem;
+}
+
+html[data-density='compact'] .employee-progress-donut-label span {
+  font-size: 0.50rem;
+}
+
+html[data-density='compact'] .employee-review-stepper {
+  gap: 4px;
 }
 
 html[data-density='compact'] .employee-review-stepper--progress {
   padding-left: 0;
   padding-top: 0;
-  gap: 3px;
+  gap: 2px;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+html[data-density='compact'] .employee-review-stepper--progress::-webkit-scrollbar {
+  display: none;
 }
 
 html[data-density='compact'] .employee-review-stepper--progress::before {
-  top: 9px;
-  bottom: 9px;
+  top: 7px;
+  bottom: 7px;
+  left: 8px;
 }
 
-html[data-density='compact'] .employee-progress-donut {
-  width: 92px;
-  height: 92px;
-  flex-basis: 92px;
+html[data-density='compact'] .employee-review-stepper--progress .employee-review-step {
+  grid-template-columns: 16px 1fr;
+  gap: 6px;
+  font-size: 0.74rem;
 }
 
-html[data-density='compact'] .employee-progress-donut-label strong {
-  font-size: 0.8rem;
+html[data-density='compact'] .employee-review-step-icon {
+  width: 16px;
+  height: 16px;
 }
 
-html[data-density='compact'] .employee-progress-donut-label span {
-  font-size: 0.7rem;
+html[data-density='compact'] .employee-review-step-icon svg {
+  width: 9px;
+  height: 9px;
+}
+
+html[data-density='compact'] .employee-review-step-label {
+  font-size: 0.71rem;
+}
+
+html[data-density='compact'] .employee-review-step-date {
+  font-size: 0.61rem;
 }
 
 html[data-density='compact'] .employee-review-finance-cards {
@@ -633,9 +693,19 @@ html[data-density='compact'] .employee-review-tab {
   font-size: 0.7rem;
 }
 
+html[data-density='compact'] .employee-review-panel-header--documents {
+  gap: 12px;
+  padding-bottom: 8px;
+  margin-bottom: 10px;
+}
+
+html[data-density='compact'] .employee-review-doc-filters .employee-review-tabs {
+  gap: 4px;
+}
+
 html[data-density='compact'] .employee-review-doc-filters .employee-review-tab {
-  padding: 8px 10px;
-  font-size: 0.7rem;
+  padding: 3px 8px;
+  font-size: 0.71rem;
 }
 
 html[data-density='compact'] .employee-review-doc-grid {
@@ -648,63 +718,94 @@ html[data-density='compact'] .employee-review-doc-grid--evidence {
 
 
 html[data-density='compact'] .employee-review-doc-thumb {
-  height: 96px;
+  height: 42px;
+  width: 42px;
+  flex-basis: 42px;
 }
 
 html[data-density='compact'] .employee-review-panel--documents .employee-review-doc-card {
-  height: 100px;
-  width: 85px;
-  border-radius: 4px;
+  height: 108px;
+  width: 100px;
+  min-width: 100px;
+  max-width: 100px;
+  min-height: 108px;
+  max-height: 108px;
+  padding: 6px;
+  gap: 4px;
+  border-radius: 5px;
 }
 
 html[data-density='compact'] .employee-review-panel--documents .employee-review-doc-thumb {
-  height: 50px;
-  height: 50px;
+  height: 44px;
+  width: 44px;
+  flex-basis: 44px;
+  margin: 0;
 }
 
 html[data-density='compact'] .employee-review-doc-scroll-btn {
   width: 30px;
   height: 30px;
-  right: 0px;
+  right: 2px;
   padding: 0;
   border: none;
-  box-shadow: 0px 0px 28px rgb(0, 0, 0, 1);
+  background: transparent;
+  box-shadow: none;
 }
 
 html[data-density='compact'] .employee-review-doc-scroll-btn--left {
-  left: 0px;
+  left: 2px;
   right: auto;
 }
 
 html[data-density='compact'] .employee-review-doc-scroller-wrap {
+  width: 100%;
   max-width: 100%;
-  padding-inline: 40px;
+  padding-inline: 36px;
 }
 
 html[data-density='compact'] .employee-review-doc-meta {
-  padding: 9px 9px 10px;
-}
-
-html[data-density='compact'] .employee-review-activity-grid {
-  gap: 8px 12px;
-}
-
-html[data-density='compact'] .employee-review-activity-label {
-  font-size: 0.7rem;
-}
-
-html[data-density='compact'] .employee-review-activity-value {
-  margin-top: 3px;
-}
-
-html[data-density='compact'] .employee-review-activity-remark {
   padding: 0;
-  border-radius: 0;
+  margin: 0;
+}
+
+html[data-density='compact'] .employee-review-panel--activity {
+  padding: 8px 12px;
+  height: 145px;
+  min-height: 145px;
+  max-height: 145px;
+  overflow-y: auto;
+}
+
+html[data-density='compact'] .employee-review-panel--activity .employee-review-empty,
+html[data-density='compact'] .employee-review-panel--activity > .muted-text {
+  flex: 1 1 auto;
+  min-height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+html[data-density='compact'] .employee-review-activity-inline {
+  gap: 4px;
+  margin-top: 2px;
+}
+
+html[data-density='compact'] .employee-review-activity-kv-label {
+  font-size: 0.68rem;
+}
+
+html[data-density='compact'] .employee-review-activity-kv-value {
+  font-size: 0.74rem;
+}
+
+html[data-density='compact'] .employee-review-activity-remark-line {
+  margin: 4px 0 0 0;
+  font-size: 0.72rem;
 }
 
 html[data-density='compact'] .employee-review-activity--timeline {
-  grid-template-columns: 132px minmax(0, 1fr);
-  gap: 12px;
+  grid-template-columns: 78px minmax(0, 1fr);
+  gap: 10px;
 }
 
 html[data-density='compact'] .employee-review-stepper--activity {

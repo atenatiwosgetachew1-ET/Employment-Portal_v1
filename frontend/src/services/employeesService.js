@@ -1,4 +1,4 @@
-﻿import { apiFetch } from '../api/client'
+import { apiFetch } from '../api/client'
 
 import { extractApiErrorMessage as responseError, readResponseBody } from '../utils/errors'
 
@@ -10,7 +10,11 @@ export async function fetchEmployees({
   selectedScope = '',
   processScope = '',
   employedScope = '',
-  returnedScope = ''
+  returnedScope = '',
+  pageSize = '',
+  page_size = '',
+  returnRequestStatus = '',
+  return_request_status = ''
 } = {}) {
   const params = new URLSearchParams()
   params.set('page', String(page))
@@ -21,6 +25,10 @@ export async function fetchEmployees({
   if (processScope) params.set('process_scope', processScope)
   if (employedScope) params.set('employed_scope', employedScope)
   if (returnedScope) params.set('returned_scope', returnedScope)
+  const size = pageSize || page_size
+  if (size) params.set('page_size', String(size))
+  const reqStatus = returnRequestStatus || return_request_status
+  if (reqStatus) params.set('return_request_status', reqStatus)
 
   const response = await apiFetch(`/api/employees/?${params.toString()}`)
   const data = await response.json().catch(() => ({}))
@@ -98,6 +106,8 @@ export async function createEmployee(payload) {
   }
   return data
 }
+
+export const getEmployee = (id) => fetchEmployee(id)
 
 export async function fetchEmployee(id) {
   const response = await apiFetch(`/api/employees/${id}/`)

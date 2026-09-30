@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
+import { PortalOverlayProvider } from '../../context/PortalOverlayContext'
 import { isAgentSideWorkspace } from '../../utils/profileStore'
 import * as notificationsService from '../../services/notificationsService'
 
@@ -344,12 +345,21 @@ function DashboardSidebar() {
       loadNavCounts()
     }
 
+    const handleCrossTabSync = (event) => {
+      if (event.key === 'portal:cross_tab_sync') {
+        window.dispatchEvent(new Event('notifications:updated'))
+        window.dispatchEvent(new Event('portal:refresh-candidates'))
+      }
+    }
+
     window.addEventListener('notifications:updated', handleNotificationsUpdated)
     window.addEventListener('notifications:viewed', handleNotificationsUpdated)
+    window.addEventListener('storage', handleCrossTabSync)
 
     return () => {
       window.removeEventListener('notifications:updated', handleNotificationsUpdated)
       window.removeEventListener('notifications:viewed', handleNotificationsUpdated)
+      window.removeEventListener('storage', handleCrossTabSync)
     }
   }, [isNotificationsRoute, loadNavCounts])
 
@@ -510,9 +520,11 @@ function DashboardMain() {
 
 export default function DashboardLayoutSidebar() {
   return (
-    <div className="dashboard-shell">
-      <DashboardSidebar />
-      <DashboardMain />
-    </div>
+    <PortalOverlayProvider>
+      <div className="dashboard-shell">
+        <DashboardSidebar />
+        <DashboardMain />
+      </div>
+    </PortalOverlayProvider>
   )
 }

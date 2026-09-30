@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { cleanupPrintFrame, printDocumentSilently } from '../../utils/employeeHelpers'
+import { useOverlayZIndex } from '../../utils/overlayZIndex'
 
 export default function EmployeeDocumentPreview({
   previewDocument,
@@ -19,6 +20,7 @@ export default function EmployeeDocumentPreview({
   const [zoom, setZoom] = useState(1)
   const [offset, setOffset] = useState({ x: 0, y: 0 })
   const [dragging, setDragging] = useState(false)
+  const zIndex = useOverlayZIndex(Boolean(previewDocument))
 
   const imgRef = useRef(null)
   const canvasRef = useRef(null)
@@ -29,6 +31,9 @@ export default function EmployeeDocumentPreview({
   const flipXRef = useRef(false)
   const flipYRef = useRef(false)
   const zoomCommitTimeoutRef = useRef(null)
+  const lastTapRef = useRef({ time: 0, x: 0, y: 0 })
+  const lastResetTimeRef = useRef(0)
+  const touchStartRef = useRef({ x: 0, y: 0, moved: false })
 
   rotationRef.current = rotation
   flipXRef.current = flipX
@@ -227,10 +232,86 @@ export default function EmployeeDocumentPreview({
     handlePreviewReset?.()
   }
 
+  const handleResetZoomOnly = () => {
+    zoomRef.current = 1
+    offsetRef.current = { x: 0, y: 0 }
+    setZoom(1)
+    setOffset({ x: 0, y: 0 })
+    setDragging(false)
+    if (imgRef.current) {
+      imgRef.current.style.transition = 'transform 0.24s cubic-bezier(0.16, 1, 0.3, 1)'
+      imgRef.current.style.transform = `translate(0px, 0px) rotate(${rotationRef.current}deg) scale(${flipXRef.current ? -1 : 1}, ${flipYRef.current ? -1 : 1})`
+      setTimeout(() => {
+        if (imgRef.current) {
+          imgRef.current.style.transition = ''
+        }
+      }, 250)
+    }
+    handlePreviewReset?.()
+  }
+
+  const zoomToPoint = (clientX, clientY) => {
+    const canvas = canvasRef.current
+    const targetZoom = 2.5
+    let targetX = 0
+    let targetY = 0
+
+    if (canvas && clientX != null && clientY != null) {
+      const rect = canvas.getBoundingClientRect()
+      const cursorX = clientX - (rect.left + rect.width / 2)
+      const cursorY = clientY - (rect.top + rect.height / 2)
+      targetX = Math.round(-cursorX * (targetZoom - 1))
+      targetY = Math.round(-cursorY * (targetZoom - 1))
+    }
+
+    zoomRef.current = targetZoom
+    offsetRef.current = { x: targetX, y: targetY }
+    setZoom(targetZoom)
+    setOffset({ x: targetX, y: targetY })
+    setDragging(false)
+
+    if (imgRef.current) {
+      imgRef.current.style.transition = 'transform 0.24s cubic-bezier(0.16, 1, 0.3, 1)'
+      imgRef.current.style.transform = `translate(${targetX}px, ${targetY}px) rotate(${rotationRef.current}deg) scale(${(flipXRef.current ? -1 : 1) * targetZoom}, ${(flipYRef.current ? -1 : 1) * targetZoom})`
+      setTimeout(() => {
+        if (imgRef.current) {
+          imgRef.current.style.transition = ''
+        }
+      }, 250)
+    }
+  }
+
+  const handleCanvasDoubleAction = (clientX, clientY) => {
+    const now = Date.now()
+    if (now - lastResetTimeRef.current < 350) return
+    lastResetTimeRef.current = now
+
+    if (zoomRef.current > 1 || offsetRef.current.x !== 0 || offsetRef.current.y !== 0) {
+      handleResetZoomOnly()
+    } else {
+      zoomToPoint(clientX, clientY)
+    }
+  }
+
   const handlePointerDown = (event) => {
     if (event.button !== 0) return
     if (!isImage) return
     event.preventDefault()
+
+    const now = Date.now()
+    const dist = Math.hypot(
+      event.clientX - lastTapRef.current.x,
+      event.clientY - lastTapRef.current.y
+    )
+
+    if (now - lastTapRef.current.time < 320 && dist < 20) {
+      lastTapRef.current = { time: 0, x: 0, y: 0 }
+      handleCanvasDoubleAction(event.clientX, event.clientY)
+      return
+    }
+
+    lastTapRef.current = { time: now, x: event.clientX, y: event.clientY }
+
     dragRef.current = {
       startX: event.clientX,
       startY: event.clientY,
@@ -238,6 +319,78 @@ export default function EmployeeDocumentPreview({
       originY: offsetRef.current.y
     }
     setDragging(true)
+  }
+
+  const handleDoubleClick = (event) => {
+    if (!isImage) return
+    handleCanvasDoubleAction(event.clientX, event.clientY)
+  }
+
+  const handleTouchStart = (event) => {
+    if (!isImage) return
+    if (event.touches.length === 1) {
+      const touch = event.touches[0]
+      touchStartRef.current = { x: touch.clientX, y: touch.clientY, moved: false }
+      if (zoomRef.current > 1) {
+        dragRef.current = {
+          startX: touch.clientX,
+          startY: touch.clientY,
+          originX: offsetRef.current.x,
+          originY: offsetRef.current.y
+        }
+        setDragging(true)
+      }
+    }
+  }
+
+  const handleTouchMove = (event) => {
+    if (!isImage || event.touches.length !== 1) return
+    const touch = event.touches[0]
+    const dist = Math.hypot(
+      touch.clientX - touchStartRef.current.x,
+      touch.clientY - touchStartRef.current.y
+    )
+    if (dist > 8) {
+      touchStartRef.current.moved = true
+    }
+    if (dragging && zoomRef.current > 1) {
+      const { startX, startY, originX, originY } = dragRef.current
+      const newX = originX + (touch.clientX - startX)
+      const newY = originY + (touch.clientY - startY)
+      offsetRef.current = { x: newX, y: newY }
+      if (imgRef.current) {
+        imgRef.current.style.transition = 'none'
+        imgRef.current.style.transform = `translate(${newX}px, ${newY}px) rotate(${rotationRef.current}deg) scale(${(flipXRef.current ? -1 : 1) * zoomRef.current}, ${(flipYRef.current ? -1 : 1) * zoomRef.current})`
+      }
+    }
+  }
+
+  const handleTouchEnd = (event) => {
+    if (!isImage) return
+    if (dragging) {
+      setDragging(false)
+      setOffset(offsetRef.current)
+      if (imgRef.current) {
+        imgRef.current.style.transition = ''
+      }
+    }
+
+    if (!touchStartRef.current.moved && event.changedTouches.length === 1) {
+      const touch = event.changedTouches[0]
+      const now = Date.now()
+      const timeDiff = now - lastTapRef.current.time
+      const dist = Math.hypot(
+        touch.clientX - lastTapRef.current.x,
+        touch.clientY - lastTapRef.current.y
+      )
+
+      if (timeDiff < 320 && dist < 30) {
+        lastTapRef.current = { time: 0, x: 0, y: 0 }
+        handleCanvasDoubleAction(touch.clientX, touch.clientY)
+      } else {
+        lastTapRef.current = { time: now, x: touch.clientX, y: touch.clientY }
+      }
+    }
   }
 
   const handleZoomIn = () => {
@@ -303,6 +456,10 @@ export default function EmployeeDocumentPreview({
       className="app-confirm-backdrop employee-scan-backdrop document-preview-backdrop"
       role="presentation"
       onClick={handleBackdropClick}
+      style={{
+        zIndex,
+        '--overlay-z-index': zIndex,
+      }}
     >
       <div
         className="employee-review-modal document-preview-modal"
@@ -368,6 +525,10 @@ export default function EmployeeDocumentPreview({
           ref={canvasRef}
           className={`document-preview-canvas${zoom > 1 ? ' is-zoomed' : ''}${dragging ? ' is-dragging' : ''}`}
           onMouseDown={handlePointerDown}
+          onDoubleClick={handleDoubleClick}
+          onTouchStart={handleTouchStart}
+          onTouchMove={handleTouchMove}
+          onTouchEnd={handleTouchEnd}
         >
           {isImage ? (
             <>
@@ -386,6 +547,9 @@ export default function EmployeeDocumentPreview({
                 aria-label="Image adjustment controls"
                 onClick={(e) => e.stopPropagation()}
                 onMouseDown={(e) => e.stopPropagation()}
+                onDoubleClick={(e) => e.stopPropagation()}
+                onTouchStart={(e) => e.stopPropagation()}
+                onTouchEnd={(e) => e.stopPropagation()}
               >
                 <button
                   type="button"

@@ -138,6 +138,8 @@ def build_employee_return_status(employee):
 
 
 def build_employee_urgency_alerts(employee):
+    if getattr(employee, "returned_from_employment", False) or getattr(getattr(employee, "return_request", None), "status", None) == "approved":
+        return []
     today = date.today()
     alerts = []
     for field_name, label in EMPLOYEE_URGENCY_DATE_FIELDS:

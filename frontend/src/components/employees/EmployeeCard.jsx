@@ -393,8 +393,8 @@ export default function EmployeeCard({
                   <span className="employee-card-list-kv-label">
                     <span className="employee-card-list-kv-icon" aria-hidden="true">
                       <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
-                        <path d="M3 3v5h5" />
+                        <path d="M8 3 4 7l4 4"/>
+                        <path d="M4 15v4a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2H4"/>
                       </svg>
                     </span>
                     <span>Return</span>
@@ -503,7 +503,7 @@ export default function EmployeeCard({
           </aside>
         ) : null}
         <div className="employee-card-header-meta">
-          {employee.return_request?.status === 'pending' ? <span className="badge badge-warning">Return requested</span> : null}
+          {employee.return_request?.status === 'pending' ? <span className="badge badge-danger">Pending return</span> : null}
           <span className={`badge employee-card-status-badge ${employeeStatusBadgeClass(employee)} ${employeeStatusBadgeVariantClass(employee)}`.trim()}>{employeeStatusLabel(employee)}</span>
         </div>
       </div>
@@ -615,7 +615,7 @@ export default function EmployeeCard({
             }
           }}
         >
-          {employee.urgency_alerts?.length ? (
+          {!isReturnedEmployee && employee.urgency_alerts?.length ? (
             <div className="employee-alert-list">
               {employee.urgency_alerts.map((alert) => (
                 <span key={`${employee.id}-${alert.field}`} className="badge badge-warning">

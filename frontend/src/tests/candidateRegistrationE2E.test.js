@@ -1,4 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { fileURLToPath } from 'url'
+import path from 'path'
 import {
   REGISTRATION_STEPS,
   MANDATORY_ATTACHMENT_KEYS,
@@ -12,6 +14,8 @@ import {
 } from '../utils/employeeHelpers'
 import { ATTACHMENT_FIELDS } from '../constants/employeeOptions'
 import * as employeesService from '../services/employeesService'
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
 vi.mock('../services/employeesService', () => ({
   createEmployee: vi.fn(),

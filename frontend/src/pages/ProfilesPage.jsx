@@ -6,6 +6,7 @@ import * as authService from '../services/authService'
 import * as usersService from '../services/usersService'
 import { useAuth } from '../context/AuthContext'
 import { useUiFeedback } from '../context/UiFeedbackContext'
+import { useDocumentPreview } from '../context/PortalOverlayContext'
 import {
   applyStoredProfileOverride,
   documentScopeKeyForUser,
@@ -76,12 +77,8 @@ export default function ProfilesPage() {
   const [agreementForm, setAgreementForm] = useState(() => createAgreementFormState(todayDate))
   const [signatureDrafts, setSignatureDrafts] = useState({})
   const [signerNameDrafts, setSignerNameDrafts] = useState({})
-  const [previewDocument, setPreviewDocument] = useState(null)
-  const [previewZoom, setPreviewZoom] = useState(1)
-  const [previewOffset, setPreviewOffset] = useState({ x: 0, y: 0 })
-  const [previewDragging, setPreviewDragging] = useState(false)
+  const { openDocumentPreview: openGlobalDocumentPreview } = useDocumentPreview()
   const [openedAgentProfile, setOpenedAgentProfile] = useState(null)
-  const previewDragRef = useRef({ startX: 0, startY: 0, originX: 0, originY: 0 })
   const agreementFormRef = useRef(null)
   const signatureInputRefs = useRef({})
   const signerNameInputRefs = useRef({})
@@ -227,29 +224,8 @@ export default function ProfilesPage() {
     }
   }, [agentSide, user])
 
-  useEffect(() => {
-    if (!previewDragging) return undefined
 
-    function handlePointerMove(event) {
-      const { startX, startY, originX, originY } = previewDragRef.current
-      setPreviewOffset({
-        x: originX + (event.clientX - startX),
-        y: originY + (event.clientY - startY)
-      })
-    }
 
-    function handlePointerUp() {
-      setPreviewDragging(false)
-    }
-
-    window.addEventListener('mousemove', handlePointerMove)
-    window.addEventListener('mouseup', handlePointerUp)
-
-    return () => {
-      window.removeEventListener('mousemove', handlePointerMove)
-      window.removeEventListener('mouseup', handlePointerUp)
-    }
-  }, [previewDragging])
 
   const handleProfileFieldChange = (field, value) => {
     setProfileForm((current) => ({ ...current, [field]: value }))
@@ -991,18 +967,15 @@ export default function ProfilesPage() {
   }, [organizationDisplayName])
 
   const openDocumentPreview = useCallback((item) => {
-    setPreviewDocument({
-      label: item.title,
-      subtitle: item.type || 'Legal document',
-      url: item.dataUrl,
-      fileName: item.fileName,
+    openGlobalDocumentPreview({
+      label: item.title || item.label,
+      subtitle: item.type || item.subtitle || 'Legal document',
+      url: item.dataUrl || item.url,
+      name: item.fileName || item.name,
       isImage: isImageFile(item.fileName, item.mimeType),
       isPdf: isPdfFile(item.fileName, item.mimeType)
     })
-    setPreviewZoom(1)
-    setPreviewOffset({ x: 0, y: 0 })
-    setPreviewDragging(false)
-  }, [])
+  }, [openGlobalDocumentPreview])
 
   const openProfilePhotoPreview = useCallback((profile, subtitle) => {
     const photoUrl =
@@ -1013,99 +986,21 @@ export default function ProfilesPage() {
       ''
     if (!photoUrl) return
 
-    setPreviewDocument({
+    openGlobalDocumentPreview({
       label: `${buildAgentCardName(profile)} profile`,
       subtitle,
       url: photoUrl,
-      fileName: `${profile?.username || 'profile-photo'}.png`,
+      name: `${profile?.username || 'profile-photo'}.png`,
       isImage: true,
       isPdf: false,
       isProfilePhoto: true,
       hidePrimaryActions: true,
       disableContextMenu: true
     })
-    setPreviewZoom(1)
-    setPreviewOffset({ x: 0, y: 0 })
-    setPreviewDragging(false)
-  }, [])
+  }, [openGlobalDocumentPreview])
 
-  const closeDocumentPreview = useCallback(() => {
-    setPreviewDocument(null)
-    setPreviewZoom(1)
-    setPreviewOffset({ x: 0, y: 0 })
-    setPreviewDragging(false)
-  }, [])
 
-  const handlePreviewZoomIn = useCallback(() => {
-    setPreviewZoom((prev) => Math.min(4, Number((prev + 0.25).toFixed(2))))
-  }, [])
 
-  const handlePreviewZoomOut = useCallback(() => {
-    setPreviewZoom((prev) => {
-      const next = Math.max(1, Number((prev - 0.25).toFixed(2)))
-      if (next === 1) setPreviewOffset({ x: 0, y: 0 })
-      return next
-    })
-  }, [])
-
-  const handlePreviewReset = useCallback(() => {
-    setPreviewZoom(1)
-    setPreviewOffset({ x: 0, y: 0 })
-    setPreviewDragging(false)
-  }, [])
-
-  const handlePreviewDownload = useCallback(async () => {
-    if (!previewDocument?.url || typeof window === 'undefined') return
-
-    try {
-      const blob = await fetchPreviewBlob(previewDocument.url)
-      const objectUrl = window.URL.createObjectURL(blob)
-      const anchor = document.createElement('a')
-      anchor.href = objectUrl
-      anchor.download = buildDownloadName(previewDocument.label, previewDocument.fileName)
-      document.body.appendChild(anchor)
-      anchor.click()
-      anchor.remove()
-      window.setTimeout(() => window.URL.revokeObjectURL(objectUrl), 1000)
-    } catch {
-      const anchor = document.createElement('a')
-      anchor.href = previewDocument.url
-      anchor.download = buildDownloadName(previewDocument.label, previewDocument.fileName)
-      document.body.appendChild(anchor)
-      anchor.click()
-      anchor.remove()
-    }
-  }, [previewDocument])
-
-  const handlePreviewPrint = useCallback(() => {
-    if (!previewDocument?.url) return
-    printDocumentSilently(previewDocument)
-  }, [previewDocument])
-
-  const handlePreviewWheel = useCallback((event) => {
-    if (!previewDocument?.isImage) return
-    event.preventDefault()
-    if (event.deltaY < 0) {
-      setPreviewZoom((prev) => Math.min(4, Number((prev + 0.2).toFixed(2))))
-      return
-    }
-    setPreviewZoom((prev) => {
-      const next = Math.max(1, Number((prev - 0.2).toFixed(2)))
-      if (next === 1) setPreviewOffset({ x: 0, y: 0 })
-      return next
-    })
-  }, [previewDocument])
-
-  const handlePreviewPointerDown = useCallback((event) => {
-    if (!previewDocument?.isImage || previewZoom <= 1) return
-    previewDragRef.current = {
-      startX: event.clientX,
-      startY: event.clientY,
-      originX: previewOffset.x,
-      originY: previewOffset.y
-    }
-    setPreviewDragging(true)
-  }, [previewDocument, previewOffset, previewZoom])
 
   const visibleAgreements = useMemo(() => {
     const sorted = [...agreements].sort((left, right) => {
@@ -2340,151 +2235,6 @@ export default function ProfilesPage() {
         </div>
       ) : null}
 
-      {previewDocument ? (
-        <div className="document-preview-backdrop" role="presentation" onClick={closeDocumentPreview}>
-          <div
-            className="document-preview-modal"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="profile-doc-preview-title"
-            onClick={(event) => event.stopPropagation()}
-            onContextMenu={previewDocument.disableContextMenu ? (event) => event.preventDefault() : undefined}
-          >
-            <div className="employee-review-header">
-              <div>
-                <p className="employee-modal-eyebrow">Attachment preview</p>
-                <h2 id="profile-doc-preview-title">{previewDocument.label}</h2>
-                <p className="muted-text">{previewDocument.subtitle}</p>
-              </div>
-              <div className="document-preview-header-right">
-                <div className="document-preview-actions">
-                  {previewDocument.hidePrimaryActions ? null : (
-                    <>
-                      <button
-                        type="button"
-                        className="btn-secondary document-preview-download"
-                        onClick={handlePreviewDownload}
-                        title="Download document"
-                      >
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-                          <polyline points="7 10 12 15 17 10" />
-                          <line x1="12" y1="15" x2="12" y2="3" />
-                        </svg>
-                        <span>Download</span>
-                      </button>
-                      <button
-                        type="button"
-                        className="btn-secondary document-preview-print"
-                        onClick={handlePreviewPrint}
-                        title="Print document"
-                      >
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                          <polyline points="6 9 6 2 18 2 18 9" />
-                          <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" />
-                          <rect x="6" y="14" width="12" height="8" />
-                        </svg>
-                        <span>Print</span>
-                      </button>
-                    </>
-                  )}
-                  {previewDocument.isImage ? (
-                    <>
-                      <div className="document-preview-divider" aria-hidden="true" />
-                      <button
-                        type="button"
-                        className="btn-secondary"
-                        onClick={handlePreviewZoomOut}
-                        disabled={previewZoom <= 1}
-                        title="Zoom out"
-                      >
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                          <circle cx="11" cy="11" r="8" />
-                          <line x1="21" y1="21" x2="16.65" y2="16.65" />
-                          <line x1="8" y1="11" x2="14" y2="11" />
-                        </svg>
-                        <span>Zoom out</span>
-                      </button>
-                      <span className="document-preview-zoom-badge" aria-label="Current zoom level">
-                        {Math.round((previewZoom || 1) * 100)}%
-                      </span>
-                      <button
-                        type="button"
-                        className="btn-secondary"
-                        onClick={handlePreviewZoomIn}
-                        disabled={previewZoom >= 4}
-                        title="Zoom in"
-                      >
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                          <circle cx="11" cy="11" r="8" />
-                          <line x1="21" y1="21" x2="16.65" y2="16.65" />
-                          <line x1="11" y1="8" x2="11" y2="14" />
-                          <line x1="8" y1="11" x2="14" y2="11" />
-                        </svg>
-                        <span>Zoom in</span>
-                      </button>
-                      <button
-                        type="button"
-                        className="btn-secondary"
-                        onClick={handlePreviewReset}
-                        disabled={previewZoom === 1 && previewOffset.x === 0 && previewOffset.y === 0}
-                        title="Reset view"
-                      >
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                          <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
-                          <path d="M3 3v5h5" />
-                        </svg>
-                        <span>Reset</span>
-                      </button>
-                    </>
-                  ) : null}
-                </div>
-                <button
-                  type="button"
-                  className="btn-secondary document-preview-close-btn"
-                  onClick={closeDocumentPreview}
-                  aria-label="Close document preview"
-                  title="Close"
-                >
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                    <line x1="18" y1="6" x2="6" y2="18" />
-                    <line x1="6" y1="6" x2="18" y2="18" />
-                  </svg>
-                </button>
-              </div>
-            </div>
-            <div
-              className={`document-preview-canvas${previewDocument.isProfilePhoto ? ' profile-photo-preview' : ''}${previewZoom > 1 ? ' is-zoomed' : ''}${previewDragging ? ' is-dragging' : ''}`}
-              onWheel={handlePreviewWheel}
-              onMouseDown={handlePreviewPointerDown}
-            >
-              {previewDocument.isImage ? (
-                <img
-                  src={previewDocument.url}
-                  alt={previewDocument.label}
-                  draggable={false}
-                  onContextMenu={previewDocument.disableContextMenu ? (event) => event.preventDefault() : undefined}
-                  className={`document-preview-image${previewDocument.isProfilePhoto ? ' document-preview-image--profile' : ''}`}
-                  style={{
-                    transform: `translate(${previewOffset.x}px, ${previewOffset.y}px) scale(${previewZoom})`
-                  }}
-                />
-              ) : previewDocument.isPdf ? (
-                <iframe
-                  src={previewDocument.url?.includes('#') ? previewDocument.url : `${previewDocument.url}#toolbar=0&navpanes=0`}
-                  title={previewDocument.label}
-                  className="document-preview-frame"
-                  scrolling="no"
-                />
-              ) : (
-                <div className="employee-attachment-preview-file">
-                  Preview unavailable for this file type.
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      ) : null}
     </section>
   )
 }

@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react'
 import * as d3 from 'd3'
+import { accentRgb, createAccentPalette } from '../../utils/theme'
 
 export function D3HorizontalBarChart({ data, title, subtitle, color, formatter = (value) => value, compact = false }) {
   const chartData = Array.isArray(data) ? data.filter((item) => Number.isFinite(Number(item?.value))) : []

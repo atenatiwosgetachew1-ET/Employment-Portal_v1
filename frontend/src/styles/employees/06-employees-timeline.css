@@ -40,50 +40,102 @@
 .employee-review-stepper--progress {
   position: relative;
   padding-left: 0;
-  gap: 4px;
+  gap: 5px;
   border-left: none;
   min-width: 0;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.employee-review-stepper--progress::-webkit-scrollbar {
+  display: none;
 }
 
 .employee-review-stepper--progress::before {
   content: '';
   position: absolute;
-  left: 11px;
-  top: 6px;
-  bottom: 6px;
+  left: 9px;
+  top: 7px;
+  bottom: 7px;
   width: 1px;
-  background: rgb(255 255 255 / 0.08);
+  background: color-mix(in oklch, var(--color-border) 70%, transparent);
   transform: translateX(-0.5px);
+  z-index: 0;
+}
+
+.employee-review-stepper--progress.is-single-step::before {
+  display: none;
 }
 
 .employee-review-stepper--progress .employee-review-step {
-  grid-template-columns: 22px 1fr;
-  gap: 10px;
+  grid-template-columns: 18px 1fr;
+  gap: 8px;
 }
 
 .employee-review-step-icon {
-  width: 22px;
-  height: 22px;
+  width: 18px;
+  height: 18px;
   border-radius: 999px;
   display: grid;
   place-items: center;
-  border: 2px solid rgb(255 255 255 / 0.18);
-  background: rgb(255 255 255 / 0.04);
-  color: rgb(255 255 255 / 0.55);
+  border: 1.5px solid var(--color-border);
+  background: var(--color-card);
+  color: var(--color-muted-foreground);
   position: relative;
-  z-index: 1;
+  z-index: 2;
   justify-self: center;
+  box-sizing: border-box;
+}
+
+.employee-review-step-icon svg {
+  width: 10px;
+  height: 10px;
+  display: block;
 }
 
 .employee-review-step.is-done .employee-review-step-icon {
-  border-color: rgb(var(--accent-active) / 0.7);
-  background: rgb(var(--accent-active) / 0.24);
+  border-color: rgb(var(--accent-active));
+  background: color-mix(in oklch, rgb(var(--accent-active)) 22%, var(--color-card));
   color: rgb(var(--accent-active));
 }
 
+.employee-review-step.is-current:not(.is-done) .employee-review-step-icon {
+  border-color: rgb(var(--accent-active));
+  box-shadow: 0 0 0 2px rgb(var(--accent-active) / 0.15);
+  color: rgb(var(--accent-active));
+}
+
+.employee-review-step.is-current .employee-review-step-label {
+  font-weight: 700;
+  color: var(--color-foreground);
+}
+
+.employee-review-step--more {
+  cursor: help;
+  opacity: 0.85;
+  transition: opacity 120ms ease;
+}
+
+.employee-review-step--more:hover {
+  opacity: 1;
+}
+
+.employee-review-step-icon--more {
+  border-style: dashed;
+  border-color: color-mix(in oklch, var(--color-border) 75%, transparent);
+  background: color-mix(in oklch, var(--color-card) 92%, var(--color-muted));
+  color: var(--color-muted-foreground);
+}
+
+.employee-review-step-label--more {
+  letter-spacing: 0.15em;
+  font-weight: 700;
+  color: var(--color-muted-foreground);
+}
+
 .employee-review-step-copy {
-  display: grid;
-  gap: 0;
+  display: flex;
+  flex-direction: column;
   min-width: 0;
 }
 
@@ -94,24 +146,30 @@
 }
 
 .employee-review-step-date {
-  margin-top: 2px;
-  font-size: 0.74rem;
+  margin-top: 1px;
+  font-size: 0.67rem;
   color: var(--color-muted-foreground);
   font-weight: 400;
+  line-height: 1.1;
 }
 
 .employee-review-step-label {
   color: var(--color-foreground);
-  font-size: 0.82rem;
+  font-size: 0.76rem;
   font-weight: 600;
   min-width: 0;
-  overflow-wrap: anywhere;
+  line-height: 1.2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 
 .employee-review-finance-cards {
   display: grid;
   gap: 10px;
+  flex: 1 1 auto;
+  align-content: center;
 }
 
 .employee-review-finance-card {
@@ -153,72 +211,105 @@
 .employee-review-doc-scroller .employee-review-doc-grid,
 .employee-review-panel--documents .employee-review-doc-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
-  gap: 12px;
+  grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+  gap: 10px;
 }
 
 .employee-review-doc-scroller .employee-review-doc-grid--evidence,
 .employee-review-panel--documents .employee-review-doc-grid--evidence {
-  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(175px, 1fr));
 }
 
 .employee-review-doc-scroller .employee-review-doc-card,
 .employee-review-panel--documents .employee-review-doc-card {
-  text-align: left;
-  padding: 5px;
-  border-radius: 18px;
-  background: rgba(255, 255, 255, 0.016);
+  flex: 0 0 115px;
+  width: 115px;
+  min-width: 115px;
+  max-width: 115px;
+  height: 118px;
+  min-height: 118px;
+  max-height: 118px;
+  padding: 8px 6px;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  text-align: center;
+  border-radius: 8px;
+  border: 1px solid var(--color-border);
+  background: color-mix(in oklch, var(--color-card) 94%, var(--color-muted));
   overflow: hidden;
-  transition: transform 160ms ease, box-shadow 160ms ease, border-color 160ms ease;
-  display: block;
+  box-shadow: 0 2px 8px rgb(0 0 0 / 0.05);
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
   cursor: pointer;
   user-select: none;
 }
 
 .employee-review-doc-scroller .employee-review-doc-card:hover,
-.employee-review-panel--documents .employee-review-doc-card:hover {
-  transform: translateY(-1px);
-  border-color: rgb(var(--accent-active) / 0.22);
-  box-shadow: 0 18px 52px rgb(0 0 0 / 0.22);
-  background: rgba(255, 255, 255, 0.039);
+.employee-review-panel--documents .employee-review-doc-card:hover,
+.employee-review-doc-card:hover {
+  background: #333333;
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgb(0 0 0 / 0.14);
+}
+
+html[data-theme='light'] .employee-review-doc-scroller .employee-review-doc-card:hover,
+html[data-theme='light'] .employee-review-panel--documents .employee-review-doc-card:hover,
+html[data-theme='light'] .employee-review-doc-card:hover {
+  background: color-mix(in oklch, var(--color-card) 84%, rgb(var(--accent-active-border) / 0.09));
+}
+
+.employee-review-doc-scroller .employee-review-doc-card:hover .employee-review-doc-thumb,
+.employee-review-panel--documents .employee-review-doc-card:hover .employee-review-doc-thumb,
+.employee-review-doc-card:hover .employee-review-doc-thumb {
+  transform: scale(1.06);
 }
 
 .employee-review-doc-scroller .employee-review-doc-card:active,
-.employee-review-panel--documents .employee-review-doc-card:active {
-  background: rgba(255, 255, 255, 0);
+.employee-review-panel--documents .employee-review-doc-card:active,
+.employee-review-doc-card:active {
+  transform: translateY(0);
 }
 
 .employee-review-doc-scroller .employee-review-doc-card:focus-visible,
-.employee-review-panel--documents .employee-review-doc-card:focus-visible {
+.employee-review-panel--documents .employee-review-doc-card:focus-visible,
+.employee-review-doc-card:focus-visible {
   outline: 2px solid rgb(var(--accent-active) / 0.35);
   outline-offset: 3px;
 }
 
 .employee-review-doc-thumb {
   position: relative;
-  height: 50px;
-  width: 50px;
-  margin: auto;
+  height: 48px;
+  width: 48px;
+  flex: 0 0 48px;
+  margin: 0;
   padding: 0;
-  display: grid;
-  place-items: center;
-  background: rgb(0 0 0 / 0.28);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  border: 1px solid color-mix(in oklch, var(--color-border) 80%, transparent);
+  background: color-mix(in oklch, var(--color-card) 82%, var(--color-muted));
   overflow: hidden;
+  transition: transform 0.2s ease, background-color 0.2s ease;
 }
 
 .employee-review-doc-thumb-badge {
   position: absolute;
-  top: 6px;
-  right: 6px;
-  width: 22px;
-  height: 22px;
+  top: 3px;
+  right: 3px;
+  width: 16px;
+  height: 16px;
   border-radius: 999px;
   display: grid;
   place-items: center;
   border: 1px solid rgb(255 255 255 / 0.12);
-  background: rgb(0 0 0 / 0.5);
-  color: rgb(255 255 255 / 0.92);
-  box-shadow: 0 10px 24px rgb(0 0 0 / 0.3);
+  background: rgb(0 0 0 / 0.6);
+  color: rgb(255 255 255 / 0.95);
+  box-shadow: 0 4px 10px rgb(0 0 0 / 0.3);
   z-index: 2;
 }
 
@@ -235,33 +326,64 @@
 }
 
 .employee-review-doc-thumb span {
-  font-weight: 900;
-  letter-spacing: 0.06em;
+  font-weight: 700;
+  font-size: 0.65rem;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
   color: var(--color-muted-foreground);
 }
 
 .employee-review-doc-meta {
-  padding: 12px 12px 13px;
-  display: grid;
-  gap: 0;
+  padding: 0;
+  width: 100%;
+  max-width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  gap: 1px;
+  min-width: 0;
 }
 
 .employee-review-doc-meta .employee-review-step-label {
   display: block;
+  width: 100%;
+  max-width: 100%;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--color-foreground);
+  text-align: center;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  line-height: 1.25;
+}
+
+.employee-review-doc-meta .employee-review-step-date {
+  display: block;
+  font-size: 0.64rem;
+  color: var(--color-muted-foreground);
+  text-align: center;
+  line-height: 1.2;
 }
 
 .employee-review-empty {
   margin: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  color: var(--color-muted-foreground);
+  font-size: 0.82rem;
 }
 
 .employee-review-doc-scroller-wrap {
   position: relative;
-  margin-top: 15px;
-  max-width: 1040px;
-  margin-inline: auto;
+  margin-top: 0;
+  width: 100%;
+  max-width: 100%;
+  max-height: 180px;
   padding-inline: 46px;
   box-sizing: border-box;
 }
@@ -269,6 +391,7 @@
 .employee-review-doc-scroller {
   overflow-x: hidden;
   overflow-y: hidden;
+  padding-top: 4px;
   padding-bottom: 6px;
   scroll-behavior: smooth;
   overscroll-behavior-x: contain;
@@ -286,18 +409,8 @@
   flex-wrap: nowrap;
   gap: 14px;
   min-width: max-content;
+  align-items: center;
 }
-
-.employee-review-panel--documents .employee-review-doc-card {
-  width: 150px;
-  border-radius: 14px;
-}
-
-.employee-review-panel--documents .employee-review-doc-thumb {
-  height: 92px;
-}
-
-
 
 .employee-review-doc-scroll-btn {
   position: absolute;
@@ -307,12 +420,15 @@
   width: 34px;
   height: 34px;
   border-radius: 999px;
-  border: 1px solid rgb(255 255 255 / 0.08);
-  background: rgb(0 0 0 / 0.35);
-  color: var(--color-foreground);
+  border: none;
+  background: transparent;
+  color: var(--color-muted-foreground);
   display: grid;
   place-items: center;
-  box-shadow: 0 10px 24px rgb(0 0 0 / 0.24);
+  box-shadow: none;
+  cursor: pointer;
+  padding: 0;
+  transition: color 150ms ease, transform 150ms ease, opacity 150ms ease;
 }
 
 .employee-review-doc-scroll-btn--left {
@@ -321,122 +437,143 @@
 }
 
 .employee-review-doc-scroll-btn:hover {
-  border-color: rgb(255 255 255 / 0.14);
-  background: rgb(0 0 0 / 0.5);
+  border: none;
+  background: transparent;
+  color: var(--color-foreground);
+  transform: translateY(-50%) scale(1.15);
+  box-shadow: none;
+}
+
+.employee-review-doc-scroll-btn:active {
+  transform: translateY(-50%) scale(0.95);
 }
 
 .employee-review-doc-scroll-btn:disabled {
-  opacity: 0.35;
+  opacity: 0.25;
   cursor: not-allowed;
-  border-color: rgb(255 255 255 / 0.06);
-  background: rgb(0 0 0 / 0.22);
+  border: none;
+  background: transparent;
   box-shadow: none;
+  transform: translateY(-50%);
+  color: var(--color-muted-foreground);
 }
 
 .employee-review-activity--timeline {
   position: relative;
   display: grid;
-  grid-template-columns: 160px minmax(0, 1fr);
-  gap: 16px;
-  align-items: stretch;
+  grid-template-columns: 88px minmax(0, 1fr);
+  gap: 12px;
+  align-items: center;
 }
 
 /* Activity timeline uses the same stepper styling as Application Progress. */
 .employee-review-stepper--activity {
   padding-top: 0;
-  height: 100%;
-  min-height: 84px;
+  height: auto;
+  min-height: 0;
 }
 
 .employee-review-stepper--activity .employee-review-step {
-  font-size: 0.9rem;
+  font-size: 0.76rem;
+  gap: 6px;
 }
 
 .employee-review-stepper--activity .employee-review-step-label {
-  font-size: 0.9rem;
-  font-weight: 800;
+  font-size: 0.74rem;
+  font-weight: 600;
+  white-space: nowrap;
 }
 
 .employee-review-stepper--activity .employee-review-step-date {
-  font-size: 0.86rem;
+  font-size: 0.65rem;
+  white-space: nowrap;
 }
 
 .employee-review-activity-body {
-  display: grid;
-  gap: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
   padding: 0;
   border-radius: 0;
   border: none;
   background: transparent;
   box-shadow: none;
+  min-width: 0;
 }
 
 .employee-review-activity-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
+  gap: 8px;
 }
 
 .employee-review-activity-title-row {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 8px;
   flex-wrap: wrap;
 }
 
 .employee-review-activity-title {
-  font-size: 0.82rem;
+  font-size: 0.80rem;
   font-weight: 600;
   letter-spacing: 0;
   color: var(--color-foreground);
 }
 
-.employee-review-activity-grid {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr)) minmax(0, 2.2fr);
-  gap: 10px 12px;
+.employee-review-activity-inline {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  margin-top: 4px;
 }
 
-.employee-review-activity-value--truncate {
+.employee-review-activity-kv {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 4px;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.employee-review-activity-kv-label {
+  color: var(--color-muted-foreground);
+  font-size: 0.72rem;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+}
+
+.employee-review-activity-kv-value {
+  color: var(--color-foreground);
+  font-size: 0.78rem;
+  font-weight: 600;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
-@media (max-width: 1400px) {
-  .employee-review-activity-grid {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
+.employee-review-activity-kv-sep {
+  color: var(--color-muted);
+  font-size: 0.8rem;
+  font-weight: bold;
+  user-select: none;
+  flex-shrink: 0;
 }
 
-@media (max-width: 1100px) {
-  .employee-review-activity-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-}
-
-.employee-review-activity-label {
-  color: var(--color-foreground);
-  font-size: 0.82rem;
-  font-weight: 600;
-  letter-spacing: 0;
-  text-transform: none;
-}
-
-.employee-review-activity-value {
+.employee-review-activity-remark-line {
+  margin: 6px 0 0 0;
+  font-size: 0.76rem;
   color: var(--color-muted-foreground);
-  font-size: 0.88rem;
-  font-weight: 400;
-  margin-top: 2px;
-  word-break: break-word;
-}
-
-.employee-review-activity-remark {
-  padding: 0;
-  border-radius: 0;
-  border: none;
-  background: transparent;
+  font-style: italic;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+  line-height: 1.3;
 }
 
 @media (max-width: 960px) {
@@ -660,7 +797,7 @@
   background: rgba(0, 0, 0, 0.68) !important;
   backdrop-filter: blur(8px) !important;
   -webkit-backdrop-filter: blur(8px) !important;
-  z-index: 1000 !important;
+  z-index: var(--overlay-z-index, 1000) !important;
   box-sizing: border-box !important;
 }
 
@@ -757,7 +894,9 @@ html[data-density='compact'] .employee-review-modal.document-preview-modal {
 
 /* Header Buttons: Matching other popup windows (.btn-secondary style) */
 .document-preview-modal .document-preview-actions .document-preview-download,
-.document-preview-modal .document-preview-actions .document-preview-print {
+.document-preview-modal .document-preview-actions .document-preview-print,
+.employee-review-modal .document-preview-download,
+.employee-review-action-btn--neutral {
   display: inline-flex !important;
   align-items: center !important;
   justify-content: center !important;
@@ -767,6 +906,7 @@ html[data-density='compact'] .employee-review-modal.document-preview-modal {
   padding: 0 14px !important;
   font-size: 0.82rem !important;
   font-weight: 500 !important;
+  border-radius: 5px !important;
   cursor: pointer !important;
   white-space: nowrap !important;
   user-select: none !important;
@@ -774,7 +914,9 @@ html[data-density='compact'] .employee-review-modal.document-preview-modal {
 }
 
 .document-preview-modal .document-preview-actions .document-preview-download svg,
-.document-preview-modal .document-preview-actions .document-preview-print svg {
+.document-preview-modal .document-preview-actions .document-preview-print svg,
+.employee-review-modal .document-preview-download svg,
+.employee-review-action-btn--neutral svg {
   width: 14px !important;
   height: 14px !important;
   stroke: currentColor !important;
@@ -782,7 +924,9 @@ html[data-density='compact'] .employee-review-modal.document-preview-modal {
 }
 
 .document-preview-modal .document-preview-actions .document-preview-download:disabled,
-.document-preview-modal .document-preview-actions .document-preview-print:disabled {
+.document-preview-modal .document-preview-actions .document-preview-print:disabled,
+.employee-review-modal .document-preview-download:disabled,
+.employee-review-action-btn--neutral:disabled {
   opacity: 0.38 !important;
   cursor: not-allowed !important;
   transform: none !important;
@@ -822,7 +966,7 @@ html[data-density='compact'] .employee-review-modal.document-preview-modal {
   align-items: center !important;
   justify-content: center !important;
   padding: 24px !important;
-  border-radius: 10px !important;
+  border-radius: 0 !important;
   border: 1px solid color-mix(in oklch, var(--color-border) 75%, transparent) !important;
   background: radial-gradient(circle at center, #18181c 0%, #0d0d0e 100%) !important;
   box-shadow: inset 0 2px 10px rgba(0, 0, 0, 0.45) !important;
@@ -868,7 +1012,7 @@ html[data-density='compact'] .employee-review-modal.document-preview-modal {
   height: 100% !important;
   min-height: 100% !important;
   border: 0 !important;
-  border-radius: 8px !important;
+  border-radius: 0 !important;
   display: block !important;
   background: #ffffff !important;
 }
@@ -1001,15 +1145,15 @@ html[data-density='compact'] .employee-review-modal.document-preview-modal {
 .employee-progress-panel {
   display: flex;
   align-items: center;
-  gap: 18px;
-  margin: 10px 0 12px;
+  gap: 20px;
+  margin: 8px 0 10px;
 }
 
 .employee-progress-donut {
   position: relative;
-  width: 100px;
-  height: 100px;
-  flex: 0 0 100px;
+  width: 76px;
+  height: 76px;
+  flex: 0 0 76px;
   justify-self: center;
 }
 
@@ -1022,7 +1166,7 @@ html[data-density='compact'] .employee-review-modal.document-preview-modal {
 .employee-progress-track,
 .employee-progress-value {
   fill: none;
-  stroke-width: 12;
+  stroke-width: 10;
 }
 
 .employee-progress-track {
@@ -1046,15 +1190,19 @@ html[data-density='compact'] .employee-review-modal.document-preview-modal {
 }
 
 .employee-progress-donut-label strong {
-  font-size: 1.2rem;
+  font-size: 0.84rem;
   line-height: 1;
+  font-weight: 700;
   color: var(--color-foreground);
 }
 
 .employee-progress-donut-label span {
-  margin-top: 4px;
+  margin-top: 2px;
   color: var(--color-muted-foreground);
-  font-size: 0.75rem;
+  font-size: 0.54rem;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
 }
 
 .employee-progress-metrics {

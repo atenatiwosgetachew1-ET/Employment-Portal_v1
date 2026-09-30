@@ -90,3 +90,30 @@ export function getStoredAccent() {
     return DEFAULT_ACCENT
   }
 }
+
+export function readAccentRgbTriplet() {
+  if (typeof window === 'undefined') return [159, 106, 59]
+  const root = document.documentElement
+  const raw = getComputedStyle(root).getPropertyValue('--accent-active').trim()
+  if (!raw) return [159, 106, 59]
+  const values = raw
+    .split(/\s+/)
+    .map((part) => Number.parseInt(part, 10))
+    .filter((part) => Number.isFinite(part))
+    .slice(0, 3)
+  return values.length === 3 ? values : [159, 106, 59]
+}
+
+export function accentRgb(alpha = 1) {
+  const [r, g, b] = readAccentRgbTriplet()
+  return `rgb(${r} ${g} ${b} / ${alpha})`
+}
+
+export function createAccentPalette(count) {
+  const total = Math.max(count, 1)
+  return Array.from({ length: total }, (_, index) => {
+    const ratio = total === 1 ? 0.6 : index / Math.max(total - 1, 1)
+    const alpha = 0.96 - ratio * 0.42
+    return accentRgb(Math.max(0.34, alpha))
+  })
+}

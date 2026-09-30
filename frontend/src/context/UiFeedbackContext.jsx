@@ -1,4 +1,5 @@
 import { createContext, useCallback, useContext, useMemo, useRef, useState } from 'react'
+import { useOverlayZIndex } from '../utils/overlayZIndex'
 
 const UiFeedbackContext = createContext(null)
 
@@ -10,6 +11,7 @@ export function UiFeedbackProvider({ children }) {
   const [toasts, setToasts] = useState([])
   const [confirmState, setConfirmState] = useState(null)
   const confirmResolverRef = useRef(null)
+  const confirmZIndex = useOverlayZIndex(Boolean(confirmState))
 
   const showToast = useCallback((message, options = {}) => {
     if (!message) return
@@ -76,7 +78,7 @@ export function UiFeedbackProvider({ children }) {
         ))}
       </div>
       {confirmState ? (
-        <div className="app-confirm-backdrop" role="presentation" onClick={() => closeConfirm(false)}>
+        <div className="app-confirm-backdrop" role="presentation" onClick={() => closeConfirm(false)} style={{ zIndex: confirmZIndex, '--overlay-z-index': confirmZIndex }}>
           <div
             className={`app-confirm-dialog app-confirm-dialog--${confirmState.tone}`}
             role="alertdialog"

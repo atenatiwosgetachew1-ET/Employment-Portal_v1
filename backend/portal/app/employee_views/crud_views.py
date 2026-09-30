@@ -6,7 +6,7 @@ from rest_framework.views import APIView
 
 from ..audit_log import log_audit
 from ..licensing import get_access_restriction, get_user_organization
-from ..models import Employee, EmployeeSelection
+from ..models import Employee, EmployeeReturnRequest, EmployeeSelection
 from ..platform_views import UserPagination
 from ..serializers import EmployeeListSerializer, EmployeeSerializer
 from .helpers import (
@@ -65,8 +65,16 @@ class EmployeeListCreateView(generics.ListCreateAPIView):
             queryset = queryset.filter(is_active=(is_active == "true"))
         if mine == "true":
             queryset = queryset.filter(registered_by=self.request.user)
+        return_request_status = (self.request.query_params.get("return_request_status") or "").strip().lower()
+        if return_request_status:
+            queryset = queryset.filter(return_request__status=return_request_status)
+            if user_scope == "agent":
+                return queryset.filter(selection__agent_id=agent_context["agent_id"])
+            return queryset
         if returned_scope in {"mine", "organization"}:
-            queryset = queryset.filter(returned_from_employment=True)
+            queryset = queryset.filter(
+                Q(returned_from_employment=True) | Q(return_request__status=EmployeeReturnRequest.STATUS_PENDING)
+            )
             if user_scope == "agent":
                 return queryset.filter(selection__agent_id=agent_context["agent_id"])
             return queryset

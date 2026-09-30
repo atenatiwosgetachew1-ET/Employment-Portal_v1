@@ -22,6 +22,10 @@ export default function EmployeesLayout() {
     window.dispatchEvent(new CustomEvent('portal:refresh-candidates'))
   }, [])
 
+  const handleOpenReturnRequest = useCallback(() => {
+    window.dispatchEvent(new CustomEvent('portal:open-return-request'))
+  }, [])
+
   useEffect(() => {
     const handleLoading = (event) => {
       setIsRefreshing(Boolean(event?.detail?.loading))
@@ -165,6 +169,21 @@ export default function EmployeesLayout() {
           </div>
         ) : (
           <div className="notifications-page-actions page-panel-actions">
+            {location.pathname.includes('/returned') && (
+              <button
+                type="button"
+                className="btn-secondary notifications-action-btn"
+                onClick={handleOpenReturnRequest}
+                disabled={readOnly}
+                title="Initiate return of an employee"
+              >
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <path d="M8 3 4 7l4 4"/>
+                  <path d="M4 15v4a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2H4"/>
+                </svg>
+                <span>Initiate Return</span>
+              </button>
+            )}
             <button
               type="button"
               className="btn-secondary notifications-action-btn"

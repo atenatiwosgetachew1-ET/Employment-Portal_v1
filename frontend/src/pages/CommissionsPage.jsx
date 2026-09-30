@@ -3,12 +3,13 @@ import { jsPDF } from 'jspdf'
 import autoTable from 'jspdf-autotable'
 import { Navigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
+import { useCandidateReview } from '../context/PortalOverlayContext'
 import { useUiFeedback } from '../context/UiFeedbackContext'
 import * as employeesService from '../services/employeesService'
 import * as usersService from '../services/usersService'
 import { matchesSearchQuery, normalizeSearchValue } from '../utils/filtering'
 import { isAgentSideWorkspace } from '../utils/profileStore'
-import { readAccentRgbTriplet, prettyStatus, isReturnedEmployee, isCommissionEligibleEmployee, isSettledCommissionEmployee, commissionStatus, settledCommissionStatus, statusTone, employmentStage, agentNameForEmployee, displayAgentName, employeeBelongsToAgent, employeeMovementDate, findEmployeeDocument, employeeProfilePhoto, isImageDocument, readTravelConfirmationConfirmedIds, fileLabel, numericCommissionRate, formatCurrency, displayActorName, formatDateTime, formatDateOnly, collectedWeekNumber, groupCollectedSettlementsByRange, filterSettlementsForCollectedEntry, collectedChildRange, timePassedLabel, settlementOwnerKey, openCommissionStorageDb, readStoredSettlementRequests, writeStoredSettlementRequests, buildEmployeeSettlementSnapshot, requestBelongsToAgent, settlementReceiptKind, readFileAsDataUrl } from '../utils/commissionsHelpers'
+import { readAccentRgbTriplet, prettyStatus, isReturnedEmployee, isCommissionEligibleEmployee, isSettledCommissionEmployee, commissionStatus, settledCommissionStatus, statusTone, employmentStage, agentNameForEmployee, displayAgentName, employeeBelongsToAgent, employeeMovementDate, findEmployeeDocument, employeeProfilePhoto, isImageDocument, readTravelConfirmationConfirmedIds, fileLabel, numericCommissionRate, formatCurrency, displayActorName, formatDateTime, formatDateOnly, collectedWeekNumber, groupCollectedSettlementsByRange, filterSettlementsForCollectedEntry, collectedChildRange, timePassedLabel, settlementOwnerKey, openCommissionStorageDb, readStoredSettlementRequests, writeStoredSettlementRequests, buildEmployeeSettlementSnapshot, requestBelongsToAgent, settlementReceiptKind, readFileAsDataUrl, fetchAllEmployeePages, fetchAllUsersByRole, readStoredSettlements, writeStoredSettlements } from '../utils/commissionsHelpers'
 
 const COMMISSION_VIEW_TABS = [
   { id: 'requests' },
@@ -44,7 +45,7 @@ export default function CommissionsPage() {
   const [agentRates, setAgentRates] = useState([])
   const [openedEmployee, setOpenedEmployee] = useState(null)
   const [previewReceipt, setPreviewReceipt] = useState(null)
-  const [expandedEmployee, setExpandedEmployee] = useState(null)
+  const { openCandidateReview } = useCandidateReview()
   const [currentView, setCurrentView] = useState('unsettled')
   const [collectedRange, setCollectedRange] = useState('monthly')
   const [collectedDrilldown, setCollectedDrilldown] = useState(null)
@@ -2117,7 +2118,7 @@ export default function CommissionsPage() {
                 <p className="muted-text">{openedEmployee.profession || openedEmployee.professional_title || '--'} | {employmentStage(openedEmployee)}</p>
               </div>
               <div className="inline-actions inline-actions--wrap">
-                <button type="button" className="btn-secondary" onClick={() => setExpandedEmployee(openedEmployee)}>
+                <button type="button" className="btn-secondary" onClick={() => { const emp = openedEmployee; setOpenedEmployee(null); openCandidateReview(emp); }}>
                   Open candidate details
                 </button>
                 <button type="button" className="btn-secondary" onClick={() => setOpenedEmployee(null)}>Close</button>
@@ -2153,99 +2154,6 @@ export default function CommissionsPage() {
                 ) : (
                   <p>None</p>
                 )}
-              </div>
-            </div>
-          </div>
-        </div>
-      ) : null}
-
-      {expandedEmployee ? (
-        <div className="employee-review-backdrop" role="presentation" onClick={() => setExpandedEmployee(null)}>
-          <div
-            className="employee-review-modal"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="commission-expanded-employee-title"
-            onClick={(event) => event.stopPropagation()}
-          >
-            <div className="employee-review-header">
-              <div className="employee-card-identity">
-                <div className="employee-review-avatar employee-card-avatar">
-                  {employeeProfilePhoto(expandedEmployee)?.file_url && isImageDocument(employeeProfilePhoto(expandedEmployee)) ? (
-                    <img src={employeeProfilePhoto(expandedEmployee).file_url} alt={`${expandedEmployee.full_name} profile`} />
-                  ) : (
-                    <span>{expandedEmployee.full_name?.charAt(0) || '?'}</span>
-                  )}
-                </div>
-                <div>
-                  <p className="employee-modal-eyebrow">Candidate details</p>
-                  <h2 id="commission-expanded-employee-title">{expandedEmployee.full_name}</h2>
-                  <p className="muted-text">{expandedEmployee.profession || expandedEmployee.professional_title || '--'} | {employmentStage(expandedEmployee)}</p>
-                </div>
-              </div>
-              <button type="button" className="btn-secondary" onClick={() => setExpandedEmployee(null)}>Close</button>
-            </div>
-            <div className="employee-review-grid">
-              <div className="employee-summary-card">
-                <h3>Overview</h3>
-                <p><strong>Passport:</strong> {expandedEmployee.passport_number || '--'}</p>
-                <p><strong>Phone:</strong> {expandedEmployee.mobile_number || '--'}</p>
-                <p><strong>Email:</strong> {expandedEmployee.email || '--'}</p>
-                <p><strong>Nationality:</strong> {expandedEmployee.nationality || '--'}</p>
-                <p><strong>Registered by:</strong> {expandedEmployee.registered_by_username || '--'}</p>
-              </div>
-              <div className="employee-summary-card">
-                <h3>Application</h3>
-                <p><strong>Profession:</strong> {expandedEmployee.profession || expandedEmployee.professional_title || '--'}</p>
-                <p><strong>Destination countries:</strong> {expandedEmployee.application_countries?.join(', ') || '--'}</p>
-                <p><strong>Employment type:</strong> {prettyStatus(expandedEmployee.employment_type)}</p>
-                <p><strong>Salary:</strong> {expandedEmployee.application_salary || '--'}</p>
-              </div>
-              <div className="employee-summary-card">
-                <h3>Movement</h3>
-                <p><strong>Status:</strong> {employmentStage(expandedEmployee)}</p>
-                <p><strong>Travel:</strong> {prettyStatus(expandedEmployee.travel_status, 'pending')}</p>
-                <p><strong>Return:</strong> {prettyStatus(expandedEmployee.return_status)}</p>
-                <p><strong>Last movement:</strong> {formatDateTime(employeeMovementDate(expandedEmployee))}</p>
-              </div>
-              <div className="employee-summary-card">
-                <h3>Commission</h3>
-                <p><strong>Status:</strong> {currentView === 'settled' ? settledCommissionStatus(expandedEmployee) : commissionStatus(expandedEmployee)}</p>
-                <p><strong>Agent side:</strong> {agentNameForEmployee(expandedEmployee)}</p>
-                <p className="muted-text">Collection from the agent side to the organization is a future settlement concept.</p>
-              </div>
-              <div className="employee-summary-card">
-                <h3>Last return request</h3>
-                {expandedEmployee.return_request ? (
-                  <>
-                    <p><strong>Status:</strong> {prettyStatus(expandedEmployee.return_request.status)}</p>
-                    <p><strong>Remark:</strong> {expandedEmployee.return_request.remark || '--'}</p>
-                    <p><strong>Requested by:</strong> {expandedEmployee.return_request.requested_by_username || '--'}</p>
-                    <p><strong>Requested at:</strong> {formatDateTime(expandedEmployee.return_request.requested_at)}</p>
-                  </>
-                ) : (
-                  <p className="muted-text">No return request recorded.</p>
-                )}
-              </div>
-              <div className="employee-summary-card employee-review-documents">
-                <h3>Documents</h3>
-                <div className="employee-modal-document-strip">
-                  {(expandedEmployee.documents || []).length === 0 ? (
-                    <span className="muted-text">No documents uploaded.</span>
-                  ) : (
-                    expandedEmployee.documents.map((document) => (
-                      <div key={document.id} className="employee-modal-document-card" title={fileLabel(document)}>
-                        <div className="employee-modal-document-tile">
-                          {isImageDocument(document) ? (
-                            <img src={document.file_url} alt={fileLabel(document)} />
-                          ) : (
-                            <span>{fileLabel(document).slice(0, 2).toUpperCase()}</span>
-                          )}
-                        </div>
-                      </div>
-                    ))
-                  )}
-                </div>
               </div>
             </div>
           </div>
