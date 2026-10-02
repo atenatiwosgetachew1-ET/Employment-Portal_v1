@@ -6,7 +6,7 @@ from rest_framework.views import APIView
 
 from ..audit_log import log_audit
 from ..licensing import get_access_restriction, get_user_organization
-from ..models import Employee, EmployeeReturnRequest, EmployeeSelection
+from ..models import Employee, EmployeeReturnRequest, EmployeeSelection, Profile
 from ..platform_views import UserPagination
 from ..serializers import EmployeeListSerializer, EmployeeSerializer
 from .helpers import (
@@ -37,6 +37,9 @@ class EmployeeListCreateView(generics.ListCreateAPIView):
             "return_request",
             "return_request__requested_by",
             "return_request__approved_by",
+            "reversal_request",
+            "reversal_request__requested_by",
+            "reversal_request__approved_by",
         ).prefetch_related("documents", "selection_interests__agent", "selection_interests__selected_by")
         if organization:
             queryset = queryset.filter(organization=organization)
@@ -71,17 +74,23 @@ class EmployeeListCreateView(generics.ListCreateAPIView):
             if user_scope == "agent":
                 return queryset.filter(selection__agent_id=agent_context["agent_id"])
             return queryset
+        reversal_request_status = (self.request.query_params.get("reversal_request_status") or "").strip().lower()
+        if reversal_request_status:
+            queryset = queryset.filter(reversal_request__status=reversal_request_status)
+            if user_scope == "agent":
+                return queryset.filter(selection__agent_id=agent_context["agent_id"])
+            return queryset
         if returned_scope in {"mine", "organization"}:
             queryset = queryset.filter(
                 Q(returned_from_employment=True) | Q(return_request__status=EmployeeReturnRequest.STATUS_PENDING)
             )
             if user_scope == "agent":
-                return queryset.filter(selection__agent_id=agent_context["agent_id"])
-            return queryset
+                return queryset.filter(selection__agent_id=agent_context["agent_id"]).order_by("-return_confirmed_at", "-return_request__requested_at", "-created_at")
+            return queryset.order_by("-return_confirmed_at", "-return_request__requested_at", "-created_at")
         if employed_scope in {"mine", "organization"}:
             if user_scope == "organization":
-                return queryset
-            return queryset.filter(selection__agent_id=agent_context["agent_id"])
+                return queryset.order_by("-employment_activated_at", "-arrival_confirmed_at", "-travel_confirmed_at", "-created_at")
+            return queryset.filter(selection__agent_id=agent_context["agent_id"]).order_by("-employment_activated_at", "-arrival_confirmed_at", "-travel_confirmed_at", "-created_at")
         if process_scope in {"mine", "organization"}:
             if user_scope == "organization":
                 queryset = queryset.filter(
@@ -94,18 +103,37 @@ class EmployeeListCreateView(generics.ListCreateAPIView):
                     selection__agent_id=agent_context["agent_id"],
                     returned_from_employment=False,
                 )
+            queryset = queryset.order_by("-selection__process_started_at", "-selection__updated_at", "-created_at")
         elif selected_scope == "organization":
-            queryset = queryset.filter(
-                selection_interests__isnull=False,
-                returned_from_employment=False,
-            ).exclude(selection__status=EmployeeSelection.STATUS_UNDER_PROCESS)
+            if user_scope == "agent":
+                if not agent_context["agent_id"]:
+                    return queryset.none()
+                queryset = queryset.filter(
+                    Q(selection_interests__agent_id=agent_context["agent_id"])
+                    | Q(selection__agent_id=agent_context["agent_id"], selection__status=EmployeeSelection.STATUS_SELECTED),
+                    returned_from_employment=False,
+                ).exclude(
+                    selection__agent_id=agent_context["agent_id"],
+                    selection__status=EmployeeSelection.STATUS_UNDER_PROCESS,
+                )
+            else:
+                queryset = queryset.filter(
+                    Q(selection_interests__isnull=False) | Q(selection__status=EmployeeSelection.STATUS_SELECTED),
+                    returned_from_employment=False,
+                ).exclude(selection__status=EmployeeSelection.STATUS_UNDER_PROCESS)
+            queryset = queryset.order_by("-selection__updated_at", "-selection__created_at", "-created_at")
         elif selected_scope == "mine":
             if user_scope != "agent" or not agent_context["agent_id"]:
                 return queryset.none()
             queryset = queryset.filter(
-                selection_interests__agent_id=agent_context["agent_id"],
+                Q(selection_interests__agent_id=agent_context["agent_id"])
+                | Q(selection__agent_id=agent_context["agent_id"], selection__status=EmployeeSelection.STATUS_SELECTED),
                 returned_from_employment=False,
-            ).exclude(selection__status=EmployeeSelection.STATUS_UNDER_PROCESS)
+            ).exclude(
+                selection__agent_id=agent_context["agent_id"],
+                selection__status=EmployeeSelection.STATUS_UNDER_PROCESS,
+            )
+            queryset = queryset.order_by("-selection__updated_at", "-selection__created_at", "-created_at")
         else:
             if user_scope == "organization":
                 return queryset
@@ -137,7 +165,7 @@ class EmployeeListCreateView(generics.ListCreateAPIView):
             and employed_scope not in {"mine", "organization"}
             and returned_scope not in {"mine", "organization"}
             and process_scope not in {"mine", "organization"}
-            and selected_scope != "mine"
+            and selected_scope not in {"mine", "organization"}
         )
 
         if should_python_filter or employed_scope in {"mine", "organization"} or returned_scope in {"mine", "organization"}:
@@ -222,6 +250,9 @@ class EmployeeRetrieveUpdateDestroyView(generics.RetrieveUpdateDestroyAPIView):
             "return_request",
             "return_request__requested_by",
             "return_request__approved_by",
+            "reversal_request",
+            "reversal_request__requested_by",
+            "reversal_request__approved_by",
         ).prefetch_related("documents")
         if organization:
             return queryset.filter(organization=organization)
@@ -299,10 +330,18 @@ class EmployeeRetrieveUpdateDestroyView(generics.RetrieveUpdateDestroyAPIView):
         if restriction:
             return Response({"detail": restriction}, status=status.HTTP_403_FORBIDDEN)
         employee = self.get_object()
-        if not can_manage_employee_registration(request.user, employee.organization):
+        scope, _ = get_employee_user_scope(request.user, employee.organization)
+        role = getattr(getattr(request.user, "profile", None), "role", "")
+        is_org_admin = scope == "organization" and role in {Profile.ROLE_SUPERADMIN, Profile.ROLE_ADMIN}
+        if not is_org_admin:
             return Response(
-                {"detail": "Only organization-side privileged users can delete employees."},
+                {"detail": "Only organization-side admin accounts can delete candidates."},
                 status=status.HTTP_403_FORBIDDEN,
+            )
+        if employee.status != Employee.STATUS_PENDING:
+            return Response(
+                {"detail": "Only candidates under pending approval can be deleted."},
+                status=status.HTTP_400_BAD_REQUEST,
             )
         return super().destroy(request, *args, **kwargs)
 

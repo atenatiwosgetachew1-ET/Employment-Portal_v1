@@ -142,6 +142,15 @@
   width: 100%;
 }
 
+.employee-card-list-side-meta-row {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 5px;
+  width: 100%;
+}
+
 .employee-card-list-side-dest {
   display: inline-flex;
   align-items: center;
@@ -160,11 +169,13 @@
   display: inline-flex;
   align-items: center;
   color: var(--color-muted-foreground);
+  flex-shrink: 0;
 }
 
 .employee-card-list-side-dest-label {
   color: var(--color-muted-foreground);
   font-weight: 450;
+  flex-shrink: 0;
 }
 
 .employee-card-list-side-dest-val {
@@ -172,6 +183,42 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  max-width: 110px;
+}
+
+.employee-card-list-side-owner {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  border-radius: 6px;
+  font-size: 0.73rem;
+  background: color-mix(in oklch, var(--color-card) 60%, var(--color-muted) 40%);
+  border: 1px solid color-mix(in oklch, var(--color-border) 70%, transparent);
+  color: var(--color-foreground);
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.employee-card-list-side-owner-icon {
+  display: inline-flex;
+  align-items: center;
+  color: var(--color-muted-foreground);
+  flex-shrink: 0;
+}
+
+.employee-card-list-side-owner-label {
+  color: var(--color-muted-foreground);
+  font-weight: 450;
+  flex-shrink: 0;
+}
+
+.employee-card-list-side-owner-val {
+  font-weight: 550;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 110px;
 }
 
 .employee-card-list-readiness {
@@ -244,14 +291,16 @@
   filter: brightness(1.08);
 }
 
-.employee-card-list-side-btn--select {
+.employee-card-list-side-btn--select,
+.employee-card-list-side-btn--initiate {
   background: rgb(var(--accent-active));
   border: 1px solid rgb(var(--accent-active-border));
   color: #111111;
   font-weight: 600;
 }
 
-.employee-card-list-side-btn--select:hover {
+.employee-card-list-side-btn--select:hover,
+.employee-card-list-side-btn--initiate:hover {
   filter: brightness(1.12);
   box-shadow: 0 2px 8px rgb(var(--accent-active) / 0.35);
 }
@@ -1366,6 +1415,10 @@ button.candidate-chip-remove:hover,
   border-color: var(--tag-orange-bg);
 }
 
+.employee-card.is-selected[data-badge='badge-orange'] {
+  border-color: #f97316;
+}
+
 .employee-card.is-selected[data-badge='badge-danger'] {
   border-color: var(--tag-red-bg);
 }
@@ -1380,6 +1433,33 @@ button.candidate-chip-remove:hover,
 
 .employee-card.is-selected[data-badge='badge-muted'] {
   border-color: rgb(var(--accent-active-border) / 0.55);
+}
+
+.employee-card.is-not-available,
+.employee-card.is-muted-card {
+  opacity: 0.78;
+  filter: grayscale(0.35);
+  border-color: color-mix(in oklch, var(--color-border) 70%, transparent);
+  transition: opacity 160ms ease, filter 160ms ease, border-color 160ms ease;
+}
+
+.employee-card.is-not-available:hover,
+.employee-card.is-muted-card:hover {
+  opacity: 0.95;
+  filter: grayscale(0.15);
+}
+
+html[data-theme='dark'] .employee-card.is-not-available,
+html[data-theme='dark'] .employee-card.is-muted-card {
+  opacity: 0.72;
+  filter: grayscale(0.4);
+  border-color: color-mix(in oklch, var(--color-border) 60%, transparent);
+}
+
+html[data-theme='dark'] .employee-card.is-not-available:hover,
+html[data-theme='dark'] .employee-card.is-muted-card:hover {
+  opacity: 0.9;
+  filter: grayscale(0.2);
 }
 
 /* ==========================================================================
@@ -1405,6 +1485,11 @@ button.candidate-chip-remove:hover,
 .employee-card[data-badge='badge-warning'] {
   --employee-progress-fill-start: #f59e0b;
   --employee-progress-fill-end: #d97706;
+}
+
+.employee-card[data-badge='badge-orange'] {
+  --employee-progress-fill-start: #fb923c;
+  --employee-progress-fill-end: #ea580c;
 }
 
 .employee-card[data-badge='badge-employed'] {
@@ -1440,6 +1525,11 @@ html[data-theme='dark'] .employee-card[data-badge='badge-info'] {
 html[data-theme='dark'] .employee-card[data-badge='badge-warning'] {
   --employee-progress-fill-start: #fbbf24;
   --employee-progress-fill-end: #d97706;
+}
+
+html[data-theme='dark'] .employee-card[data-badge='badge-orange'] {
+  --employee-progress-fill-start: #fb923c;
+  --employee-progress-fill-end: #ea580c;
 }
 
 html[data-theme='dark'] .employee-card[data-badge='badge-employed'] {
@@ -1535,6 +1625,17 @@ html[data-theme='light'] .employee-card.is-select-denied {
     color-mix(in oklch, var(--color-card) 92%, var(--color-muted));
 }
 
+.employee-card.is-expanded[data-badge='badge-orange'] {
+  border-color: #f97316;
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in oklch, #f97316 8%, transparent) 0%,
+      rgb(0 0 0 / 0.53) 70%
+    ),
+    color-mix(in oklch, var(--color-card) 92%, var(--color-muted));
+}
+
 .employee-card.is-expanded[data-badge='badge-danger'] {
   border-color: var(--tag-red-bg);
   background:
@@ -1581,7 +1682,13 @@ html[data-theme='light'] .employee-card.is-select-denied {
 
 .employee-card.is-expanded[data-badge='badge-muted'] {
   border-color: rgb(var(--accent-active-border) / 0.4);
-  background: color-mix(in oklch, var(--color-card) 92%, var(--color-muted));
+  background:
+    linear-gradient(
+      180deg,
+      transparent 0%,
+      rgb(0 0 0 / 0.53) 70%
+    ),
+    color-mix(in oklch, var(--color-card) 92%, var(--color-muted));
 }
 
 .employee-card-expand {
@@ -1785,6 +1892,18 @@ html[data-theme='light'] .employee-card.is-select-denied {
     color-mix(in oklch, var(--color-card) 94%, var(--color-muted));
 }
 
+.employees-page .employee-card[data-badge='badge-orange'] .employee-card-menu.is-open {
+  border-color: color-mix(in oklch, var(--color-border) 70%, transparent);
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in oklch, #f97316 54%, transparent) 0%,
+      color-mix(in oklch, #f97316 14%, transparent) 40%,
+      rgb(0 0 0 / 0.15) 90%
+    ),
+    color-mix(in oklch, var(--color-card) 94%, var(--color-muted));
+}
+
 .employees-page .employee-card[data-badge='badge-danger'] .employee-card-menu.is-open {
   border-color: color-mix(in oklch, var(--color-border) 70%, transparent);
   background:
@@ -1859,7 +1978,8 @@ html[data-theme='light'] .employee-card.is-select-denied {
 }
 
 .employee-card-menu-item--details,
-.employee-card-menu-item--select {
+.employee-card-menu-item--select,
+.employee-card-menu-item--initiate {
   background: transparent !important;
   color: var(--color-muted-foreground) !important;
 }
@@ -1867,7 +1987,9 @@ html[data-theme='light'] .employee-card.is-select-denied {
 .employee-card-menu-item--details:hover,
 .employee-card-menu-item--details:focus-visible,
 .employee-card-menu-item--select:hover,
-.employee-card-menu-item--select:focus-visible {
+.employee-card-menu-item--select:focus-visible,
+.employee-card-menu-item--initiate:hover,
+.employee-card-menu-item--initiate:focus-visible {
   background: color-mix(in oklch, var(--color-muted) 50%, transparent) !important;
   color: var(--color-foreground) !important;
 }
@@ -1915,6 +2037,12 @@ html[data-theme='light'] .employee-card.is-select-denied {
   color: #ffffff !important;
 }
 
+.employees-page .employee-card[data-badge='badge-orange'] .employee-card-details-btn {
+  background: rgba(59, 59, 59, 0.7) !important;
+  border-color: transparent !important;
+  color: #ffffff !important;
+}
+
 .employees-page .employee-card[data-badge='badge-danger'] .employee-card-details-btn {
   background: rgba(59, 59, 59, 0.7) !important;
   border-color: transparent !important;
@@ -1956,6 +2084,14 @@ html[data-theme='light'] .employee-card.is-select-denied {
   background: linear-gradient(
     color-mix(in oklch, var(--tag-orange-bg) 20%, transparent) 0%,
     color-mix(in oklch, var(--tag-orange-bg) 10%, transparent) 100%
+  ) !important;
+  border-color: transparent !important;
+}
+
+.employees-page .employee-card[data-badge='badge-orange'] .employee-card-details-btn:hover {
+  background: linear-gradient(
+    color-mix(in oklch, #f97316 20%, transparent) 0%,
+    color-mix(in oklch, #f97316 10%, transparent) 100%
   ) !important;
   border-color: transparent !important;
 }
@@ -2022,6 +2158,15 @@ html[data-theme='light'] .employee-card.is-select-denied {
   background: linear-gradient(
     color-mix(in oklch, var(--tag-orange-bg) 0%, transparent) 0%,
     color-mix(in oklch, var(--tag-orange-bg) 0%, transparent) 100%
+  ) !important;
+  border-color: transparent !important;
+  opacity: 0.4;  
+}
+
+.employees-page .employee-card[data-badge='badge-orange'] .employee-card-details-btn:active {
+  background: linear-gradient(
+    color-mix(in oklch, #f97316 0%, transparent) 0%,
+    color-mix(in oklch, #f97316 0%, transparent) 100%
   ) !important;
   border-color: transparent !important;
   opacity: 0.4;  
@@ -2112,6 +2257,12 @@ html[data-theme='light'] .employee-card.is-select-denied {
   border-color: color-mix(in oklch, #f59e0b 30%, transparent) !important;
 }
 
+.employee-card .badge.badge-orange {
+  background: color-mix(in oklch, #f97316 14%, var(--color-card)) !important;
+  color: #ea580c !important;
+  border-color: color-mix(in oklch, #f97316 35%, transparent) !important;
+}
+
 .employee-card .badge.badge-danger {
   background: color-mix(in oklch, #ef4444 12%, var(--color-card)) !important;
   color: #dc2626 !important;
@@ -2150,6 +2301,11 @@ html[data-theme='dark'] .employee-card .badge.badge-success {
 html[data-theme='dark'] .employee-card .badge.badge-warning {
   background: color-mix(in oklch, #f59e0b 16%, var(--color-card)) !important;
   color: #fbbf24 !important;
+}
+
+html[data-theme='dark'] .employee-card .badge.badge-orange {
+  background: color-mix(in oklch, #f97316 16%, var(--color-card)) !important;
+  color: #fb923c !important;
 }
 
 html[data-theme='dark'] .employee-card .badge.badge-danger {

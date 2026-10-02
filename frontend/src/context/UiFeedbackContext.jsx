@@ -1,4 +1,5 @@
 import { createContext, useCallback, useContext, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { useOverlayZIndex } from '../utils/overlayZIndex'
 
 const UiFeedbackContext = createContext(null)
@@ -61,22 +62,33 @@ export function UiFeedbackProvider({ children }) {
     confirm
   }), [confirm, showToast])
 
+  const toastStack = (
+    <div
+      className="app-toast-stack"
+      aria-live="polite"
+      aria-atomic="true"
+      style={{ zIndex: 99999999, '--overlay-z-index': 99999999 }}
+    >
+      {toasts.map((toast) => (
+        <div key={toast.id} className={`app-toast app-toast--${toast.tone}`}>
+          <div className="app-toast-copy">
+            {toast.title ? <strong>{toast.title}</strong> : null}
+            <span>{toast.message}</span>
+          </div>
+          <button type="button" className="app-toast-close" onClick={() => dismissToast(toast.id)} aria-label="Dismiss notification">
+            ×
+          </button>
+        </div>
+      ))}
+    </div>
+  )
+
+  const renderedToasts = typeof document !== 'undefined' ? createPortal(toastStack, document.body) : toastStack
+
   return (
     <UiFeedbackContext.Provider value={value}>
       {children}
-      <div className="app-toast-stack" aria-live="polite" aria-atomic="true">
-        {toasts.map((toast) => (
-          <div key={toast.id} className={`app-toast app-toast--${toast.tone}`}>
-            <div className="app-toast-copy">
-              {toast.title ? <strong>{toast.title}</strong> : null}
-              <span>{toast.message}</span>
-            </div>
-            <button type="button" className="app-toast-close" onClick={() => dismissToast(toast.id)} aria-label="Dismiss notification">
-              ×
-            </button>
-          </div>
-        ))}
-      </div>
+      {renderedToasts}
       {confirmState ? (
         <div className="app-confirm-backdrop" role="presentation" onClick={() => closeConfirm(false)} style={{ zIndex: confirmZIndex, '--overlay-z-index': confirmZIndex }}>
           <div

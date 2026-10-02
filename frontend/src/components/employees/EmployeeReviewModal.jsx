@@ -9,8 +9,10 @@ import { isAgentSideWorkspace } from '../../utils/profileStore'
 import {
   buildProgressDonut,
   computeAge,
+  computeCandidateProgressTimeline,
   employeeAvailability,
   employedCommissionLabel,
+  employeeProcessOwnerName,
   employeeProfilePhoto,
   employeeStatusBadgeClass,
   employeeStatusBadgeVariantClass,
@@ -61,6 +63,10 @@ export default function EmployeeReviewModal({
   onRefuseReturn = null,
   onCancelReturnRequest = null,
   onReinstateEmployment = null,
+  onRequestReversal = null,
+  onCancelReversalRequest = null,
+  onAcknowledgeReversal = null,
+  onRefuseReversal = null,
   onEmployeeUpdated = null,
   // Configuration
   agentOptions = [],
@@ -126,6 +132,15 @@ export default function EmployeeReviewModal({
   useEffect(() => {
     if (initialMode) setMode(initialMode)
   }, [initialMode, activeEmployeeId])
+
+  useEffect(() => {
+    if (!employee) return
+    const preselectedAgentId =
+      employee.selection_state?.selection?.agent
+        ? String(employee.selection_state.selection.agent)
+        : (agentOptions?.length === 1 ? String(agentOptions[0].id) : '')
+    setSelectedAgentId(preselectedAgentId)
+  }, [employee?.id, employee?.selection_state?.selection?.agent, agentOptions])
 
   // ── Scroller & Scroll Buttons ───────────────────────────────────────
   const docScrollerRef = useRef(null)
@@ -215,6 +230,7 @@ export default function EmployeeReviewModal({
 
   // ── Permissions & Roles ─────────────────────────────────────────────
   const isAgentSideUser = isAgentSideWorkspace(user)
+  const isOrgAdmin = !isAgentSideUser && (user?.role === 'admin' || user?.role === 'superadmin')
   const canEditRecords = !isAgentSideUser
   const isMainAgent = user?.role === 'customer'
   const canManageProcesses = user?.role === 'superadmin' || user?.role === 'admin'
@@ -231,13 +247,52 @@ export default function EmployeeReviewModal({
   const isEmployed = useMemo(() => isEmployeeEmployedInView(employee, currentView), [currentView, employee])
   const workflowState = useMemo(() => employeeWorkflowState(employee), [employee])
   const selectionState = useMemo(() => employee?.selection_state || {}, [employee])
+  const isSecuredByOtherAgent = Boolean(selectionState.is_secured_by_other_agent)
+  const isUnderProcess = workflowState === 'under_process'
+  const isTravelled = workflowState === 'traveled' || Boolean(employee?.did_travel) || employee?.travel_status === 'confirmed'
+  const isProcessActive = isUnderProcess || isTravelled || isEmployed || selectionState.selection?.status === 'under_process'
+  const processOwnerName = useMemo(() => {
+    if (isAgentSideUser && isSecuredByOtherAgent) {
+      return ''
+    }
+    return (
+      employeeProcessOwnerName(employee) ||
+      (isProcessActive
+        ? (selectionState.process_owner_name || selectionState.selection?.agent_name || selectionState.secured_by_agent_name || '')
+        : '')
+    )
+  }, [employee, isAgentSideUser, isSecuredByOtherAgent, isProcessActive, selectionState.process_owner_name, selectionState.selection?.agent_name, selectionState.secured_by_agent_name])
+  const selectedAgentsDisplay = useMemo(() => {
+    if (isAgentSideUser && isSecuredByOtherAgent) {
+      return ''
+    }
+    if (isAgentSideUser) {
+      return selectionState.selected_by_current_agent
+        ? (selectionState.selection?.agent_name || user?.username || '')
+        : ''
+    }
+    if (selectionState.all_agents?.length) {
+      return selectionState.all_agents.join(', ')
+    }
+    return selectionState.selection?.agent_name || ''
+  }, [isAgentSideUser, isSecuredByOtherAgent, selectionState.all_agents, selectionState.selection?.agent_name, selectionState.selected_by_current_agent, user?.username])
+  const resolvedProcessAgent = useMemo(() => {
+    return (
+      selectedAgentId ||
+      (employee?.selection_state?.selection?.agent ? String(employee.selection_state.selection.agent) : '') ||
+      (agentOptions.length === 1 ? String(agentOptions[0].id) : '')
+    )
+  }, [selectedAgentId, employee?.selection_state?.selection?.agent, agentOptions])
   const isSelectedByCurrentAgent = Boolean(selectionState.selected_by_current_agent)
   const canUnselect = Boolean(selectionState.can_unselect)
-  const isUnderProcess = workflowState === 'under_process'
-  const isTravelled = workflowState === 'traveled'
+  const isFullyComplete = (employee?.progress_status?.overall_completion ?? 0) >= 100
   const isAvailable = employeeAvailability(employee) === 'Available'
   const badgeClass = useMemo(() => employeeStatusBadgeClass(employee), [employee])
   const returnRequest = useMemo(() => employee?.return_request || null, [employee])
+
+  const reversalRequest = useMemo(() => employee?.reversal_request || null, [employee])
+  const isReversalPending = reversalRequest?.status === 'pending'
+  const isReversalRequester = Boolean(reversalRequest?.is_requester)
 
   const canApproveReturn = Boolean(
     employee &&
@@ -253,7 +308,34 @@ export default function EmployeeReviewModal({
     isAgentSideUser &&
     isSelectedByCurrentAgent
   )
-  const canReinstate = Boolean(employee && isReturned && canManageProcesses)
+
+  // Reversal permissions (two-party acknowledgement pattern)
+  const canInitiateReversal = Boolean(
+    employee &&
+    isReturned &&
+    !isReversalPending &&
+    (isOrgAdmin || (isAgentSideUser && isSelectedByCurrentAgent))
+  )
+  const canCancelReversal = Boolean(
+    employee &&
+    isReturned &&
+    isReversalPending &&
+    isReversalRequester
+  )
+  const canDecideReversal = Boolean(
+    employee &&
+    isReturned &&
+    isReversalPending &&
+    !isReversalRequester &&
+    (isOrgAdmin || (isAgentSideUser && isSelectedByCurrentAgent))
+  )
+
+  // Stage and role guards
+  const isPendingApproval = workflowState === 'pending' && (employee?.status || '').toLowerCase() === 'pending'
+  const canDeleteCandidate = Boolean(onDelete && isOrgAdmin && isPendingApproval)
+
+  const isBelowEmployed = ['pending', 'approved', 'selected', 'under_process'].includes(workflowState) && !isEmployed && !isTravelled && !isReturned
+  const canEditCandidate = Boolean(canEditRecords && onEdit && isBelowEmployed)
 
   // ── Document Filtering & Cards ──────────────────────────────────────
   const employeeDocuments = useMemo(() => employee?.documents || [], [employee])
@@ -448,6 +530,91 @@ export default function EmployeeReviewModal({
     }
   }, [confirm, employee, onCancelReturnRequest, onEmployeeUpdated, showToast])
 
+  const handleConfirmTravelInternal = useCallback(async () => {
+    if (!employee) return
+    const confirmed = await confirm({
+      title: 'Confirm Candidate Travel',
+      message: `Are you sure you want to confirm travel for ${employee.full_name}? The candidate will transition out of Under Process and await arrival acknowledgement.`,
+      confirmLabel: 'Confirm Travel',
+      tone: 'primary'
+    })
+    if (!confirmed) return
+    setActionBusy(true)
+    try {
+      const updated = await employeesService.confirmEmployeeTravel(employee.id)
+      setFetchedEmployee(updated)
+      if (onEmployeeUpdated) onEmployeeUpdated(updated)
+      window.dispatchEvent(new Event('portal:refresh-candidates'))
+      showToast('Travel confirmed successfully. Waiting for arrival acknowledgement.', { tone: 'success' })
+    } catch (err) {
+      showToast(err.message || 'Failed to confirm travel', { tone: 'danger' })
+    } finally {
+      setActionBusy(false)
+    }
+  }, [confirm, employee, onEmployeeUpdated, showToast])
+
+  const handleConfirmArrivalInternal = useCallback(async () => {
+    if (!employee) return
+    const confirmed = await confirm({
+      title: 'Confirm Candidate Arrival',
+      message: `Confirm that ${employee.full_name} has arrived safely? This will activate employment and generate commission records.`,
+      confirmLabel: 'Confirm Arrival',
+      tone: 'success'
+    })
+    if (!confirmed) return
+    setActionBusy(true)
+    try {
+      const updated = await employeesService.confirmEmployeeArrival(employee.id, { action: 'confirm' })
+      setFetchedEmployee(updated)
+      if (onEmployeeUpdated) onEmployeeUpdated(updated)
+      window.dispatchEvent(new Event('portal:refresh-candidates'))
+      showToast('Arrival confirmed! Candidate is now actively employed.', { tone: 'success' })
+    } catch (err) {
+      showToast(err.message || 'Failed to confirm arrival', { tone: 'danger' })
+    } finally {
+      setActionBusy(false)
+    }
+  }, [confirm, employee, onEmployeeUpdated, showToast])
+
+  const handleDeclineArrivalInternal = useCallback(async () => {
+    if (!employee) return
+    const reason = window.prompt(`Enter the reason/evidence for disputing arrival of ${employee.full_name}:`)
+    if (!reason || !reason.trim()) return
+    setActionBusy(true)
+    try {
+      const updated = await employeesService.confirmEmployeeArrival(employee.id, { action: 'decline', reason: reason.trim() })
+      setFetchedEmployee(updated)
+      if (onEmployeeUpdated) onEmployeeUpdated(updated)
+      window.dispatchEvent(new Event('portal:refresh-candidates'))
+      showToast('Arrival disputed and logged for investigation.', { tone: 'warning' })
+    } catch (err) {
+      showToast(err.message || 'Failed to dispute arrival', { tone: 'danger' })
+    } finally {
+      setActionBusy(false)
+    }
+  }, [employee, onEmployeeUpdated, showToast])
+
+  const handleAdminCompleteInternal = useCallback(async () => {
+    if (!employee) return
+    const reason = window.prompt(`Enter the administrative justification/reason for completing requirements for ${employee.full_name}:`)
+    if (!reason || !reason.trim()) return
+    setActionBusy(true)
+    try {
+      const updated = await employeesService.updateEmployee(employee.id, {
+        progress_override_complete: true,
+        administrative_completion_reason: reason.trim()
+      })
+      setFetchedEmployee(updated)
+      if (onEmployeeUpdated) onEmployeeUpdated(updated)
+      window.dispatchEvent(new Event('portal:refresh-candidates'))
+      showToast('Candidate administratively completed with reason recorded.', { tone: 'success' })
+    } catch (err) {
+      showToast(err.message || 'Failed to administratively complete', { tone: 'danger' })
+    } finally {
+      setActionBusy(false)
+    }
+  }, [employee, onEmployeeUpdated, showToast])
+
   if (!isOpen) return null
 
   // ── Render Loading / Error State ────────────────────────────────────
@@ -565,16 +732,44 @@ export default function EmployeeReviewModal({
                   {employee.profession || employee.professional_title || '--'}
                 </p>
                 <div className="employee-review-pills" aria-label="Candidate status">
-                  <span className={`badge employee-card-status-badge ${badgeClass} ${employeeStatusBadgeVariantClass(employee)}`.trim()}>
-                    {employeeStatusLabel(employee)}
-                  </span>
+                  {returnRequest?.status === 'pending' ? (
+                    <span className="badge employee-card-status-badge badge-orange">
+                      Pending return
+                    </span>
+                  ) : reversalRequest?.status === 'pending' ? (
+                    <span className="badge employee-card-status-badge badge-orange">
+                      Pending reversal
+                    </span>
+                  ) : employee?.is_overdue ? (
+                    <span className="badge employee-card-status-badge badge-orange" title="Return or contract date has passed">
+                      Overdue
+                    </span>
+                  ) : employee?.arrival_status === 'declined' ? (
+                    <span className="badge employee-card-status-badge badge-orange" title={employee?.arrival_decline_reason || 'Arrival disputed'}>
+                      Travel Disputed
+                    </span>
+                  ) : (
+                    <span className={`badge employee-card-status-badge ${badgeClass} ${employeeStatusBadgeVariantClass(employee)}`.trim()}>
+                      {employeeStatusLabel(employee)}
+                    </span>
+                  )}
+                  {employee?.is_administratively_completed && (
+                    <span
+                      className="badge employee-card-status-badge badge-warning"
+                      title={`Administratively completed: ${employee.administrative_completion_reason || 'Authorized by administrator'}`}
+                    >
+                      Admin Completed
+                    </span>
+                  )}
+                  {employee?.travel_status === 'confirmed' && (!employee?.arrival_status || employee?.arrival_status === 'pending') && (
+                    <span className="badge employee-card-status-badge badge-info">
+                      Arrival Pending
+                    </span>
+                  )}
                   <span className="employee-status-pill employee-status-pill--neutral">
                     {(employee.application_countries || [])[0] || '—'}
                   </span>
                   <span className="employee-status-pill employee-status-pill--neutral">{employeeAvailability(employee)}</span>
-                  {returnRequest?.status === 'pending' ? (
-                    <span className="employee-status-pill employee-status-pill--warning">Return requested</span>
-                  ) : null}
                 </div>
               </div>
             </div>
@@ -583,27 +778,52 @@ export default function EmployeeReviewModal({
             <div className="employee-review-actions" aria-label="Candidate actions">
               <div className="employee-review-actions-stack">
                 <div className="employee-review-actions-secondary">
-                  {/* Initiate Process Dropdown & Button (if permitted and handler passed) */}
+                  {/* Initiate Process: Org Admin / Superadmin */}
                   {canManageProcesses && !isUnderProcess && !isEmployed && !isTravelled && !isReturned && onStartProcess ? (
                     <div className="employee-review-btn-group">
-                      <select
-                        className="employee-review-select"
-                        value={selectedAgentId}
-                        onChange={(e) => setSelectedAgentId(e.target.value)}
-                        disabled={readOnly || actionBusy}
-                      >
-                        <option value="">{agentOptions.length <= 1 ? 'Agent auto-selected' : 'Select agent'}</option>
-                        {agentOptions.map((agent) => (
-                          <option key={agent.id} value={String(agent.id)}>
-                            {agent.name || agent.username}
-                          </option>
-                        ))}
-                      </select>
+                      {!resolvedProcessAgent ? (
+                        <div className="employee-review-agent-hint" role="status">
+                          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                            <circle cx="12" cy="12" r="10" />
+                            <line x1="12" y1="16" x2="12" y2="12" />
+                            <line x1="12" y1="8" x2="12.01" y2="8" />
+                          </svg>
+                          <span>Select an agent to initiate the process</span>
+                        </div>
+                      ) : null}
+                      <div className="employee-review-select-wrap">
+                        <select
+                          className="employee-review-select"
+                          value={selectedAgentId}
+                          onChange={(e) => setSelectedAgentId(e.target.value)}
+                          disabled={readOnly || actionBusy}
+                          aria-label="Select agent for process"
+                        >
+                          <option value="">{agentOptions.length <= 1 ? 'Agent auto-selected' : 'Select agent…'}</option>
+                          {agentOptions.map((agent) => (
+                            <option key={agent.id} value={String(agent.id)}>
+                              {agent.name || agent.username}
+                            </option>
+                          ))}
+                        </select>
+                        <span className="employee-review-select-chevron" aria-hidden="true">
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                            <polyline points="6 9 12 15 18 9" />
+                          </svg>
+                        </span>
+                      </div>
                       <button
                         type="button"
                         className="employee-review-action-btn employee-review-action-btn--primary"
-                        onClick={() => onStartProcess(employee, selectedAgentId)}
-                        disabled={readOnly || actionBusy || employee.status !== 'approved'}
+                        onClick={() => {
+                          if (canManageProcesses && !resolvedProcessAgent) {
+                            showToast('Please select an agent before starting the process.', { tone: 'warning' })
+                            return
+                          }
+                          onStartProcess(employee, resolvedProcessAgent)
+                        }}
+                        disabled={readOnly || actionBusy || employee.status !== 'approved' || !resolvedProcessAgent}
+                        title={!resolvedProcessAgent ? 'Select an agent to initiate process' : 'Initiate process'}
                       >
                         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                           <polygon points="5 3 19 12 5 21 5 3"/>
@@ -613,14 +833,29 @@ export default function EmployeeReviewModal({
                     </div>
                   ) : null}
 
-                  {/* Select / Unselect Candidate */}
-                  {!isEmployed && !isTravelled && !isReturned && !isUnderProcess && isAvailable && onToggleSelected ? (
+                  {/* Initiate Process: Agent */}
+                  {!canManageProcesses && !isSecuredByOtherAgent && isAgentSideUser && isSelectedByCurrentAgent && !isUnderProcess && !isEmployed && !isTravelled && !isReturned && onStartProcess ? (
+                    <button
+                      type="button"
+                      className="employee-review-action-btn employee-review-action-btn--primary"
+                      onClick={() => onStartProcess(employee)}
+                      disabled={readOnly || actionBusy || employee.status !== 'approved'}
+                    >
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                        <polygon points="5 3 19 12 5 21 5 3"/>
+                      </svg>
+                      <span>Initiate process</span>
+                    </button>
+                  ) : null}
+
+                  {/* Select / Unselect Candidate (Agent-side only) */}
+                  {!isSecuredByOtherAgent && isAgentSideUser && !isEmployed && !isTravelled && !isReturned && !isUnderProcess && isAvailable && onToggleSelected ? (
                     <button
                       type="button"
                       className={`employee-review-action-btn ${isSelectedByCurrentAgent ? 'employee-review-action-btn--unselect' : 'employee-review-action-btn--select'}`}
                       onClick={() => onToggleSelected(employee)}
                       title={isSelectedByCurrentAgent && !canUnselect ? 'Only the selecting account or agent owner can unselect this candidate.' : undefined}
-                      disabled={readOnly || !isAgentSideUser || actionBusy || (isSelectedByCurrentAgent && !canUnselect)}
+                      disabled={readOnly || actionBusy || (isSelectedByCurrentAgent && !canUnselect)}
                     >
                       {isSelectedByCurrentAgent ? (
                         <>
@@ -641,9 +876,8 @@ export default function EmployeeReviewModal({
                     </button>
                   ) : null}
 
-
                   {/* Process Actions: Decline or Complete */}
-                  {canManageProcesses && isUnderProcess && onDeclineProcess ? (
+                  {!isSecuredByOtherAgent && (canManageProcesses || (isAgentSideUser && isMainAgent && isSelectedByCurrentAgent)) && isUnderProcess && onDeclineProcess ? (
                     <button
                       type="button"
                       className="employee-review-action-btn employee-review-action-btn--danger"
@@ -658,32 +892,78 @@ export default function EmployeeReviewModal({
                     </button>
                   ) : null}
 
-                  {canOverrideProgress && isUnderProcess && onMarkProgressComplete && ((employee.progress_status?.overall_completion ?? 0) < 100 || !employee.did_travel) ? (
+                  {/* Travel Confirmation Action */}
+                  {canManageProcesses && isOrgAdmin && isUnderProcess && !isTravelled && !employee.did_travel && (
                     <button
                       type="button"
-                      className="employee-review-action-btn employee-review-action-btn--info"
-                      onClick={() => onMarkProgressComplete(employee)}
-                      disabled={readOnly || actionBusy}
+                      className="employee-review-action-btn employee-review-action-btn--primary"
+                      onClick={handleConfirmTravelInternal}
+                      disabled={actionBusy || readOnly || (!isFullyComplete && !employee.is_administratively_completed)}
+                      title={(!isFullyComplete && !employee.is_administratively_completed) ? 'Complete all requirements or administratively complete first' : 'Confirm candidate travel'}
+                    >
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                        <path d="M22 2 11 13"/>
+                        <path d="m22 2-7 20-4-9-9-4 20-7z"/>
+                      </svg>
+                      <span>Confirm Travel</span>
+                    </button>
+                  )}
+
+                  {/* Administrative Completion Action */}
+                  {canManageProcesses && isOrgAdmin && isUnderProcess && !isFullyComplete && !employee.is_administratively_completed && (
+                    <button
+                      type="button"
+                      className="employee-review-action-btn employee-review-action-btn--neutral"
+                      onClick={handleAdminCompleteInternal}
+                      disabled={actionBusy || readOnly}
+                      title="Administratively complete candidate requirements with recorded reason"
                     >
                       <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                         <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
                       </svg>
-                      <span>
-                        {(employee.progress_status?.overall_completion ?? 0) >= 100
-                          ? 'Confirm travelled'
-                          : 'Mark progress 100%'}
-                      </span>
+                      <span>Admin Complete</span>
                     </button>
-                  ) : null}
+                  )}
 
-                  {/* Availability Workflow Actions (Approve / Reject / Suspend) */}
-                  {workflowState === 'pending' && onAvailabilityAction ? (
+                  {/* Arrival Confirmation Actions */}
+                  {(isTravelled || employee.did_travel) && (!employee.arrival_status || employee.arrival_status === 'pending') && (isAgentSideUser || isOrgAdmin) && (
+                    <>
+                      <button
+                        type="button"
+                        className="employee-review-action-btn employee-review-action-btn--success"
+                        onClick={handleConfirmArrivalInternal}
+                        disabled={actionBusy || readOnly}
+                        title="Confirm candidate arrived safely and activate employment"
+                      >
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                          <polyline points="20 6 9 17 4 12"/>
+                        </svg>
+                        <span>Confirm Arrival</span>
+                      </button>
+                      <button
+                        type="button"
+                        className="employee-review-action-btn employee-review-action-btn--danger"
+                        onClick={handleDeclineArrivalInternal}
+                        disabled={actionBusy || readOnly}
+                        title="Dispute arrival with reason"
+                      >
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                          <line x1="18" y1="6" x2="6" y2="18"/>
+                          <line x1="6" y1="6" x2="18" y2="18"/>
+                        </svg>
+                        <span>Dispute Arrival</span>
+                      </button>
+                    </>
+                  )}
+
+                  {/* Availability Workflow Actions (Approve / Reject) - Org only */}
+                  {workflowState === 'pending' && onAvailabilityAction && !isAgentSideUser ? (
                     <>
                       <button
                         type="button"
                         className="employee-review-action-btn employee-review-action-btn--success"
                         onClick={() => onAvailabilityAction(employee, 'approved', 'Approved')}
-                        disabled={actionBusy || readOnly || isAgentSideUser}
+                        disabled={actionBusy || readOnly}
                       >
                         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                           <polyline points="20 6 9 17 4 12"/>
@@ -694,7 +974,7 @@ export default function EmployeeReviewModal({
                         type="button"
                         className="employee-review-action-btn employee-review-action-btn--danger"
                         onClick={() => onAvailabilityAction(employee, 'rejected', 'Rejected')}
-                        disabled={actionBusy || readOnly || isAgentSideUser}
+                        disabled={actionBusy || readOnly}
                       >
                         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                           <line x1="18" y1="6" x2="6" y2="18"/>
@@ -747,12 +1027,14 @@ export default function EmployeeReviewModal({
                       <span>Cancel request</span>
                     </button>
                   ) : null}
-                  {canReinstate && onReinstateEmployment ? (
+                  {/* Reversal to Employed Flow (two-party acknowledgement) */}
+                  {canInitiateReversal && (onRequestReversal || onReinstateEmployment) ? (
                     <button
                       type="button"
                       className="btn-secondary document-preview-download employee-review-action-btn employee-review-action-btn--neutral"
-                      onClick={() => onReinstateEmployment(employee)}
+                      onClick={() => (onRequestReversal || onReinstateEmployment)(employee)}
                       disabled={actionBusy || readOnly}
+                      title="Request to reverse candidate back to Employed"
                     >
                       <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                         <path d="M8 3 4 7l4 4"/>
@@ -762,8 +1044,55 @@ export default function EmployeeReviewModal({
                     </button>
                   ) : null}
 
-                  {/* Edit Candidate Button */}
-                  {canEditRecords && onEdit ? (
+                  {canCancelReversal && onCancelReversalRequest ? (
+                    <button
+                      type="button"
+                      className="employee-review-action-btn employee-review-action-btn--neutral"
+                      onClick={() => onCancelReversalRequest(employee)}
+                      disabled={actionBusy || readOnly}
+                      title="Cancel pending reversal request"
+                    >
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                        <line x1="18" y1="6" x2="6" y2="18"/>
+                        <line x1="6" y1="6" x2="18" y2="18"/>
+                      </svg>
+                      <span>Cancel reversal request</span>
+                    </button>
+                  ) : null}
+
+                  {canDecideReversal && onAcknowledgeReversal ? (
+                    <button
+                      type="button"
+                      className="employee-review-action-btn employee-review-action-btn--primary"
+                      onClick={() => onAcknowledgeReversal(employee)}
+                      disabled={actionBusy || readOnly}
+                      title="Acknowledge reversal and move candidate back to Employed"
+                    >
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                        <polyline points="20 6 9 17 4 12"/>
+                      </svg>
+                      <span>Acknowledge reversal</span>
+                    </button>
+                  ) : null}
+
+                  {canDecideReversal && onRefuseReversal ? (
+                    <button
+                      type="button"
+                      className="employee-review-action-btn employee-review-action-btn--danger"
+                      onClick={() => onRefuseReversal(employee)}
+                      disabled={actionBusy || readOnly}
+                      title="Refuse reversal request"
+                    >
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                        <line x1="18" y1="6" x2="6" y2="18"/>
+                        <line x1="6" y1="6" x2="18" y2="18"/>
+                      </svg>
+                      <span>Refuse reversal</span>
+                    </button>
+                  ) : null}
+
+                  {/* Edit Candidate Button (stages below employed only) */}
+                  {canEditCandidate ? (
                     <button
                       type="button"
                       className="btn-secondary document-preview-download employee-review-action-btn employee-review-action-btn--neutral"
@@ -777,8 +1106,8 @@ export default function EmployeeReviewModal({
                     </button>
                   ) : null}
 
-                  {/* Delete Candidate Button */}
-                  {onDelete && !isAgentSideUser && !isUnderProcess ? (
+                  {/* Delete Candidate Button (org admin and pending approval only) */}
+                  {canDeleteCandidate ? (
                     <button
                       type="button"
                       className="employee-review-action-btn employee-review-action-btn--danger"
@@ -1002,16 +1331,30 @@ export default function EmployeeReviewModal({
                             </svg>
                           </span>
                           <span>
-                            {employee.selection_state?.selection
-                              ? (employee.selection_state.selection.status === 'under_process' ? 'Process owner' : 'Selected by')
-                              : 'Selection'}
+                            {isSecuredByOtherAgent
+                              ? 'Status'
+                              : isProcessActive
+                                ? 'Process owner'
+                                : (isSelectedByCurrentAgent || selectionState.selection || selectionState.all_agents?.length)
+                                  ? 'Selected by'
+                                  : 'Selection'}
                           </span>
                         </span>
                         <span
                           className="employee-review-overview-value"
-                          title={employee.selection_state?.selection?.agent_name || (isAvailable ? 'Available' : 'Unassigned')}
+                          title={
+                            isSecuredByOtherAgent
+                              ? 'Not available'
+                              : isProcessActive
+                                ? (processOwnerName || '—')
+                                : (selectedAgentsDisplay || (isAvailable ? 'Available' : 'Unassigned'))
+                          }
                         >
-                          {employee.selection_state?.selection?.agent_name || (isAvailable ? 'Available' : 'Unassigned')}
+                          {isSecuredByOtherAgent
+                            ? 'Not available'
+                            : isProcessActive
+                              ? (processOwnerName || '—')
+                              : (selectedAgentsDisplay || (isAvailable ? 'Available' : 'Unassigned'))}
                         </span>
                       </div>
                     </div>
@@ -1077,75 +1420,22 @@ export default function EmployeeReviewModal({
                     <div className="employee-review-progress-divider" aria-hidden="true" />
 
                     {(() => {
-                      const allProgressSteps = [
-                        {
-                          key: 'profile',
-                          label: 'Profile Completed',
-                          done: (employee.progress_status?.field_completion ?? 0) >= 100,
-                          date: employee?.created_at
-                        },
-                        {
-                          key: 'documents',
-                          label: 'Documents Verified',
-                          done: (employee.progress_status?.document_completion ?? 0) >= 100,
-                          date: resolveLatestDate(employeeDocuments, ['verified_at', 'updated_at', 'created_at'])
-                        },
-                        {
-                          key: 'selected',
-                          label: 'Selected',
-                          done: Boolean(employee.selection_state?.selection),
-                          date:
-                            employee.selection_state?.selection?.created_at ||
-                            employee.selection_state?.selection?.selected_at ||
-                            ''
-                        },
-                        {
-                          key: 'travel',
-                          label: 'Traveled',
-                          done: String(employee.travel_status || 'pending') !== 'pending',
-                          date: employee.departure_date || employee.travelled_at || employee.traveled_at || ''
-                        },
-                        {
-                          key: 'arrived',
-                          label: 'Arrived',
-                          done: Boolean(employee.did_travel) || String(employee.travel_status || '').includes('arrived'),
-                          date: employee.arrived_at || employee.arrival_date || ''
-                        },
-                        {
-                          key: 'returned',
-                          label: 'Returned',
-                          done: isReturned,
-                          date:
-                            employee.return_request?.approved_at ||
-                            employee.returned_at ||
-                            employee.returned_on ||
-                            ''
-                        }
-                      ]
+                      const timeline = computeCandidateProgressTimeline(employee, {
+                        employeeDocuments,
+                        currentView
+                      })
 
-                      let currentStepIndex = 0
-                      for (let i = allProgressSteps.length - 1; i >= 0; i -= 1) {
-                        if (allProgressSteps[i].done) {
-                          currentStepIndex = i
-                          break
-                        }
-                      }
-
-                      const visibleSteps = allProgressSteps.slice(currentStepIndex)
-                      const phasesToShow = visibleSteps.slice(0, 3)
-                      const remainingSteps = visibleSteps.slice(3)
-                      const hasRemaining = remainingSteps.length > 0
-                      const totalItemsCount = phasesToShow.length + (hasRemaining ? 1 : 0)
+                      const { phasesToShow, remainingSteps, hasRemaining, totalItemsCount } = timeline
 
                       return (
                         <ol
                           className={`employee-review-stepper employee-review-stepper--progress${totalItemsCount <= 1 ? ' is-single-step' : ''}`}
                           aria-label="Progress steps"
                         >
-                          {phasesToShow.map((step, idx) => (
+                          {phasesToShow.map((step) => (
                             <li
                               key={step.key}
-                              className={`employee-review-step${step.done ? ' is-done' : ''}${idx === 0 ? ' is-current' : ''}`}
+                              className={`employee-review-step${step.done ? ' is-done' : ''}${step.isCurrent ? ' is-current' : ''}`}
                             >
                               <span className="employee-review-step-icon" aria-hidden="true">
                                 {step.done ? (

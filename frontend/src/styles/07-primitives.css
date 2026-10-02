@@ -561,6 +561,7 @@ textarea[readonly] {
 .badge-info,
 .badge-under-process,
 .badge-warning,
+.badge-orange,
 .badge-success,
 .badge-employed,
 .badge-danger,
@@ -648,6 +649,12 @@ textarea[readonly] {
   --tag-bg: var(--tag-orange-bg);
   --tag-fg: #ffffff;
   --tag-border: var(--tag-orange-bg);
+}
+
+.badge-orange {
+  --tag-bg: #f97316;
+  --tag-fg: #ffffff;
+  --tag-border: #f97316;
 }
 
 .badge-success {
@@ -1606,7 +1613,7 @@ html[data-theme='light'][data-accent='natural'] .employee-registration-surface .
   display: grid;
   gap: 12px;
   width: min(360px, calc(100vw - 32px));
-  z-index: var(--overlay-z-index, 10000) !important;
+  z-index: 99999999 !important;
   pointer-events: none;
 }
 

@@ -5,13 +5,19 @@ from rest_framework import serializers
 from ..employee_selection import agent_display_name, get_selection_agent_for_user
 from ..licensing import get_user_organization
 from ..models import (
+    CommissionRequest,
+    CommissionSettlement,
     Employee,
     EmployeeDocument,
     EmployeeReturnRequest,
+    EmployeeReversalRequest,
     EmployeeSelection,
     EmployeeSelectionInterest,
     EmployeeTravelBooking,
+    PenaltyRecord,
     Profile,
+    RefundRecord,
+    RegulationSettlementRequest,
 )
 from .helpers import (
     ALLOWED_EMPLOYEE_DOCUMENT_EXTENSIONS,
@@ -214,6 +220,76 @@ class EmployeeReturnRequestSerializer(serializers.ModelSerializer):
         return (user_is_agent and req_side == "agent") or (not user_is_agent and req_side == "organization")
 
 
+class EmployeeReversalRequestSerializer(serializers.ModelSerializer):
+    requested_by_username = serializers.CharField(
+        source="requested_by.username",
+        read_only=True,
+        allow_null=True,
+    )
+    requested_by_id = serializers.IntegerField(
+        source="requested_by.id",
+        read_only=True,
+        allow_null=True,
+    )
+    approved_by_username = serializers.CharField(
+        source="approved_by.username",
+        read_only=True,
+        allow_null=True,
+    )
+    requested_by_side = serializers.SerializerMethodField()
+    is_requester = serializers.SerializerMethodField()
+
+    class Meta:
+        model = EmployeeReversalRequest
+        fields = (
+            "id",
+            "status",
+            "remark",
+            "requested_by_id",
+            "requested_by_username",
+            "requested_by_side",
+            "is_requester",
+            "requested_at",
+            "approved_by_username",
+            "approved_at",
+            "updated_at",
+        )
+        read_only_fields = fields
+
+    def get_requested_by_side(self, obj):
+        if not obj.requested_by:
+            return "organization"
+        profile = getattr(obj.requested_by, "profile", None)
+        if not profile:
+            return "organization"
+        if profile.role == Profile.ROLE_CUSTOMER:
+            return "agent"
+        staff_side = (profile.staff_side or "").strip()
+        org_name = (obj.organization.name or "").strip() if obj.organization else ""
+        if staff_side and staff_side != org_name:
+            return "agent"
+        return "organization"
+
+    def get_is_requester(self, obj):
+        request = self.context.get("request")
+        if not request or not request.user or not request.user.is_authenticated:
+            return False
+        if obj.requested_by_id == request.user.id:
+            return True
+        user_profile = getattr(request.user, "profile", None)
+        user_is_agent = False
+        if user_profile:
+            if user_profile.role == Profile.ROLE_CUSTOMER:
+                user_is_agent = True
+            elif user_profile.role == Profile.ROLE_STAFF:
+                staff_side = (user_profile.staff_side or "").strip()
+                org_name = (obj.organization.name or "").strip() if obj.organization else ""
+                if staff_side and staff_side != org_name:
+                    user_is_agent = True
+        req_side = self.get_requested_by_side(obj)
+        return (user_is_agent and req_side == "agent") or (not user_is_agent and req_side == "organization")
+
+
 class EmployeeTravelBookingSerializer(serializers.ModelSerializer):
     employeeId = serializers.IntegerField(source="employee_id", read_only=True)
     ticketNumber = serializers.CharField(source="ticket_number")
@@ -303,29 +379,107 @@ def build_employee_selection_payload(employee, request):
         )
     primary_interest = current_interest or (interests[0] if interests else None)
     current_user_id = getattr(current_user, "id", None)
+    is_under_process = bool(process_selection and process_selection.status == EmployeeSelection.STATUS_UNDER_PROCESS)
+    is_secured_by_other_agent = bool(
+        is_under_process and current_agent and process_selection.agent_id != current_agent.id
+    )
+
     can_unselect = bool(
-        current_interest
+        not is_secured_by_other_agent
+        and current_interest
         and current_user_id
         and (
             current_interest.selected_by_id == current_user_id
             or (current_agent and current_agent.id == current_user_id)
         )
     )
-    selection_payload = None
-    if process_selection:
+
+    if is_secured_by_other_agent:
+        selection_payload = {
+            "agent": None,
+            "agent_name": "",
+            "selected_by": None,
+            "selected_by_username": "",
+            "status": EmployeeSelection.STATUS_UNDER_PROCESS,
+            "process_initiated_by": None,
+            "process_initiated_by_username": "",
+            "process_started_at": process_selection.process_started_at if process_selection else None,
+            "created_at": None,
+            "updated_at": None,
+        }
+    elif process_selection:
         selection_payload = EmployeeSelectionSerializer(process_selection).data
     elif primary_interest:
         selection_payload = EmployeeSelectionInterestSerializer(primary_interest).data
+    else:
+        selection_payload = None
+
+    if is_under_process and process_selection.agent:
+        if current_agent and process_selection.agent_id != current_agent.id:
+            secured_by_agent_name = ""
+            secured_by_agent_id = None
+        else:
+            secured_by_agent_name = agent_display_name(process_selection.agent)
+            secured_by_agent_id = process_selection.agent_id
+    else:
+        secured_by_agent_name = ""
+        secured_by_agent_id = None
+
+    all_interests_data = []
+    all_agents_names = []
+    seen_agent_names = set()
+
+    if current_agent:
+        if not is_secured_by_other_agent:
+            if current_interest and current_interest.agent:
+                c_name = agent_display_name(current_interest.agent)
+                if c_name:
+                    all_agents_names.append(c_name)
+                all_interests_data.append(EmployeeSelectionInterestSerializer(current_interest).data)
+            elif process_selection and process_selection.agent_id == current_agent.id and process_selection.agent:
+                c_name = agent_display_name(process_selection.agent)
+                if c_name:
+                    all_agents_names.append(c_name)
+    else:
+        all_interests_data = [EmployeeSelectionInterestSerializer(i).data for i in interests]
+        for item in interests:
+            if item.agent:
+                name = agent_display_name(item.agent)
+                if name and name not in seen_agent_names:
+                    all_agents_names.append(name)
+                    seen_agent_names.add(name)
+        if process_selection and process_selection.agent:
+            p_name = agent_display_name(process_selection.agent)
+            if p_name and p_name not in seen_agent_names:
+                all_agents_names.insert(0, p_name)
+                seen_agent_names.add(p_name)
+
     return {
-        "is_selected": bool(process_selection or interests),
+        "is_selected": bool(
+            (current_agent and (current_interest or (process_selection and process_selection.agent_id == current_agent.id)))
+            or (not current_agent and (process_selection or interests))
+        ),
         "selected_by_current_agent": bool(
             (process_selection and current_agent and process_selection.agent_id == current_agent.id)
             or current_interest
         ),
-        "selected_by_current_account": bool(current_interest and current_interest.selected_by_id == current_user_id),
+        "selected_by_current_account": bool(
+            not is_secured_by_other_agent
+            and current_interest
+            and current_interest.selected_by_id == current_user_id
+        ),
         "can_unselect": can_unselect,
         "selection": selection_payload,
-        "selection_count": len(interests),
+        "selection_count": len(all_interests_data) or (1 if (process_selection and not is_secured_by_other_agent) else 0),
+        "all_interests": all_interests_data,
+        "all_agents": all_agents_names,
+        "is_under_process": is_under_process,
+        "is_secured_by_other_agent": is_secured_by_other_agent,
+        "secured_by_agent_name": secured_by_agent_name,
+        "secured_by_agent_id": secured_by_agent_id,
+        "process_owner_name": secured_by_agent_name,
+        "process_owner_id": secured_by_agent_id,
+        "can_initiate_process": not is_secured_by_other_agent and not is_under_process,
     }
 
 
@@ -339,6 +493,7 @@ class EmployeeListSerializer(serializers.ModelSerializer):
     urgency_alerts = serializers.SerializerMethodField()
     selection_state = serializers.SerializerMethodField()
     return_request = serializers.SerializerMethodField()
+    reversal_request = serializers.SerializerMethodField()
     travel_booking = serializers.SerializerMethodField()
     returned_recorded_by_username = serializers.CharField(
         source="returned_recorded_by.username",
@@ -381,11 +536,30 @@ class EmployeeListSerializer(serializers.ModelSerializer):
             "selection_state",
             "travel_booking",
             "return_request",
+            "reversal_request",
             "did_travel",
             "progress_override_complete",
             "returned_from_employment",
             "returned_recorded_by_username",
             "registered_by_username",
+            "contract_start_date",
+            "is_administratively_completed",
+            "administrative_completion_reason",
+            "outstanding_requirements",
+            "processing_decline_reason",
+            "travel_confirmed_at",
+            "actual_travel_date",
+            "travel_dispute_reason",
+            "arrival_status",
+            "arrival_confirmed_at",
+            "actual_arrival_date",
+            "arrival_decline_reason",
+            "employment_activated_at",
+            "is_overdue",
+            "actual_return_date",
+            "return_confirmed_at",
+            "registration_approved_at",
+            "registration_rejection_reason",
             "documents",
             "created_at",
             "updated_at",
@@ -416,6 +590,15 @@ class EmployeeListSerializer(serializers.ModelSerializer):
         if not request_obj:
             return None
         return EmployeeReturnRequestSerializer(
+            request_obj,
+            context=self.context,
+        ).data
+
+    def get_reversal_request(self, obj):
+        request_obj = getattr(obj, "reversal_request", None)
+        if not request_obj:
+            return None
+        return EmployeeReversalRequestSerializer(
             request_obj,
             context=self.context,
         ).data
@@ -456,6 +639,7 @@ class EmployeeSerializer(serializers.ModelSerializer):
     urgency_alerts = serializers.SerializerMethodField()
     selection_state = serializers.SerializerMethodField()
     return_request = serializers.SerializerMethodField()
+    reversal_request = serializers.SerializerMethodField()
     travel_booking = serializers.SerializerMethodField()
     returned_recorded_by_username = serializers.CharField(
         source="returned_recorded_by.username",
@@ -528,6 +712,7 @@ class EmployeeSerializer(serializers.ModelSerializer):
             "selection_state",
             "travel_booking",
             "return_request",
+            "reversal_request",
             "returned_recorded_by_username",
             "registered_by_username",
             "updated_by_username",
@@ -789,6 +974,15 @@ class EmployeeSerializer(serializers.ModelSerializer):
             context=self.context,
         ).data
 
+    def get_reversal_request(self, obj):
+        request_obj = getattr(obj, "reversal_request", None)
+        if not request_obj:
+            return None
+        return EmployeeReversalRequestSerializer(
+            request_obj,
+            context=self.context,
+        ).data
+
     def get_travel_booking(self, obj):
         booking = getattr(obj, "travel_booking", None)
         if not booking:
@@ -813,3 +1007,178 @@ class EmployeeDocumentCreateSerializer(serializers.ModelSerializer):
     class Meta:
         model = EmployeeDocument
         fields = ("document_type", "label", "file", "expires_on")
+
+
+class CommissionRequestSerializer(serializers.ModelSerializer):
+    employee_name = serializers.CharField(source="employee.full_name", read_only=True)
+    agent_name = serializers.SerializerMethodField()
+    initiated_by_username = serializers.CharField(source="initiated_by.username", read_only=True)
+
+    class Meta:
+        model = CommissionRequest
+        fields = (
+            "id",
+            "organization",
+            "employee",
+            "employee_name",
+            "agent",
+            "agent_name",
+            "commission_rate",
+            "amount",
+            "status",
+            "is_manual",
+            "initiated_by",
+            "initiated_by_username",
+            "notes",
+            "created_at",
+            "updated_at",
+        )
+        read_only_fields = ("id", "organization", "created_at", "updated_at")
+
+    def get_agent_name(self, obj):
+        return agent_display_name(obj.agent)
+
+
+class CommissionSettlementSerializer(serializers.ModelSerializer):
+    agent_name = serializers.SerializerMethodField()
+    settled_by_username = serializers.CharField(source="settled_by.username", read_only=True)
+    receipt_file_1_url = serializers.SerializerMethodField()
+    receipt_file_2_url = serializers.SerializerMethodField()
+    receipt_file_3_url = serializers.SerializerMethodField()
+
+    class Meta:
+        model = CommissionSettlement
+        fields = (
+            "id",
+            "organization",
+            "agent",
+            "agent_name",
+            "settlement_type",
+            "commission_requests",
+            "total_amount",
+            "deducted_refund_amount",
+            "net_amount",
+            "settled_by",
+            "settled_by_username",
+            "settled_at",
+            "receipt_file_1",
+            "receipt_file_1_url",
+            "receipt_file_2",
+            "receipt_file_2_url",
+            "receipt_file_3",
+            "receipt_file_3_url",
+            "notes",
+            "created_at",
+            "updated_at",
+        )
+        read_only_fields = ("id", "organization", "created_at", "updated_at")
+
+    def get_agent_name(self, obj):
+        return agent_display_name(obj.agent)
+
+    def _url(self, file_field):
+        if not file_field:
+            return ""
+        request = self.context.get("request")
+        if request:
+            return request.build_absolute_uri(file_field.url)
+        return file_field.url
+
+    def get_receipt_file_1_url(self, obj):
+        return self._url(obj.receipt_file_1)
+
+    def get_receipt_file_2_url(self, obj):
+        return self._url(obj.receipt_file_2)
+
+    def get_receipt_file_3_url(self, obj):
+        return self._url(obj.receipt_file_3)
+
+
+class RegulationSettlementRequestSerializer(serializers.ModelSerializer):
+    agent_name = serializers.SerializerMethodField()
+    initiated_by_username = serializers.CharField(source="initiated_by.username", read_only=True)
+
+    class Meta:
+        model = RegulationSettlementRequest
+        fields = (
+            "id",
+            "organization",
+            "agent",
+            "agent_name",
+            "amount",
+            "reason",
+            "status",
+            "is_free_allowance",
+            "month_period",
+            "initiated_by",
+            "initiated_by_username",
+            "created_at",
+            "updated_at",
+        )
+        read_only_fields = ("id", "organization", "is_free_allowance", "month_period", "created_at", "updated_at")
+
+    def get_agent_name(self, obj):
+        return agent_display_name(obj.agent) if obj.agent else ""
+
+
+class RefundRecordSerializer(serializers.ModelSerializer):
+    employee_name = serializers.CharField(source="employee.full_name", read_only=True)
+    agent_name = serializers.SerializerMethodField()
+    approved_by_username = serializers.CharField(source="approved_by.username", read_only=True)
+
+    class Meta:
+        model = RefundRecord
+        fields = (
+            "id",
+            "organization",
+            "employee",
+            "employee_name",
+            "agent",
+            "agent_name",
+            "return_request",
+            "commission_request",
+            "refund_amount",
+            "deducted_amount",
+            "remaining_balance",
+            "status",
+            "is_eligible_early_return",
+            "approved_by",
+            "approved_by_username",
+            "approved_at",
+            "created_at",
+            "updated_at",
+        )
+        read_only_fields = ("id", "organization", "created_at", "updated_at")
+
+    def get_agent_name(self, obj):
+        return agent_display_name(obj.agent)
+
+
+class PenaltyRecordSerializer(serializers.ModelSerializer):
+    employee_name = serializers.CharField(source="employee.full_name", read_only=True)
+    agent_name = serializers.SerializerMethodField()
+    created_by_username = serializers.CharField(source="created_by.username", read_only=True)
+
+    class Meta:
+        model = PenaltyRecord
+        fields = (
+            "id",
+            "organization",
+            "employee",
+            "employee_name",
+            "agent",
+            "agent_name",
+            "amount",
+            "reason",
+            "responsible_party",
+            "status",
+            "created_by",
+            "created_by_username",
+            "created_at",
+            "updated_at",
+        )
+        read_only_fields = ("id", "organization", "created_at", "updated_at")
+
+    def get_agent_name(self, obj):
+        return agent_display_name(obj.agent) if obj.agent else ""
+

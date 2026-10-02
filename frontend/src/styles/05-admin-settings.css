@@ -649,11 +649,11 @@ input[type='checkbox'],
   height: 17px;
 }
 
-/* Return Requests: Vivid Danger/Red styling */
+/* Return Requests: Vibrant Orange styling */
 .notification-icon-tile--return-request {
-  background: color-mix(in oklch, #ef4444 14%, var(--color-card));
-  border-color: color-mix(in oklch, #ef4444 38%, transparent);
-  color: #ef4444;
+  background: color-mix(in oklch, #f97316 14%, var(--color-card));
+  border-color: color-mix(in oklch, #f97316 38%, transparent);
+  color: #f97316;
 }
 
 /* Security / Error: Crimson / Rose */
@@ -743,8 +743,12 @@ input[type='checkbox'],
 }
 
 .notification-category-badge--return-request {
-  background: color-mix(in oklch, #ef4444 14%, var(--color-card));
-  color: #ef4444;
+  background: color-mix(in oklch, #f97316 14%, var(--color-card));
+  color: #ea580c;
+}
+
+html[data-theme='dark'] .notification-category-badge--return-request {
+  color: #fb923c;
 }
 
 .notification-category-badge--security {

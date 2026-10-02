@@ -4,6 +4,7 @@ from django.contrib.auth.models import User
 from django.db import models
 from django.db.models.signals import post_save
 from django.dispatch import receiver
+from django.utils import timezone
 
 
 class Organization(models.Model):
@@ -509,6 +510,19 @@ class Employee(models.Model):
         (STATUS_SUSPENDED, "Suspended"),
     ]
 
+    TRAVEL_STATUS_PENDING = "pending"
+    TRAVEL_STATUS_CONFIRMED = "confirmed"
+    TRAVEL_STATUS_DISPUTED = "disputed"
+
+    ARRIVAL_STATUS_PENDING = "pending"
+    ARRIVAL_STATUS_CONFIRMED = "confirmed"
+    ARRIVAL_STATUS_DECLINED = "declined"
+    ARRIVAL_STATUS_SYSTEM_ACKNOWLEDGED = "system_acknowledged"
+
+    RETURN_STATUS_PENDING = "pending"
+    RETURN_STATUS_CONFIRMED = "confirmed"
+    RETURN_STATUS_DISPUTED = "disputed"
+
     organization = models.ForeignKey(
         Organization,
         on_delete=models.CASCADE,
@@ -596,6 +610,72 @@ class Employee(models.Model):
         default=STATUS_PENDING,
     )
     progress_override_complete = models.BooleanField(default=False)
+    # Registration approval tracking
+    registration_approved_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="employees_registration_approved",
+    )
+    registration_approved_at = models.DateTimeField(null=True, blank=True)
+    registration_rejection_reason = models.TextField(blank=True, default="")
+
+    # Employment contract & processing tracking
+    contract_start_date = models.DateField(null=True, blank=True)
+    is_administratively_completed = models.BooleanField(default=False)
+    administrative_completion_reason = models.TextField(blank=True, default="")
+    administratively_completed_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="employees_admin_completed",
+    )
+    administratively_completed_at = models.DateTimeField(null=True, blank=True)
+    outstanding_requirements = models.JSONField(default=list, blank=True)
+    processing_decline_reason = models.TextField(blank=True, default="")
+
+    # Travel & Arrival Confirmation & Employment Activation
+    travel_status = models.CharField(max_length=30, default="pending")
+    travel_confirmed_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="employees_travel_confirmed",
+    )
+    travel_confirmed_at = models.DateTimeField(null=True, blank=True)
+    actual_travel_date = models.DateField(null=True, blank=True)
+    travel_dispute_reason = models.TextField(blank=True, default="")
+
+    arrival_status = models.CharField(max_length=30, default="pending")
+    arrival_confirmed_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="employees_arrival_confirmed",
+    )
+    arrival_confirmed_at = models.DateTimeField(null=True, blank=True)
+    actual_arrival_date = models.DateField(null=True, blank=True)
+    arrival_decline_reason = models.TextField(blank=True, default="")
+    arrival_reminder_sent_at = models.DateTimeField(null=True, blank=True)
+
+    employment_activated_at = models.DateTimeField(null=True, blank=True)
+
+    # Return & Overdue Monitoring
+    is_overdue = models.BooleanField(default=False)
+    actual_return_date = models.DateField(null=True, blank=True)
+    return_confirmed_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="employees_return_confirmed",
+    )
+    return_confirmed_at = models.DateTimeField(null=True, blank=True)
+    overdue_notified_at = models.DateTimeField(null=True, blank=True)
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -740,6 +820,7 @@ class EmployeeSelection(models.Model):
         related_name="employee_processes_initiated",
     )
     process_started_at = models.DateTimeField(null=True, blank=True)
+    decline_reason = models.TextField(blank=True, default="")
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -805,12 +886,14 @@ class EmployeeReturnRequest(models.Model):
     STATUS_APPROVED = "approved"
     STATUS_REFUSED = "refused"
     STATUS_CANCELLED = "cancelled"
+    STATUS_REINSTATED = "reinstated"
 
     STATUS_CHOICES = [
         (STATUS_PENDING, "Pending"),
         (STATUS_APPROVED, "Approved"),
         (STATUS_REFUSED, "Refused"),
         (STATUS_CANCELLED, "Cancelled"),
+        (STATUS_REINSTATED, "Reinstated"),
     ]
 
     organization = models.ForeignKey(
@@ -869,6 +952,60 @@ class EmployeeReturnRequest(models.Model):
         return f"Return request for {self.employee.full_name}"
 
 
+class EmployeeReversalRequest(models.Model):
+    STATUS_PENDING = "pending"
+    STATUS_APPROVED = "approved"
+    STATUS_REFUSED = "refused"
+    STATUS_CANCELLED = "cancelled"
+
+    STATUS_CHOICES = [
+        (STATUS_PENDING, "Pending"),
+        (STATUS_APPROVED, "Approved"),
+        (STATUS_REFUSED, "Refused"),
+        (STATUS_CANCELLED, "Cancelled"),
+    ]
+
+    organization = models.ForeignKey(
+        Organization,
+        on_delete=models.CASCADE,
+        related_name="employee_reversal_requests",
+    )
+    employee = models.OneToOneField(
+        Employee,
+        on_delete=models.CASCADE,
+        related_name="reversal_request",
+    )
+    status = models.CharField(
+        max_length=20,
+        choices=STATUS_CHOICES,
+        default=STATUS_PENDING,
+    )
+    remark = models.TextField(blank=True, default="")
+    requested_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="employee_reversal_requests_requested",
+    )
+    approved_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="employee_reversal_requests_approved",
+    )
+    requested_at = models.DateTimeField(auto_now_add=True)
+    approved_at = models.DateTimeField(null=True, blank=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-requested_at"]
+
+    def __str__(self):
+        return f"Reversal request for {self.employee.full_name}"
+
+
 class EmployeeTravelBooking(models.Model):
     organization = models.ForeignKey(
         Organization,
@@ -913,3 +1050,359 @@ class EmployeeTravelBooking(models.Model):
 
     def __str__(self):
         return f"Travel booking for {self.employee.full_name}"
+
+def commission_receipt_upload_to(instance, filename):
+    org_id = instance.organization_id or "unassigned"
+    return f"commissions/{org_id}/receipts/{filename}"
+
+
+class CommissionRequest(models.Model):
+    STATUS_PENDING = "pending"
+    STATUS_APPROVED = "approved"
+    STATUS_SETTLED = "settled"
+    STATUS_REJECTED = "rejected"
+    STATUS_CHOICES = [
+        (STATUS_PENDING, "Pending"),
+        (STATUS_APPROVED, "Approved"),
+        (STATUS_SETTLED, "Settled"),
+        (STATUS_REJECTED, "Rejected"),
+    ]
+
+    organization = models.ForeignKey(
+        Organization,
+        on_delete=models.CASCADE,
+        related_name="commission_requests",
+    )
+    employee = models.ForeignKey(
+        Employee,
+        on_delete=models.CASCADE,
+        related_name="commission_requests",
+    )
+    agent = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name="agent_commission_requests",
+    )
+    commission_rate = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        default=Decimal("0.00"),
+    )
+    amount = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        default=Decimal("0.00"),
+    )
+    status = models.CharField(
+        max_length=30,
+        choices=STATUS_CHOICES,
+        default=STATUS_PENDING,
+    )
+    is_manual = models.BooleanField(default=False)
+    initiated_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="initiated_commissions",
+    )
+    notes = models.TextField(blank=True, default="")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["organization", "employee", "agent"],
+                name="unique_commission_obligation_per_employee_agent",
+            )
+        ]
+
+    def __str__(self):
+        return f"Commission for {self.employee.full_name} -> {self.agent.username} ({self.amount})"
+
+
+class CommissionSettlement(models.Model):
+    TYPE_COMMISSION = "commission"
+    TYPE_REGULATION = "regulation"
+    TYPE_CHOICES = [
+        (TYPE_COMMISSION, "Commission"),
+        (TYPE_REGULATION, "Regulation"),
+    ]
+
+    organization = models.ForeignKey(
+        Organization,
+        on_delete=models.CASCADE,
+        related_name="commission_settlements",
+    )
+    agent = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name="agent_commission_settlements",
+    )
+    settlement_type = models.CharField(
+        max_length=30,
+        choices=TYPE_CHOICES,
+        default=TYPE_COMMISSION,
+    )
+    commission_requests = models.ManyToManyField(
+        CommissionRequest,
+        blank=True,
+        related_name="settlements",
+    )
+    total_amount = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        default=Decimal("0.00"),
+    )
+    deducted_refund_amount = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        default=Decimal("0.00"),
+    )
+    net_amount = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        default=Decimal("0.00"),
+    )
+    settled_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="settled_commissions",
+    )
+    settled_at = models.DateTimeField(default=timezone.now)
+    receipt_file_1 = models.FileField(
+        upload_to=commission_receipt_upload_to,
+        null=True,
+        blank=True,
+    )
+    receipt_file_2 = models.FileField(
+        upload_to=commission_receipt_upload_to,
+        null=True,
+        blank=True,
+    )
+    receipt_file_3 = models.FileField(
+        upload_to=commission_receipt_upload_to,
+        null=True,
+        blank=True,
+    )
+    notes = models.TextField(blank=True, default="")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-settled_at"]
+
+    def __str__(self):
+        return f"Settlement #{self.id} for {self.agent.username} (${self.net_amount})"
+
+
+class RegulationSettlementRequest(models.Model):
+    STATUS_PENDING = "pending"
+    STATUS_APPROVED = "approved"
+    STATUS_SETTLED = "settled"
+    STATUS_REJECTED = "rejected"
+    STATUS_CHOICES = [
+        (STATUS_PENDING, "Pending"),
+        (STATUS_APPROVED, "Approved"),
+        (STATUS_SETTLED, "Settled"),
+        (STATUS_REJECTED, "Rejected"),
+    ]
+
+    organization = models.ForeignKey(
+        Organization,
+        on_delete=models.CASCADE,
+        related_name="regulation_settlements",
+    )
+    agent = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="agent_regulation_settlements",
+    )
+    amount = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        default=Decimal("0.00"),
+    )
+    reason = models.TextField(blank=True, default="")
+    status = models.CharField(
+        max_length=30,
+        choices=STATUS_CHOICES,
+        default=STATUS_PENDING,
+    )
+    is_free_allowance = models.BooleanField(default=True)
+    month_period = models.CharField(max_length=7)  # 'YYYY-MM'
+    initiated_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="initiated_regulation_settlements",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"Regulation settlement ({self.month_period}) - ${self.amount}"
+
+
+class RefundRecord(models.Model):
+    STATUS_PENDING = "pending"
+    STATUS_APPROVED = "approved"
+    STATUS_PARTIALLY_DEDUCTED = "partially_deducted"
+    STATUS_FULLY_DEDUCTED = "fully_deducted"
+    STATUS_REJECTED = "rejected"
+    STATUS_CHOICES = [
+        (STATUS_PENDING, "Pending"),
+        (STATUS_APPROVED, "Approved"),
+        (STATUS_PARTIALLY_DEDUCTED, "Partially deducted"),
+        (STATUS_FULLY_DEDUCTED, "Fully deducted"),
+        (STATUS_REJECTED, "Rejected"),
+    ]
+
+    organization = models.ForeignKey(
+        Organization,
+        on_delete=models.CASCADE,
+        related_name="refund_records",
+    )
+    employee = models.ForeignKey(
+        Employee,
+        on_delete=models.CASCADE,
+        related_name="refund_records",
+    )
+    agent = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name="agent_refund_records",
+    )
+    return_request = models.ForeignKey(
+        EmployeeReturnRequest,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="refund_records",
+    )
+    commission_request = models.ForeignKey(
+        CommissionRequest,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="refund_records",
+    )
+    refund_amount = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        default=Decimal("0.00"),
+    )
+    deducted_amount = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        default=Decimal("0.00"),
+    )
+    remaining_balance = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        default=Decimal("0.00"),
+    )
+    status = models.CharField(
+        max_length=30,
+        choices=STATUS_CHOICES,
+        default=STATUS_PENDING,
+    )
+    is_eligible_early_return = models.BooleanField(default=False)
+    approved_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="approved_refunds",
+    )
+    approved_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"Refund for {self.employee.full_name} (${self.refund_amount}, remaining: ${self.remaining_balance})"
+
+
+class PenaltyRecord(models.Model):
+    PARTY_AGENT = "agent"
+    PARTY_ORGANIZATION = "organization"
+    PARTY_CHOICES = [
+        (PARTY_AGENT, "Agent"),
+        (PARTY_ORGANIZATION, "Organization"),
+    ]
+
+    STATUS_PENDING = "pending"
+    STATUS_APPROVED = "approved"
+    STATUS_SETTLED = "settled"
+    STATUS_CANCELLED = "cancelled"
+    STATUS_CHOICES = [
+        (STATUS_PENDING, "Pending"),
+        (STATUS_APPROVED, "Approved"),
+        (STATUS_SETTLED, "Settled"),
+        (STATUS_CANCELLED, "Cancelled"),
+    ]
+
+    organization = models.ForeignKey(
+        Organization,
+        on_delete=models.CASCADE,
+        related_name="penalty_records",
+    )
+    employee = models.ForeignKey(
+        Employee,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="penalty_records",
+    )
+    agent = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="agent_penalty_records",
+    )
+    amount = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        default=Decimal("0.00"),
+    )
+    reason = models.TextField(blank=True, default="")
+    responsible_party = models.CharField(
+        max_length=30,
+        choices=PARTY_CHOICES,
+        default=PARTY_AGENT,
+    )
+    status = models.CharField(
+        max_length=30,
+        choices=STATUS_CHOICES,
+        default=STATUS_PENDING,
+    )
+    created_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="created_penalties",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"Penalty: {self.reason} (${self.amount})"
+

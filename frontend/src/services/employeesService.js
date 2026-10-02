@@ -14,7 +14,9 @@ export async function fetchEmployees({
   pageSize = '',
   page_size = '',
   returnRequestStatus = '',
-  return_request_status = ''
+  return_request_status = '',
+  reversalRequestStatus = '',
+  reversal_request_status = ''
 } = {}) {
   const params = new URLSearchParams()
   params.set('page', String(page))
@@ -29,6 +31,8 @@ export async function fetchEmployees({
   if (size) params.set('page_size', String(size))
   const reqStatus = returnRequestStatus || return_request_status
   if (reqStatus) params.set('return_request_status', reqStatus)
+  const revStatus = reversalRequestStatus || reversal_request_status
+  if (revStatus) params.set('reversal_request_status', revStatus)
 
   const response = await apiFetch(`/api/employees/?${params.toString()}`)
   const data = await response.json().catch(() => ({}))
@@ -164,8 +168,13 @@ export async function deleteEmployeeDocument(id) {
   }
 }
 
-export async function selectEmployee(id) {
-  const response = await apiFetch(`/api/employees/${id}/selection/`, { method: 'POST' })
+export async function selectEmployee(id, { agentId } = {}) {
+  const body = {}
+  if (agentId) body.agent_id = agentId
+  const response = await apiFetch(`/api/employees/${id}/selection/`, {
+    method: 'POST',
+    body: JSON.stringify(body)
+  })
   const data = await response.json().catch(() => ({}))
   if (!response.ok) {
     throw new Error(responseError(data, 'Failed to select employee'))
@@ -195,11 +204,50 @@ export async function startEmployeeProcess(id, { agentId } = {}) {
   return data
 }
 
-export async function declineEmployeeProcess(id) {
-  const response = await apiFetch(`/api/employees/${id}/process/decline/`, { method: 'POST' })
+export async function declineEmployeeProcess(id, { reason = '' } = {}) {
+  const response = await apiFetch(`/api/employees/${id}/process/decline/`, {
+    method: 'POST',
+    body: JSON.stringify({ decline_reason: reason })
+  })
   const data = await response.json().catch(() => ({}))
   if (!response.ok) {
     throw new Error(responseError(data, 'Failed to decline employee process'))
+  }
+  return data
+}
+
+export async function confirmEmployeeTravel(id, payload = {}) {
+  const response = await apiFetch(`/api/employees/${id}/travel-confirm/`, {
+    method: 'POST',
+    body: JSON.stringify(payload)
+  })
+  const data = await response.json().catch(() => ({}))
+  if (!response.ok) {
+    throw new Error(responseError(data, 'Failed to confirm travel'))
+  }
+  return data
+}
+
+export async function confirmEmployeeArrival(id, payload = {}) {
+  const response = await apiFetch(`/api/employees/${id}/arrival-confirm/`, {
+    method: 'POST',
+    body: JSON.stringify(payload)
+  })
+  const data = await response.json().catch(() => ({}))
+  if (!response.ok) {
+    throw new Error(responseError(data, 'Failed to process arrival confirmation'))
+  }
+  return data
+}
+
+export async function confirmEmployeeReturn(id, payload = {}) {
+  const response = await apiFetch(`/api/employees/${id}/return-confirm/`, {
+    method: 'POST',
+    body: JSON.stringify(payload)
+  })
+  const data = await response.json().catch(() => ({}))
+  if (!response.ok) {
+    throw new Error(responseError(data, 'Failed to confirm return'))
   }
   return data
 }
@@ -280,6 +328,197 @@ export async function refuseEmployeeReturnRequest(id) {
   const data = await response.json().catch(() => ({}))
   if (!response.ok) {
     throw new Error(responseError(data, 'Failed to refuse return request'))
+  }
+  return data
+}
+
+export const approveReturn = approveEmployeeReturnRequest
+export const refuseReturn = refuseEmployeeReturnRequest
+
+
+export async function createEmployeeReversalRequest(id, { remark = '' } = {}) {
+  const response = await apiFetch(`/api/employees/${id}/reversal-request/`, {
+    method: 'POST',
+    body: JSON.stringify({ remark: remark || '' })
+  })
+  const data = await response.json().catch(() => ({}))
+  if (!response.ok) {
+    throw new Error(responseError(data, 'Failed to create reversal request'))
+  }
+  return data
+}
+
+export async function cancelEmployeeReversalRequest(id) {
+  const response = await apiFetch(`/api/employees/${id}/reversal-request/`, { method: 'DELETE' })
+  const data = await response.json().catch(() => ({}))
+  if (!response.ok) {
+    throw new Error(responseError(data, 'Failed to cancel reversal request'))
+  }
+  return data
+}
+
+export async function approveEmployeeReversalRequest(id) {
+  const response = await apiFetch(`/api/employees/${id}/reversal-request/approve/`, { method: 'POST' })
+  const data = await response.json().catch(() => ({}))
+  if (!response.ok) {
+    throw new Error(responseError(data, 'Failed to approve reversal request'))
+  }
+  return data
+}
+
+export async function refuseEmployeeReversalRequest(id) {
+  const response = await apiFetch(`/api/employees/${id}/reversal-request/refuse/`, { method: 'POST' })
+  const data = await response.json().catch(() => ({}))
+  if (!response.ok) {
+    throw new Error(responseError(data, 'Failed to refuse reversal request'))
+  }
+  return data
+}
+
+export async function fetchCommissionRequests(params = {}) {
+  const query = new URLSearchParams()
+  if (params.agentId || params.agent_id) query.set('agent_id', params.agentId || params.agent_id)
+  if (params.status) query.set('status', params.status)
+  if (params.employeeId || params.employee_id) query.set('employee_id', params.employeeId || params.employee_id)
+  const response = await apiFetch(`/api/commissions/requests/?${query.toString()}`)
+  const data = await response.json().catch(() => ([]))
+  if (!response.ok) {
+    throw new Error(responseError(data, 'Failed to fetch commission requests'))
+  }
+  return data
+}
+
+export async function createCommissionRequest(payload) {
+  const response = await apiFetch('/api/commissions/requests/', {
+    method: 'POST',
+    body: JSON.stringify(payload)
+  })
+  const data = await response.json().catch(() => ({}))
+  if (!response.ok) {
+    throw new Error(responseError(data, 'Failed to create commission request'))
+  }
+  return data
+}
+
+export async function updateCommissionRequest(id, payload) {
+  const response = await apiFetch(`/api/commissions/requests/${id}/`, {
+    method: 'PATCH',
+    body: JSON.stringify(payload)
+  })
+  const data = await response.json().catch(() => ({}))
+  if (!response.ok) {
+    throw new Error(responseError(data, 'Failed to update commission request'))
+  }
+  return data
+}
+
+export async function fetchCommissionSettlements(params = {}) {
+  const query = new URLSearchParams()
+  if (params.agentId || params.agent_id) query.set('agent_id', params.agentId || params.agent_id)
+  const response = await apiFetch(`/api/commissions/settlements/?${query.toString()}`)
+  const data = await response.json().catch(() => ([]))
+  if (!response.ok) {
+    throw new Error(responseError(data, 'Failed to fetch commission settlements'))
+  }
+  return data
+}
+
+export async function createCommissionSettlement(payload) {
+  let body
+  if (payload instanceof FormData) {
+    body = payload
+  } else {
+    body = JSON.stringify(payload)
+  }
+  const response = await apiFetch('/api/commissions/settlements/', {
+    method: 'POST',
+    body
+  })
+  const data = await response.json().catch(() => ({}))
+  if (!response.ok) {
+    throw new Error(responseError(data, 'Failed to record commission settlement'))
+  }
+  return data
+}
+
+export async function fetchRegulationSettlementRequests(params = {}) {
+  const query = new URLSearchParams()
+  if (params.agentId || params.agent_id) query.set('agent_id', params.agentId || params.agent_id)
+  const response = await apiFetch(`/api/commissions/regulation-requests/?${query.toString()}`)
+  const data = await response.json().catch(() => ([]))
+  if (!response.ok) {
+    throw new Error(responseError(data, 'Failed to fetch regulation settlement requests'))
+  }
+  return data
+}
+
+export async function createRegulationSettlementRequest(payload) {
+  const response = await apiFetch('/api/commissions/regulation-requests/', {
+    method: 'POST',
+    body: JSON.stringify(payload)
+  })
+  const data = await response.json().catch(() => ({}))
+  if (!response.ok) {
+    throw new Error(responseError(data, 'Failed to submit regulation settlement request'))
+  }
+  return data
+}
+
+export async function updateRegulationSettlementRequest(id, payload) {
+  const response = await apiFetch(`/api/commissions/regulation-requests/${id}/`, {
+    method: 'PATCH',
+    body: JSON.stringify(payload)
+  })
+  const data = await response.json().catch(() => ({}))
+  if (!response.ok) {
+    throw new Error(responseError(data, 'Failed to update regulation settlement request'))
+  }
+  return data
+}
+
+export async function fetchRefundRecords(params = {}) {
+  const query = new URLSearchParams()
+  if (params.agentId || params.agent_id) query.set('agent_id', params.agentId || params.agent_id)
+  if (params.status) query.set('status', params.status)
+  const response = await apiFetch(`/api/commissions/refunds/?${query.toString()}`)
+  const data = await response.json().catch(() => ([]))
+  if (!response.ok) {
+    throw new Error(responseError(data, 'Failed to fetch refund records'))
+  }
+  return data
+}
+
+export async function fetchPenaltyRecords(params = {}) {
+  const query = new URLSearchParams()
+  if (params.agentId || params.agent_id) query.set('agent_id', params.agentId || params.agent_id)
+  const response = await apiFetch(`/api/commissions/penalties/?${query.toString()}`)
+  const data = await response.json().catch(() => ([]))
+  if (!response.ok) {
+    throw new Error(responseError(data, 'Failed to fetch penalty records'))
+  }
+  return data
+}
+
+export async function createPenaltyRecord(payload) {
+  const response = await apiFetch('/api/commissions/penalties/', {
+    method: 'POST',
+    body: JSON.stringify(payload)
+  })
+  const data = await response.json().catch(() => ({}))
+  if (!response.ok) {
+    throw new Error(responseError(data, 'Failed to create penalty record'))
+  }
+  return data
+}
+
+export async function updatePenaltyRecord(id, payload) {
+  const response = await apiFetch(`/api/commissions/penalties/${id}/`, {
+    method: 'PATCH',
+    body: JSON.stringify(payload)
+  })
+  const data = await response.json().catch(() => ({}))
+  if (!response.ok) {
+    throw new Error(responseError(data, 'Failed to update penalty record'))
   }
   return data
 }

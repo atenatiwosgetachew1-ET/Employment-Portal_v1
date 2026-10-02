@@ -77,3 +77,8 @@ export function isReminderPending(item) {
   return Number.isFinite(time) && time > Date.now()
 }
 
+export async function deleteNotification(id) {
+  return patchNotification(id, { read: true })
+}
+
+

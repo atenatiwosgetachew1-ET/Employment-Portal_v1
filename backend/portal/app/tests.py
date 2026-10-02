@@ -1,4 +1,6 @@
+import datetime
 from datetime import timedelta
+from decimal import Decimal
 import json
 import os
 import tempfile
@@ -16,12 +18,17 @@ from django.utils import timezone
 from rest_framework.test import APIClient
 
 from .employee_ocr import build_field_candidates, extract_employee_document_fields
+from .employee_selection import agent_display_name
 from .licensing import get_user_organization
 from .models import (
     AuditLog,
     AgentMembership,
+    CommissionRequest,
+    RefundRecord,
     AgentOffice,
     Employee,
+    EmployeeReturnRequest,
+    EmployeeReversalRequest,
     EmployeeSelection,
     EmployeeSelectionInterest,
     Notification,
@@ -1721,6 +1728,7 @@ class EmployeeManagementTests(TestCase):
             middle_name="K",
             last_name="Worker",
             full_name="Selam K Worker",
+            status=Employee.STATUS_APPROVED,
         )
 
         self.client.force_authenticate(user=agent)
@@ -1762,6 +1770,7 @@ class EmployeeManagementTests(TestCase):
             middle_name="N",
             last_name="Helper",
             full_name="Marta N Helper",
+            status=Employee.STATUS_APPROVED,
         )
 
         self.client.force_authenticate(user=agent_staff)
@@ -2010,12 +2019,14 @@ class EmployeeManagementTests(TestCase):
             registered_by=superadmin,
             updated_by=superadmin,
             full_name="Conflict Employee",
+            status=Employee.STATUS_APPROVED,
         )
         EmployeeSelection.objects.create(
             organization=get_user_organization(superadmin),
             employee=employee,
             agent=first_agent,
             selected_by=first_agent,
+            status=EmployeeSelection.STATUS_UNDER_PROCESS,
         )
 
         self.client.force_authenticate(user=second_agent)
@@ -2682,6 +2693,510 @@ class EmployeeManagementTests(TestCase):
 
         self.assertEqual(response.status_code, 400)
         self.assertIn("Only PDF, JPG, JPEG, and PNG files are allowed.", response.data["file"][0])
+
+    def test_delete_candidate_rules(self):
+        superadmin = self._create_user("owner-delete-rules", Profile.ROLE_SUPERADMIN)
+        admin_user = self._create_user("admin-delete-rules", Profile.ROLE_ADMIN)
+        staff_user = self._create_user("staff-delete-rules", Profile.ROLE_STAFF)
+        agent_user = self._create_user("agent-delete-rules", Profile.ROLE_CUSTOMER)
+        self._assign_same_organization(superadmin, admin_user, staff_user, agent_user)
+        organization = get_user_organization(superadmin)
+
+        pending_emp_1 = Employee.objects.create(
+            organization=organization,
+            registered_by=superadmin,
+            updated_by=superadmin,
+            full_name="Pending Worker One",
+            status=Employee.STATUS_PENDING,
+        )
+        pending_emp_2 = Employee.objects.create(
+            organization=organization,
+            registered_by=superadmin,
+            updated_by=superadmin,
+            full_name="Pending Worker Two",
+            status=Employee.STATUS_PENDING,
+        )
+        approved_emp = Employee.objects.create(
+            organization=organization,
+            registered_by=superadmin,
+            updated_by=superadmin,
+            full_name="Approved Worker",
+            status=Employee.STATUS_APPROVED,
+        )
+
+        # Agent cannot delete
+        self.client.force_authenticate(user=agent_user)
+        agent_res = self.client.delete(f"/api/employees/{pending_emp_1.pk}/")
+        self.assertEqual(agent_res.status_code, 403)
+
+        # Org staff cannot delete
+        self.client.force_authenticate(user=staff_user)
+        staff_res = self.client.delete(f"/api/employees/{pending_emp_1.pk}/")
+        self.assertEqual(staff_res.status_code, 403)
+
+        # Superadmin cannot delete approved candidate
+        self.client.force_authenticate(user=superadmin)
+        approved_res = self.client.delete(f"/api/employees/{approved_emp.pk}/")
+        self.assertEqual(approved_res.status_code, 400)
+        self.assertIn("Only candidates under pending approval can be deleted.", approved_res.data["detail"])
+
+        # Org admin can delete pending candidate
+        self.client.force_authenticate(user=admin_user)
+        admin_res = self.client.delete(f"/api/employees/{pending_emp_1.pk}/")
+        self.assertEqual(admin_res.status_code, 204)
+        self.assertFalse(Employee.objects.filter(pk=pending_emp_1.pk).exists())
+
+        # Superadmin can delete pending candidate
+        self.client.force_authenticate(user=superadmin)
+        superadmin_res = self.client.delete(f"/api/employees/{pending_emp_2.pk}/")
+        self.assertEqual(superadmin_res.status_code, 204)
+        self.assertFalse(Employee.objects.filter(pk=pending_emp_2.pk).exists())
+
+    def test_reverse_to_employed_acknowledgement_flow(self):
+        superadmin = self._create_user("owner-rev-flow", Profile.ROLE_SUPERADMIN)
+        agent = self._create_user("agent-rev-flow", Profile.ROLE_CUSTOMER)
+        self._assign_same_organization(superadmin, agent)
+        organization = get_user_organization(superadmin)
+
+        employee = Employee.objects.create(
+            organization=organization,
+            registered_by=superadmin,
+            updated_by=superadmin,
+            full_name="Returned Worker For Reversal",
+            did_travel=True,
+            status=Employee.STATUS_APPROVED,
+            is_active=True,
+            progress_override_complete=True,
+            returned_from_employment=True,
+        )
+        EmployeeSelection.objects.create(
+            organization=organization,
+            employee=employee,
+            agent=agent,
+            selected_by=agent,
+            status=EmployeeSelection.STATUS_UNDER_PROCESS,
+        )
+        EmployeeReturnRequest.objects.create(
+            organization=organization,
+            employee=employee,
+            status=EmployeeReturnRequest.STATUS_APPROVED,
+            requested_by=agent,
+            approved_by=superadmin,
+            remark="Initially returned",
+        )
+
+        # 1. Agent requests reversal
+        self.client.force_authenticate(user=agent)
+        req_res = self.client.post(
+            f"/api/employees/{employee.pk}/reversal-request/",
+            {"remark": "Work resumed"},
+            format="json",
+        )
+        self.assertEqual(req_res.status_code, 200)
+        self.assertEqual(req_res.data["reversal_request"]["status"], "pending")
+        self.assertEqual(req_res.data["reversal_request"]["requested_by_username"], agent.username)
+
+        # Notification should exist for superadmin
+        notifs = Notification.objects.filter(user=superadmin)
+        self.assertTrue(notifs.filter(title__icontains="Reversal request").exists())
+
+        # 2. Agent cancels the reversal request
+        cancel_res = self.client.delete(f"/api/employees/{employee.pk}/reversal-request/")
+        self.assertEqual(cancel_res.status_code, 200)
+        employee.refresh_from_db()
+        self.assertEqual(employee.reversal_request.status, "cancelled")
+        # Notification should have been removed
+        self.assertFalse(Notification.objects.filter(user=superadmin, title__icontains="Reversal request").exists())
+
+        # 3. Agent re-requests reversal
+        req_res_2 = self.client.post(
+            f"/api/employees/{employee.pk}/reversal-request/",
+            {"remark": "Work resumed definitely"},
+            format="json",
+        )
+        self.assertEqual(req_res_2.status_code, 200)
+
+        # 4. Requester cannot approve their own reversal request
+        self.client.force_authenticate(user=agent)
+        self_appr = self.client.post(f"/api/employees/{employee.pk}/reversal-request/approve/")
+        self.assertEqual(self_appr.status_code, 403)
+        self.assertIn("Only the acknowledging party can review", self_appr.data["detail"])
+
+        # 5. Superadmin acknowledges/approves the reversal request
+        self.client.force_authenticate(user=superadmin)
+        appr_res = self.client.post(f"/api/employees/{employee.pk}/reversal-request/approve/")
+        self.assertEqual(appr_res.status_code, 200)
+
+        employee.refresh_from_db()
+        self.assertFalse(employee.returned_from_employment)
+        self.assertEqual(employee.return_request.status, EmployeeReturnRequest.STATUS_REINSTATED)
+        self.assertEqual(employee.reversal_request.status, EmployeeReversalRequest.STATUS_APPROVED)
+
+        # Candidate should appear in employed list
+        emp_list = self.client.get("/api/employees/", {"employed_scope": "organization"})
+        self.assertEqual(emp_list.status_code, 200)
+        self.assertIn(employee.id, [row["id"] for row in emp_list.data["results"]])
+
+        # Candidate should NOT appear in returned list
+        ret_list = self.client.get("/api/employees/", {"returned_scope": "organization"})
+        self.assertEqual(ret_list.status_code, 200)
+        self.assertNotIn(employee.id, [row["id"] for row in ret_list.data["results"]])
+
+
+
+
+    def test_multi_agent_selection_and_atomic_process_locking(self):
+        superadmin = self._create_user("org-owner-multi", Profile.ROLE_SUPERADMIN)
+        agent1 = self._create_user("agent-alpha", Profile.ROLE_CUSTOMER)
+        agent1.first_name = "Agent Alpha"
+        agent1.save(update_fields=["first_name"])
+        agent2 = self._create_user("agent-beta", Profile.ROLE_CUSTOMER)
+        agent2.first_name = "Agent Beta"
+        agent2.save(update_fields=["first_name"])
+        self._assign_same_organization(superadmin, agent1, agent2)
+
+        employee = Employee.objects.create(
+            organization=get_user_organization(superadmin),
+            registered_by=superadmin,
+            updated_by=superadmin,
+            full_name="Contested Candidate",
+            status=Employee.STATUS_APPROVED,
+        )
+
+        # Agent 1 selects candidate
+        self.client.force_authenticate(user=agent1)
+        r1 = self.client.post(f"/api/employees/{employee.pk}/selection/")
+        self.assertEqual(r1.status_code, 200)
+
+        # Agent 2 also selects the same candidate without restriction
+        self.client.force_authenticate(user=agent2)
+        r2 = self.client.post(f"/api/employees/{employee.pk}/selection/")
+        self.assertEqual(r2.status_code, 200)
+
+        # Verify both interests recorded
+        interests = EmployeeSelectionInterest.objects.filter(employee=employee)
+        self.assertEqual(interests.count(), 2)
+
+        # Agent 1 initiates processing -> secures candidate
+        self.client.force_authenticate(user=agent1)
+        p1 = self.client.post(f"/api/employees/{employee.pk}/process/")
+        self.assertEqual(p1.status_code, 200)
+
+        # Agent 2 attempts to initiate processing -> 409 Conflict
+        self.client.force_authenticate(user=agent2)
+        p2 = self.client.post(f"/api/employees/{employee.pk}/process/")
+        self.assertEqual(p2.status_code, 409)
+        self.assertEqual(p2.data["detail"], "This candidate has already entered processing with another agent.")
+
+        # Organization user attempts to initiate processing for Agent 2 -> 409 Conflict with Agent 1 name visible
+        self.client.force_authenticate(user=superadmin)
+        p_org = self.client.post(
+            f"/api/employees/{employee.pk}/process/",
+            {"agent_id": agent2.id},
+            format="json",
+        )
+        self.assertEqual(p_org.status_code, 409)
+        self.assertEqual(
+            p_org.data["detail"],
+            f"This candidate has already entered processing with another agent ({agent_display_name(agent1)}).",
+        )
+
+        # Agent 2 views candidate details -> is_secured_by_other_agent is True, rival agent identity is masked
+        self.client.force_authenticate(user=agent2)
+        emp_res = self.client.get(f"/api/employees/{employee.pk}/")
+        self.assertEqual(emp_res.status_code, 200)
+        sel_state = emp_res.data["selection_state"]
+        self.assertTrue(sel_state["is_secured_by_other_agent"])
+        self.assertFalse(sel_state["can_unselect"])
+        self.assertFalse(sel_state["can_initiate_process"])
+        self.assertTrue(sel_state["selected_by_current_agent"])
+        self.assertTrue(sel_state["is_selected"])
+        self.assertEqual(sel_state["secured_by_agent_name"], "")
+        self.assertIsNone(sel_state["secured_by_agent_id"])
+        self.assertEqual(sel_state["all_agents"], [])
+        self.assertEqual(sel_state["selection"]["agent_name"], "")
+        self.assertIsNone(sel_state["selection"]["agent"])
+
+        # Agent 2's selected listing (selected_scope=mine) still includes the candidate as Not available
+        mine_agent2 = self.client.get("/api/employees/?selected_scope=mine")
+        self.assertEqual(mine_agent2.status_code, 200)
+        self.assertEqual(mine_agent2.data["count"], 1)
+        self.assertEqual(mine_agent2.data["results"][0]["id"], employee.id)
+        self.assertTrue(mine_agent2.data["results"][0]["selection_state"]["is_secured_by_other_agent"])
+
+        # Agent 1's selected listing (selected_scope=mine) does NOT include candidate (moved to under process)
+        self.client.force_authenticate(user=agent1)
+        mine_agent1 = self.client.get("/api/employees/?selected_scope=mine")
+        self.assertEqual(mine_agent1.status_code, 200)
+        self.assertEqual(mine_agent1.data["count"], 0)
+
+        # Agent 1's under process listing (process_scope=mine) includes the candidate
+        proc_agent1 = self.client.get("/api/employees/?process_scope=mine")
+        self.assertEqual(proc_agent1.status_code, 200)
+        self.assertEqual(proc_agent1.data["count"], 1)
+        self.assertEqual(proc_agent1.data["results"][0]["id"], employee.id)
+
+        # Agent 2 attempts selection while candidate is in active process -> 409 Conflict without rival agent name
+        self.client.force_authenticate(user=agent2)
+        s2 = self.client.post(f"/api/employees/{employee.pk}/selection/")
+        self.assertEqual(s2.status_code, 409)
+        self.assertEqual(s2.data["detail"], "This candidate is already secured and under process by another agent.")
+
+        # Agent 2 attempts unselect while candidate is in active process -> 409 Conflict
+        u2 = self.client.delete(f"/api/employees/{employee.pk}/selection/")
+        self.assertEqual(u2.status_code, 409)
+        self.assertEqual(u2.data["detail"], "This candidate has already entered processing with another agent.")
+
+    def test_travel_confirmation_and_arrival_activation_auto_commission(self):
+        superadmin = self._create_user("org-admin-travel", Profile.ROLE_SUPERADMIN)
+        agent = self._create_user("agent-arrival", Profile.ROLE_CUSTOMER)
+        agent.profile.agent_commission = Decimal("1500.00")
+        agent.profile.save(update_fields=["agent_commission"])
+        self._assign_same_organization(superadmin, agent)
+
+        employee = Employee.objects.create(
+            organization=get_user_organization(superadmin),
+            registered_by=superadmin,
+            updated_by=superadmin,
+            full_name="Travel Candidate",
+            status=Employee.STATUS_APPROVED,
+            departure_date="2026-06-01",
+            is_administratively_completed=True,
+        )
+        EmployeeSelection.objects.create(
+            organization=get_user_organization(superadmin),
+            employee=employee,
+            agent=agent,
+            selected_by=agent,
+            status=EmployeeSelection.STATUS_UNDER_PROCESS,
+        )
+
+        # Confirm travel
+        self.client.force_authenticate(user=superadmin)
+        travel_res = self.client.post(
+            f"/api/employees/{employee.pk}/travel-confirm/",
+            {"actual_travel_date": "2026-06-01"},
+            format="json",
+        )
+        self.assertEqual(travel_res.status_code, 200)
+        employee.refresh_from_db()
+        self.assertTrue(employee.did_travel)
+        self.assertEqual(employee.travel_status, Employee.TRAVEL_STATUS_CONFIRMED)
+
+        # Agent confirms arrival
+        self.client.force_authenticate(user=agent)
+        arrival_res = self.client.post(
+            f"/api/employees/{employee.pk}/arrival-confirm/",
+            {"action": "confirm", "actual_arrival_date": "2026-06-02"},
+            format="json",
+        )
+        self.assertEqual(arrival_res.status_code, 200)
+        employee.refresh_from_db()
+        self.assertEqual(employee.arrival_status, Employee.ARRIVAL_STATUS_CONFIRMED)
+        self.assertIsNotNone(employee.employment_activated_at)
+
+        # CommissionRequest auto-created
+        comm = CommissionRequest.objects.filter(employee=employee, agent=agent).first()
+        self.assertIsNotNone(comm)
+        self.assertEqual(comm.amount, Decimal("1500.00"))
+        self.assertEqual(comm.status, CommissionRequest.STATUS_PENDING)
+
+    def test_system_auto_acknowledgement_after_3_days(self):
+        superadmin = self._create_user("org-admin-cutoff", Profile.ROLE_SUPERADMIN)
+        agent = self._create_user("agent-cutoff", Profile.ROLE_CUSTOMER)
+        agent.profile.agent_commission = Decimal("1200.00")
+        agent.profile.save(update_fields=["agent_commission"])
+        self._assign_same_organization(superadmin, agent)
+
+        from datetime import timedelta
+        cutoff_date = timezone.now() - timedelta(days=4)
+        employee = Employee.objects.create(
+            organization=get_user_organization(superadmin),
+            registered_by=superadmin,
+            updated_by=superadmin,
+            full_name="Cutoff Candidate",
+            status=Employee.STATUS_APPROVED,
+            did_travel=True,
+            travel_status=Employee.TRAVEL_STATUS_CONFIRMED,
+            travel_confirmed_at=cutoff_date,
+            arrival_status=Employee.ARRIVAL_STATUS_PENDING,
+        )
+        EmployeeSelection.objects.create(
+            organization=get_user_organization(superadmin),
+            employee=employee,
+            agent=agent,
+            selected_by=agent,
+            status=EmployeeSelection.STATUS_UNDER_PROCESS,
+        )
+
+        # Reading candidate triggers auto-acknowledgement
+        self.client.force_authenticate(user=superadmin)
+        res = self.client.get(f"/api/employees/{employee.pk}/")
+        self.assertEqual(res.status_code, 200)
+
+        employee.refresh_from_db()
+        self.assertEqual(employee.arrival_status, Employee.ARRIVAL_STATUS_SYSTEM_ACKNOWLEDGED)
+        self.assertIsNotNone(employee.employment_activated_at)
+
+        comm = CommissionRequest.objects.filter(employee=employee, agent=agent).first()
+        self.assertIsNotNone(comm)
+        self.assertEqual(comm.amount, Decimal("1200.00"))
+
+    def test_regulation_settlements_free_monthly_allowance_limit(self):
+        superadmin = self._create_user("org-admin-reg", Profile.ROLE_SUPERADMIN)
+        agent = self._create_user("agent-reg", Profile.ROLE_CUSTOMER)
+        self._assign_same_organization(superadmin, agent)
+
+        self.client.force_authenticate(user=agent)
+        # Request 1
+        r1 = self.client.post("/api/commissions/regulation-requests/", {"amount": "100.00", "reason": "Fee 1"})
+        self.assertEqual(r1.status_code, 201)
+        self.assertTrue(r1.data["is_free_allowance"])
+
+        # Request 2
+        r2 = self.client.post("/api/commissions/regulation-requests/", {"amount": "100.00", "reason": "Fee 2"})
+        self.assertEqual(r2.status_code, 201)
+        self.assertTrue(r2.data["is_free_allowance"])
+
+        # Request 3 in same month -> is_free_allowance must be False
+        r3 = self.client.post("/api/commissions/regulation-requests/", {"amount": "100.00", "reason": "Fee 3"})
+        self.assertEqual(r3.status_code, 201)
+        self.assertFalse(r3.data["is_free_allowance"])
+
+    def test_early_return_generates_refund_record(self):
+        superadmin = self._create_user("org-admin-refund", Profile.ROLE_SUPERADMIN)
+        agent = self._create_user("agent-refund", Profile.ROLE_CUSTOMER)
+        self._assign_same_organization(superadmin, agent)
+
+        employee = Employee.objects.create(
+            organization=get_user_organization(superadmin),
+            registered_by=superadmin,
+            updated_by=superadmin,
+            full_name="Early Return Candidate",
+            status=Employee.STATUS_APPROVED,
+            did_travel=True,
+            travel_status=Employee.TRAVEL_STATUS_CONFIRMED,
+            arrival_status=Employee.ARRIVAL_STATUS_CONFIRMED,
+            actual_arrival_date=timezone.localdate() - datetime.timedelta(days=30),
+            employment_activated_at=timezone.now() - datetime.timedelta(days=30),
+        )
+        EmployeeSelection.objects.create(
+            organization=get_user_organization(superadmin),
+            employee=employee,
+            agent=agent,
+            selected_by=agent,
+            status=EmployeeSelection.STATUS_UNDER_PROCESS,
+        )
+        comm = CommissionRequest.objects.create(
+            organization=get_user_organization(superadmin),
+            employee=employee,
+            agent=agent,
+            amount=Decimal("1200.00"),
+            status=CommissionRequest.STATUS_SETTLED,
+        )
+
+        # Confirm return within 90 days (early return)
+        self.client.force_authenticate(user=superadmin)
+        res = self.client.post(
+            f"/api/employees/{employee.pk}/return-confirm/",
+            {"actual_return_date": str(timezone.localdate()), "notes": "Candidate returned early after 30 days."},
+            format="json",
+        )
+        self.assertEqual(res.status_code, 200)
+
+        refund = RefundRecord.objects.filter(employee=employee).first()
+        self.assertIsNotNone(refund)
+        self.assertTrue(refund.is_eligible_early_return)
+        self.assertGreater(refund.refund_amount, Decimal("0.00"))
+
+    def test_overdue_monitoring_preserves_open_record(self):
+        superadmin = self._create_user("org-admin-overdue", Profile.ROLE_SUPERADMIN)
+        self.client.force_authenticate(user=superadmin)
+
+        employee = Employee.objects.create(
+            organization=get_user_organization(superadmin),
+            registered_by=superadmin,
+            updated_by=superadmin,
+            full_name="Overdue Candidate",
+            status=Employee.STATUS_APPROVED,
+            did_travel=True,
+            is_administratively_completed=True,
+            contract_expires_on=timezone.localdate() - datetime.timedelta(days=5),
+            returned_from_employment=False,
+        )
+
+        # Calling detail view checks overdue
+        res = self.client.get(f"/api/employees/{employee.pk}/")
+        self.assertEqual(res.status_code, 200)
+
+        employee.refresh_from_db()
+        self.assertTrue(employee.is_overdue)
+        # Authoritative rule: must NOT auto-mark as returned
+        self.assertFalse(employee.returned_from_employment)
+
+    def test_organization_sees_selected_candidates_across_all_agents(self):
+        superadmin = self._create_user("org-admin-all-sel", Profile.ROLE_SUPERADMIN)
+        agent_a = self._create_user("agent-alpha-sel", Profile.ROLE_CUSTOMER)
+        agent_a.first_name = "Agent Alpha"
+        agent_a.save(update_fields=["first_name"])
+        agent_b = self._create_user("agent-beta-sel", Profile.ROLE_CUSTOMER)
+        agent_b.first_name = "Agent Beta"
+        agent_b.save(update_fields=["first_name"])
+        self._assign_same_organization(superadmin, agent_a, agent_b)
+
+        emp1 = Employee.objects.create(
+            organization=get_user_organization(superadmin),
+            registered_by=superadmin,
+            updated_by=superadmin,
+            full_name="Candidate Alpha-Selected",
+            status=Employee.STATUS_APPROVED,
+        )
+        emp2 = Employee.objects.create(
+            organization=get_user_organization(superadmin),
+            registered_by=superadmin,
+            updated_by=superadmin,
+            full_name="Candidate Beta-Selected",
+            status=Employee.STATUS_APPROVED,
+        )
+
+        # Agent A selects emp1
+        self.client.force_authenticate(user=agent_a)
+        res_a = self.client.post(f"/api/employees/{emp1.pk}/selection/", format="json")
+        self.assertEqual(res_a.status_code, 200)
+
+        # Agent B selects emp2
+        self.client.force_authenticate(user=agent_b)
+        res_b = self.client.post(f"/api/employees/{emp2.pk}/selection/", format="json")
+        self.assertEqual(res_b.status_code, 200)
+
+        # Agent A selects emp2 as well (multi-agent interest)
+        self.client.force_authenticate(user=agent_a)
+        res_a2 = self.client.post(f"/api/employees/{emp2.pk}/selection/", format="json")
+        self.assertEqual(res_a2.status_code, 200)
+
+        # Agent A views selected scope -> only sees candidates selected by Agent A (emp1, emp2)
+        agent_a_list = self.client.get("/api/employees/", {"selected_scope": "mine"})
+        self.assertEqual(agent_a_list.status_code, 200)
+        self.assertEqual(agent_a_list.data["count"], 2)
+
+        # Agent B views selected scope -> only sees emp2
+        self.client.force_authenticate(user=agent_b)
+        agent_b_list = self.client.get("/api/employees/", {"selected_scope": "mine"})
+        self.assertEqual(agent_b_list.status_code, 200)
+        self.assertEqual(agent_b_list.data["count"], 1)
+        self.assertEqual(agent_b_list.data["results"][0]["id"], emp2.id)
+
+        # Organization admin views selected scope -> sees ALL selected candidates across all agents (emp1, emp2)
+        self.client.force_authenticate(user=superadmin)
+        org_list = self.client.get("/api/employees/", {"selected_scope": "organization"})
+        self.assertEqual(org_list.status_code, 200)
+        self.assertEqual(org_list.data["count"], 2)
+
+        # Candidate 2 was selected by both agents, check all_agents
+        emp2_res = next((e for e in org_list.data["results"] if e["id"] == emp2.id), None)
+        self.assertIsNotNone(emp2_res)
+        self.assertIn("Agent Alpha", emp2_res["selection_state"]["all_agents"])
+        self.assertIn("Agent Beta", emp2_res["selection_state"]["all_agents"])
 
 
 class CompanySyncTests(TestCase):

@@ -38,15 +38,25 @@ import {
   employeeAvailability,
   isEmployeeInEmployedStage,
   formatDateForPrompt,
-  employeeWorkflowState
+  employeeWorkflowState,
+  isEmployeeAvailableBadged,
+  CANDIDATE_CARDS_LAYOUT_STORAGE_KEY,
+  getSavedCandidateCardsLayout,
+  saveCandidateCardsLayout,
+  getSavedCandidateCardsSort,
+  saveCandidateCardsSort,
+  getEmployeeStateChangeDate,
+  parseDateTimeToMillis
 } from '../../utils/employeeHelpers'
 import { ATTACHMENT_FIELDS } from '../../constants/employeeOptions'
 
 import EmployeeCard from './EmployeeCard'
 import EmployeeFilters from './EmployeeFilters'
 import { useDocumentPreview } from '../../context/PortalOverlayContext'
+import EmployeeInitiateProcessModal from './EmployeeInitiateProcessModal'
 import EmployeeReturnModal from './EmployeeReturnModal'
 import EmployeeReviewModal from './EmployeeReviewModal'
+import CandidateLoadingScreen, { CandidateLoadingProgressBar } from './CandidateLoadingScreen'
 export default function EmployeesListingView({ stage = "list" }) {
   const navigate = useNavigate();
   const { user } = useAuth()
@@ -77,6 +87,7 @@ export default function EmployeesListingView({ stage = "list" }) {
   const [processAgentAssignments, setProcessAgentAssignments] = useState({})
   const [openedEmployeeId, setOpenedEmployeeId] = useState(null)
   const [openedEmployeeMode, setOpenedEmployeeMode] = useState('full')
+  const [initiateProcessTargetEmployee, setInitiateProcessTargetEmployee] = useState(null)
   const [expandedEmployeeCardId, setExpandedEmployeeCardId] = useState(null)
   const [expandedEmployeeCardReadyId, setExpandedEmployeeCardReadyId] = useState(null)
   const employeeCardsGridRef = useRef(null)
@@ -86,8 +97,42 @@ export default function EmployeesListingView({ stage = "list" }) {
   const [selectedEmployeeCardIds, setSelectedEmployeeCardIds] = useState(() => new Set())
   const [selectDeniedEmployeeCardIds, setSelectDeniedEmployeeCardIds] = useState(() => new Set())
   const selectDeniedTimersRef = useRef(new Map())
-  const [employeeCardsLayout, setEmployeeCardsLayout] = useState('list')
-  const [employeeCardsSort, setEmployeeCardsSort] = useState('newest')
+  const [employeeCardsLayout, setEmployeeCardsLayout] = useState(getSavedCandidateCardsLayout)
+  const [employeeCardsSort, setEmployeeCardsSort] = useState(() => getSavedCandidateCardsSort(stage))
+
+  const handleSetEmployeeCardsLayout = useCallback((nextLayout) => {
+    const resolved = nextLayout === 'grid' ? 'grid' : 'list'
+    setEmployeeCardsLayout(resolved)
+    saveCandidateCardsLayout(resolved)
+  }, [])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+
+    const handleLayoutChange = (event) => {
+      const nextLayout = event?.detail
+      if (nextLayout === 'grid' || nextLayout === 'list') {
+        setEmployeeCardsLayout(nextLayout)
+      }
+    }
+
+    const handleStorageChange = (event) => {
+      if (event.key === CANDIDATE_CARDS_LAYOUT_STORAGE_KEY) {
+        const nextLayout = event.newValue
+        if (nextLayout === 'grid' || nextLayout === 'list') {
+          setEmployeeCardsLayout(nextLayout)
+        }
+      }
+    }
+
+    window.addEventListener('portal:candidate-cards-layout-change', handleLayoutChange)
+    window.addEventListener('storage', handleStorageChange)
+
+    return () => {
+      window.removeEventListener('portal:candidate-cards-layout-change', handleLayoutChange)
+      window.removeEventListener('storage', handleStorageChange)
+    }
+  }, [])
   const [employeeCardsRenderCount, setEmployeeCardsRenderCount] = useState(EMPLOYEE_CARDS_BATCH_SIZE)
   const employeeCardsSentinelRef = useRef(null)
   const [showScrollToTop, setShowScrollToTop] = useState(false)
@@ -274,12 +319,11 @@ export default function EmployeesListingView({ stage = "list" }) {
   const allowedEmployeeViewIds = useMemo(() => {
     return EMPLOYEE_VIEW_TABS
       .filter((tab) => {
-        if (tab.id === 'selected') return isAgentSideUser
         if (tab.id === 'register') return canEditEmployeeRecords
         return true
       })
       .map((tab) => tab.id)
-  }, [canEditEmployeeRecords, isAgentSideUser])
+  }, [canEditEmployeeRecords])
 
   const currentView = useMemo(() => {
     if (stage && allowedEmployeeViewIds.includes(stage)) return stage
@@ -292,6 +336,16 @@ export default function EmployeesListingView({ stage = "list" }) {
   useEffect(() => {
     setHiddenEmployeeIds(new Set())
     hiddenEmployeeIdsRef.current = new Set()
+  }, [currentView])
+
+  const handleSetEmployeeCardsSort = useCallback((nextSort) => {
+    setEmployeeCardsSort(nextSort)
+    saveCandidateCardsSort(nextSort, currentView)
+  }, [currentView])
+
+  useEffect(() => {
+    const saved = getSavedCandidateCardsSort(currentView)
+    setEmployeeCardsSort(saved)
   }, [currentView])
 
   const setView = useCallback((nextView, { replace = false } = {}) => {
@@ -431,7 +485,7 @@ export default function EmployeesListingView({ stage = "list" }) {
         return
       }
 
-      if (resolvedView === 'selected' && isAgentSideUser) {
+      if (resolvedView === 'selected') {
         const baseEmployees = await fetchAllEmployeePages({
           q: filters.q,
           selectedScope
@@ -439,7 +493,7 @@ export default function EmployeesListingView({ stage = "list" }) {
         const visibleSelectedEmployees = baseEmployees
           .map(applyTravelOverrides)
           .filter((employee) => isEmployeeSelected(employee))
-          .filter((employee) => isVisibleForCurrentAgent(employee))
+          .filter((employee) => (isAgentSideUser ? isVisibleForCurrentAgent(employee) : true))
         setEmployeesData({
           count: visibleSelectedEmployees.length,
           results: visibleSelectedEmployees,
@@ -449,10 +503,11 @@ export default function EmployeesListingView({ stage = "list" }) {
         return
       }
 
-      if (resolvedView === 'returned' && isAgentSideUser) {
+      if (resolvedView === 'returned') {
+        const scope = isAgentSideUser ? 'mine' : 'organization'
         const baseEmployees = await fetchAllEmployeePages({
           q: filters.q,
-          returnedScope: 'mine'
+          returnedScope: scope
         })
         const visibleReturnedEmployees = baseEmployees
           .map(applyTravelOverrides)
@@ -523,7 +578,10 @@ export default function EmployeesListingView({ stage = "list" }) {
   }, [loading])
 
   useEffect(() => {
-    const handlePortalRefresh = () => {
+    const handlePortalRefresh = (event) => {
+      if (event?.detail?.explicit) {
+        needsResortRef.current = true
+      }
       loadEmployees(currentView)
     }
     window.addEventListener('portal:refresh-candidates', handlePortalRefresh)
@@ -672,6 +730,15 @@ export default function EmployeesListingView({ stage = "list" }) {
     if (!canEditEmployeeRecords) {
       setPageError('Only organization-side users can edit employee records.')
       return
+    }
+    const emp = (employees || []).find((e) => e.id === employeeId) || openedEmployee
+    if (emp) {
+      const state = employeeWorkflowState(emp)
+      if (['employed', 'traveled', 'returned'].includes(state) || emp.returned_from_employment || emp.did_travel) {
+        setPageError('Editing is only allowed for candidates on stages below employment.')
+        showToast('Editing is only allowed for candidates on stages below employment.', { tone: 'warning' })
+        return
+      }
     }
     closeDocumentPreview()
     setOpenedEmployeeId(null)
@@ -920,11 +987,82 @@ export default function EmployeesListingView({ stage = "list" }) {
     }
   }
 
-  const handleReinstateEmployeeEmployment = async (employee) => {
+  const handleRequestEmployeeReversal = async (employee) => {
+    const isAgent = isAgentSideWorkspace(user)
+    const targetSide = isAgent ? 'organization' : 'agent'
     const confirmed = await confirm({
-      title: 'Restore employed status',
-      message: 'Move this employee from Returned list back to Employed?',
-      confirmLabel: 'Restore',
+      title: 'Request reverse to employed',
+      message: `Submit a request to move "${employee.full_name}" from Returned back to Employed? This will notify the ${targetSide} for acknowledgement.`,
+      confirmLabel: 'Submit request',
+      cancelLabel: 'Cancel',
+      tone: 'warning'
+    })
+    if (!confirmed) return
+    setActionBusyId(employee.id)
+    setPageError('')
+    setNotice('')
+    try {
+      const updated = await employeesService.createEmployeeReversalRequest(employee.id, {
+        remark: 'Candidate cleared to resume employment'
+      })
+      patchEmployeeCollections(employee.id, (current) => ({
+        ...current,
+        reversal_request: updated.reversal_request || {
+          status: 'pending',
+          remark: 'Candidate cleared to resume employment',
+          is_requester: true,
+          requested_by_username: user?.username
+        }
+      }))
+      showToast('Reversal request submitted. Awaiting acknowledgement.', { tone: 'success' })
+      localStorage.setItem('portal:cross_tab_sync', String(Date.now()))
+      window.dispatchEvent(new Event('notifications:updated'))
+      window.dispatchEvent(new Event('portal:refresh-candidates'))
+      await loadEmployees(currentView)
+    } catch (err) {
+      setPageError(err.message || 'Could not submit reversal request')
+      showToast(err.message || 'Could not submit reversal request', { tone: 'error' })
+    } finally {
+      setActionBusyId(null)
+    }
+  }
+
+  const handleCancelEmployeeReversalRequest = async (employee) => {
+    const confirmed = await confirm({
+      title: 'Cancel reversal request',
+      message: `Cancel the pending reversal request for "${employee.full_name}"?`,
+      confirmLabel: 'Cancel request',
+      cancelLabel: 'Keep',
+      tone: 'warning'
+    })
+    if (!confirmed) return
+    setActionBusyId(employee.id)
+    setPageError('')
+    setNotice('')
+    try {
+      await employeesService.cancelEmployeeReversalRequest(employee.id)
+      patchEmployeeCollections(employee.id, (current) => ({
+        ...current,
+        reversal_request: null
+      }))
+      showToast('Reversal request cancelled.', { tone: 'info' })
+      localStorage.setItem('portal:cross_tab_sync', String(Date.now()))
+      window.dispatchEvent(new Event('notifications:updated'))
+      window.dispatchEvent(new Event('portal:refresh-candidates'))
+      await loadEmployees(currentView)
+    } catch (err) {
+      setPageError(err.message || 'Could not cancel reversal request')
+      showToast(err.message || 'Could not cancel reversal request', { tone: 'error' })
+    } finally {
+      setActionBusyId(null)
+    }
+  }
+
+  const handleAcknowledgeEmployeeReversal = async (employee) => {
+    const confirmed = await confirm({
+      title: 'Acknowledge reversal to employed',
+      message: `Acknowledge reversal for "${employee.full_name}"? The candidate will be moved back to Employed.`,
+      confirmLabel: 'Acknowledge',
       cancelLabel: 'Cancel',
       tone: 'warning'
     })
@@ -936,9 +1074,7 @@ export default function EmployeesListingView({ stage = "list" }) {
     setPageError('')
     setNotice('')
     try {
-      await employeesService.updateEmployee(employee.id, {
-        returned_from_employment: false
-      })
+      await employeesService.approveEmployeeReversalRequest(employee.id)
       hideEmployeeId(employee.id)
       patchEmployeeCollections(employee.id, (current) => {
         const nextEmployee = {
@@ -947,9 +1083,11 @@ export default function EmployeesListingView({ stage = "list" }) {
           return_status: 'pending',
           return_request: current.return_request
             ? { ...current.return_request, status: 'reinstated' }
+            : null,
+          reversal_request: current.reversal_request
+            ? { ...current.reversal_request, status: 'approved' }
             : null
         }
-
         if (currentView === 'returned') return null
         return nextEmployee
       })
@@ -957,17 +1095,54 @@ export default function EmployeesListingView({ stage = "list" }) {
         setOpenedEmployeeId(null)
       }
       localStorage.removeItem(`notification_remind_return_${employee.id}`)
+      localStorage.removeItem(`notification_remind_reversal_${employee.id}`)
       localStorage.setItem('portal:cross_tab_sync', String(Date.now()))
       window.dispatchEvent(new Event('notifications:updated'))
       window.dispatchEvent(new Event('portal:refresh-candidates'))
-      showToast('Employee moved back to Employed.', { tone: 'success' })
+      showToast('Candidate successfully moved back to Employed.', { tone: 'success' })
       await loadEmployees(currentView)
     } catch (err) {
-      setPageError(err.message || 'Could not restore employee to employed')
+      setPageError(err.message || 'Could not acknowledge reversal')
+      showToast(err.message || 'Could not acknowledge reversal', { tone: 'error' })
     } finally {
       setActionBusyId(null)
     }
   }
+
+  const handleRefuseEmployeeReversal = async (employee) => {
+    const confirmed = await confirm({
+      title: 'Refuse reversal request',
+      message: `Refuse reversal request for "${employee.full_name}"? The candidate will stay in Returned.`,
+      confirmLabel: 'Refuse',
+      cancelLabel: 'Cancel',
+      tone: 'danger'
+    })
+    if (!confirmed) return
+    setActionBusyId(employee.id)
+    setPageError('')
+    setNotice('')
+    try {
+      await employeesService.refuseEmployeeReversalRequest(employee.id)
+      patchEmployeeCollections(employee.id, (current) => ({
+        ...current,
+        reversal_request: current.reversal_request
+          ? { ...current.reversal_request, status: 'refused' }
+          : null
+      }))
+      showToast('Reversal request refused.', { tone: 'info' })
+      localStorage.setItem('portal:cross_tab_sync', String(Date.now()))
+      window.dispatchEvent(new Event('notifications:updated'))
+      window.dispatchEvent(new Event('portal:refresh-candidates'))
+      await loadEmployees(currentView)
+    } catch (err) {
+      setPageError(err.message || 'Could not refuse reversal request')
+      showToast(err.message || 'Could not refuse reversal request', { tone: 'error' })
+    } finally {
+      setActionBusyId(null)
+    }
+  }
+
+  const handleReinstateEmployeeEmployment = handleRequestEmployeeReversal
 
   const handleAvailabilityAction = async (employee, nextStatus, actionLabel) => {
     setActionBusyId(employee.id)
@@ -1028,20 +1203,27 @@ export default function EmployeesListingView({ stage = "list" }) {
     }
   }
 
-  const handleStartProcess = async (employee) => {
+  const handleStartProcess = async (employee, agentIdOverride = null) => {
     const organizationName = user?.organization?.name || 'organization'
-    const assignedAgentId = resolvedProcessAgentId(employee, processAgentAssignments, formOptions.agent_options)
+    const assignedAgentId =
+      agentIdOverride ||
+      (employee.selection_state?.selection?.agent ? String(employee.selection_state.selection.agent) : '') ||
+      resolvedProcessAgentId(employee, processAgentAssignments, formOptions.agent_options)
     if (employee.status !== 'approved') {
-      setPageError('Only approved employees can have a process initiated.')
+      const msg = 'Only approved employees can have a process initiated.'
+      setPageError(msg)
+      showToast(msg, { tone: 'error' })
       return
     }
     if (canManageOrganizationProcesses && !assignedAgentId) {
-      setPageError('Choose an agent before starting the process.')
+      const msg = 'Choose an agent before starting the process.'
+      setPageError(msg)
+      showToast(msg, { tone: 'warning' })
       return
     }
     const confirmed = await confirm({
       title: 'Initiate process',
-      message: `Initiating a procees will inform the ${organizationName} to proceed to the arrangement of the employee documents.`,
+      message: `Initiating a process will inform the ${organizationName} to proceed to the arrangement of the employee documents.`,
       confirmLabel: 'Initiate',
       cancelLabel: 'Cancel',
       tone: 'warning'
@@ -1067,7 +1249,9 @@ export default function EmployeesListingView({ stage = "list" }) {
       }
       await loadEmployees(currentView)
     } catch (err) {
-      setPageError(err.message || 'Could not start employee process')
+      const errorMsg = err.message || 'Could not start employee process'
+      setPageError(errorMsg)
+      showToast(errorMsg, { tone: 'error' })
     } finally {
       setActionBusyId(null)
     }
@@ -1463,32 +1647,143 @@ export default function EmployeesListingView({ stage = "list" }) {
     })()
   }, [confirm, selectedEmployeeCardIds.size])
 
+  const needsResortRef = useRef(true)
+  const candidateOrderRef = useRef([])
+  const prevSortRef = useRef(employeeCardsSort)
+  const prevViewRef = useRef(currentView)
+  const prevPageRef = useRef(page)
+  const prevFiltersRef = useRef(filters)
+
+  if (prevSortRef.current !== employeeCardsSort) {
+    prevSortRef.current = employeeCardsSort
+    needsResortRef.current = true
+  }
+
+  if (prevViewRef.current !== currentView) {
+    prevViewRef.current = currentView
+    needsResortRef.current = true
+    candidateOrderRef.current = []
+  }
+
+  if (prevPageRef.current !== page) {
+    prevPageRef.current = page
+    needsResortRef.current = true
+  }
+
+  const filtersChanged = useMemo(() => {
+    const prev = prevFiltersRef.current
+    if (!prev) return true
+    return (
+      prev.q !== filters.q ||
+      prev.isActive !== filters.isActive ||
+      prev.profession !== filters.profession ||
+      prev.gender !== filters.gender ||
+      prev.religion !== filters.religion ||
+      prev.experience !== filters.experience ||
+      prev.destinationCountry !== filters.destinationCountry ||
+      prev.docStatus !== filters.docStatus ||
+      prev.tag !== filters.tag
+    )
+  }, [
+    filters.destinationCountry,
+    filters.docStatus,
+    filters.experience,
+    filters.gender,
+    filters.isActive,
+    filters.profession,
+    filters.q,
+    filters.religion,
+    filters.tag
+  ])
+
+  if (filtersChanged) {
+    prevFiltersRef.current = filters
+    needsResortRef.current = true
+  }
+
   const sortedPrimaryVisibleEmployees = useMemo(() => {
-    const rows = [...visibleEmployees]
     const byDate = (a, b, direction = 'desc') => {
-      const aTime = new Date(a?.created_at || a?.updated_at || 0).getTime() || 0
-      const bTime = new Date(b?.created_at || b?.updated_at || 0).getTime() || 0
-      return direction === 'asc' ? aTime - bTime : bTime - aTime
+      const aTime = getEmployeeStateChangeDate(a, currentView)
+      const bTime = getEmployeeStateChangeDate(b, currentView)
+      if (aTime !== bTime) {
+        return direction === 'asc' ? aTime - bTime : bTime - aTime
+      }
+      const aCreated = parseDateTimeToMillis(a?.created_at)
+      const bCreated = parseDateTimeToMillis(b?.created_at)
+      if (aCreated !== bCreated) {
+        return direction === 'asc' ? aCreated - bCreated : bCreated - aCreated
+      }
+      const aId = Number(a?.id) || 0
+      const bId = Number(b?.id) || 0
+      return direction === 'asc' ? aId - bId : bId - aId
     }
 
-    switch (employeeCardsSort) {
-      case 'oldest':
-        rows.sort((a, b) => byDate(a, b, 'asc'))
-        break
-      case 'name_asc':
-        rows.sort((a, b) => String(a?.full_name || '').localeCompare(String(b?.full_name || ''), undefined, { sensitivity: 'base' }))
-        break
-      case 'name_desc':
-        rows.sort((a, b) => String(b?.full_name || '').localeCompare(String(a?.full_name || ''), undefined, { sensitivity: 'base' }))
-        break
-      case 'newest':
-      default:
-        rows.sort((a, b) => byDate(a, b, 'desc'))
-        break
+    const sortRows = (rows) => {
+      const sorted = [...rows]
+      switch (employeeCardsSort) {
+        case 'available_first':
+          sorted.sort((a, b) => {
+            const aAvailable = isEmployeeAvailableBadged(a) ? 1 : 0
+            const bAvailable = isEmployeeAvailableBadged(b) ? 1 : 0
+            if (aAvailable !== bAvailable) {
+              return bAvailable - aAvailable
+            }
+            return byDate(a, b, 'desc')
+          })
+          break
+        case 'oldest':
+          sorted.sort((a, b) => byDate(a, b, 'asc'))
+          break
+        case 'name_asc':
+          sorted.sort((a, b) => String(a?.full_name || '').localeCompare(String(b?.full_name || ''), undefined, { sensitivity: 'base' }))
+          break
+        case 'name_desc':
+          sorted.sort((a, b) => String(b?.full_name || '').localeCompare(String(a?.full_name || ''), undefined, { sensitivity: 'base' }))
+          break
+        case 'newest':
+        default:
+          sorted.sort((a, b) => byDate(a, b, 'desc'))
+          break
+      }
+      return sorted
     }
 
-    return rows
-  }, [employeeCardsSort, visibleEmployees])
+    // Apply full sort when requested (initial load, sort dropdown change, filter/view/page change, or refresh)
+    if (needsResortRef.current || candidateOrderRef.current.length === 0) {
+      needsResortRef.current = false
+      const sorted = sortRows(visibleEmployees)
+      candidateOrderRef.current = sorted.map((emp) => emp.id)
+      return sorted
+    }
+
+    // During in-place candidate state changes (e.g. initiating process, selecting, unselecting):
+    // Retain existing relative card positions so cards stay where they are
+    const orderMap = new Map()
+    candidateOrderRef.current.forEach((id, idx) => {
+      orderMap.set(String(id), idx)
+    })
+
+    const existing = []
+    const newItems = []
+    for (const emp of visibleEmployees) {
+      if (orderMap.has(String(emp.id))) {
+        existing.push(emp)
+      } else {
+        newItems.push(emp)
+      }
+    }
+
+    existing.sort((a, b) => {
+      const aIdx = orderMap.get(String(a.id)) ?? 0
+      const bIdx = orderMap.get(String(b.id)) ?? 0
+      return aIdx - bIdx
+    })
+
+    const sortedNew = newItems.length > 0 ? sortRows(newItems) : []
+    const combined = [...existing, ...sortedNew]
+    candidateOrderRef.current = combined.map((emp) => emp.id)
+    return combined
+  }, [currentView, employeeCardsSort, visibleEmployees])
 
   const primaryVisibleEmployees = useMemo(() => {
     if (!canProgressivelyRenderEmployeeCards) return sortedPrimaryVisibleEmployees
@@ -1756,7 +2051,7 @@ export default function EmployeesListingView({ stage = "list" }) {
     if (typeof window === 'undefined') return
     if (employeeCardsLayout !== 'grid') return
     window.requestAnimationFrame(() => reflowEmployeeCardsMasonry())
-  }, [employeeCardsLayout, reflowEmployeeCardsMasonry])
+  }, [employeeCardsLayout, loading, primaryVisibleEmployees.length, reflowEmployeeCardsMasonry])
 
   useEffect(() => {
     if (typeof window === 'undefined') return
@@ -1832,7 +2127,7 @@ export default function EmployeesListingView({ stage = "list" }) {
       if (rafId) window.cancelAnimationFrame(rafId)
       window.clearTimeout(timeoutId)
     }
-  }, [employeeCardsLayout, primaryVisibleEmployees.length, reflowEmployeeCardsMasonry])
+  }, [employeeCardsLayout, loading, primaryVisibleEmployees.length, reflowEmployeeCardsMasonry])
 
   useLayoutEffect(() => {
     if (typeof window === 'undefined') return
@@ -1879,11 +2174,14 @@ export default function EmployeesListingView({ stage = "list" }) {
           setPage={setPage}
           EMPLOYEE_TAG_FILTER_OPTIONS={EMPLOYEE_TAG_FILTER_OPTIONS}
           employeeCardsLayout={employeeCardsLayout}
-          setEmployeeCardsLayout={setEmployeeCardsLayout}
+          setEmployeeCardsLayout={handleSetEmployeeCardsLayout}
           employeeCardsSort={employeeCardsSort}
-          setEmployeeCardsSort={setEmployeeCardsSort}
+          setEmployeeCardsSort={handleSetEmployeeCardsSort}
           loading={loading}
-          onRefresh={() => loadEmployees(currentView)}
+          onRefresh={() => {
+            needsResortRef.current = true
+            loadEmployees(currentView)
+          }}
           employees={employees}
           visibleCount={visibleEmployees.length}
           totalCount={total}
@@ -1891,6 +2189,7 @@ export default function EmployeesListingView({ stage = "list" }) {
         {pageError ? <p className="error-message">{pageError}</p> : null}
         {notice ? <p className="muted-text message-block--mb-16">{notice}</p> : null}
         <div className="users-table-wrap">
+          {loading && employeesData ? <CandidateLoadingProgressBar /> : null}
           {!loading ? (
             <p className="muted-text message-block--mb-12">
               {filters.q ? `Filtering by "${filters.q}" — ` : ''}
@@ -1904,9 +2203,26 @@ export default function EmployeesListingView({ stage = "list" }) {
                 ? `${selectedEmployeesHelpText(user)} Showing ${visibleEmployees.length} of ${total} candidates.`
                 : `Showing ${visibleEmployees.length} of ${total} candidates.`}
             </p>
+          ) : loading && employeesData ? (
+            <p className="muted-text message-block--mb-12" style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
+              <span className="candidate-loading-spinner" aria-hidden="true" style={{ display: 'inline-flex' }}>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" width="13" height="13">
+                  <line x1="12" y1="2" x2="12" y2="6" /><line x1="12" y1="18" x2="12" y2="22" />
+                  <line x1="4.93" y1="4.93" x2="7.76" y2="7.76" /><line x1="16.24" y1="16.24" x2="19.07" y2="19.07" />
+                  <line x1="2" y1="12" x2="6" y2="12" /><line x1="18" y1="12" x2="22" y2="12" />
+                  <line x1="4.93" y1="19.07" x2="7.76" y2="16.24" /><line x1="16.24" y1="7.76" x2="19.07" y2="4.93" />
+                </svg>
+              </span>
+              <span>Updating candidates…</span>
+            </p>
           ) : null}
           {loading && !employeesData ? (
-            <p className="muted-text">Loading candidates...</p>
+            <CandidateLoadingScreen
+              layout={employeeCardsLayout}
+              count={employeeCardsLayout === 'list' ? 4 : 6}
+              statusText="Loading candidates..."
+              showMessageBlock={true}
+            />
           ) : visibleEmployees.length === 0 ? (
             <div className="candidate-list-empty-feedback notifications-page-empty">
               <div className="notifications-empty-icon candidate-empty-icon">
@@ -2029,6 +2345,8 @@ export default function EmployeesListingView({ stage = "list" }) {
                     isAgentSideUser={isAgentSideUser}
                     readOnly={readOnly}
                     actionBusyId={actionBusyId}
+                    onStartProcess={handleStartProcess}
+                    onRequestInitiateProcess={(employee) => setInitiateProcessTargetEmployee(employee)}
                   />
                 )
               })}
@@ -2040,7 +2358,33 @@ export default function EmployeesListingView({ stage = "list" }) {
             canProgressivelyRenderEmployeeCards ? (
               primaryVisibleEmployees.length < sortedPrimaryVisibleEmployees.length ? (
                 <div className="activity-log-pagination">
-                  <span ref={employeeCardsSentinelRef} className="muted-text">Loading more candidates…</span>
+                  <span
+                    ref={employeeCardsSentinelRef}
+                    className="candidate-loading-status-pill"
+                    style={{ padding: '6px 14px', fontSize: '0.82rem' }}
+                  >
+                    <svg
+                      className="candidate-loading-spinner"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2.5"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      style={{ width: '13px', height: '13px' }}
+                      aria-hidden="true"
+                    >
+                      <line x1="12" y1="2" x2="12" y2="6" />
+                      <line x1="12" y1="18" x2="12" y2="22" />
+                      <line x1="4.93" y1="4.93" x2="7.76" y2="7.76" />
+                      <line x1="16.24" y1="16.24" x2="19.07" y2="19.07" />
+                      <line x1="2" y1="12" x2="6" y2="12" />
+                      <line x1="18" y1="12" x2="22" y2="12" />
+                      <line x1="4.93" y1="19.07" x2="7.76" y2="16.24" />
+                      <line x1="16.24" y1="7.76" x2="19.07" y2="4.93" />
+                    </svg>
+                    <span>Loading more candidates…</span>
+                  </span>
                 </div>
               ) : (
                 <div className="activity-log-pagination">
@@ -2075,6 +2419,27 @@ export default function EmployeesListingView({ stage = "list" }) {
         handleSubmitReturnRequest={handleSubmitReturnRequest}
         readOnly={readOnly}
       />
+      {initiateProcessTargetEmployee ? (
+        <EmployeeInitiateProcessModal
+          isOpen={Boolean(initiateProcessTargetEmployee)}
+          onClose={() => setInitiateProcessTargetEmployee(null)}
+          employee={initiateProcessTargetEmployee}
+          agentOptions={formOptions.agent_options || []}
+          assignedAgentId={
+            resolvedProcessAgentId(
+              initiateProcessTargetEmployee,
+              processAgentAssignments,
+              formOptions.agent_options
+            ) || ''
+          }
+          busy={actionBusyId === initiateProcessTargetEmployee?.id}
+          readOnly={readOnly}
+          onConfirm={async (employee, agentId) => {
+            setInitiateProcessTargetEmployee(null)
+            await handleStartProcess(employee, agentId)
+          }}
+        />
+      ) : null}
       {openedEmployee ? (
         <EmployeeReviewModal
           isOpen={Boolean(openedEmployee)}
@@ -2095,7 +2460,11 @@ export default function EmployeesListingView({ stage = "list" }) {
           onApproveReturn={handleApproveEmploymentReturn}
           onRefuseReturn={handleRefuseEmployeeReturnRequest}
           onCancelReturnRequest={handleCancelEmployeeReturnRequest}
-          onReinstateEmployment={handleReinstateEmployeeEmployment}
+          onReinstateEmployment={handleRequestEmployeeReversal}
+          onRequestReversal={handleRequestEmployeeReversal}
+          onCancelReversalRequest={handleCancelEmployeeReversalRequest}
+          onAcknowledgeReversal={handleAcknowledgeEmployeeReversal}
+          onRefuseReversal={handleRefuseEmployeeReversal}
           agentOptions={formOptions.agent_options}
           attachmentLabels={attachmentLabels}
           currentView={currentView}

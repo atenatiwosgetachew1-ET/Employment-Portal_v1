@@ -5,6 +5,7 @@ import { useUiFeedback } from '../context/UiFeedbackContext'
 import * as employeesService from '../services/employeesService'
 import { searchFlightAvailabilities, searchTravelLocations } from '../services/travelService'
 import { normalizeSearchValue } from '../utils/filtering'
+import { employeeProcessOwnerName } from '../utils/employeeHelpers'
 
 const TRAVEL_TABS = [
   { id: 'awaiting', label: 'Awaiting Travel' },
@@ -58,7 +59,10 @@ function employeeProfessionLabel(employee) {
 }
 
 function employeeProcessOwnerLabel(employee) {
-  return employee?.selection_state?.selection?.agent_name || '--'
+  if (employee?.selection_state?.is_secured_by_other_agent) {
+    return '--'
+  }
+  return employeeProcessOwnerName(employee) || employee?.selection_state?.selection?.agent_name || '--'
 }
 
 function isDepartureToday(booking) {
@@ -1127,7 +1131,7 @@ export default function TravelPage() {
                             </td>
                             <td>{employee.profession || employee.professional_title || '--'}</td>
                             <td className="nowrap">{progress}%</td>
-                            <td>{employee.selection_state?.selection?.agent_name || '--'}</td>
+                            <td>{employeeProcessOwnerLabel(employee)}</td>
                             <td className="nowrap">{employee.passport_number || '--'}</td>
                             <td className="nowrap">{employee.mobile_number || employee.phone || '--'}</td>
                             <td className="travel-actions-cell">

@@ -1,4 +1,5 @@
-import React from 'react'
+import React, { useMemo } from 'react'
+import { useAuth } from '../../context/AuthContext'
 import {
   employeeProfilePhoto,
   computeAge,
@@ -15,6 +16,8 @@ import {
   isImageDocument,
   isPdfDocumentUrl,
   fileLabel,
+  employeeProcessOwnerName,
+  employeeOwnerDisplay,
   LIST_CARD_PREVIEW_DOCUMENTS,
   GRID_CARD_PREVIEW_DOCUMENTS
 } from '../../utils/employeeHelpers'
@@ -51,8 +54,11 @@ export default function EmployeeCard({
   floatingAttachmentPreviewPopoverRef,
   isAgentSideUser,
   readOnly,
-  actionBusyId
+  actionBusyId,
+  onStartProcess = null,
+  onRequestInitiateProcess = null
 }) {
+  const { user } = useAuth()
   const profilePhoto = employeeProfilePhoto(employee)
   const isOpened = openedEmployeeId === employee.id
   const isExpanded = expandedEmployeeCardId === employee.id
@@ -64,14 +70,41 @@ export default function EmployeeCard({
     employee.age ?? computeAge(employeeDateOfBirth) ?? ''
   const selectionState = employee.selection_state || {}
   const selection = selectionState.selection
+  const isSecuredByOtherAgent = Boolean(selectionState.is_secured_by_other_agent)
   const isSelectedByCurrentAgent = Boolean(selectionState.selected_by_current_agent)
   const canUnselectSelection = Boolean(selectionState.can_unselect)
+  const selectedAgentNames = useMemo(() => {
+    if (isAgentSideUser && isSecuredByOtherAgent) {
+      return []
+    }
+    if (selectionState.all_agents?.length) {
+      return selectionState.all_agents
+    }
+    if (selection?.agent_name) {
+      return [selection.agent_name]
+    }
+    return []
+  }, [isAgentSideUser, isSecuredByOtherAgent, selectionState.all_agents, selection?.agent_name])
   const workflowState = employeeWorkflowState(employee)
   const badgeClass = employeeStatusBadgeClass(employee)
   const isUnderProcess = workflowState === 'under_process'
   const isEmployedEmployee = isEmployeeEmployedInView(employee)
   const isTravelledEmployee = workflowState === 'traveled'
   const isReturnedEmployee = isEmployeeReturned(employee)
+  const isProcessActive = isUnderProcess || isTravelledEmployee || isEmployedEmployee || selection?.status === 'under_process'
+  const processOwnerName = useMemo(() => {
+    if (isAgentSideUser && isSecuredByOtherAgent) {
+      return ''
+    }
+    return (
+      employeeProcessOwnerName(employee) ||
+      selectionState.process_owner_name ||
+      (isProcessActive ? (selection?.agent_name || selectionState.secured_by_agent_name || '') : '')
+    )
+  }, [employee, isAgentSideUser, isSecuredByOtherAgent, selectionState.process_owner_name, isProcessActive, selection?.agent_name, selectionState.secured_by_agent_name])
+  const ownerDisplay = useMemo(() => {
+    return employeeOwnerDisplay(employee, user)
+  }, [employee, user])
   const isAvailableEmployee = employeeAvailability(employee) === 'Available'
   const assignedAgentId = resolvedProcessAgentId(
     employee,
@@ -85,12 +118,31 @@ export default function EmployeeCard({
   const hasMedical = Boolean(findEmployeeDocument(employee, ['medical'])?.file_url)
   const hasClearance = Boolean(findEmployeeDocument(employee, ['clearance'])?.file_url)
   const canSelectCandidate =
+    !isSecuredByOtherAgent &&
     !isEmployedEmployee &&
     !isTravelledEmployee &&
     !isReturnedEmployee &&
     !isUnderProcess &&
     isAvailableEmployee &&
     isAgentSideUser
+  const canAgentInitiate =
+    !isSecuredByOtherAgent &&
+    Boolean(isAgentSideUser) &&
+    Boolean(isSelectedByCurrentAgent) &&
+    !isEmployedEmployee &&
+    !isTravelledEmployee &&
+    !isReturnedEmployee &&
+    !isUnderProcess &&
+    employee.status === 'approved'
+  const canOrgInitiate =
+    !isSecuredByOtherAgent &&
+    !isAgentSideUser &&
+    !isEmployedEmployee &&
+    !isTravelledEmployee &&
+    !isReturnedEmployee &&
+    !isUnderProcess &&
+    employee.status === 'approved'
+  const canInitiateCandidate = canOrgInitiate || canAgentInitiate
   const phoneLabel = employee.phone || employee.mobile_number || '—'
   const emailLabel = employee.email || '—'
   const availabilityLabel = employeeAvailability(employee) || '—'
@@ -151,7 +203,7 @@ export default function EmployeeCard({
         }
       }}
       data-badge={badgeClass}
-      className={`employee-card${isOpened ? ' is-open' : ''}${isExpanded ? ' is-expanded' : ''}${selectedEmployeeCardIds.has(employee.id) ? ' is-selected' : ''}${selectDeniedEmployeeCardIds.has(employee.id) ? ' is-select-denied' : ''}`}
+      className={`employee-card${isOpened ? ' is-open' : ''}${isExpanded ? ' is-expanded' : ''}${selectedEmployeeCardIds.has(employee.id) ? ' is-selected' : ''}${selectDeniedEmployeeCardIds.has(employee.id) ? ' is-select-denied' : ''}${isSecuredByOtherAgent ? ' is-not-available is-muted-card' : ''}`}
       onClick={(event) => {
         if (event.ctrlKey || event.metaKey) {
           event.preventDefault()
@@ -257,14 +309,35 @@ export default function EmployeeCard({
               </svg>
             </button>
 
-            {(!isEmployedEmployee && !isTravelledEmployee) && !isReturnedEmployee && !isUnderProcess && isAvailableEmployee ? (
+            {canAgentInitiate && onStartProcess ? (
+              <button
+                type="button"
+                className="employee-card-menu-item employee-card-menu-item--initiate"
+                role="menuitem"
+                aria-label="Initiate process"
+                title="Initiate process for this candidate"
+                disabled={readOnly || actionBusyId === employee.id}
+                onClick={(event) => {
+                  event.preventDefault()
+                  event.stopPropagation()
+                  setOpenEmployeeCardMenuId(null)
+                  onStartProcess(employee)
+                }}
+              >
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <polygon points="5 3 19 12 5 21 5 3"/>
+                </svg>
+              </button>
+            ) : null}
+
+            {canSelectCandidate ? (
               <button
                 type="button"
                 className="employee-card-menu-item employee-card-menu-item--select"
                 role="menuitem"
                 aria-label={isSelectedByCurrentAgent ? 'Unselect candidate' : 'Select candidate'}
                 title={isSelectedByCurrentAgent && !canUnselectSelection ? 'Only the selecting account or agent owner can unselect this candidate.' : undefined}
-                disabled={readOnly || !isAgentSideUser || actionBusyId === employee.id || (isSelectedByCurrentAgent && !canUnselectSelection)}
+                disabled={readOnly || actionBusyId === employee.id || (isSelectedByCurrentAgent && !canUnselectSelection)}
                 onClick={(event) => {
                   event.preventDefault()
                   event.stopPropagation()
@@ -278,6 +351,31 @@ export default function EmployeeCard({
                   ) : (
                     <path d="M20 6 9 17l-5-5" style={{ stroke: 'currentColor', strokeWidth: 1.9, strokeLinecap: 'round', strokeLinejoin: 'round' }} />
                   )}
+                </svg>
+              </button>
+            ) : null}
+
+            {canOrgInitiate && onStartProcess ? (
+              <button
+                type="button"
+                className="employee-card-menu-item employee-card-menu-item--initiate"
+                role="menuitem"
+                aria-label="Initiate process"
+                title="Initiate process on behalf of an agent"
+                disabled={readOnly || actionBusyId === employee.id}
+                onClick={(event) => {
+                  event.preventDefault()
+                  event.stopPropagation()
+                  setOpenEmployeeCardMenuId(null)
+                  if (onRequestInitiateProcess) {
+                    onRequestInitiateProcess(employee)
+                  } else if (onStartProcess) {
+                    onStartProcess(employee, assignedAgentId)
+                  }
+                }}
+              >
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <polygon points="5 3 19 12 5 21 5 3"/>
                 </svg>
               </button>
             ) : null}
@@ -303,9 +401,67 @@ export default function EmployeeCard({
               {employeeReligion && employeeReligion !== '--' ? (
                 <span className="employee-card-tag">{employeeReligion}</span>
               ) : null}
+              {processOwnerName && isProcessActive ? (
+                <span
+                  className="employee-card-tag employee-card-tag--agent"
+                  title={`Process owner: ${processOwnerName}`}
+                >
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: 4 }}>
+                    <path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/>
+                    <circle cx="12" cy="7" r="4"/>
+                  </svg>
+                  <span>Owner: {processOwnerName}</span>
+                </span>
+              ) : selectedAgentNames.length > 0 && workflowState === 'selected' ? (
+                <span
+                  className="employee-card-tag employee-card-tag--agent"
+                  title={`Selected by ${selectedAgentNames.join(', ')}`}
+                >
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: 4 }}>
+                    <path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/>
+                    <circle cx="12" cy="7" r="4"/>
+                  </svg>
+                  {selectedAgentNames.length > 1
+                    ? `${selectedAgentNames.length} Agents (${selectedAgentNames.join(', ')})`
+                    : `Agent: ${selectedAgentNames[0]}`}
+                </span>
+              ) : null}
             </div>
             {isListLayout ? (
               <div className="employee-card-list-kv muted-text" aria-label="Candidate overview">
+                {processOwnerName && isProcessActive ? (
+                  <div className="employee-card-list-kv-row">
+                    <span className="employee-card-list-kv-label">
+                      <span className="employee-card-list-kv-icon" aria-hidden="true">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/>
+                          <circle cx="12" cy="7" r="4"/>
+                        </svg>
+                      </span>
+                      <span>Process owner</span>
+                    </span>
+                    <span className="employee-card-list-kv-value" title={processOwnerName}>
+                      {processOwnerName}
+                    </span>
+                  </div>
+                ) : selectedAgentNames.length > 0 && workflowState === 'selected' ? (
+                  <div className="employee-card-list-kv-row">
+                    <span className="employee-card-list-kv-label">
+                      <span className="employee-card-list-kv-icon" aria-hidden="true">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+                          <circle cx="9" cy="7" r="4" />
+                          <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
+                          <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+                        </svg>
+                      </span>
+                      <span>Selected by</span>
+                    </span>
+                    <span className="employee-card-list-kv-value" title={selectedAgentNames.join(', ')}>
+                      {selectedAgentNames.join(', ')}
+                    </span>
+                  </div>
+                ) : null}
                 <div className="employee-card-list-kv-row">
                   <span className="employee-card-list-kv-label">
                     <span className="employee-card-list-kv-icon" aria-hidden="true">
@@ -408,12 +564,29 @@ export default function EmployeeCard({
         {isListLayout ? (
           <aside className="employee-card-list-side" onClick={(e) => e.stopPropagation()}>
             <div className="employee-card-list-side-top">
-              <div className="employee-card-list-side-dest" title={`Target destination: ${destinationLabel}`}>
-                <span className="employee-card-list-side-dest-icon" aria-hidden="true">
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20M2 12h20"/></svg>
-                </span>
-                <span className="employee-card-list-side-dest-label">Target:</span>
-                <span className="employee-card-list-side-dest-val">{destinationLabel === '—' ? 'Any' : destinationLabel}</span>
+              <div className="employee-card-list-side-meta-row">
+                <div className="employee-card-list-side-dest" title={`Target destination: ${destinationLabel}`}>
+                  <span className="employee-card-list-side-dest-icon" aria-hidden="true">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20M2 12h20"/></svg>
+                  </span>
+                  <span className="employee-card-list-side-dest-label">Target:</span>
+                  <span className="employee-card-list-side-dest-val">{destinationLabel === '—' ? 'Any' : destinationLabel}</span>
+                </div>
+                {ownerDisplay ? (
+                  <div
+                    className="employee-card-list-side-owner"
+                    title={isProcessActive ? `Process owner: ${processOwnerName || ownerDisplay}` : `Owner: ${ownerDisplay}`}
+                  >
+                    <span className="employee-card-list-side-owner-icon" aria-hidden="true">
+                      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2" />
+                        <circle cx="12" cy="7" r="4" />
+                      </svg>
+                    </span>
+                    <span className="employee-card-list-side-owner-label">{isProcessActive ? 'Owner:' : 'Agent:'}</span>
+                    <span className="employee-card-list-side-owner-val">{ownerDisplay}</span>
+                  </div>
+                ) : null}
               </div>
 
               <div className="employee-card-list-readiness" aria-label="Key document readiness">
@@ -457,6 +630,26 @@ export default function EmployeeCard({
                 <span>Profile</span>
               </button>
 
+              {/* In between Profile and Unselect button: Agent side initiate when candidate is selected */}
+              {canAgentInitiate && onStartProcess ? (
+                <button
+                  type="button"
+                  className="employee-card-list-side-btn employee-card-list-side-btn--initiate"
+                  disabled={readOnly || actionBusyId === employee.id}
+                  title="Initiate process for this candidate"
+                  onClick={(e) => {
+                    e.preventDefault()
+                    e.stopPropagation()
+                    onStartProcess(employee)
+                  }}
+                >
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+                    <polygon points="5 3 19 12 5 21 5 3"/>
+                  </svg>
+                  <span>Initiate</span>
+                </button>
+              ) : null}
+
               {canSelectCandidate ? (
                 <button
                   type="button"
@@ -481,6 +674,25 @@ export default function EmployeeCard({
                     </>
                   )}
                 </button>
+              ) : canOrgInitiate && onStartProcess ? (
+                <button
+                  type="button"
+                  className="employee-card-list-side-btn employee-card-list-side-btn--initiate"
+                  disabled={readOnly || actionBusyId === employee.id}
+                  title="Initiate process on behalf of an agent"
+                  onClick={(e) => {
+                    e.preventDefault()
+                    e.stopPropagation()
+                    if (onRequestInitiateProcess) {
+                      onRequestInitiateProcess(employee)
+                    } else if (onStartProcess) {
+                      onStartProcess(employee, assignedAgentId)
+                    }
+                  }}
+                >
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+                  <span>Initiate</span>
+                </button>
               ) : (
                 <button
                   type="button"
@@ -503,8 +715,17 @@ export default function EmployeeCard({
           </aside>
         ) : null}
         <div className="employee-card-header-meta">
-          {employee.return_request?.status === 'pending' ? <span className="badge badge-danger">Pending return</span> : null}
-          <span className={`badge employee-card-status-badge ${employeeStatusBadgeClass(employee)} ${employeeStatusBadgeVariantClass(employee)}`.trim()}>{employeeStatusLabel(employee)}</span>
+          {employee.return_request?.status === 'pending' ? (
+            <span className="badge badge-orange">Pending return</span>
+          ) : employee.reversal_request?.status === 'pending' ? (
+            <span className="badge badge-orange">Pending reversal</span>
+          ) : employee?.is_overdue ? (
+            <span className="badge badge-orange">Overdue</span>
+          ) : employee?.arrival_status === 'declined' ? (
+            <span className="badge badge-orange">Travel Disputed</span>
+          ) : (
+            <span className={`badge employee-card-status-badge ${employeeStatusBadgeClass(employee)} ${employeeStatusBadgeVariantClass(employee)}`.trim()}>{employeeStatusLabel(employee)}</span>
+          )}
         </div>
       </div>
       {!isListLayout ? (
@@ -521,6 +742,23 @@ export default function EmployeeCard({
             {employeeAge ? (
               <span className="employee-card-meta-chip employee-card-meta-chip--accent" title="Age">
                 <span>{employeeAge} yrs</span>
+              </span>
+            ) : null}
+            {isProcessActive && (processOwnerName || ownerDisplay) ? (
+              <span className="employee-card-meta-chip employee-card-meta-chip--accent" title={`Process owner: ${processOwnerName || ownerDisplay}`}>
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/>
+                  <circle cx="12" cy="7" r="4"/>
+                </svg>
+                <span>{processOwnerName || ownerDisplay}</span>
+              </span>
+            ) : selectedAgentNames.length > 0 && workflowState === 'selected' ? (
+              <span className="employee-card-meta-chip employee-card-meta-chip--accent" title={`Selected by ${selectedAgentNames.join(', ')}`}>
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/>
+                  <circle cx="12" cy="7" r="4"/>
+                </svg>
+                <span>{selectedAgentNames.length > 1 ? `${selectedAgentNames.length} Agents` : selectedAgentNames[0]}</span>
               </span>
             ) : null}
           </div>

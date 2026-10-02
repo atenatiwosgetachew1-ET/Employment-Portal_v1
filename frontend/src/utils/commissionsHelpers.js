@@ -362,6 +362,36 @@ export function openCommissionStorageDb() {
 export async function readStoredSettlements() {
   if (typeof window === 'undefined') return []
   try {
+    const res = await employeesService.fetchCommissionSettlements()
+    const backendItems = res?.results || (Array.isArray(res) ? res : null)
+    if (backendItems && backendItems.length > 0) {
+      return backendItems.map((item) => ({
+        id: item.id,
+        ownerKey: `agent:${item.agent}`,
+        agentName: item.agent_name || 'Agent',
+        employeeIds: (item.commission_requests_details || []).map((cr) => cr.employee_id).filter(Boolean),
+        employees: (item.commission_requests_details || []).map((cr) => ({
+          id: cr.employee_id,
+          full_name: cr.employee_name,
+          settled_commission: true,
+        })),
+        rate: item.total_amount,
+        totalCommissionValue: Number(item.net_amount || item.total_amount || 0),
+        settledAt: item.settled_at?.slice(0, 10) || item.created_at?.slice(0, 10),
+        createdAt: item.created_at,
+        updatedAt: item.updated_at,
+        receipts: [
+          item.receipt_file_1 ? { id: `r1-${item.id}`, label: 'Receipt 1', dataUrl: item.receipt_file_1 } : null,
+          item.receipt_file_2 ? { id: `r2-${item.id}`, label: 'Receipt 2', dataUrl: item.receipt_file_2 } : null,
+          item.receipt_file_3 ? { id: `r3-${item.id}`, label: 'Receipt 3', dataUrl: item.receipt_file_3 } : null,
+        ].filter(Boolean),
+      }))
+    }
+  } catch {
+    // fall back to indexedDB / localStorage
+  }
+
+  try {
     const db = await openCommissionStorageDb()
     if (db) {
       const settlements = await new Promise((resolve, reject) => {
@@ -444,6 +474,31 @@ export function readStoredSettlementRequests() {
 export function writeStoredSettlementRequests(requests) {
   if (typeof window === 'undefined') return
   window.localStorage.setItem(COMMISSION_SETTLEMENT_REQUESTS_STORAGE_KEY, JSON.stringify(requests))
+}
+
+export async function readStoredSettlementRequestsAsync() {
+  if (typeof window === 'undefined') return []
+  try {
+    const res = await employeesService.fetchCommissionRequests()
+    const backendItems = res?.results || (Array.isArray(res) ? res : null)
+    if (backendItems && backendItems.length > 0) {
+      const mapped = backendItems.map((item) => ({
+        id: item.id,
+        agentId: item.agent,
+        agentName: item.agent_name,
+        amount: Number(item.amount || 0),
+        status: item.status,
+        createdAt: item.created_at,
+        employee: item.employee_details || { id: item.employee, full_name: item.employee_name },
+        employees: item.employee_details ? [item.employee_details] : [{ id: item.employee, full_name: item.employee_name }],
+        notes: item.notes,
+        is_manual: item.is_manual,
+      }))
+      writeStoredSettlementRequests(mapped)
+      return mapped
+    }
+  } catch {}
+  return readStoredSettlementRequests()
 }
 
 export function buildEmployeeSettlementSnapshot(employee) {

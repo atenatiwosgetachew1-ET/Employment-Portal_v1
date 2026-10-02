@@ -19,7 +19,7 @@ export default function EmployeesLayout() {
   }, [])
 
   const handleRefresh = useCallback(() => {
-    window.dispatchEvent(new CustomEvent('portal:refresh-candidates'))
+    window.dispatchEvent(new CustomEvent('portal:refresh-candidates', { detail: { explicit: true } }))
   }, [])
 
   const handleOpenReturnRequest = useCallback(() => {
@@ -59,9 +59,6 @@ export default function EmployeesLayout() {
     }
   }, [searchParams, location.pathname, navigate])
 
-  if (!canManageEmployees) {
-    return <Navigate to="/dashboard" replace />
-  }
 
   const isRegisterRoute =
     location.pathname.startsWith('/dashboard/candidates/register') ||
@@ -101,6 +98,10 @@ export default function EmployeesLayout() {
       ? 'Select candidates from the organization list, then complete the remaining information and attachments for your agent side.'
       : 'Register candidates from the organization side, monitor selections, and review progress directly on the page.'
   }, [isRegisterRoute, isEditMode, isAgentSideUser, location.pathname])
+
+  if (!canManageEmployees) {
+    return <Navigate to="/dashboard" replace />
+  }
 
   return (
     <section className="dashboard-panel employees-page">

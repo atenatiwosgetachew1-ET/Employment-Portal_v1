@@ -34,8 +34,17 @@ from .return_views import (
     EmployeeReturnRequestDecisionView,
     EmployeeReturnRequestRefuseView,
     EmployeeReturnRequestView,
+    EmployeeReversalRequestApproveView,
+    EmployeeReversalRequestDecisionView,
+    EmployeeReversalRequestRefuseView,
+    EmployeeReversalRequestView,
 )
-from .travel_views import EmployeeTravelBookingView
+from .travel_views import (
+    EmployeeArrivalConfirmView,
+    EmployeeReturnConfirmView,
+    EmployeeTravelBookingView,
+    EmployeeTravelConfirmView,
+)
 from .workflow_views import (
     EmployeeProcessDeclineView,
     EmployeeProcessStartView,
@@ -75,5 +84,12 @@ __all__ = [
     "EmployeeReturnRequestDecisionView",
     "EmployeeReturnRequestApproveView",
     "EmployeeReturnRequestRefuseView",
+    "EmployeeReversalRequestView",
+    "EmployeeReversalRequestDecisionView",
+    "EmployeeReversalRequestApproveView",
+    "EmployeeReversalRequestRefuseView",
     "EmployeeTravelBookingView",
+    "EmployeeTravelConfirmView",
+    "EmployeeArrivalConfirmView",
+    "EmployeeReturnConfirmView",
 ]

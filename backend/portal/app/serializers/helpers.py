@@ -65,13 +65,6 @@ def calculate_age(value):
 
 
 def build_employee_progress_status(employee):
-    if getattr(employee, "progress_override_complete", False):
-        return {
-            "field_completion": 100,
-            "document_completion": 100,
-            "overall_completion": 100,
-            "label": "ready",
-        }
     mandatory_fields = [
         employee.first_name,
         employee.middle_name,
@@ -91,23 +84,47 @@ def build_employee_progress_status(employee):
     ]
     completed_fields = sum(1 for value in mandatory_fields if value not in ("", None, [], {}))
     field_completion = round((completed_fields / len(mandatory_fields)) * 100)
-    uploaded_types = set(employee.documents.values_list("document_type", flat=True))
+    uploaded_types = set(employee.documents.values_list("document_type", flat=True)) if hasattr(employee, "documents") else set()
     uploaded_required = sum(1 for item in EMPLOYEE_REQUIRED_DOCUMENT_TYPES if item in uploaded_types)
     document_completion = round(
         (uploaded_required / len(EMPLOYEE_REQUIRED_DOCUMENT_TYPES)) * 100
     )
     overall_completion = round((field_completion + document_completion) / 2)
+
+    is_admin_override = bool(
+        getattr(employee, "is_administratively_completed", False)
+        or getattr(employee, "progress_override_complete", False)
+    )
+    is_verified_complete = overall_completion == 100
+    ready_for_travel = is_verified_complete or is_admin_override
+
     if overall_completion >= 90:
         label = "ready"
     elif overall_completion >= 60:
         label = "in_progress"
     else:
         label = "needs_attention"
+
+    outstanding = []
+    if field_completion < 100:
+        outstanding.append(f"Incomplete personal fields ({100 - field_completion}% remaining)")
+    missing_docs = [item for item in EMPLOYEE_REQUIRED_DOCUMENT_TYPES if item not in uploaded_types]
+    if missing_docs:
+        outstanding.append(f"Missing required documents: {', '.join(d.replace('_', ' ') for d in missing_docs)}")
+    if not getattr(employee, "contract_expires_on", None):
+        outstanding.append("Missing contract expiry date")
+
     return {
         "field_completion": field_completion,
         "document_completion": document_completion,
-        "overall_completion": overall_completion,
-        "label": label,
+        "overall_completion": 100 if is_admin_override else overall_completion,
+        "actual_overall_completion": overall_completion,
+        "is_verified_complete": is_verified_complete,
+        "is_administratively_completed": is_admin_override,
+        "administrative_reason": getattr(employee, "administrative_completion_reason", "") or "",
+        "outstanding_requirements": getattr(employee, "outstanding_requirements", []) or outstanding,
+        "ready_for_travel": ready_for_travel,
+        "label": "ready" if ready_for_travel else label,
     }
 
 
@@ -115,8 +132,10 @@ def build_employee_travel_status(employee):
     today = date.today()
     if getattr(employee, "returned_from_employment", False):
         return "travelled"
-    if employee.did_travel:
+    if getattr(employee, "travel_status", "") == "confirmed" or employee.did_travel:
         return "travelled"
+    if getattr(employee, "travel_status", "") == "disputed":
+        return "disputed"
     if employee.departure_date and employee.departure_date < today:
         return "departure_missed"
     if employee.departure_date and employee.departure_date >= today:
@@ -127,12 +146,14 @@ def build_employee_travel_status(employee):
 def build_employee_return_status(employee):
     if getattr(employee, "returned_from_employment", False):
         return "returned"
+    if getattr(employee, "is_overdue", False):
+        return "overdue"
     today = date.today()
     if not employee.did_travel:
         return "--"
     if not employee.return_ticket_date:
         return "missing_ticket"
-    if employee.return_ticket_date < today:
+    if employee.return_ticket_date < today or (getattr(employee, "contract_expires_on", None) and employee.contract_expires_on < today):
         return "overdue"
     return "scheduled"
 

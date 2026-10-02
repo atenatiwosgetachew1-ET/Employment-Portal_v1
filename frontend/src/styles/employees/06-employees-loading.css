@@ -1,0 +1,431 @@
+/* ==========================================================================
+   06. EMPLOYEES / CANDIDATES LOADING & SKELETON SCREENS
+   Responsive, mobile-flexible, theme-aware skeleton states and loading screens.
+   ========================================================================== */
+
+/* Shimmer Keyframe Animation */
+@keyframes candidate-shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+@keyframes candidate-indeterminate-bar {
+  0% {
+    left: -40%;
+    width: 40%;
+  }
+  50% {
+    left: 25%;
+    width: 60%;
+  }
+  100% {
+    left: 100%;
+    width: 30%;
+  }
+}
+
+@keyframes candidate-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes candidate-pulse-subtle {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.6;
+  }
+}
+
+/* ==========================================================================
+   Reusable Skeleton Primitive Classes
+   ========================================================================== */
+
+.candidate-skeleton-bone {
+  display: block;
+  background: linear-gradient(
+    90deg,
+    color-mix(in oklch, var(--color-muted) 65%, transparent) 0%,
+    color-mix(in oklch, var(--color-muted) 95%, var(--color-card-foreground) 8%) 50%,
+    color-mix(in oklch, var(--color-muted) 65%, transparent) 100%
+  );
+  background-size: 200% 100%;
+  animation: candidate-shimmer 1.8s ease-in-out infinite;
+  border-radius: 6px;
+  pointer-events: none;
+  user-select: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .candidate-skeleton-bone {
+    animation: candidate-pulse-subtle 2s ease-in-out infinite;
+    background: color-mix(in oklch, var(--color-muted) 75%, transparent);
+  }
+}
+
+/* ==========================================================================
+   Candidate Loading Screen Container & Header
+   ========================================================================== */
+
+.candidate-loading-screen {
+  width: 100%;
+  margin: 0 0 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.candidate-loading-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 4px 0 8px;
+}
+
+.candidate-loading-status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.84rem;
+  font-weight: 500;
+  color: var(--color-muted-foreground);
+  padding: 6px 14px;
+  border-radius: 9999px;
+  background: color-mix(in oklch, var(--color-card) 85%, var(--color-muted));
+  border: 1px solid color-mix(in oklch, var(--color-border) 60%, transparent);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+}
+
+.candidate-loading-spinner {
+  width: 14px;
+  height: 14px;
+  animation: candidate-spin 0.9s linear infinite;
+  color: var(--color-primary);
+  flex-shrink: 0;
+}
+
+.candidate-loading-counter-placeholder {
+  width: 190px;
+  height: 18px;
+  border-radius: 4px;
+}
+
+/* Indeterminate linear loading bar for soft refetching */
+.candidate-loading-progress-bar {
+  width: 100%;
+  height: 3px;
+  background: color-mix(in oklch, var(--color-border) 40%, transparent);
+  border-radius: 2px;
+  overflow: hidden;
+  position: relative;
+  margin-bottom: 8px;
+}
+
+.candidate-loading-progress-bar-fill {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  width: 40%;
+  background: var(--color-primary);
+  border-radius: 2px;
+  animation: candidate-indeterminate-bar 1.3s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
+
+/* ==========================================================================
+   Candidate Card Skeleton - Grid View
+   ========================================================================== */
+
+.candidate-skeleton-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  align-items: start;
+  width: 100%;
+}
+
+@media (max-width: 1100px) {
+  .candidate-skeleton-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 760px) {
+  .candidate-skeleton-grid {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 10px;
+  }
+}
+
+.candidate-skeleton-card {
+  width: 100%;
+  border: 1px solid color-mix(in oklch, var(--color-border) 60%, transparent);
+  border-radius: 12px;
+  background: color-mix(in oklch, var(--color-card) 95%, var(--color-muted));
+  padding: 16px 18px;
+  box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.04), 0 1px 2px -1px rgb(0 0 0 / 0.02);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  box-sizing: border-box;
+}
+
+@media (max-width: 500px) {
+  .candidate-skeleton-card {
+    padding: 14px 14px;
+    border-radius: 10px;
+  }
+}
+
+/* Header section */
+.candidate-skeleton-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.candidate-skeleton-identity {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: 1;
+  min-width: 0;
+}
+
+.candidate-skeleton-avatar {
+  width: 52px;
+  height: 52px;
+  border-radius: 10px;
+  flex-shrink: 0;
+}
+
+.candidate-skeleton-titles {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  flex: 1;
+  min-width: 0;
+}
+
+.candidate-skeleton-name {
+  width: 70%;
+  max-width: 160px;
+  height: 16px;
+  border-radius: 4px;
+}
+
+.candidate-skeleton-code {
+  width: 45%;
+  max-width: 90px;
+  height: 12px;
+  border-radius: 3px;
+}
+
+.candidate-skeleton-badge {
+  width: 75px;
+  height: 24px;
+  border-radius: 9999px;
+  flex-shrink: 0;
+}
+
+/* Chips row */
+.candidate-skeleton-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.candidate-skeleton-chip {
+  width: 80px;
+  height: 22px;
+  border-radius: 9999px;
+}
+
+.candidate-skeleton-chip--sm {
+  width: 55px;
+}
+
+.candidate-skeleton-chip--lg {
+  width: 110px;
+}
+
+/* Progress bar section */
+.candidate-skeleton-progress-box {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: color-mix(in oklch, var(--color-card) 70%, var(--color-muted) 30%);
+}
+
+.candidate-skeleton-progress-meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.candidate-skeleton-progress-label {
+  width: 55px;
+  height: 12px;
+  border-radius: 3px;
+}
+
+.candidate-skeleton-progress-percent {
+  width: 28px;
+  height: 12px;
+  border-radius: 3px;
+}
+
+.candidate-skeleton-progress-bar {
+  width: 100%;
+  height: 6px;
+  border-radius: 9999px;
+}
+
+/* Key-value details rows */
+.candidate-skeleton-kv-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px 12px;
+}
+
+.candidate-skeleton-kv-row {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.candidate-skeleton-kv-label {
+  width: 50%;
+  height: 11px;
+  border-radius: 3px;
+}
+
+.candidate-skeleton-kv-value {
+  width: 80%;
+  height: 13px;
+  border-radius: 3px;
+}
+
+/* Footer / action buttons */
+.candidate-skeleton-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding-top: 6px;
+  border-top: 1px solid color-mix(in oklch, var(--color-border) 45%, transparent);
+}
+
+.candidate-skeleton-btn {
+  height: 32px;
+  border-radius: 7px;
+  flex: 1;
+}
+
+.candidate-skeleton-btn--sm {
+  width: 32px;
+  height: 32px;
+  flex: 0 0 32px;
+  border-radius: 7px;
+}
+
+/* ==========================================================================
+   Candidate Card Skeleton - List View
+   ========================================================================== */
+
+.candidate-skeleton-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: 100%;
+}
+
+.candidate-skeleton-list-card {
+  width: 100%;
+  border: 1px solid color-mix(in oklch, var(--color-border) 60%, transparent);
+  border-radius: 12px;
+  background: color-mix(in oklch, var(--color-card) 95%, var(--color-muted));
+  padding: 16px 18px;
+  display: flex;
+  gap: 20px;
+  align-items: stretch;
+  box-sizing: border-box;
+}
+
+.candidate-skeleton-list-photo {
+  width: 140px;
+  height: 140px;
+  flex: 0 0 140px;
+  border-radius: 10px;
+}
+
+.candidate-skeleton-list-content {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.candidate-skeleton-list-side {
+  flex: 0 0 130px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 10px;
+  align-items: stretch;
+}
+
+@media (max-width: 860px) {
+  .candidate-skeleton-list-card {
+    flex-direction: column;
+    padding: 14px;
+    gap: 14px;
+  }
+
+  .candidate-skeleton-list-photo {
+    width: 100%;
+    height: 160px;
+    flex: 0 0 160px;
+  }
+
+  .candidate-skeleton-list-side {
+    flex-direction: row;
+    flex: 1 1 100%;
+    width: 100%;
+  }
+
+  .candidate-skeleton-list-side .candidate-skeleton-btn {
+    flex: 1;
+  }
+}
+
+/* ==========================================================================
+   Generic Table Skeleton Support
+   ========================================================================== */
+
+.table-skeleton-row td {
+  padding: 14px 16px;
+  vertical-align: middle;
+}
+
+.table-skeleton-cell {
+  height: 16px;
+  border-radius: 4px;
+}
+

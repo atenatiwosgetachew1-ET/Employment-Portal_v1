@@ -109,7 +109,7 @@ async function restoreDueReminders(items) {
 
   if (dueItems.length === 0) return false
 
-  const backendDue = dueItems.filter((i) => !i.isReturnRequest || i.backendNotificationId)
+  const backendDue = dueItems.filter((i) => (!i.isReturnRequest && !i.isReversalRequest) || i.backendNotificationId)
   if (backendDue.length > 0) {
     await Promise.all(
       backendDue.map((item) =>
@@ -124,6 +124,8 @@ async function restoreDueReminders(items) {
   dueItems.forEach((item) => {
     if (item.isReturnRequest) {
       localStorage.removeItem(`notification_remind_return_${item.employeeId}`)
+    } else if (item.isReversalRequest) {
+      localStorage.removeItem(`notification_remind_reversal_${item.employeeId}`)
     }
     item.remind_at = null
   })
@@ -154,6 +156,19 @@ function getCategoryInfo(item) {
   const title = (item?.title || '').toLowerCase()
   const body = (item?.body || '').toLowerCase()
   const text = `${title} ${body}`
+
+  if (item?.isReversalRequest || title.startsWith('reversal request:') || text.includes('reversal request')) {
+    return {
+      type: 'return-request',
+      label: 'Reversal Request',
+      icon: (
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+          <polyline points="1 4 1 10 7 10"/>
+          <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/>
+        </svg>
+      )
+    }
+  }
 
   if (item?.isReturnRequest || title.startsWith('return request:') || text.includes('return request')) {
     return {
@@ -347,13 +362,27 @@ export default function NotificationsPage() {
     }
     setError('')
     try {
-      const [data, pendingRes] = await Promise.all([
+      const [data, pendingRes, pendingReversalRes] = await Promise.all([
         notificationsService.fetchNotifications().catch(() => []),
-        employeesService.fetchEmployees({ returnRequestStatus: 'pending', pageSize: 100 }).catch(() => ({ results: [] }))
+        employeesService.fetchEmployees({ returnRequestStatus: 'pending', pageSize: 100 }).catch(() => ({ results: [] })),
+        employeesService.fetchEmployees({ reversalRequestStatus: 'pending', pageSize: 100 }).catch(() => ({ results: [] }))
       ])
 
       const normalized = Array.isArray(data) ? data : []
       const pendingEmployees = Array.isArray(pendingRes) ? pendingRes : (pendingRes?.results || [])
+      const pendingReversalEmployees = Array.isArray(pendingReversalRes) ? pendingReversalRes : (pendingReversalRes?.results || [])
+
+      const isUserRequesterForReversal = (emp) => {
+        if (!emp?.reversal_request) return false
+        const req = emp.reversal_request
+        if (req.is_requester !== undefined) return Boolean(req.is_requester)
+        if (req.requested_by_id && user?.id && Number(req.requested_by_id) === Number(user.id)) return true
+        const userIsAgent = isAgentSideWorkspace(user)
+        if (req.requested_by_side) {
+          return userIsAgent ? req.requested_by_side === 'agent' : req.requested_by_side === 'organization'
+        }
+        return false
+      }
 
       const isUserRequesterForEmployee = (emp) => {
         if (!emp?.return_request) return false
@@ -395,6 +424,25 @@ export default function NotificationsPage() {
               return false
             }
           }
+          if (titleLower.startsWith('reversal request:')) {
+            const matchedEmp = pendingReversalEmployees.find(
+              (emp) => titleLower.includes((emp.full_name || '').toLowerCase())
+            )
+            if (matchedEmp) {
+              const empIdStr = String(matchedEmp.id)
+              if (dismissedNotificationIdsRef.current.has(empIdStr) ||
+                  dismissedNotificationIdsRef.current.has(`emp-${empIdStr}`) ||
+                  dismissedNotificationIdsRef.current.has(`reversal-req-${empIdStr}`)) {
+                return false
+              }
+            }
+            if (!matchedEmp || isUserRequesterForReversal(matchedEmp)) {
+              if (!matchedEmp && notif.id) {
+                notificationsService.deleteNotification(notif.id).catch(() => {})
+              }
+              return false
+            }
+          }
           return true
         })
         .map((notif) => {
@@ -420,10 +468,60 @@ export default function NotificationsPage() {
               }
             }
           }
+          if (titleLower.startsWith('reversal request:')) {
+            const matchedEmp = pendingReversalEmployees.find(
+              (emp) => titleLower.includes((emp.full_name || '').toLowerCase())
+            )
+            if (matchedEmp) {
+              matchedEmployeeIds.add(matchedEmp.id)
+              const remindKey = `notification_remind_reversal_${matchedEmp.id}`
+              const localRemind = localStorage.getItem(remindKey)
+              const effectiveRemindAt = notif.remind_at || (localRemind && new Date(localRemind).getTime() > Date.now() ? localRemind : null)
+
+              return {
+                ...notif,
+                isReversalRequest: true,
+                backendNotificationId: notif.id,
+                employeeId: matchedEmp.id,
+                employee: matchedEmp,
+                read: false,
+                remind_at: effectiveRemindAt
+              }
+            }
+          }
           return notif
         })
 
       const syntheticItems = []
+      pendingReversalEmployees.forEach((emp) => {
+        const empIdStr = String(emp.id)
+        if (dismissedNotificationIdsRef.current.has(empIdStr) ||
+            dismissedNotificationIdsRef.current.has(`emp-${empIdStr}`) ||
+            dismissedNotificationIdsRef.current.has(`reversal-req-${empIdStr}`)) {
+          return
+        }
+        if (!matchedEmployeeIds.has(emp.id) && !isUserRequesterForReversal(emp)) {
+          const remindKey = `notification_remind_reversal_${emp.id}`
+          const localRemind = localStorage.getItem(remindKey)
+          const effectiveRemindAt = localRemind && new Date(localRemind).getTime() > Date.now() ? localRemind : null
+          const req = emp.reversal_request || {}
+          const requester = req.requested_by_username ? `requested by ${req.requested_by_username}` : 'pending review'
+          const reasonText = req.remark ? `: "${req.remark}"` : ''
+
+          syntheticItems.push({
+            id: `reversal-req-${emp.id}`,
+            isReversalRequest: true,
+            employeeId: emp.id,
+            employee: emp,
+            title: `Reversal request: ${emp.full_name}`,
+            body: `Reversal to employed ${requester}${reasonText}`,
+            kind: 'warning',
+            read: false,
+            remind_at: effectiveRemindAt,
+            created_at: req.requested_at || emp.updated_at || new Date().toISOString()
+          })
+        }
+      })
       pendingEmployees.forEach((emp) => {
         const empIdStr = String(emp.id)
         if (dismissedNotificationIdsRef.current.has(empIdStr) ||
@@ -828,6 +926,60 @@ export default function NotificationsPage() {
     }
   }
 
+  const handleAcknowledgeReversal = async (item, event) => {
+    if (event) event.stopPropagation()
+    const employeeId = item.employeeId || item.employee?.id
+    if (!employeeId) return
+
+    setActionBusyId(item.id)
+    dismissNotification(item, employeeId)
+    closeCandidateReview()
+    localStorage.removeItem(`notification_remind_reversal_${employeeId}`)
+    setError('')
+    try {
+      await employeesService.approveEmployeeReversalRequest(employeeId)
+      showToast(`Reversal acknowledged for ${item.employee?.full_name || 'candidate'}. Moved back to employed list.`, {
+        tone: 'success',
+        duration: 4000
+      })
+      window.dispatchEvent(new Event('portal:refresh-candidates'))
+      window.dispatchEvent(new Event('notifications:updated'))
+    } catch (err) {
+      showToast(err.message || 'Failed to acknowledge reversal request', { tone: 'danger' })
+    } finally {
+      setActionBusyId(null)
+    }
+  }
+
+  const handleRefuseReversal = async (item, event) => {
+    if (event) event.stopPropagation()
+    const employeeId = item.employeeId || item.employee?.id
+    if (!employeeId) return
+
+    const candidateName = item.employee?.full_name || 'this candidate'
+    const confirmed = window.confirm(`Are you sure you want to refuse the reversal request for ${candidateName}?`)
+    if (!confirmed) return
+
+    setActionBusyId(item.id)
+    dismissNotification(item, employeeId)
+    closeCandidateReview()
+    localStorage.removeItem(`notification_remind_reversal_${employeeId}`)
+    setError('')
+    try {
+      await employeesService.refuseEmployeeReversalRequest(employeeId)
+      showToast(`Reversal request refused for ${candidateName}.`, {
+        tone: 'info',
+        duration: 4000
+      })
+      window.dispatchEvent(new Event('portal:refresh-candidates'))
+      window.dispatchEvent(new Event('notifications:updated'))
+    } catch (err) {
+      showToast(err.message || 'Failed to refuse reversal request', { tone: 'danger' })
+    } finally {
+      setActionBusyId(null)
+    }
+  }
+
   const handleOpenProfileModal = (employee, event) => {
     if (event) event.stopPropagation()
     if (employee) {
@@ -1084,10 +1236,10 @@ export default function NotificationsPage() {
             const hasBody = Boolean(item.body)
             const isExpanded = expandedNotificationIds.has(item.id)
             const hasReminder = isReminderPending(item)
-            const isUnread = item.isReturnRequest
+            const isUnread = (item.isReturnRequest || item.isReversalRequest)
               ? (!hasReminder)
               : (currentTab === 'reminder' ? true : (!item.read && !hasReminder))
-            const showReadButton = item.isReturnRequest
+            const showReadButton = (item.isReturnRequest || item.isReversalRequest)
               ? false
               : (currentTab === 'reminder' ? true : (isUnread && !hasReminder))
             const showRemindButton = currentTab !== 'reminder'
@@ -1258,6 +1410,53 @@ export default function NotificationsPage() {
                         }}
                         disabled={actionBusyId === item.id}
                         title="Open return request & evidence details"
+                        aria-label="Open"
+                      >
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                          <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>
+                          <polyline points="15 3 21 3 21 9"/>
+                          <line x1="10" y1="14" x2="21" y2="3"/>
+                        </svg>
+                        <span className="micro-btn-label">Open</span>
+                      </button>
+                    </>
+                  ) : item.isReversalRequest ? (
+                    <>
+                      <button
+                        type="button"
+                        className="notification-micro-btn notification-micro-btn--acknowledge"
+                        onClick={(e) => handleAcknowledgeReversal(item, e)}
+                        disabled={actionBusyId === item.id}
+                        title="Acknowledge reversal and move candidate back to Employed"
+                        aria-label="Acknowledge reversal"
+                      >
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                          <polyline points="20 6 9 17 4 12"/>
+                        </svg>
+                        <span className="micro-btn-label">Acknowledge reversal</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        className="notification-micro-btn notification-micro-btn--refuse"
+                        onClick={(e) => handleRefuseReversal(item, e)}
+                        disabled={actionBusyId === item.id}
+                        title="Refuse reversal request"
+                        aria-label="Refuse request"
+                      >
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                          <line x1="18" y1="6" x2="6" y2="18"/>
+                          <line x1="6" y1="6" x2="18" y2="18"/>
+                        </svg>
+                        <span className="micro-btn-label">Refuse request</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        className="notification-micro-btn notification-micro-btn--profile"
+                        onClick={(e) => handleOpenProfileModal(item.employee, e)}
+                        disabled={actionBusyId === item.id}
+                        title="Open candidate review details"
                         aria-label="Open"
                       >
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">

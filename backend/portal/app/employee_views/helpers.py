@@ -7,9 +7,11 @@ from rest_framework.permissions import BasePermission
 from ..auth_utils import feature_enabled, is_admin, is_superadmin
 from ..employee_selection import build_agent_context
 from ..models import (
+    Employee,
     EmployeeReturnRequest,
     EmployeeSelection,
     EmployeeSelectionInterest,
+    Notification,
     Profile,
 )
 from ..serializers import build_employee_progress_status
@@ -96,11 +98,25 @@ def get_agent_by_id_for_organization(organization, agent_id):
     )
 
 
+def is_employee_returned(employee):
+    return bool(
+        getattr(employee, "returned_from_employment", False)
+        or getattr(getattr(employee, "return_request", None), "status", None) == "approved"
+    )
+
+
 def is_employee_employed(employee):
     return bool(
-        not getattr(employee, "returned_from_employment", False)
-        and employee.did_travel
-        and build_employee_progress_status(employee)["overall_completion"] == 100
+        not is_employee_returned(employee)
+        and (
+            employee.did_travel
+            or getattr(employee, "arrival_status", "") in {"confirmed", "system_acknowledged"}
+            or getattr(employee, "employment_activated_at", None) is not None
+        )
+        and (
+            build_employee_progress_status(employee)["overall_completion"] == 100
+            or getattr(employee, "is_administratively_completed", False)
+        )
     )
 
 
@@ -113,33 +129,103 @@ def add_one_calendar_month(value):
     return value.replace(year=year, month=month, day=day)
 
 
-def auto_finalize_overdue_return(employee):
+def check_and_update_overdue_status(employee):
     if getattr(employee, "returned_from_employment", False):
         return employee
     if not is_employee_employed(employee):
         return employee
-    return_window_end = add_one_calendar_month(employee.contract_expires_on)
-    if not return_window_end or timezone.localdate() <= return_window_end:
-        return employee
+    today = timezone.localdate()
+    is_overdue = False
+    if employee.return_ticket_date and employee.return_ticket_date < today:
+        is_overdue = True
+    elif employee.contract_expires_on and employee.contract_expires_on < today:
+        is_overdue = True
 
-    return_request, _ = EmployeeReturnRequest.objects.get_or_create(
-        employee=employee,
-        defaults={"organization": employee.organization},
-    )
-    if return_request.organization_id != employee.organization_id:
-        return_request.organization = employee.organization
-    return_request.status = EmployeeReturnRequest.STATUS_APPROVED
-    return_request.remark = "Expected to be returned"
-    return_request.approved_by = None
-    return_request.approved_at = timezone.now()
-    if not return_request.requested_at:
-        return_request.requested_at = timezone.now()
-    return_request.save()
-
-    employee.returned_from_employment = True
-    employee.returned_recorded_by = None
-    employee.save(update_fields=["returned_from_employment", "returned_recorded_by", "is_active", "updated_at"])
+    if is_overdue and not getattr(employee, "is_overdue", False):
+        employee.is_overdue = True
+        update_fields = ["is_overdue", "updated_at"]
+        if not employee.overdue_notified_at:
+            employee.overdue_notified_at = timezone.now()
+            update_fields.append("overdue_notified_at")
+            try:
+                from ..models import Notification
+                org_profiles = Profile.objects.filter(
+                    organization_id=employee.organization_id,
+                    role__in=[Profile.ROLE_SUPERADMIN, Profile.ROLE_ADMIN],
+                )
+                for p in org_profiles:
+                    Notification.objects.create(
+                        user_id=p.user_id,
+                        title=f"Overdue return: {employee.full_name}",
+                        body=f"Candidate {employee.full_name} is overdue for return. Contract/ticket date has passed.",
+                        kind=Notification.KIND_WARNING,
+                    )
+                selection = getattr(employee, "selection", None)
+                if selection and selection.agent_id:
+                    Notification.objects.create(
+                        user_id=selection.agent_id,
+                        title=f"Overdue return: {employee.full_name}",
+                        body=f"Candidate {employee.full_name} is overdue for return. Please review return travel details.",
+                        kind=Notification.KIND_WARNING,
+                    )
+            except Exception:
+                pass
+        employee.save(update_fields=update_fields)
     return employee
+
+
+def auto_acknowledge_pending_arrivals(employee):
+    if not (employee.did_travel or employee.travel_status == Employee.TRAVEL_STATUS_CONFIRMED):
+        return employee
+    if employee.arrival_status != Employee.ARRIVAL_STATUS_PENDING:
+        return employee
+    from datetime import timedelta
+    cutoff = timezone.now() - timedelta(days=3)
+    if employee.travel_confirmed_at and employee.travel_confirmed_at <= cutoff:
+        employee.arrival_status = Employee.ARRIVAL_STATUS_SYSTEM_ACKNOWLEDGED
+        employee.actual_arrival_date = employee.actual_travel_date or timezone.localdate()
+        employee.employment_activated_at = timezone.now()
+        if not employee.contract_start_date:
+            employee.contract_start_date = employee.actual_arrival_date
+        employee.save(
+            update_fields=[
+                "arrival_status",
+                "actual_arrival_date",
+                "employment_activated_at",
+                "contract_start_date",
+                "updated_at",
+            ]
+        )
+        try:
+            from decimal import Decimal
+            from ..models import CommissionRequest
+            selection = getattr(employee, "selection", None)
+            agent_user = selection.agent if selection else None
+            if agent_user:
+                rate = Decimal("0.00")
+                if hasattr(agent_user, "profile") and agent_user.profile.agent_commission:
+                    rate = agent_user.profile.agent_commission
+                CommissionRequest.objects.get_or_create(
+                    organization=employee.organization,
+                    employee=employee,
+                    defaults={
+                        "agent": agent_user,
+                        "commission_rate": rate,
+                        "amount": rate,
+                        "status": CommissionRequest.STATUS_PENDING,
+                        "is_manual": False,
+                        "notes": "System-acknowledged arrival after 3 days without agent response.",
+                    },
+                )
+        except Exception:
+            pass
+    return employee
+
+
+def auto_finalize_overdue_return(employee):
+    # Preserves record open and visible as Overdue without auto-returning
+    employee = auto_acknowledge_pending_arrivals(employee)
+    return check_and_update_overdue_status(employee)
 
 
 def can_initiate_return_request(user, employee):

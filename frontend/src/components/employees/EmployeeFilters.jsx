@@ -406,6 +406,7 @@ export default function EmployeeFilters({
             >
               <option value="newest">Newest first</option>
               <option value="oldest">Oldest first</option>
+              <option value="available_first">Available First</option>
               <option value="name_asc">Name A–Z</option>
               <option value="name_desc">Name Z–A</option>
             </select>

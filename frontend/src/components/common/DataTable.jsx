@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Accessible, responsive data table with sticky headers, pagination, and loading/empty states.
  *
  * @param {object} props
@@ -57,11 +57,21 @@ export default function DataTable({
           </thead>
           <tbody>
             {loading ? (
-              <tr>
-                <td colSpan={columns.length} style={{ textAlign: 'center', padding: '28px' }}>
-                  <p className="muted-text" style={{ margin: 0 }}>{loadingText}</p>
-                </td>
-              </tr>
+              Array.from({ length: 5 }, (_, rIdx) => (
+                <tr key={`skeleton-row-${rIdx}`} className="table-skeleton-row" aria-hidden="true">
+                  {columns.map((col, cIdx) => (
+                    <td key={col.key || cIdx}>
+                      <span
+                        className="candidate-skeleton-bone table-skeleton-cell"
+                        style={{
+                          width: `${55 + ((rIdx + cIdx) % 4) * 12}%`,
+                          minWidth: '40px'
+                        }}
+                      />
+                    </td>
+                  ))}
+                </tr>
+              ))
             ) : data.length === 0 ? (
               <tr>
                 <td colSpan={columns.length} style={{ textAlign: 'center', padding: '28px' }}>

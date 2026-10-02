@@ -1,4 +1,4 @@
-﻿/* ==========================================================================
+/* ==========================================================================
    7. EMPLOYEES DOMAIN
    Modularized domain manifest for employee registration, scanner, cards,
    review modals, and activity timelines.
@@ -7,5 +7,6 @@
 @import './employees/06-employees-registration.css';
 @import './employees/06-employees-scanner.css';
 @import './employees/06-employees-cards.css';
+@import './employees/06-employees-loading.css';
 @import './employees/06-employees-review.css';
 @import './employees/06-employees-timeline.css';

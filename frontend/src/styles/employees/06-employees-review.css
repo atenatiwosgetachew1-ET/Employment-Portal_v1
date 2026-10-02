@@ -160,6 +160,18 @@ html[data-theme='light'] .employee-review-backdrop .employee-review-nav-btn:hove
     color-mix(in oklch, var(--color-card) 92%, var(--color-muted));
 }
 
+.employee-review-modal[data-badge='badge-orange'] {
+  border-color: #f97316;
+  --employee-progress-tone: #f97316;
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in oklch, #f97316 8%, transparent) 0%,
+      rgb(0 0 0 / 0.53) 70%
+    ),
+    color-mix(in oklch, var(--color-card) 92%, var(--color-muted));
+}
+
 .employee-review-modal[data-badge='badge-danger'] {
   border-color: var(--tag-red-bg);
   --employee-progress-tone: var(--tag-red-bg);
@@ -211,7 +223,13 @@ html[data-theme='light'] .employee-review-backdrop .employee-review-nav-btn:hove
 .employee-review-modal[data-badge='badge-muted'] {
   border-color: rgb(var(--accent-active-border) / 0.4);
   --employee-progress-tone: rgb(var(--accent-active-border) / 0.85);
-  background: color-mix(in oklch, var(--color-card) 92%, var(--color-muted));
+  background:
+    linear-gradient(
+      180deg,
+      transparent 0%,
+      rgb(0 0 0 / 0.53) 70%
+    ),
+    color-mix(in oklch, var(--color-card) 92%, var(--color-muted));
 }
 
 .employee-review-modal.employee-scan-modal {
@@ -790,25 +808,48 @@ html[data-density='compact'] .employee-review-modal.employee-other-documents-mod
 }
 
 .employee-review-btn-group {
+  position: relative;
   display: inline-flex;
   align-items: center;
   gap: 6px;
+}
+
+.employee-review-agent-hint {
+  position: absolute;
+  bottom: calc(100% + 4px);
+  left: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.72rem;
+  font-weight: 500;
+  color: var(--color-muted-foreground);
+  line-height: 1.2;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.employee-review-agent-hint svg {
+  color: rgb(var(--accent-active));
+  flex-shrink: 0;
+}
+
+.employee-review-select-wrap {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
 }
 
 .employee-review-select {
   height: 32px;
   min-width: 190px;
   width: 200px;
-  padding: 0 28px 0 10px;
+  padding: 0 32px 0 11px;
   border-radius: 6px;
   font-size: 0.78rem;
   font-weight: 500;
   line-height: 30px;
   background-color: color-mix(in oklch, var(--color-card) 90%, var(--color-muted));
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23888888' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
-  background-repeat: no-repeat;
-  background-position: right 9px center;
-  background-size: 11px;
   appearance: none;
   -webkit-appearance: none;
   -moz-appearance: none;
@@ -824,12 +865,12 @@ html[data-density='compact'] .employee-review-modal.employee-other-documents-mod
 
 .employee-review-select:hover:not(:disabled) {
   border-color: color-mix(in oklch, var(--color-border) 45%, var(--color-foreground));
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23aaaaaa' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+  background-color: color-mix(in oklch, var(--color-card) 85%, var(--color-muted));
 }
 
 .employee-review-select:focus {
   border-color: rgb(var(--accent-active));
-  box-shadow: 0 0 0 2px rgb(var(--accent-active) / 0.2);
+  box-shadow: 0 0 0 2px rgb(var(--accent-active) / 0.25);
   background-color: var(--color-card);
 }
 
@@ -841,6 +882,28 @@ html[data-density='compact'] .employee-review-modal.employee-other-documents-mod
 .employee-review-select option {
   background-color: var(--color-card);
   color: var(--color-foreground);
+}
+
+.employee-review-select-chevron {
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  color: var(--color-muted-foreground);
+  transition: color 140ms ease, transform 140ms ease;
+}
+
+.employee-review-select-wrap:hover .employee-review-select-chevron {
+  color: var(--color-foreground);
+}
+
+.employee-review-select:focus + .employee-review-select-chevron {
+  color: rgb(var(--accent-active));
+  transform: translateY(-50%) rotate(180deg);
 }
 
 .employee-review-action-btn {
@@ -1604,6 +1667,165 @@ html[data-theme='light'] .employee-review-action-btn--neutral:hover:not(:disable
     grid-template-columns: 1fr;
     gap: 0;
   }
+}
+
+/* Dedicated Initiate Process Modal */
+.employee-review-modal.employee-initiate-modal {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  width: min(520px, calc(100vw - 32px));
+  max-width: 520px;
+  padding: 24px;
+}
+
+.employee-initiate-modal-footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  width: 100%;
+}
+
+.employee-initiate-candidate-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  border-radius: 8px;
+  background: color-mix(in oklch, var(--color-card) 94%, var(--color-muted));
+  border: 1px solid var(--color-border);
+}
+
+.employee-initiate-candidate-avatar {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: color-mix(in oklch, var(--color-muted) 80%, var(--color-card));
+  font-weight: 700;
+  font-size: 0.85rem;
+  color: var(--color-foreground);
+  flex-shrink: 0;
+  border: 1px solid var(--color-border);
+}
+
+.employee-initiate-candidate-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.employee-initiate-candidate-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  flex: 1;
+}
+
+.employee-initiate-candidate-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.employee-initiate-candidate-name {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--color-foreground);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.employee-initiate-candidate-id {
+  font-size: 0.75rem;
+  color: var(--color-muted-foreground);
+  flex-shrink: 0;
+}
+
+.employee-initiate-candidate-id strong {
+  color: var(--color-foreground);
+}
+
+.employee-initiate-candidate-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.employee-initiate-candidate-prof {
+  font-size: 0.78rem;
+  color: var(--color-muted-foreground);
+}
+
+.employee-initiate-remark {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 11px 13px;
+  margin: 14px 0 !important;
+  border-radius: 6px;
+  font-size: 0.78rem;
+  line-height: 1.4;
+  color: var(--color-muted-foreground);
+  background: color-mix(in oklch, rgb(var(--accent-active)) 8%, var(--color-card));
+  border: 1px solid color-mix(in oklch, rgb(var(--accent-active)) 25%, transparent);
+}
+
+.employee-initiate-remark svg {
+  color: rgb(var(--accent-active));
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+.employee-initiate-field-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.employee-initiate-label {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--color-foreground);
+}
+
+.employee-initiate-required {
+  color: var(--tag-red-bg, #ef4444);
+}
+
+.employee-initiate-select-wrap {
+  width: 100%;
+}
+
+#employee-initiate-agent-select,
+.employee-initiate-select {
+  width: 100% !important;
+  min-width: 100% !important;
+  height: 42px !important;
+  line-height: normal !important;
+  padding: 9px 36px 9px 12px !important;
+  font-size: 0.88rem !important;
+  box-sizing: border-box !important;
+}
+
+#employee-initiate-agent-select option,
+.employee-initiate-select option,
+.employee-review-select option {
+  padding: 8px 12px !important;
+  min-height: 32px !important;
+  line-height: 1.45 !important;
+  font-size: 0.88rem !important;
+  background-color: var(--color-card) !important;
+  color: var(--color-foreground) !important;
 }
 
 

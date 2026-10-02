@@ -9,7 +9,7 @@ import * as employeesService from '../services/employeesService'
 import * as usersService from '../services/usersService'
 import { matchesSearchQuery, normalizeSearchValue } from '../utils/filtering'
 import { isAgentSideWorkspace } from '../utils/profileStore'
-import { readAccentRgbTriplet, prettyStatus, isReturnedEmployee, isCommissionEligibleEmployee, isSettledCommissionEmployee, commissionStatus, settledCommissionStatus, statusTone, employmentStage, agentNameForEmployee, displayAgentName, employeeBelongsToAgent, employeeMovementDate, findEmployeeDocument, employeeProfilePhoto, isImageDocument, readTravelConfirmationConfirmedIds, fileLabel, numericCommissionRate, formatCurrency, displayActorName, formatDateTime, formatDateOnly, collectedWeekNumber, groupCollectedSettlementsByRange, filterSettlementsForCollectedEntry, collectedChildRange, timePassedLabel, settlementOwnerKey, openCommissionStorageDb, readStoredSettlementRequests, writeStoredSettlementRequests, buildEmployeeSettlementSnapshot, requestBelongsToAgent, settlementReceiptKind, readFileAsDataUrl, fetchAllEmployeePages, fetchAllUsersByRole, readStoredSettlements, writeStoredSettlements } from '../utils/commissionsHelpers'
+import { readAccentRgbTriplet, prettyStatus, isReturnedEmployee, isCommissionEligibleEmployee, isSettledCommissionEmployee, commissionStatus, settledCommissionStatus, statusTone, employmentStage, agentNameForEmployee, displayAgentName, employeeBelongsToAgent, employeeMovementDate, findEmployeeDocument, employeeProfilePhoto, isImageDocument, readTravelConfirmationConfirmedIds, fileLabel, numericCommissionRate, formatCurrency, displayActorName, formatDateTime, formatDateOnly, collectedWeekNumber, groupCollectedSettlementsByRange, filterSettlementsForCollectedEntry, collectedChildRange, timePassedLabel, settlementOwnerKey, openCommissionStorageDb, readStoredSettlementRequests, readStoredSettlementRequestsAsync, writeStoredSettlementRequests, buildEmployeeSettlementSnapshot, requestBelongsToAgent, settlementReceiptKind, readFileAsDataUrl, fetchAllEmployeePages, fetchAllUsersByRole, readStoredSettlements, writeStoredSettlements } from '../utils/commissionsHelpers'
 
 const COMMISSION_VIEW_TABS = [
   { id: 'requests' },
@@ -307,12 +307,24 @@ export default function CommissionsPage() {
   }, [isAgentSideUser, ownerKey])
 
   useEffect(() => {
-    const allRequests = readStoredSettlementRequests()
-    setSettlementRequests(
-      isAgentSideUser
-        ? allRequests.filter((item) => requestBelongsToAgent(item, user))
-        : allRequests
-    )
+    let cancelled = false
+    ;(async () => {
+      let allRequests = []
+      try {
+        allRequests = await readStoredSettlementRequestsAsync()
+      } catch {
+        allRequests = readStoredSettlementRequests()
+      }
+      if (cancelled) return
+      setSettlementRequests(
+        isAgentSideUser
+          ? allRequests.filter((item) => requestBelongsToAgent(item, user))
+          : allRequests
+      )
+    })()
+    return () => {
+      cancelled = true
+    }
   }, [isAgentSideUser, user])
 
   const persistSettlements = useCallback(async (nextOwnedSettlements) => {
@@ -1277,6 +1289,16 @@ export default function CommissionsPage() {
         ? settlements.map((item) => (item.id === editingSettlementRecord.id ? settlementRecord : item))
         : [...settlements, settlementRecord]
       persistSettlements(nextSettlements)
+
+      try {
+        await employeesService.createCommissionSettlement({
+          agent_id: user?.agent_context?.agent_id || user?.id,
+          amount: parsedSettlementAmount,
+          notes: editingSettlementRecord?.notes || 'Settlement registered via commissions portal',
+        })
+      } catch {
+        // local persistence was already performed
+      }
       if (activeSettlementRequest) {
         const nextRequests = settlementRequests.map((request) =>
           request.id === activeSettlementRequest.id

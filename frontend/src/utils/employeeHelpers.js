@@ -30,10 +30,239 @@ export const REGISTRATION_DRAFT_KEY = CANDIDATE_REGISTRATION_DRAFT_KEY
 export const TRAVEL_CONFIRMATION_DECLINED_STORAGE_KEY = 'employment-portal.travel-confirmation-declined'
 export const TRAVEL_CONFIRMATION_CONFIRMED_STORAGE_KEY = 'employment-portal.travel-confirmation-confirmed'
 export const COMMISSION_SETTLEMENT_STORAGE_KEY = 'employment-portal.commission-settlements'
+export const CANDIDATE_CARDS_LAYOUT_STORAGE_KEY = 'employment-portal.candidate-cards-layout'
+export const CANDIDATE_CARDS_SORT_STORAGE_KEY = 'employment-portal.candidate-cards-sort'
 export const COMMISSION_STORAGE_DB_NAME = 'employment-portal-storage'
 export const COMMISSION_STORAGE_DB_VERSION = 1
 export const COMMISSION_STORAGE_SETTLEMENT_STORE = 'commission-settlements'
 export const COMMISSION_STORAGE_PRIMARY_KEY = 'primary'
+
+export function getSavedCandidateCardsLayout() {
+  if (typeof window === 'undefined') return 'list'
+  try {
+    const saved = window.localStorage.getItem(CANDIDATE_CARDS_LAYOUT_STORAGE_KEY)
+    if (saved === 'grid' || saved === 'list') {
+      return saved
+    }
+  } catch {
+    // Ignore localStorage errors
+  }
+  return 'list'
+}
+
+export function saveCandidateCardsLayout(layout) {
+  if (typeof window === 'undefined') return
+  try {
+    const resolved = layout === 'grid' ? 'grid' : 'list'
+    window.localStorage.setItem(CANDIDATE_CARDS_LAYOUT_STORAGE_KEY, resolved)
+    window.dispatchEvent(
+      new CustomEvent('portal:candidate-cards-layout-change', { detail: resolved })
+    )
+  } catch {
+    // Ignore localStorage errors
+  }
+}
+
+export function getSavedCandidateCardsSort(view = 'list') {
+  const defaultSort = view === 'list' ? 'available_first' : 'newest'
+  if (typeof window === 'undefined') return defaultSort
+  try {
+    const viewSaved = window.localStorage.getItem(`${CANDIDATE_CARDS_SORT_STORAGE_KEY}.${view}`)
+    if (['newest', 'oldest', 'available_first', 'name_asc', 'name_desc'].includes(viewSaved)) {
+      return viewSaved
+    }
+    const globalSaved = window.localStorage.getItem(CANDIDATE_CARDS_SORT_STORAGE_KEY)
+    if (['newest', 'oldest', 'available_first', 'name_asc', 'name_desc'].includes(globalSaved)) {
+      if (globalSaved === 'available_first' && view !== 'list') {
+        return 'newest'
+      }
+      return globalSaved
+    }
+  } catch {
+    // Ignore localStorage errors
+  }
+  return defaultSort
+}
+
+export function saveCandidateCardsSort(sort, view = 'list') {
+  if (typeof window === 'undefined') return
+  try {
+    if (['newest', 'oldest', 'available_first', 'name_asc', 'name_desc'].includes(sort)) {
+      window.localStorage.setItem(`${CANDIDATE_CARDS_SORT_STORAGE_KEY}.${view}`, sort)
+      window.localStorage.setItem(CANDIDATE_CARDS_SORT_STORAGE_KEY, sort)
+      window.dispatchEvent(
+        new CustomEvent('portal:candidate-cards-sort-change', { detail: { sort, view } })
+      )
+    }
+  } catch {
+    // Ignore localStorage errors
+  }
+}
+
+export function parseDateTimeToMillis(val) {
+  if (!val) return 0
+  if (typeof val === 'number') return Number.isFinite(val) ? val : 0
+  const time = new Date(val).getTime()
+  return Number.isFinite(time) ? time : 0
+}
+
+/**
+ * Resolves the timestamp of a candidate's latest state change depending on the current view/stage.
+ * This ensures sorting by newest first is driven by when the candidate transitioned into the
+ * stage (e.g. latest recorded under process date on the under-process page) rather than just
+ * the initial registration date.
+ */
+export function getEmployeeStateChangeDate(employee, view = '') {
+  if (!employee) return 0
+
+  const selection = employee?.selection_state?.selection
+  const interests = Array.isArray(employee?.selection_state?.all_interests)
+    ? employee.selection_state.all_interests
+    : []
+
+  const v = String(view || '').trim().toLowerCase()
+
+  // 1. Under-process page / stage:
+  // The latest recorded under process state of candidates comes first.
+  if (v === 'under-process' || v === 'under_process') {
+    const processStarted = parseDateTimeToMillis(selection?.process_started_at)
+    if (processStarted > 0) return processStarted
+
+    const selectionUpdated = parseDateTimeToMillis(selection?.updated_at)
+    if (selectionUpdated > 0) return selectionUpdated
+
+    const selectionCreated = parseDateTimeToMillis(selection?.created_at)
+    if (selectionCreated > 0) return selectionCreated
+
+    const empUpdated = parseDateTimeToMillis(employee.updated_at)
+    if (empUpdated > 0) return empUpdated
+
+    return parseDateTimeToMillis(employee.created_at)
+  }
+
+  // 2. Selected page / stage:
+  // The latest recorded selection date of candidates comes first.
+  if (v === 'selected') {
+    const selectionCreated = parseDateTimeToMillis(selection?.created_at)
+    const selectionUpdated = parseDateTimeToMillis(selection?.updated_at)
+    let interestMax = 0
+    for (const item of interests) {
+      const t = Math.max(parseDateTimeToMillis(item?.created_at), parseDateTimeToMillis(item?.updated_at))
+      if (t > interestMax) interestMax = t
+    }
+    const maxSelected = Math.max(selectionCreated, selectionUpdated, interestMax)
+    if (maxSelected > 0) return maxSelected
+
+    const empUpdated = parseDateTimeToMillis(employee.updated_at)
+    if (empUpdated > 0) return empUpdated
+
+    return parseDateTimeToMillis(employee.created_at)
+  }
+
+  // 3. Employed / Traveled page / stage:
+  // The latest recorded travel/arrival/employment activation date comes first.
+  if (v === 'employed') {
+    const activated = parseDateTimeToMillis(employee.employment_activated_at)
+    const arrivalConfirmed = parseDateTimeToMillis(employee.arrival_confirmed_at)
+    const arrivalDate = parseDateTimeToMillis(employee.actual_arrival_date)
+    const travelConfirmed = parseDateTimeToMillis(employee.travel_confirmed_at)
+    const travelDate = parseDateTimeToMillis(employee.actual_travel_date)
+    const departureDate = parseDateTimeToMillis(employee.departure_date)
+    const contractStart = parseDateTimeToMillis(employee.contract_start_date)
+    const travelBooking = parseDateTimeToMillis(employee.travel_booking?.savedAt)
+
+    const maxEmployed = Math.max(
+      activated,
+      arrivalConfirmed,
+      arrivalDate,
+      travelConfirmed,
+      travelDate,
+      departureDate,
+      contractStart,
+      travelBooking
+    )
+    if (maxEmployed > 0) return maxEmployed
+
+    const empUpdated = parseDateTimeToMillis(employee.updated_at)
+    if (empUpdated > 0) return empUpdated
+
+    return parseDateTimeToMillis(employee.created_at)
+  }
+
+  // 4. Returned page / stage:
+  // The latest recorded return confirmation or return request date comes first.
+  if (v === 'returned') {
+    const returnConfirmed = parseDateTimeToMillis(employee.return_confirmed_at)
+    const returnDate = parseDateTimeToMillis(employee.actual_return_date)
+    const reqApproved = parseDateTimeToMillis(employee.return_request?.approved_at)
+    const reqRequested = parseDateTimeToMillis(employee.return_request?.requested_at)
+    const reqUpdated = parseDateTimeToMillis(employee.return_request?.updated_at)
+    const reqCreated = parseDateTimeToMillis(employee.return_request?.created_at)
+    const overdueNotified = parseDateTimeToMillis(employee.overdue_notified_at)
+
+    const maxReturned = Math.max(
+      returnConfirmed,
+      returnDate,
+      reqApproved,
+      reqRequested,
+      reqUpdated,
+      reqCreated,
+      overdueNotified
+    )
+    if (maxReturned > 0) return maxReturned
+
+    const empUpdated = parseDateTimeToMillis(employee.updated_at)
+    if (empUpdated > 0) return empUpdated
+
+    return parseDateTimeToMillis(employee.created_at)
+  }
+
+  // 5. Default / All Candidates ('list' or general views):
+  // Sort driven by candidate's current workflow state transition date.
+  const workflowState = employeeWorkflowState(employee)
+
+  if (workflowState === 'under_process') {
+    const t = parseDateTimeToMillis(selection?.process_started_at || selection?.updated_at || selection?.created_at)
+    if (t > 0) return t
+  } else if (workflowState === 'selected') {
+    let interestMax = 0
+    for (const item of interests) {
+      const t = Math.max(parseDateTimeToMillis(item?.created_at), parseDateTimeToMillis(item?.updated_at))
+      if (t > interestMax) interestMax = t
+    }
+    const t = Math.max(parseDateTimeToMillis(selection?.created_at), parseDateTimeToMillis(selection?.updated_at), interestMax)
+    if (t > 0) return t
+  } else if (workflowState === 'employed' || workflowState === 'traveled') {
+    const t = Math.max(
+      parseDateTimeToMillis(employee.employment_activated_at),
+      parseDateTimeToMillis(employee.arrival_confirmed_at),
+      parseDateTimeToMillis(employee.actual_arrival_date),
+      parseDateTimeToMillis(employee.travel_confirmed_at),
+      parseDateTimeToMillis(employee.actual_travel_date),
+      parseDateTimeToMillis(employee.departure_date),
+      parseDateTimeToMillis(employee.travel_booking?.savedAt)
+    )
+    if (t > 0) return t
+  } else if (workflowState === 'returned') {
+    const t = Math.max(
+      parseDateTimeToMillis(employee.return_confirmed_at),
+      parseDateTimeToMillis(employee.actual_return_date),
+      parseDateTimeToMillis(employee.return_request?.approved_at),
+      parseDateTimeToMillis(employee.return_request?.requested_at),
+      parseDateTimeToMillis(employee.return_request?.updated_at)
+    )
+    if (t > 0) return t
+  } else if (workflowState === 'approved') {
+    const t = parseDateTimeToMillis(employee.registration_approved_at)
+    if (t > 0) return t
+  }
+
+  const empUpdated = parseDateTimeToMillis(employee.updated_at)
+  if (empUpdated > 0) return empUpdated
+
+  return parseDateTimeToMillis(employee.created_at)
+}
+
 export const TEMPLATE_FORM_FIELDS = [
   'application_countries',
   'profession',
@@ -738,6 +967,7 @@ export function isEmployeeEmployed(employee) {
 
 export function isEmployeeUnderProcess(employee) {
   return Boolean(
+    !employee?.selection_state?.is_secured_by_other_agent &&
     !isEmployeeReturned(employee) &&
     !isEmployeeTravelled(employee) &&
     !isEmployeeEmployed(employee) &&
@@ -829,12 +1059,60 @@ export function employeeWorkflowState(employee) {
   if (isEmployeeReturned(employee)) return 'returned'
   if (isEmployeeEmployed(employee)) return 'employed'
   if (isEmployeeTravelled(employee)) return 'traveled'
+  if (employee?.selection_state?.is_secured_by_other_agent) return 'not_available'
   if (isEmployeeUnderProcess(employee)) return 'under_process'
   if (isEmployeeSelected(employee)) return 'selected'
   if (employee?.status === 'approved') return 'approved'
   if (employee?.status === 'suspended') return 'suspended'
   if (employee?.status === 'rejected') return 'rejected'
   return 'pending'
+}
+
+export function employeeProcessOwnerName(employee) {
+  const selectionState = employee?.selection_state || {}
+  if (selectionState.is_secured_by_other_agent) {
+    return ''
+  }
+  if (selectionState.process_owner_name) {
+    return selectionState.process_owner_name
+  }
+  const selection = selectionState.selection
+  if (selection?.status === 'under_process' || selectionState.is_under_process) {
+    return selection?.agent_name || selectionState.secured_by_agent_name || ''
+  }
+  const workflow = employeeWorkflowState(employee)
+  if (['under_process', 'traveled', 'employed'].includes(workflow)) {
+    return selection?.agent_name || selectionState.secured_by_agent_name || ''
+  }
+  return ''
+}
+
+export function employeeOwnerDisplay(employee, user) {
+  const isAgent = isAgentSideWorkspace(user)
+  const selectionState = employee?.selection_state || {}
+  if (isAgent && selectionState.is_secured_by_other_agent) {
+    return ''
+  }
+  const processOwner = employeeProcessOwnerName(employee)
+  if (processOwner) {
+    return processOwner
+  }
+  const workflow = employeeWorkflowState(employee)
+  if (workflow === 'selected') {
+    if (isAgent) {
+      return selectionState.selected_by_current_agent
+        ? (selectionState.selection?.agent_name || user?.username || '')
+        : ''
+    }
+    if (selectionState.all_agents?.length === 1) {
+      return selectionState.all_agents[0]
+    }
+    if (selectionState.all_agents?.length > 1) {
+      return `${selectionState.all_agents.length} Agents`
+    }
+    return selectionState.selection?.agent_name || ''
+  }
+  return ''
 }
 
 export async function fetchAllEmployeePages(params = {}) {
@@ -864,12 +1142,22 @@ export function prettyStatus(value, fallback = '--') {
 }
 
 export function employeeAvailability(employee) {
+  if (employee?.selection_state?.is_secured_by_other_agent) {
+    return 'Not available'
+  }
   const workflowState = employeeWorkflowState(employee)
   return ['approved', 'selected'].includes(workflowState) ? 'Available' : 'Not available'
 }
 
 export function employeeStatusLabel(employee) {
+  if (employee?.selection_state?.is_secured_by_other_agent) {
+    return 'Not available'
+  }
+  if (employee?.is_overdue) return 'Overdue'
+  if (employee?.arrival_status === 'declined') return 'Travel Disputed'
   switch (employeeWorkflowState(employee)) {
+    case 'not_available':
+      return 'Not available'
     case 'approved':
       return employeeAvailability(employee) === 'Available' ? 'Available' : 'Approved'
     case 'selected':
@@ -891,11 +1179,31 @@ export function employeeStatusLabel(employee) {
   }
 }
 
+export function isEmployeeAvailableBadged(employee) {
+  if (!employee) return false
+  if (employee?.return_request?.status === 'pending' || employee?.reversal_request?.status === 'pending') {
+    return false
+  }
+  if (employee?.is_overdue || employee?.arrival_status === 'declined') {
+    return false
+  }
+  const label = String(employeeStatusLabel(employee) || '').toLowerCase()
+  return label === 'available'
+}
+
 export function employeeStatusBadgeClass(employee) {
-  if (employee?.return_request?.status === 'pending') {
-    return 'badge-danger'
+  if (employee?.selection_state?.is_secured_by_other_agent) {
+    return 'badge-muted'
+  }
+  if (employee?.return_request?.status === 'pending' || employee?.reversal_request?.status === 'pending') {
+    return 'badge-orange'
+  }
+  if (employee?.is_overdue || employee?.arrival_status === 'declined') {
+    return 'badge-orange'
   }
   switch (employeeWorkflowState(employee)) {
+    case 'not_available':
+      return 'badge-muted'
     case 'approved':
       return 'badge-success'
     case 'selected':
@@ -917,7 +1225,9 @@ export function employeeStatusBadgeClass(employee) {
 }
 
 export function employeeStatusBadgeVariantClass(employee) {
-  if (employee?.return_request?.status === 'pending') return ''
+  if (employee?.selection_state?.is_secured_by_other_agent) return ''
+  if (employee?.return_request?.status === 'pending' || employee?.reversal_request?.status === 'pending') return ''
+  if (employee?.is_overdue || employee?.arrival_status === 'declined') return ''
   if (['traveled', 'employed'].includes(employeeWorkflowState(employee))) return 'employee-card-status-badge--employed'
   return ''
 }
@@ -941,7 +1251,7 @@ export function employeeMatchesTagFilter(employee, tag) {
     case 'suspended':
       return workflowState === 'suspended'
     case 'selected':
-      return workflowState === 'selected'
+      return isEmployeeSelected(employee)
     case 'under_process':
       return workflowState === 'under_process'
     case 'traveled':
@@ -1084,6 +1394,9 @@ export function normalizeAgentMatchValue(value) {
 }
 
 export function employeeBelongsToCurrentAgent(employee, user) {
+  if (employee?.selection_state?.selected_by_current_agent) {
+    return true
+  }
   const currentAgentId = user?.agent_context?.agent_id || (user?.role === 'customer' ? user?.id : null)
   const employeeAgentId = employee?.selection_state?.selection?.agent || null
 
@@ -1409,4 +1722,200 @@ export function errorMessage(error, fallback) {
   } catch {
     return fallback
   }
-}
+}
+
+export function computeCandidateProgressTimeline(employee, { employeeDocuments = [], currentView = 'list' } = {}) {
+  if (!employee) {
+    return {
+      allSteps: [],
+      currentStepIndex: 0,
+      currentStep: null,
+      windowStart: 0,
+      phasesToShow: [],
+      remainingSteps: [],
+      hasRemaining: false,
+      totalItemsCount: 0
+    }
+  }
+
+  const returned = isEmployeeReturned(employee)
+  const employed = isEmployeeEmployedInView(employee, currentView)
+  const workflowState = employeeWorkflowState(employee)
+  const selectionState = employee?.selection_state || {}
+  const statusLower = String(employee?.status || '').toLowerCase()
+  const isPendingApproval = statusLower === 'pending'
+  const isRejected = statusLower === 'rejected'
+  const isSuspended = statusLower === 'suspended'
+  const isSecuredByOtherAgent = Boolean(selectionState.is_secured_by_other_agent)
+
+  // Downstream stage flags:
+  const isTravelled = workflowState === 'traveled' || Boolean(employee?.did_travel) || employee?.travel_status === 'confirmed'
+  const isActuallyUnderProcess = Boolean(
+    workflowState === 'under_process' ||
+    selectionState.selection?.status === 'under_process' ||
+    selectionState.is_under_process ||
+    (Boolean(selectionState.selection) && (
+      employee?.progress_override_complete ||
+      employee?.is_administratively_completed ||
+      selectionState.selection?.process_started_at ||
+      employee?.process_started_at
+    ))
+  )
+  const isUnderProcess = isActuallyUnderProcess || isTravelled || employed || returned
+
+  const isSelected = Boolean(
+    selectionState.selection ||
+    selectionState.has_selection ||
+    selectionState.selected_by_current_agent ||
+    selectionState.is_selected ||
+    employee?.selected_at ||
+    isUnderProcess
+  )
+
+  const isApproved = statusLower === 'approved' || isSelected || isUnderProcess
+  const isRegistered = Boolean(employee?.id || employee?.created_at || (employee?.progress_status?.field_completion ?? 0) > 0)
+
+  const allProgressSteps = [
+    {
+      key: 'registered',
+      label: 'Registered',
+      done: isRegistered,
+      date: employee?.created_at || ''
+    },
+    {
+      key: 'approval',
+      label: isPendingApproval ? 'Pending Approval' : (isRejected ? 'Rejected' : 'Approved'),
+      done: Boolean(isApproved && !isPendingApproval && !isRejected),
+      date: (isApproved && (employee?.approved_at || employee?.status_updated_at || employee?.created_at)) || ''
+    },
+    {
+      key: 'available',
+      label: isSecuredByOtherAgent ? 'Not Available' : (isSuspended ? 'Suspended' : 'Available'),
+      done: Boolean(isApproved && !isPendingApproval && !isRejected),
+      date: (isApproved && (employee?.available_at || employee?.approved_at || employee?.created_at)) || ''
+    },
+    {
+      key: 'selected',
+      label: 'Selected',
+      done: isSelected,
+      date:
+        selectionState.selection?.created_at ||
+        selectionState.selection?.selected_at ||
+        selectionState.selected_at ||
+        employee?.selected_at ||
+        ''
+    },
+    {
+      key: 'under_process',
+      label: 'Under Process',
+      done: isUnderProcess,
+      date:
+        selectionState.selection?.process_started_at ||
+        selectionState.process_started_at ||
+        employee?.process_started_at ||
+        employee?.administratively_completed_at ||
+        employee?.contract_start_date ||
+        (isActuallyUnderProcess ? (selectionState.selection?.updated_at || employee?.updated_at) : '') ||
+        ''
+    },
+    {
+      key: 'travel',
+      label: 'Traveled',
+      done: Boolean(
+        isTravelled ||
+        employed ||
+        returned ||
+        (String(employee?.travel_status || 'pending').toLowerCase() !== 'pending' &&
+         String(employee?.travel_status || '').toLowerCase() !== 'unconfirmed' &&
+         String(employee?.travel_status || '').toLowerCase() !== 'declined' &&
+         String(employee?.travel_status || '').toLowerCase() !== 'departure_missed') ||
+        Boolean(employee?.did_travel)
+      ),
+      date:
+        employee?.departure_date ||
+        employee?.travelled_at ||
+        employee?.traveled_at ||
+        employee?.travel_confirmation_date ||
+        ''
+    },
+    {
+      key: 'arrived',
+      label: 'Arrived',
+      done: Boolean(
+        employed ||
+        returned ||
+        Boolean(employee?.did_travel) ||
+        String(employee?.travel_status || '').toLowerCase().includes('arrived') ||
+        String(employee?.arrival_status || '').toLowerCase() === 'confirmed' ||
+        employee?.arrived_at
+      ),
+      date:
+        employee?.arrived_at ||
+        employee?.arrival_date ||
+        employee?.arrival_confirmed_at ||
+        ''
+    },
+    {
+      key: 'returned',
+      label: 'Returned',
+      done: Boolean(returned),
+      date:
+        employee?.return_request?.approved_at ||
+        employee?.returned_at ||
+        employee?.returned_on ||
+        employee?.return_date ||
+        ''
+    }
+  ]
+
+  const stateToKeyMap = {
+    returned: 'returned',
+    employed: 'arrived',
+    traveled: 'travel',
+    under_process: 'under_process',
+    selected: 'selected',
+    approved: 'available',
+    not_available: 'available',
+    suspended: 'available',
+    rejected: 'approval',
+    pending: 'approval'
+  }
+
+  const mappedKey = stateToKeyMap[workflowState]
+  let currentStepIndex = allProgressSteps.findIndex((s) => s.key === mappedKey)
+
+  if (currentStepIndex === -1) {
+    currentStepIndex = 0
+    for (let i = allProgressSteps.length - 1; i >= 0; i -= 1) {
+      if (allProgressSteps[i].done) {
+        currentStepIndex = i
+        break
+      }
+    }
+  }
+
+  const maxStart = Math.max(0, allProgressSteps.length - 3)
+  const windowStart = currentStepIndex <= 1 ? 0 : Math.min(currentStepIndex, maxStart)
+  const visibleSteps = allProgressSteps.slice(windowStart)
+  const rawPhasesToShow = visibleSteps.slice(0, 3)
+  const remainingSteps = visibleSteps.slice(3)
+  const hasRemaining = remainingSteps.length > 0
+  const totalItemsCount = rawPhasesToShow.length + (hasRemaining ? 1 : 0)
+
+  const phasesToShow = rawPhasesToShow.map((step) => ({
+    ...step,
+    isCurrent: step.key === allProgressSteps[currentStepIndex]?.key
+  }))
+
+  return {
+    allSteps: allProgressSteps,
+    currentStepIndex,
+    currentStep: allProgressSteps[currentStepIndex] || null,
+    windowStart,
+    phasesToShow,
+    remainingSteps,
+    hasRemaining,
+    totalItemsCount
+  }
+}
+
