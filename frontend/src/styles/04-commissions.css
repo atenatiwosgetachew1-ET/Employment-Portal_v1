@@ -299,39 +299,6 @@
   font-size: 0.95rem;
 }
 
-@media (max-width: 640px) {
-  .dashboard-shell {
-    flex-direction: column;
-  }
-
-  .dashboard-sidebar {
-    width: 100%;
-    flex-direction: row;
-    flex-wrap: wrap;
-    align-items: center;
-    padding: 12px;
-  }
-
-  .dashboard-brand {
-    width: 100%;
-    border-bottom: none;
-    padding-bottom: 8px;
-    margin-bottom: 0;
-  }
-
-  .dashboard-nav {
-    flex-direction: row;
-    flex-wrap: wrap;
-    width: 100%;
-  }
-
-  .dashboard-nav-link {
-    flex: 1 1 auto;
-    text-align: center;
-    min-width: 120px;
-  }
-}
-
 .loading-screen {
   min-height: 40vh;
   display: flex;

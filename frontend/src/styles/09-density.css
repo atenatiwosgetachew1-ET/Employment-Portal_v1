@@ -326,9 +326,19 @@ html[data-density='compact'] .candidate-chip-remove {
   cursor: pointer !important;
 }
 
-html[data-density='compact'] .dashboard-sidebar .dashboard-logout {
+html[data-density='compact'] .dashboard-sidebar:not(.is-collapsed) .dashboard-logout {
   min-height: 2.3125rem;
   padding: 0.58rem 0.72rem;
+}
+
+html[data-density='compact'] .dashboard-sidebar.is-collapsed .dashboard-logout {
+  min-height: 40px !important;
+  height: 40px !important;
+  width: 42px !important;
+  max-width: 42px !important;
+  padding: 0 !important;
+  margin: 0 auto !important;
+  justify-content: center !important;
 }
 
 html[data-density='compact'] .dashboard-panel h1 {

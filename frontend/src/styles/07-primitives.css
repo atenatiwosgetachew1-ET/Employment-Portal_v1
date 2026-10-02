@@ -114,13 +114,13 @@ html[data-theme='dark'] .notification-bell-badge {
 }
 
 .dashboard-panel {
-  justify-self: start;
   box-sizing: border-box;
-  width: calc(100vw - 248px - 56px);
+  width: 100%;
   max-width: 100%;
   padding: 20px;
-  margin-inline: auto;
+  margin-inline: 0;
   box-shadow: none;
+  align-self: stretch;
 }
 
 @media (max-width: 960px) {
@@ -1581,7 +1581,7 @@ html[data-theme='light'][data-accent='natural'] .employee-registration-surface .
   position: relative;
   z-index: auto;
   min-height: 100vh;
-  align-items: flex-start;
+  align-items: stretch;
 }
 
 .dashboard-content {
@@ -1590,15 +1590,19 @@ html[data-theme='light'][data-accent='natural'] .employee-registration-surface .
   box-sizing: border-box;
   padding-top: 22px;
   text-align: left;
-  align-items: flex-start;
-  justify-content: center;
+  align-items: stretch;
 }
 
 .users-table-wrap,
 .employees-page,
 .concept-page,
 .commissions-page,
-.notifications-page {
+.notifications-page,
+.reports-page,
+.settings-page,
+.travel-page,
+.profiles-page {
+  width: 100%;
   max-width: none;
 }
 
